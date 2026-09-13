@@ -1,0 +1,25 @@
+{
+  "name": "fashion-shop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Website thuong mai dien tu thoi trang - TLCN",
+  "workspaces": [
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:api": "npm run dev -w apps/api",
+    "dev:web": "npm run dev -w apps/web",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:migrate": "npm run db:migrate -w apps/api",
+    "db:seed": "npm run db:seed -w apps/api",
+    "db:studio": "npm run db:studio -w apps/api",
+    "setup": "npm install && npm run db:up && npm run db:migrate && npm run db:seed"
+  }
+}

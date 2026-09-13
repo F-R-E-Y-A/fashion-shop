@@ -1,0 +1,81 @@
+/* Ban 0.1: mot tep CSS thuan, du de nhin duoc.
+   Bo thanh phan dung chung that se dung o ban sau, khi da chot he mau va kieu chu. */
+
+:root {
+  --ink: #1a1a1a;
+  --muted: #6b6b6b;
+  --line: #e4e4e4;
+  --bg: #ffffff;
+  --accent: #111827;
+  --danger: #b42318;
+  --radius: 10px;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+a { color: inherit; text-decoration: none; }
+h1 { font-size: 1.5rem; margin: 0 0 1rem; }
+
+/* --- khung cua hang --- */
+.shell { min-height: 100vh; display: flex; flex-direction: column; }
+.shell__header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 1rem 1.5rem; border-bottom: 1px solid var(--line);
+}
+.shell__main { flex: 1; width: min(1100px, 100%); margin: 0 auto; padding: 1.5rem; }
+.shell__footer {
+  padding: 1.25rem 1.5rem; border-top: 1px solid var(--line);
+  color: var(--muted); font-size: 0.85rem;
+}
+.brand { font-weight: 700; letter-spacing: -0.02em; }
+.brand--small { font-size: 0.9rem; color: var(--muted); }
+.nav { display: flex; gap: 1rem; font-size: 0.9rem; }
+.nav a.active { font-weight: 600; text-decoration: underline; }
+
+/* --- khung quan tri --- */
+.admin { display: grid; grid-template-columns: 220px 1fr; min-height: 100vh; }
+.admin__side { border-right: 1px solid var(--line); padding: 1.25rem; }
+.admin__nav { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1.5rem; font-size: 0.9rem; }
+.admin__main { padding: 1.5rem; }
+.tiles { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.tile { border: 1px solid var(--line); border-radius: var(--radius); padding: 1rem 1.25rem; min-width: 180px; }
+.tile__label { display: block; color: var(--muted); font-size: 0.8rem; }
+.tile__value { font-size: 1.75rem; }
+
+/* --- danh sach san pham --- */
+.toolbar { display: flex; gap: 0.5rem; margin-bottom: 1.25rem; }
+.toolbar input { flex: 1; max-width: 320px; padding: 0.5rem 0.75rem; border: 1px solid var(--line); border-radius: var(--radius); }
+button {
+  padding: 0.5rem 0.9rem; border: 1px solid var(--accent); background: var(--accent);
+  color: #fff; border-radius: var(--radius); cursor: pointer; font-size: 0.9rem;
+}
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.grid { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.card { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.card__image, .detail__image {
+  aspect-ratio: 3 / 4; display: grid; place-items: center;
+  background: #f4f4f5; color: #c4c4c8; font-size: 3rem; font-weight: 700;
+}
+.card__name { font-size: 0.95rem; margin: 0.75rem 0.75rem 0.25rem; }
+.card__meta { color: var(--muted); font-size: 0.8rem; margin: 0 0.75rem; }
+.card__price { font-weight: 600; margin: 0.5rem 0.75rem 0.9rem; }
+
+.pager { display: flex; align-items: center; gap: 1rem; margin-top: 1.5rem; font-size: 0.9rem; color: var(--muted); }
+
+/* --- chi tiet --- */
+.detail { display: grid; grid-template-columns: minmax(0, 320px) 1fr; gap: 1.5rem; align-items: start; }
+.detail__back { grid-column: 1 / -1; color: var(--muted); font-size: 0.9rem; }
+.detail__price { font-size: 1.25rem; font-weight: 600; }
+
+/* --- trang thai --- */
+.state { color: var(--muted); }
+.state--error { color: var(--danger); }
+
+@media (max-width: 720px) {
+  .admin { grid-template-columns: 1fr; }
+  .detail { grid-template-columns: 1fr; }
+}

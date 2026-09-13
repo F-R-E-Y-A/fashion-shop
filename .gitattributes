@@ -1,0 +1,5 @@
+# Ba may khac nhau nhung tep trong kho ma luon dung LF, tranh commit ao chi vi xuong dong.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary

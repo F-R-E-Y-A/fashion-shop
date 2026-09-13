@@ -1,0 +1,25 @@
+# Ban 0.1: chi mot dich vu duy nhat la co so du lieu.
+# Bo dem Redis, may tim kiem Meilisearch, kho anh MinIO va may chu thu
+# se them o cac ban sau, khi co phan he can den chung.
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: fashion-shop-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-fashion}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fashion}
+      POSTGRES_DB: ${POSTGRES_DB:-fashion_shop}
+      TZ: Asia/Ho_Chi_Minh
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fashion} -d ${POSTGRES_DB:-fashion_shop}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:

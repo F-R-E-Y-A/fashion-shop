@@ -1,0 +1,46 @@
+# Ai dung ten o day thi pull request cham vao thu muc do TU DONG doi nguoi day duyet.
+# Day la cach ep luat "moi phan he do mot nguoi lam tron", khong phai loi nhac mieng.
+#
+# Thay ba ten dang gio bang tai khoan GitHub that truoc khi day len.
+# Cu phap: <duong dan>  <@tai-khoan>
+
+# --- Mac dinh: truong nhom duyet ---
+*                                       @bao
+
+# --- Ha tang dung chung: Bao so huu ---
+/docker-compose.yml                     @bao
+/.github/**                             @bao
+/apps/api/src/common/**                 @bao
+/apps/api/src/main.ts                   @bao
+/apps/api/src/app.module.ts             @bao
+
+# --- Phan he cua Bao ---
+/apps/api/src/modules/products/**       @bao
+/apps/api/src/modules/search/**         @bao
+/apps/api/src/modules/payments/**       @bao
+/apps/api/src/modules/promotions/**     @bao
+/apps/web/src/features/products/**      @bao
+/apps/web/src/features/search/**        @bao
+/apps/web/src/features/payments/**      @bao
+
+# --- Phan he cua Duy ---
+/apps/api/src/modules/cart/**           @duy
+/apps/api/src/modules/inventory/**      @duy
+/apps/api/src/modules/orders/**         @duy
+/apps/api/src/modules/shipping/**       @duy
+/apps/api/src/modules/notifications/**  @duy
+/apps/web/src/features/cart/**          @duy
+/apps/web/src/features/orders/**        @duy
+/tests/e2e/**                           @duy
+/docs/test-strategy.md                  @duy
+
+# --- Phan he cua Tai ---
+/apps/api/src/modules/auth/**           @tai
+/apps/api/src/modules/users/**          @tai
+/apps/api/src/modules/reviews/**        @tai
+/apps/api/src/modules/returns/**        @tai
+/apps/api/src/modules/reports/**        @tai
+/apps/web/src/features/account/**       @tai
+/apps/api/prisma/schema.prisma          @tai
+/apps/api/prisma/migrations/**          @tai
+/docs/ba/data-model.md                  @tai

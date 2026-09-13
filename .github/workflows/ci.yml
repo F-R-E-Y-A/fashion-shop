@@ -1,0 +1,74 @@
+# Cong chan: pull request nao do thi khong gop duoc.
+# Ban 0.1 co ba viec: kiem kieu du lieu, dung thu ban chay duoc, va migration ap duoc len
+# mot Postgres trong. Kiem thu don vi va dau cuoi se them o cac ban sau,
+# theo HT-06 va HT-07 trong bang chia viec.
+name: CI
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop]
+
+jobs:
+  build:
+    name: Kiem kieu va dung thu
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Cai goi
+        run: npm ci
+
+      - name: Sinh Prisma Client
+        run: npm run db:generate -w apps/api
+
+      - name: Kiem kieu du lieu
+        run: npm run typecheck --workspaces --if-present
+
+      - name: Dung thu ca hai ung dung
+        run: npm run build --workspaces --if-present
+
+  migrate:
+    name: Migration ap duoc len co so du lieu trong
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: fashion
+          POSTGRES_PASSWORD: fashion
+          POSTGRES_DB: fashion_shop
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U fashion -d fashion_shop"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://fashion:fashion@localhost:5432/fashion_shop?schema=public
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Cai goi
+        run: npm ci
+
+      - name: Ap toan bo migration
+        run: npx prisma migrate deploy
+        working-directory: apps/api
+
+      - name: Nap du lieu gia
+        run: npx prisma db seed
+        working-directory: apps/api
