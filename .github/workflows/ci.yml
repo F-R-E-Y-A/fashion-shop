@@ -10,6 +10,11 @@ on:
   push:
     branches: [develop]
 
+# Mot nhanh chi giu mot luot chay: day commit moi thi huy luot cu de tiet kiem phut Actions.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Kiem kieu va dung thu
@@ -27,6 +32,9 @@ jobs:
         run: npm ci
 
       - name: Sinh Prisma Client
+        # prisma.config.ts doi DATABASE_URL ngay luc nap; generate khong ket noi nen gia tri gia la du.
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
         run: npm run db:generate -w apps/api
 
       - name: Kiem kieu du lieu
@@ -67,6 +75,11 @@ jobs:
 
       - name: Ap toan bo migration
         run: npx prisma migrate deploy
+        working-directory: apps/api
+
+      - name: Sinh Prisma Client
+        # migrate deploy khong sinh client nhu migrate dev, seed se khong tim thay module neu bo buoc nay.
+        run: npx prisma generate
         working-directory: apps/api
 
       - name: Nap du lieu gia
