@@ -114,6 +114,12 @@ Ba luật không được phá, chi tiết ở `docs/CONTRIBUTING.md`:
 
 Ba luật này được **ép bằng ESLint**, không phải bằng lời nhắc. Phạm luật thì lint báo lỗi tiếng Việt chỉ thẳng luật nào. Xem `docs/adr/adr-004-co-che-chat-luong.md`.
 
+## Hiểu kho mã này
+
+**Đọc `docs/CODE_TOUR.md` trước khi viết dòng mã đầu tiên.** Tài liệu đó đi qua đường đi của một yêu cầu từ trình duyệt tới cơ sở dữ liệu, giải thích mỗi tệp làm gì và bỏ đi thì hỏng chuyện gì, bảy cơ chế của kho và lý do có chúng, cùng mười hai câu tự kiểm trước buổi bảo vệ. Mất khoảng 40 phút, và tiết kiệm nhiều hơn thế.
+
+
+
 ## Công nghệ và lý do
 
 | Thành phần | Chọn | Vì sao |

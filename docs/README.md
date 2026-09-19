@@ -14,7 +14,7 @@ Ranh giới để khỏi phải đoán: **tài liệu nào phải sửa cùng l�
 
 | Bạn là | Đọc theo thứ tự |
 |---|---|
-| Người mới vào kho | `../README.md` → `CONTRIBUTING.md` → `GIT_FLOW.md` → module mẫu `apps/api/src/modules/products/README.md` |
+| Người mới vào kho | **`CODE_TOUR.md` trước tiên**, rồi `CONTRIBUTING.md` → `GIT_FLOW.md` → module mẫu `apps/api/src/modules/products/README.md` |
 | Sắp viết phân hệ đầu tiên | `CODING_CONVENTION.md` → `api-conventions.md` → `testing.md` |
 | Muốn hiểu vì sao kiến trúc thế này | `adr/` theo thứ tự số |
 | Lo phần chấm điểm | README của [kho docs](https://github.com/F-R-E-Y-A/docs) |
@@ -23,6 +23,7 @@ Ranh giới để khỏi phải đoán: **tài liệu nào phải sửa cùng l�
 
 | Nơi | Chứa gì | Ai giữ |
 |---|---|---|
+| **`CODE_TOUR.md`** | **Hướng dẫn đọc cả kho mã: đường đi của một yêu cầu, mỗi tệp làm gì và bỏ đi thì sao, bảy cơ chế và lý do, mười hai câu tự kiểm** | Bảo |
 | `CONTRIBUTING.md` | Luật làm việc chung, các bước thêm một phân hệ, quyền sở hữu bảng | Bảo |
 | `GIT_FLOW.md` | Quy ước nhánh, commit, pull request | Bảo |
 | `CODING_CONVENTION.md` | Quy ước viết mã, phần máy không kiểm được | Bảo |
