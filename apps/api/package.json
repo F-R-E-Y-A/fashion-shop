@@ -1,17 +1,26 @@
 {
   "name": "@fashion-shop/api",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "May chu API - NestJS modular monolith",
+  "type": "module",
   "scripts": {
     "dev": "nest start --watch",
     "build": "nest build",
     "start": "node dist/main.js",
-    "typecheck": "tsc --noEmit",
+    "start:prod": "prisma migrate deploy && node dist/main.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --project unit",
+    "test:watch": "vitest --project unit",
+    "test:cov": "vitest run --project unit --coverage",
+    "test:http": "vitest run --project http",
+    "test:http:cov": "vitest run --project http --coverage --coverage.reportsDirectory=coverage-http",
+    "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:drift": "prisma migrate diff --from-config-datasource --to-schema prisma/schema --exit-code",
     "db:seed": "prisma db seed",
-    "db:studio": "prisma studio",
-    "db:generate": "prisma generate"
+    "db:studio": "prisma studio"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
@@ -25,18 +34,25 @@
     "class-validator": "^0.15.1",
     "dotenv": "^17.4.2",
     "pg": "^8.23.0",
+    "prisma": "^7.10.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.2"
+    "rxjs": "^7.8.2",
+    "tsx": "^4.23.13",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@nestjs/cli": "^12.0.0",
     "@nestjs/schematics": "^12.0.1",
+    "@nestjs/testing": "^12.0.3",
+    "@swc/core": "^1.16.2",
     "@types/express": "^5.0.6",
     "@types/node": "^26.5.1",
     "@types/pg": "^8.23.1",
-    "prisma": "^7.10.0",
-    "tsx": "^4.23.13",
-    "typescript": "~6.0.2"
-  },
-  "type": "module"
+    "@types/supertest": "^7.2.1",
+    "@vitest/coverage-v8": "^5.0.1",
+    "supertest": "^7.2.2",
+    "typescript": "~6.0.2",
+    "unplugin-swc": "^1.6.0",
+    "vitest": "^5.0.1"
+  }
 }

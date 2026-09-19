@@ -1,13 +1,14 @@
 {
   "name": "fashion-shop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Website thuong mai dien tu thoi trang - TLCN",
+  "type": "module",
   "workspaces": [
     "apps/*"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=24"
   },
   "scripts": {
     "dev": "npm run dev --workspaces --if-present",
@@ -15,11 +16,62 @@
     "dev:web": "npm run dev -w apps/web",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "npm run test --workspaces --if-present",
+    "test:cov": "npm run test:cov --workspaces --if-present",
+    "test:http": "npm run test:http -w apps/api",
+    "check": "npm run lint && npm run lint:boundaries && npm run format:check && npm run typecheck && npm run test",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
+    "db:generate": "npm run db:generate -w apps/api",
     "db:migrate": "npm run db:migrate -w apps/api",
     "db:seed": "npm run db:seed -w apps/api",
     "db:studio": "npm run db:studio -w apps/api",
-    "setup": "npm install && npm run db:up && npm run db:migrate && npm run db:seed"
+    "db:test:prepare": "node tools/db/prepare-test-db.mjs",
+    "setup": "npm install && npm run db:up && npm run db:generate && npm run db:migrate && npm run db:seed && npm run db:test:prepare",
+    "prod:up": "docker compose -f infra/compose.prod.yml up --build -d",
+    "prod:down": "docker compose -f infra/compose.prod.yml down",
+    "evidence:github": "node tools/evidence/github-metrics.mjs",
+    "prepare": "node tools/git/install-hooks.mjs",
+    "lint:boundaries": "node tools/eslint/verify-boundaries.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "dotenv": "^17.4.2",
+    "eslint": "^10.11.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-simple-import-sort": "^14.0.0",
+    "globals": "^17.12.0",
+    "lint-staged": "^17.5.1",
+    "pg": "^8.23.0",
+    "prettier": "^3.9.8",
+    "simple-git-hooks": "^2.14.0",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.70.0"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "npx lint-staged",
+    "commit-msg": "node tools/git/check-commit-msg.mjs $1",
+    "pre-push": "node tools/git/pre-push.mjs"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,mjs,cjs}": [
+      "eslint --fix --no-warn-ignored",
+      "prettier --write"
+    ],
+    "*.{json,yml,yaml,css,html}": [
+      "prettier --write"
+    ]
+  },
+  "allowScripts": {
+    "prisma@7.10.0": true,
+    "@prisma/engines@7.10.0": true,
+    "esbuild@0.28.2": true,
+    "simple-git-hooks@2.14.0": true,
+    "@swc/core@1.16.2": true
   }
 }

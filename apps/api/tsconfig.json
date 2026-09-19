@@ -1,25 +1,18 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "module": "node16",
     "moduleResolution": "node16",
     "target": "ES2023",
     "lib": ["ES2023"],
+    "types": ["node"],
     "outDir": "./dist",
-    "rootDir": "./src",
     "declaration": false,
     "sourceMap": true,
     "incremental": true,
-    "skipLibCheck": true,
-    "esModuleInterop": true,
-    "allowSyntheticDefaultImports": true,
-    "forceConsistentCasingInFileNames": true,
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-    "strictNullChecks": true,
-    "strictBindCallApply": false,
-    "noImplicitAny": false,
-    "noFallthroughCasesInSwitch": false
+    "emitDecoratorMetadata": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "prisma/seed.ts"]
+  "include": ["src/**/*", "test/**/*", "prisma/**/*.ts", "prisma.config.ts", "vitest.config.ts"],
+  "exclude": ["node_modules", "dist"]
 }

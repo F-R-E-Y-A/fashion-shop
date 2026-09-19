@@ -1,29 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
+import { IsOptional, IsString, MaxLength } from 'class-validator';
+
+import { PageQuery } from '../../../common/pagination/page.query.js';
 
 /**
- * Tham so cho phep o duong dan liet ke san pham.
- * ValidationPipe o main.ts se loai bo moi tham so khong khai bao o day,
- * nen khong ai gui them truong la vao duoc.
+ * Tham so liet ke san pham: phan trang chung (PageQuery) cong hai bo loc rieng.
+ * Phan he khac lam DTO liet ke cua minh theo dung mau nay.
  */
-export class ListProductsQuery {
-  @ApiPropertyOptional({ description: 'Trang, bat dau tu 1', default: 1 })
-  @Type(() => Number)
-  @IsInt({ message: 'page phai la so nguyen' })
-  @Min(1, { message: 'page nho nhat la 1' })
-  @IsOptional()
-  page: number = 1;
-
-  @ApiPropertyOptional({ description: 'So ban ghi moi trang', default: 12 })
-  @Type(() => Number)
-  @IsInt({ message: 'pageSize phai la so nguyen' })
-  @Min(1, { message: 'pageSize nho nhat la 1' })
-  @Max(60, { message: 'pageSize lon nhat la 60' })
-  @IsOptional()
-  pageSize: number = 12;
-
-  @ApiPropertyOptional({ description: 'Tim theo ten san pham' })
+export class ListProductsQuery extends PageQuery {
+  @ApiPropertyOptional({ description: 'Tim theo ten san pham, khong phan biet hoa thuong' })
   @IsString()
   @MaxLength(120)
   @IsOptional()
