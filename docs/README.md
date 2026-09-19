@@ -12,6 +12,8 @@ Một quy tắc duy nhất: **tài liệu đi cùng mã nguồn trong cùng mộ
 | `test-strategy.md` | Tầng kiểm thử, công cụ, độ phủ, quy trình xử lý lỗi | Duy |
 | `CONTRIBUTING.md` | Luật làm việc chung và tám bước thêm một phân hệ | Bảo |
 | `GIT_FLOW.md` | Quy ước nhánh, commit, pull request | Bảo |
+| `PLATFORM_ROADMAP.md` | Đánh giá kiến trúc bản 0.1 và lộ trình hoàn thiện nền tảng theo từng bản, đọc phần 0 trước khi họp | Bảo |
+| `sprint-01.md` | Đặc tả bốn dòng việc của sprint 1: mục tiêu, phạm vi, đầu ra, bắt đầu từ đâu, mốc trong tuần, tiêu chí chấp nhận, điểm chạm giữa ba người | Bảo |
 
 ## Đặt tên tệp use case
 
