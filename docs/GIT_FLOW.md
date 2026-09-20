@@ -62,8 +62,17 @@ git push -u origin feature/ph-03-catalog
 
 - Pull request vào `develop` cần **một người khác duyệt** và **CI xanh**.
 - Tệp `CODEOWNERS` tự gán người duyệt theo thư mục. Chạm vào thư mục người khác thì chính họ phải duyệt.
-- Không đẩy thẳng vào `develop` và `main`. Bật khóa nhánh trên GitHub ngay tuần đầu.
-- Nhánh đã gộp thì xóa, đừng để tồn đọng.
+- Không đẩy thẳng vào `develop` và `main`. Hook `pre-push` chặn sẵn.
+- **Gộp bằng merge commit, không dùng squash.** Squash xoá mọi commit hằng ngày khỏi nhánh chính, mà lịch sử Git ở đồ án này là hồ sơ nộp kèm chứ không chỉ là công cụ. Lý do đầy đủ ở `adr/adr-005-merge-commit.md`.
+- Nhánh đã gộp thì xóa. An toàn, vì merge commit khiến mọi commit của nhánh thành tổ tiên của `develop`.
+
+## Hai cách đọc lịch sử
+
+```bash
+git log --first-parent --oneline develop   # chi cac moc viec lon, dung khi bao cao tien do
+git log --oneline develop                  # toan bo commit hang ngay, dung khi soi qua trinh
+git log --graph --oneline --all            # hinh dang nhanh
+```
 
 ## Sprint và milestone
 

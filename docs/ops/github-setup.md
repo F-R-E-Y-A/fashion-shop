@@ -98,13 +98,29 @@ git push -u origin feature/platform
 gh repo edit F-R-E-Y-A/fashion-shop --default-branch develop
 ```
 
-Chỉ cho phép gộp kiểu squash, và tự xoá nhánh sau khi gộp:
+Chỉ cho phép gộp kiểu **merge commit**, và tự xoá nhánh sau khi gộp:
 
 ```powershell
-gh repo edit F-R-E-Y-A/fashion-shop --enable-merge-commit=false --enable-rebase-merge=false --enable-squash-merge=true --delete-branch-on-merge=true
+gh repo edit F-R-E-Y-A/fashion-shop --enable-merge-commit=true --enable-squash-merge=false --enable-rebase-merge=false --delete-branch-on-merge=true
 ```
 
-Vì sao chỉ squash: mỗi pull request thành **đúng một commit** trên `develop`, nên `git log` của `develop` đọc như danh sách việc đã xong. Nhánh `task/` chia nhỏ bên trong không làm rối lịch sử chung. Tự xoá nhánh sau khi gộp giữ danh sách nhánh sạch, khỏi phải dọn tay.
+**Vì sao merge commit chứ không phải squash.** Squash gom cả nhánh thành một commit mới, nên mọi commit hằng ngày biến mất khỏi `develop`. Với đồ án này đó là mất bằng chứng, vì rubric đòi kho mã có đủ lịch sử commit suốt kỳ, và tài liệu của nhóm đang trích dẫn mã commit để đối chiếu. Lý do đầy đủ cùng số đo ở `../adr/adr-005-merge-commit.md`.
+
+Merge commit giữ được cả hai góc nhìn, không mất gì:
+
+```powershell
+git log --first-parent --oneline develop
+```
+
+Cho ra danh sách các mốc việc lớn, đúng thứ cần khi báo cáo tiến độ.
+
+```powershell
+git log --oneline develop
+```
+
+Cho ra toàn bộ commit hằng ngày kèm ngày thật, đúng thứ cần khi hội đồng soi quá trình làm việc.
+
+Tự xoá nhánh sau khi gộp vẫn an toàn: merge commit khiến mọi commit của nhánh trở thành tổ tiên của `develop`, nên xoá tên nhánh đi không mất commit nào.
 
 Thêm mô tả và chủ đề cho kho:
 
@@ -297,7 +313,7 @@ gh run view --log-failed
 Gộp khi đã xanh:
 
 ```powershell
-gh pr merge --squash --delete-branch
+gh pr merge --merge --delete-branch
 ```
 
 ---
@@ -311,7 +327,7 @@ gh repo edit F-R-E-Y-A/docs --description "Tieu luan chuyen nganh - ho so, ke ho
 ```
 
 ```powershell
-gh repo edit F-R-E-Y-A/docs --enable-merge-commit=false --enable-rebase-merge=false --enable-squash-merge=true --delete-branch-on-merge=true
+gh repo edit F-R-E-Y-A/docs --enable-merge-commit=true --enable-squash-merge=false --enable-rebase-merge=false --delete-branch-on-merge=true
 ```
 
 Kho tài liệu **không cần nhánh `develop`**. Ai cũng sửa thẳng trên `main`, vì tài liệu không có cổng chặn tự động nào để mà chờ, và xung đột gộp trên tệp Markdown dễ gỡ hơn nhiều so với mã nguồn. Đây là khác biệt cố ý giữa hai kho.
@@ -328,10 +344,10 @@ Kho tài liệu **không cần nhánh `develop`**. Ai cũng sửa thẳng trên 
 Chạy từng lệnh, đối chiếu với cột kỳ vọng.
 
 ```powershell
-gh repo view F-R-E-Y-A/fashion-shop --json defaultBranchRef,visibility,squashMergeAllowed,deleteBranchOnMerge
+gh repo view F-R-E-Y-A/fashion-shop --json defaultBranchRef,visibility,mergeCommitAllowed,squashMergeAllowed,deleteBranchOnMerge
 ```
 
-Kỳ vọng: nhánh mặc định `develop`, riêng tư, chỉ cho squash, tự xoá nhánh sau khi gộp.
+Kỳ vọng: nhánh mặc định `develop`, riêng tư, `mergeCommitAllowed` là `true`, `squashMergeAllowed` là `false`, tự xoá nhánh sau khi gộp.
 
 ```powershell
 git ls-remote --heads origin
