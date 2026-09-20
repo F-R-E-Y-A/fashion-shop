@@ -46,7 +46,7 @@ Muốn thêm chỉ mục trên bảng người khác thì đề xuất kèm số
 
 ## Chín bước thêm một phân hệ
 
-1. Mở phiếu công việc theo mẫu, điền câu chuyện người dùng và tiêu chí chấp nhận.
+1. Nhận phiếu công việc ở tab **Issues** của kho, hoặc mở phiếu mới theo mẫu nếu chưa có. **Ghi lại số phiếu**, ví dụ `#3`. Cách tìm phiếu và cách đóng phiếu ở `GIT_FLOW.md`.
 2. Tạo nhánh `feature/ph-NN-ten-ngan` từ `develop`.
 3. Thêm bảng vào tệp `.prisma` **của chính mình**, chạy `npm run db:migrate`, đặt tên migration theo việc.
 4. Thêm dữ liệu giả vào `prisma/seed/<phân hệ>.seed.ts`, gọi từ `seed/index.ts`.
@@ -54,7 +54,7 @@ Muốn thêm chỉ mục trên bảng người khác thì đề xuất kèm số
 6. Chép `features/products`, đổi tên. Thêm `Route` trong `app/routes.tsx`.
 7. Viết kiểm thử: một bài đơn vị cho service, một bài HTTP cho đường dẫn, một bài cho trang.
 8. Viết đặc tả use case vào `docs/ba/`. Thêm dòng sở hữu vào `.github/CODEOWNERS`.
-9. `npm run check`, rồi mở pull request vào `develop`, điền danh sách kiểm.
+9. `npm run check`, rồi mở pull request vào `develop`. Điền danh sách kiểm, và **viết `Closes #<số phiếu>` vào phần thân** để gộp xong phiếu tự đóng.
 
 ## Điều kiện hoàn thành
 

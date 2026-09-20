@@ -74,6 +74,65 @@ git log --oneline develop                  # toan bo commit hang ngay, dung khi 
 git log --graph --oneline --all            # hinh dang nhanh
 ```
 
+## Phiếu công việc: ở đâu, số mấy, đóng thế nào
+
+### Tìm phiếu của mình ở đâu
+
+Phiếu công việc là **GitHub Issues**, nằm ở tab **Issues** trên trang kho mã:
+
+`https://github.com/F-R-E-Y-A/fashion-shop/issues`
+
+Ba cách tìm nhanh phiếu của mình:
+
+| Cách | Làm gì |
+|---|---|
+| Trên web | Tab **Issues**, bấm bộ lọc **Assignee** rồi chọn tên mình |
+| Trên web, xem cả sprint | Tab **Issues**, bấm **Milestones**, chọn sprint đang chạy |
+| Dòng lệnh | `gh issue list -R F-R-E-Y-A/fashion-shop --assignee @me` |
+
+Xem chi tiết một phiếu: `gh issue view 3 -R F-R-E-Y-A/fashion-shop`
+
+### Số phiếu lấy ở đâu
+
+Số nằm ngay cạnh tiêu đề, dạng `#3`, và cũng là số cuối trong địa chỉ:
+
+```
+https://github.com/F-R-E-Y-A/fashion-shop/issues/3
+                                                 ↑ so phieu
+```
+
+### Đóng phiếu bằng cách nào
+
+**Viết `Closes #<số>` vào phần thân pull request.** Không cần viết vào từng commit.
+
+Khi pull request được gộp vào `develop`, GitHub **tự đóng** phiếu đó và nối hai thứ lại với nhau, nên về sau mở phiếu ra là thấy ngay pull request nào đã làm xong nó.
+
+```bash
+gh pr create --base develop --title "HT-04: so do use case va dac ta nghiep vu" --body "Closes #3
+
+Lam duoc gi: ..."
+```
+
+Quên lúc tạo thì sửa sau cũng được, bằng cách bấm **Edit** ở phần mô tả pull request rồi thêm dòng đó vào.
+
+Kiểm xem đã nối chưa: mở pull request, cột bên phải mục **Development** phải hiện tên phiếu. Hoặc chạy:
+
+```bash
+gh pr view 2 -R F-R-E-Y-A/fashion-shop --json body --jq '.body' | grep -i "closes #"
+```
+
+**Vì sao cách này chạy được ở kho của nhóm.** GitHub chỉ tự đóng phiếu khi pull request được gộp vào **nhánh mặc định**. Nhánh mặc định của kho này đã đặt là `develop`, đúng nhánh mà mọi pull request nhắm tới, nên cơ chế hoạt động. Nếu để mặc định là `main` thì gộp vào `develop` sẽ không đóng phiếu nào cả.
+
+### Từ khoá nào dùng được
+
+`Closes`, `Close`, `Closed`, `Fixes`, `Fix`, `Fixed`, `Resolves`, `Resolve`, `Resolved` đều được, viết hoa hay thường không quan trọng. Nhóm dùng thống nhất **`Closes`** cho phân hệ và **`Fixes`** cho sửa lỗi.
+
+Nối nhiều phiếu thì mỗi phiếu một từ khoá, viết `Closes #3, closes #4`. Viết `Closes #3, #4` chỉ đóng được phiếu đầu.
+
+### Muốn nhắc tới phiếu mà không đóng nó
+
+Viết `#3` trơn, không kèm từ khoá. Dùng khi công việc mới xong một phần.
+
 ## Sprint và milestone
 
 Mỗi sprint là một milestone trên GitHub, tên theo tuần, ví dụ `S3 · 28/09 - 03/10`. Phiếu công việc gắn vào milestone tương ứng để nhìn ra tiến độ tuần mà không cần mở bảng kế hoạch.
