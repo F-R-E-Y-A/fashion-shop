@@ -58,11 +58,13 @@ Chú ý bước 4: **chỉ một tệp duy nhất trong cả giao diện đượ
 | 6 | `ValidationPipe` | Đọc `?page=2`, **đổi chuỗi `"2"` thành số `2`** theo kiểu khai trong DTO, loại bỏ mọi tham số lạ |
 | 7 | `modules/products/products.controller.ts` | Nhận `ListProductsQuery` đã sạch, gọi service. Không có logic ở đây |
 | 8 | `modules/products/products.service.ts` | Dựng điều kiện lọc, gọi Prisma **trong một giao dịch** để đếm và lấy dữ liệu |
-| 9 | `infra/prisma/prisma.service.ts` | Một kết nối duy nhất tới Postgres, dùng chung cho cả ứng dụng |
+| 9 | `infra/prisma/prisma.service.ts` | Mượn một kết nối từ **bể kết nối dùng chung**, chạy truy vấn, trả lại bể. Xem mục 4.9 |
 | 10 | `products.service.ts`, hàm `toResponse` | Đổi bản ghi của Prisma thành DTO trả về, **giá đổi thành chuỗi** |
 | 11 | `common/pagination/page.response.ts`, `toPage` | Gói lại thành `{ items, total, page, pageSize, totalPages }` |
 
-Nếu có lỗi ở bất kỳ bước nào từ 6 tới 10, `common/filters/all-exceptions.filter.ts` bắt lại và trả về **đúng một hình dạng lỗi** cho mọi trường hợp.
+Nếu có lỗi ở bất kỳ bước nào **từ 6 tới 10**, `common/filters/all-exceptions.filter.ts` bắt lại và trả về **đúng một hình dạng lỗi** cho mọi trường hợp.
+
+Vì sao từ bước 6 chứ không phải từ bước 5: bước 5 **chạy đúng một lần lúc khởi động**, không nằm trong vòng đời của một yêu cầu. Bộ lọc lỗi là thứ được *gắn vào* ở bước 5, nên nó chưa tồn tại khi bước 5 đang chạy, và khi bước 5 hỏng thì cũng chưa có máy chủ HTTP nào để mà trả lời. Chi tiết ở mục 4.10.
 
 ### Ba điều đáng dừng lại
 
@@ -86,7 +88,7 @@ Bảng này chính là thứ để ôn trước buổi bảo vệ. Cột cuối 
 | `src/app.setup.ts` | Gom mọi thiết lập toàn cục vào một chỗ | Bài kiểm thử HTTP sẽ chạy trên một ứng dụng khác với ứng dụng thật, nên kiểm thử mất ý nghĩa |
 | `src/app.module.ts` | Gốc cây phụ thuộc, nơi đăng ký phân hệ mới | Không có phân hệ nào được nạp |
 | `src/infra/config/env.ts` | Kiểm biến môi trường **lúc khởi động** bằng zod | Thiếu biến thì chết giữa chừng ở một chỗ không liên quan, rất khó lần ra |
-| `src/infra/prisma/prisma.service.ts` | Một kết nối cơ sở dữ liệu duy nhất | Mỗi phân hệ tự mở kết nối riêng, cạn bộ gom kết nối |
+| `src/infra/prisma/prisma.service.ts` | **Một bể kết nối** dùng chung, tối đa 10 kết nối | Mỗi phân hệ tự mở bể riêng, nhân số kết nối lên và cạn giới hạn của Postgres |
 | `src/common/filters/all-exceptions.filter.ts` | Mọi lỗi ra cùng một hình dạng JSON | Giao diện phải đoán hình dạng lỗi ở từng chỗ gọi |
 | `src/common/pagination/` | Tham số phân trang và cách gói kết quả, dùng chung | Ba người làm ba kiểu phân trang khác nhau |
 | `src/modules/products/` | **Phân hệ mẫu**, đủ bốn tầng để chép | Không ai biết cấu trúc chuẩn trông thế nào |
@@ -128,7 +130,7 @@ Bảng này chính là thứ để ôn trước buổi bảo vệ. Cột cuối 
 
 ---
 
-## 4. Bảy cơ chế, và vì sao chúng tồn tại
+## 4. Mười cơ chế, và vì sao chúng tồn tại
 
 Đây là phần "vì sao" mà hội đồng hỏi kỹ nhất.
 
@@ -193,6 +195,71 @@ Hai chi tiết cố ý trong tệp đó:
 - `prisma` nằm ở phần gói chạy thật chứ không phải gói phát triển, vì container phải chạy được `prisma migrate deploy` lúc khởi động.
 - Bước `prisma generate` cần biến `DATABASE_URL`, nên tầng `build` đặt một giá trị giả. Lệnh này **không kết nối cơ sở dữ liệu**, nó chỉ đọc cấu hình. Đây chính là lỗi H-04 đã làm CI đỏ.
 
+### 4.8 `ValidationPipe`: một cấu hình, mọi đường dẫn
+
+Đặt một lần ở `app.setup.ts`, áp cho **mọi đường dẫn của mọi phân hệ**. Không ai phải nhớ gắn lại, và không ai quên gắn.
+
+**Nó chạy khi nào.** Không phải với mỗi yêu cầu HTTP nói chung, mà với **mỗi tham số của hàm xử lý có kiểu là một lớp**. Khi Nest sắp gọi `list(query: ListProductsQuery)`, nó thấy kiểu khai báo là một lớp, nên đưa dữ liệu thô qua pipe trước. Với tham số kiểu nguyên thuỷ như `slug: string` thì pipe **bỏ qua**, xem phần cuối mục này.
+
+**Bốn việc nó làm, theo thứ tự**, ứng với bốn tuỳ chọn trong `app.setup.ts`:
+
+| Tuỳ chọn | Việc | Quan sát được bằng |
+|---|---|---|
+| `transform: true` | Dựng một **thể hiện của lớp DTO** từ dữ liệu thô, và áp `@Type(() => Number)` để đổi chuỗi thành số | `?page=2` trả về `"page": 2` kiểu số, không phải `"2"` |
+| giá trị mặc định trong DTO | Trường không được gửi thì lấy giá trị khai sẵn | Không gửi gì thì ra `page = 1, pageSize = 12` |
+| `whitelist: true` | **Loại bỏ** mọi trường không khai trong DTO | Tự nó thì im lặng bỏ đi |
+| `forbidNonWhitelisted: true` | Gặp trường lạ thì **báo lỗi** thay vì im lặng | `?foo=bar` trả 400 `["property foo should not exist"]` |
+| các chú thích `@IsInt`, `@Min`, `@Max` | Chạy `class-validator`, gom **mọi** lỗi lại rồi ném một lần | `?page=abc` trả `["page nho nhat la 1","page phai la so nguyen"]` |
+
+Bốn kết quả trong cột cuối là đo thật trên máy chủ đang chạy, không phải suy luận.
+
+**Vì sao `forbidNonWhitelisted` quan trọng hơn vẻ ngoài.** Nếu chỉ bật `whitelist`, gõ nhầm `?pagesize=60` sẽ bị âm thầm bỏ qua và máy chủ trả 12 bản ghi. Người gọi tưởng tham số không có tác dụng và đi tìm lỗi ở chỗ khác. Bật thêm `forbidNonWhitelisted` thì máy chủ **nói thẳng** là tên đó không tồn tại.
+
+**Vì sao `enableImplicitConversion: false`.** Nếu bật, `class-transformer` tự suy kiểu và đổi ngầm. Nghe tiện nhưng sinh bất ngờ: chuỗi `"false"` thành `true`, chuỗi rỗng thành `0`. Tắt nó đi thì muốn đổi kiểu phải ghi rõ `@Type(() => Number)`, tức là **ý định nằm trong mã** chứ không nằm trong hành vi ngầm của thư viện.
+
+**Chỗ pipe không với tới.** `findOne(@Param('slug') slug: string)` khai kiểu nguyên thuỷ, nên pipe bỏ qua hoàn toàn. Đã đo: gửi slug dài 500 ký tự thì trả **404 chứ không phải 400**, nghĩa là chuỗi đi thẳng tới truy vấn mà không qua kiểm tra độ dài. Prisma có tham số hoá câu lệnh nên không có nguy cơ chèn lệnh SQL, nhưng đây vẫn là **dữ liệu vào không được kiểm**. Muốn kiểm thì khai tham số đường dẫn bằng một lớp DTO thay vì chuỗi. Đã ghi vào `TECH_DEBT.md` mục ND-10.
+
+### 4.9 Bể kết nối cơ sở dữ liệu
+
+**Hiểu nhầm dễ mắc:** `PrismaService` là một thể hiện duy nhất dùng chung, nên tưởng là **một kết nối** duy nhất tới Postgres. Không phải.
+
+`PrismaService` nhận adapter `PrismaPg`, và adapter đó tạo một `pg.Pool` — **một bể kết nối**. Bể mặc định giữ tối đa **10 kết nối**, mở theo nhu cầu chứ không mở sẵn.
+
+Đo trên máy chủ đang chạy:
+
+| Lúc | Số kết nối tới Postgres |
+|---|---|
+| Không có yêu cầu nào | 0 |
+| Đang bắn 60 yêu cầu song song | 10, tất cả đang bận |
+| Ngay sau khi xong | 10, ở trạng thái rảnh, giữ lại để dùng tiếp |
+
+Số 10 đúng bằng giá trị mặc định của `pg-pool`. Bể giữ kết nối rảnh vì **bắt tay mở một kết nối Postgres tốn vài chục mili giây**, đắt hơn nhiều so với việc giữ nó mở.
+
+**Vì sao chỉ một bể cho cả ứng dụng.** Postgres có trần số kết nối, mặc định 100. Nếu mỗi phân hệ tự tạo `PrismaClient` riêng thì với 15 phân hệ sẽ thành 150 kết nối, vượt trần và máy chủ bắt đầu từ chối. Một bể dùng chung giữ con số ở mức biết trước.
+
+**Nếu 10 là chưa đủ thì sao.** Khi có 60 yêu cầu cùng lúc, 10 cái chạy trước, 50 cái còn lại **xếp hàng** chứ không lỗi. Đó là cách một bể kết nối hoạt động, và thường là điều mong muốn: cơ sở dữ liệu thà phục vụ tuần tự còn hơn nhận 60 truy vấn rồi chậm đều tất cả. Nút cổ chai thật ở quy mô thương mại điện tử **thường không nằm ở số kết nối** mà nằm ở truy vấn thiếu chỉ mục, thứ được xử lý ở HT-08 tuần 9 bằng `EXPLAIN` và số đo thật.
+
+Muốn đổi kích thước bể thì thêm `connection_limit` vào chuỗi kết nối. **Chưa đổi lúc này** vì đổi mà không có số đo thì chỉ là đoán; tuần 10 có bài kiểm thử tải của Duy mới đủ căn cứ.
+
+### 4.10 Bộ lọc lỗi bắt được gì, không bắt được gì
+
+Bộ lọc `AllExceptionsFilter` gắn vào **vòng đời của một yêu cầu**. Nó bắt mọi thứ ném ra từ lúc Nest bắt đầu xử lý yêu cầu cho tới lúc trả lời: lỗi kiểm tra dữ liệu vào, lỗi nghiệp vụ, lỗi truy vấn, lỗi không lường trước.
+
+Ba loại nó **không** bắt được, và biết trước thì đỡ mất thời gian đi tìm:
+
+**Một, lỗi lúc khởi động.** Chạy máy chủ với `DATABASE_URL=mysql://...` thì kết quả là:
+
+```
+ERROR [ExceptionHandler] Error: Cau hinh moi truong khong hop le, may chu khong khoi dong:
+  - DATABASE_URL: phai bat dau bang postgresql://
+```
+
+Tiến trình dừng. Không có yêu cầu nào, nên không có gì để định dạng thành JSON. Đây chính là lý do đường đi ở mục 2 ghi "lỗi từ bước 6 tới 10": bước 5 nằm ngoài vòng đời yêu cầu.
+
+**Hai, lỗi trước khi vào Nest.** CORS được cài dưới dạng middleware của Express, chạy trước bộ lọc. Đã đo: gửi yêu cầu kèm `Origin: https://ke-xau.example` thì máy chủ trả **200 và không kèm header `Access-Control-Allow-Origin`**. Máy chủ không ném lỗi; chính **trình duyệt** mới là bên chặn không cho mã JavaScript đọc kết quả. Hệ quả thực tế: gọi bằng `curl` hay Postman thì CORS không chặn được gì, nó chỉ là cơ chế bảo vệ phía trình duyệt.
+
+**Ba, tiến trình chết đột ngột.** Hết bộ nhớ hoặc container bị dừng thì không có mã nào chạy được nữa. Đó là việc của `HEALTHCHECK` trong image và của nền tảng triển khai, không phải của bộ lọc.
+
 ---
 
 ## 5. Sáu chặng CI, mỗi chặng chặn lỗi gì
@@ -214,7 +281,7 @@ Chặng 6 đáng chú ý: nó không chỉ dựng image mà còn **chạy image 
 
 ## 6. Tự kiểm trước khi bảo vệ
 
-Trả lời được mười hai câu này thì yên tâm với mục 6 của rubric. Câu nào bí thì chỗ tìm câu trả lời nằm ở cột cuối.
+Trả lời được mười lăm câu này thì yên tâm với mục 6 của rubric. Câu nào bí thì chỗ tìm câu trả lời nằm ở cột cuối.
 
 | # | Câu hỏi | Tìm ở |
 |---|---|---|
@@ -228,8 +295,11 @@ Trả lời được mười hai câu này thì yên tâm với mục 6 của ru
 | 8 | Vì sao kiểm thử dùng SWC chứ không dùng mặc định? | Mục 4.6 |
 | 9 | Image Docker vì sao chia bốn tầng? | Mục 4.7 |
 | 10 | Nếu bỏ `index.ts` của một phân hệ thì hỏng chuyện gì? | Mục 3 và 4.3 |
-| 11 | Chỗ nào trong mã do AI sinh, và đã kiểm chứng thế nào? | Kho docs, `ai-log/` |
-| 12 | Kho mã có nợ kỹ thuật nào, xử lý khi nào? | `TECH_DEBT.md` |
+| 11 | `ValidationPipe` chạy vào lúc nào, và chỗ nào nó không với tới? | Mục 4.8 |
+| 12 | Ứng dụng giữ bao nhiêu kết nối tới cơ sở dữ liệu, vì sao là con số đó? | Mục 4.9 |
+| 13 | Bộ lọc lỗi không bắt được loại lỗi nào? | Mục 4.10 |
+| 14 | Chỗ nào trong mã do AI sinh, và đã kiểm chứng thế nào? | Kho docs, `ai-log/` |
+| 15 | Kho mã có nợ kỹ thuật nào, xử lý khi nào? | `TECH_DEBT.md` |
 
 Cách luyện hiệu quả nhất: **nhờ Duy hoặc Tài bốc ngẫu nhiên một tệp rồi bấm giờ ba phút**, trả lời đủ bốn câu của rubric. Làm mỗi tuần một lần ở buổi chốt Thứ Tư.
 
