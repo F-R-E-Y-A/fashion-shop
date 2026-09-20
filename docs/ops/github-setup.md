@@ -12,9 +12,9 @@ Mọi lệnh chạy trong **PowerShell** trừ chỗ ghi rõ là Git Bash. Chạ
 
 | Kho trong org `F-R-E-Y-A` | Nội dung | Xử lý |
 |---|---|---|
-| `docs` | 25 tệp, 7 commit | **Giữ nguyên**, đã xong, chỉ cần cấu hình ở mục 9 |
-| `fashion-shop` | Rỗng | Đẩy mã vào ở mục 2 |
-| `diagram-fashion-ecommerce` | Rỗng | Không nằm trong kế hoạch hai kho, xoá hay giữ tuỳ Bảo |
+| `docs` | 25 tệp, 7 commit | **Kho tài liệu.** Giữ nguyên, chỉ cần cấu hình ở mục 9 |
+| `fashion-shop` | Rỗng | **Kho mã nguồn.** Đẩy mã vào ở mục 2 |
+| `diagram-fashion-ecommerce` | Rỗng | Đã chốt xoá. Sơ đồ thuộc kho `docs` theo quy tắc hai kho |
 
 Hai điều cần biết trước, đã kiểm chứng:
 
@@ -208,42 +208,27 @@ main                          chỉ chứa bản đã phát hành
 
 **Luật quan trọng: nhánh `feature/` đẩy lên GitHub, nhánh `task/` thì không.** Nhánh `task/` là cách tự chia nhỏ việc ở máy mình, gộp vào `feature/` cha rồi xoá. Đẩy hết lên chỉ làm rối danh sách nhánh chung mà không ai dùng tới. Trừ khi muốn nhờ người khác xem giúp một việc con còn dở, lúc đó mới đẩy.
 
-### Tạo bốn nhánh feature cho sprint 2
+### Nhánh feature cho sprint 2: hoãn, chờ chốt lại cách chia
 
-Chạy sau khi mục 2 xong. Mỗi lệnh cắt một nhánh **từ `develop`** rồi đẩy lên, không cần chuyển qua lại:
+**Chưa tạo nhánh feature nào cho sprint 2.** Bảo đang tính toán lại cách chia dòng việc, nên tạo nhánh bây giờ là tạo thứ có thể phải xoá.
 
-```powershell
-git push origin develop:refs/heads/feature/ph-03-catalog
-```
+Chốt xong thì mỗi nhánh chỉ tốn một lệnh, cắt thẳng từ `develop` mà không cần chuyển qua lại:
 
 ```powershell
-git push origin develop:refs/heads/feature/ph-13-inventory
+git push origin develop:refs/heads/feature/<ma-viet-thuong>-<ten-ngan>
 ```
 
-```powershell
-git push origin develop:refs/heads/feature/ph-01-auth
-```
+Ví dụ `git push origin develop:refs/heads/feature/ph-13-inventory`.
 
-```powershell
-git push origin develop:refs/heads/feature/ht-03-data-load
-```
+Đặt tên theo `docs/GIT_FLOW.md`: `feature/<mã viết thường>-<tên ngắn>`, không dấu, nối bằng gạch ngang. Mã lấy từ bảng chia việc theo sprint trong kho `docs`.
 
-Bốn nhánh ứng với bốn dòng việc của sprint 2:
-
-| Nhánh | Người | Dòng việc |
-|---|---|---|
-| `feature/ph-03-catalog` | Bảo | PH-03 Khám phá sản phẩm: trang chủ và danh mục |
-| `feature/ph-13-inventory` | Duy | PH-13 Tồn kho |
-| `feature/ph-01-auth` | Tài | PH-01 Xác thực |
-| `feature/ht-03-data-load` | Tài | HT-03 Chuẩn hoá và nạp dữ liệu đã thu thập |
-
-Kiểm lại:
+Sau khi mục 2 xong, kho có đúng ba nhánh. Kiểm lại:
 
 ```powershell
 git ls-remote --heads origin
 ```
 
-Phải thấy bảy nhánh: `main`, `develop`, `feature/platform` và bốn nhánh vừa tạo.
+Kỳ vọng: `main`, `develop`, `feature/platform`.
 
 ### Công thức mỗi người dùng hằng ngày
 
@@ -352,7 +337,7 @@ Kỳ vọng: nhánh mặc định `develop`, riêng tư, chỉ cho squash, tự 
 git ls-remote --heads origin
 ```
 
-Kỳ vọng: bảy nhánh.
+Kỳ vọng: ba nhánh là `main`, `develop`, `feature/platform`. Nhánh feature của sprint 2 tạo sau khi chốt lại cách chia dòng việc.
 
 ```powershell
 gh pr list -R F-R-E-Y-A/fashion-shop
