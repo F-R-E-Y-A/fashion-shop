@@ -14,6 +14,8 @@ label "severity/minor"    "fbca04" "Kho chiu, khong chan"
 label "ai-error"          "5319e7" "Loi do AI sinh, ghi vao docs/ai-log/hallucinations.md"
 label "tech-debt"         "c5def5" "No ky thuat, xem docs/TECH_DEBT.md"
 label "regression-test"   "0e8a16" "PR sua loi co kem test hoi quy"
+label "ph"                "1d76db" "Phan he chuc nang"
+label "ht"                "0052cc" "Hang muc nen tang"
 
 # Milestone moi sprint, ten theo docs/GIT_FLOW.md, han la Chu Nhat hop giang vien.
 ms() {
@@ -23,6 +25,7 @@ ms() {
     echo "milestone  $1 (da co hoac loi, bo qua)"
   fi
 }
+ms "S1 · 14/09 - 20/09" "2026-09-20"
 ms "S2 · 21/09 - 27/09" "2026-09-27"
 ms "S3 · 28/09 - 04/10" "2026-10-04"
 ms "S4 · 05/10 - 11/10" "2026-10-11"

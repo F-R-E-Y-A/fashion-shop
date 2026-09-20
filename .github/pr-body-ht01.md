@@ -54,3 +54,5 @@ Có dựng sẵn khuôn cho hai bạn: `prisma/schema/orders.prisma` cho Duy và
 - Kho riêng tư trên gói GitHub miễn phí không khoá được nhánh, nên luật "mọi thay đổi qua pull request" mới chỉ ép được bằng hook ở máy. Ghi ở `docs/TECH_DEBT.md` mục ND-08.
 - Tham số trên đường dẫn khai kiểu chuỗi thô nên không đi qua bộ kiểm tra dữ liệu vào. Ghi ở mục ND-10, xếp lịch sửa ở S2 cùng PH-03.
 - Chưa sinh kiểu dữ liệu cho giao diện từ đặc tả OpenAPI. Ghi ở mục ND-02, làm ở S3 khi hợp đồng API đã ổn định.
+
+Closes #1
