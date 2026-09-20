@@ -20,7 +20,9 @@ Hai điều cần biết trước, đã kiểm chứng:
 
 **Quyền của Duy và Tài chưa đủ.** Quyền mặc định của thành viên org đang là `read`. Đo từng kho: Duy có `read` trên `fashion-shop` và `write` trên `docs`; Tài có `read` trên cả hai. **Cả hai chưa push được vào kho mã.** Sửa ở mục 5, đừng bỏ qua.
 
-**Khoá nhánh không dùng được.** Kho riêng tư trên gói GitHub Free không bật được branch protection lẫn ruleset. Đã thử, máy chủ trả 403 kèm thông báo phải nâng lên GitHub Pro hoặc chuyển kho sang công khai. Cách đỡ ở mục 6.
+**Khoá nhánh không dùng được, và lý do không như thoạt nghĩ.** Bảo đã có **GitHub Pro** qua chương trình GitHub Education. Nhưng gói cá nhân **chỉ áp cho kho thuộc tài khoản cá nhân**; kho thuộc tổ chức thì theo **gói của tổ chức**, mà `F-R-E-Y-A` đang ở gói Free. Đo được: `gh api orgs/F-R-E-Y-A --jq .plan.name` trả `free`, và thử bật branch protection lẫn ruleset trên `fashion-shop` đều nhận 403. Bốn phương án ở mục 6.
+
+Lưu ý khi tự kiểm: `gh api user --jq .plan` trả `null` **không** chứng minh tài khoản ở gói Free, nó chỉ nghĩa là token thiếu quyền `user` nên GitHub không trả trường đó.
 
 ---
 
@@ -188,17 +190,20 @@ Hai bạn sẽ nhận thư mời, phải bấm chấp nhận thì quyền mới 
 
 ## 6. Bảo vệ nhánh: hiện làm được tới đâu
 
-Gói Free không cho khoá nhánh trên kho riêng tư. Ba phương án, chọn một:
+Bảo đã có GitHub Pro qua Education, nhưng kho thuộc tổ chức thì theo gói của tổ chức, và `F-R-E-Y-A` đang ở gói Free. Bốn phương án:
 
 | Phương án | Được gì | Mất gì |
 |---|---|---|
-| **A. Giữ riêng tư, chỉ ép bằng hook ở máy** | Không tốn gì, làm ngay | Ai cố tình vẫn đẩy thẳng được; luật chỉ là thoả thuận cộng với hook |
-| **B. Xin GitHub Student Developer Pack** để lên Pro | Khoá nhánh thật, bắt buộc pull request và CI xanh mới gộp được | Duyệt mất vài ngày, cần ảnh thẻ sinh viên |
-| **C. Chuyển kho sang công khai** | Khoá nhánh miễn phí ngay | Dữ liệu thu thập và mã bài tập lộ ra ngoài |
+| **A. Giữ nguyên, chỉ ép bằng hook ở máy** | Không tốn gì, làm ngay | Ai cố tình vẫn đẩy thẳng được; luật là thoả thuận cộng với hook |
+| **B. Nâng tổ chức lên GitHub Team** | Khoá nhánh thật trên kho của tổ chức | Trả phí theo đầu người mỗi tháng, trừ khi trường có chương trình Campus cấp sẵn |
+| **C. Chuyển kho mã về tài khoản cá nhân `Ancuyou`** | Khoá nhánh thật ngay, không tốn thêm đồng nào, vì Pro đã có. Kho riêng tư của Pro vẫn mời được cộng tác viên không giới hạn | Kho không còn nằm dưới tên tổ chức của nhóm |
+| **D. Chuyển kho sang công khai** | Khoá nhánh miễn phí ngay | Dữ liệu thu thập và mã bài tập lộ ra ngoài |
 
-**Khuyến nghị: A bây giờ, nộp đơn B ngay hôm nay.** Xin ở https://education.github.com/pack bằng email sinh viên. Được duyệt thì quay lại chạy mục 6b.
+**Khuyến nghị: A.** Lý do là rubric **đo kết quả chứ không đo cấu hình**: tiêu chí TC2.4 hỏi "tỷ lệ thay đổi đi qua pull request có review", thứ này đọc từ lịch sử pull request, không đọc từ việc nhánh có được khoá hay không. Nhóm ba người có kỷ luật cộng với hook `pre-push` là đạt được con số đó. Khoá nhánh là tiện, không phải là điểm.
 
-### 6b. Bật khoá nhánh sau khi có Pro
+Muốn ép bằng máy thật thì **C rẻ nhất**: không tốn phí, có ngay, và đổi lại chỉ là tên chủ sở hữu kho. Kiểm trước xem trường có chương trình Campus cấp GitHub Team miễn phí cho tổ chức không, ở https://education.github.com/benefits.
+
+### 6b. Bật khoá nhánh sau khi chọn B hoặc C
 
 ```powershell
 gh api -X PUT repos/F-R-E-Y-A/fashion-shop/branches/develop/protection -f "required_pull_request_reviews[required_approving_review_count]=1" -F "enforce_admins=false" -F "restrictions=null" -F "required_status_checks=null"
