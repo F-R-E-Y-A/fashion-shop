@@ -33,6 +33,7 @@ Ranh giới để khỏi phải đoán: **tài liệu nào phải sửa cùng l�
 | `TECH_DEBT.md` | Nợ kỹ thuật: biết mà cố ý chưa làm, kèm hạn xử lý | Bảo |
 | `PLATFORM_ROADMAP.md` | Đánh giá kiến trúc và lộ trình nền tảng theo từng bản | Bảo |
 | `adr/` | Quyết định kiến trúc, mỗi quyết định một tệp, không sửa lại khi đã chốt | Bảo |
+| `ops/github-setup.md` | Sổ tay dựng và cấu hình hai kho GitHub: quyền, nhánh, nhãn, milestone, pull request đầu tiên | Bảo |
 | `ops/staging.md` | Dựng và vận hành môi trường thử | Bảo |
 | `ba/uc-template.md` | Khuôn đặc tả use case, chép ra khi viết cái mới | Duy |
 | `ba/uc-index.md` | Danh mục toàn bộ use case, một dòng mỗi cái | Duy |
