@@ -35,6 +35,8 @@ Ranh giới để khỏi phải đoán: **tài liệu nào phải sửa cùng l�
 | `adr/` | Quyết định kiến trúc, mỗi quyết định một tệp, không sửa lại khi đã chốt | Bảo |
 | `ops/github-setup.md` | Sổ tay dựng và cấu hình hai kho GitHub: quyền, nhánh, nhãn, milestone, pull request đầu tiên | Bảo |
 | `ops/staging.md` | Dựng và vận hành môi trường thử | Bảo |
+| `ba/README.md` | Tài liệu nghiệp vụ đặt ở đâu, đặt tên thế nào, nộp lên bằng cách nào | Bảo |
+| `ba/diagrams/` | Sơ đồ use case, sơ đồ quan hệ thực thể, đuôi `.drawio.png` | Duy và Tài |
 | `ba/uc-template.md` | Khuôn đặc tả use case, chép ra khi viết cái mới | Duy |
 | `ba/uc-index.md` | Danh mục toàn bộ use case, một dòng mỗi cái | Duy |
 | `ba/uc-NN-*.md` | Đặc tả từng use case, một tệp một use case | Người sở hữu phân hệ |
