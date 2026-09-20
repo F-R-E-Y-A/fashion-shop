@@ -3,6 +3,12 @@
 # Vi sao can workflow nay: kho RIENG TU tren goi GitHub Free khong tu gan nguoi duyet theo CODEOWNERS,
 # do la tinh nang tra phi. Khong co no thi tep CODEOWNERS chi la mot to giay dan tuong.
 # Khi nhom len goi tra phi, hoac neu doi kho sang cong khai, thi xoa workflow nay di.
+#
+# LUU Y VE LAN CHAY DAU: pull_request_target lay tep workflow tu NHANH DICH, khong phai tu
+# nhanh cua pull request. Nen pull request DAU TIEN mang tep nay vao se KHONG duoc gan nguoi
+# duyet, vi luc do nhanh dich chua co tep. Lan do gan tay:
+#   gh api -X POST repos/<kho>/pulls/<so>/requested_reviewers --input - <<< '{"reviewers":["<ten>"]}'
+# Tu pull request thu hai tro di thi tu dong.
 name: Gan nguoi duyet theo CODEOWNERS
 
 on:
