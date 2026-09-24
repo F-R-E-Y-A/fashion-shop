@@ -1,0 +1,55 @@
+# infra/compose.prod.yml — chay CA HE THONG nhu tren may that: Postgres + API (image) + web (nginx).
+# Dung de smoke test truoc khi deploy, va lam nen cho Azure o S3. Khong dung cho phat trien hang ngay.
+#   npm run prod:up    -> web http://localhost:8080 · api http://localhost:3001/api/healthz
+#   npm run prod:down
+name: fashion-shop-prod
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: fashion
+      POSTGRES_PASSWORD: fashion
+      POSTGRES_DB: fashion_shop
+      TZ: Asia/Ho_Chi_Minh
+    volumes:
+      - prod-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U fashion -d fashion_shop']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ..
+      dockerfile: apps/api/Dockerfile
+      args:
+        APP_VERSION: ${APP_VERSION:-0.2.0-local}
+        GIT_SHA: ${GIT_SHA:-local}
+    environment:
+      NODE_ENV: production
+      PORT: '3001'
+      DATABASE_URL: postgresql://fashion:fashion@postgres:5432/fashion_shop?schema=public
+      CORS_ORIGINS: http://localhost:8080
+      # Chay thu tren may thi nap luon du lieu gia cho co hang ma xem.
+      SEED_ON_START: 'true'
+    ports:
+      - '3001:3001'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3001/api}
+    ports:
+      - '8080:80'
+    depends_on:
+      - api
+
+volumes:
+  prod-postgres-data:

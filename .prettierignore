@@ -1,0 +1,11 @@
+node_modules
+dist
+coverage
+coverage-http
+apps/api/src/generated
+package-lock.json
+*.tsbuildinfo
+*.md
+*.sql
+.env
+.env.*

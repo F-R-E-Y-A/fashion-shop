@@ -1,46 +1,73 @@
 # Ai dung ten o day thi pull request cham vao thu muc do TU DONG doi nguoi day duyet.
 # Day la cach ep luat "moi phan he do mot nguoi lam tron", khong phai loi nhac mieng.
 #
-# Thay ba ten dang gio bang tai khoan GitHub that truoc khi day len.
+# LUU Y: kho RIENG TU tren goi GitHub Free khong tu doc tep nay. Workflow
+# .github/workflows/pr-reviewers.yml lam thay bang tools/github/request-reviewers.mjs.
 # Cu phap: <duong dan>  <@tai-khoan>
+#
+# Nguyen Ngoc Thai Bao  @Ancuyou     kien truc va van hanh
+# Phan Ngoc Duy         @DuyPhan422  chat luong va vong doi don hang
+# Huynh Ngoc Tai        @KickHuynh   du lieu, tai khoan va hau mai
 
 # --- Mac dinh: truong nhom duyet ---
-*                                       @bao
+*                                       @Ancuyou
 
 # --- Ha tang dung chung: Bao so huu ---
-/docker-compose.yml                     @bao
-/.github/**                             @bao
-/apps/api/src/common/**                 @bao
-/apps/api/src/main.ts                   @bao
-/apps/api/src/app.module.ts             @bao
+/docker-compose.yml                     @Ancuyou
+/infra/**                               @Ancuyou
+/tools/**                               @Ancuyou
+/render.yaml                            @Ancuyou
+/eslint.config.js                       @Ancuyou
+/.github/**                             @Ancuyou
+/apps/api/src/common/**                 @Ancuyou
+/apps/api/src/infra/**                  @Ancuyou
+/apps/api/src/main.ts                   @Ancuyou
+/apps/api/src/app.module.ts             @Ancuyou
+/apps/api/src/app.setup.ts              @Ancuyou
+/apps/api/Dockerfile                    @Ancuyou
+/apps/web/Dockerfile                    @Ancuyou
+/apps/web/src/app/**                    @Ancuyou
+/apps/web/src/core/**                   @Ancuyou
+/apps/web/src/ui/**                     @Ancuyou
+/apps/api/prisma/schema/base.prisma     @Ancuyou
 
 # --- Phan he cua Bao ---
-/apps/api/src/modules/products/**       @bao
-/apps/api/src/modules/search/**         @bao
-/apps/api/src/modules/payments/**       @bao
-/apps/api/src/modules/promotions/**     @bao
-/apps/web/src/features/products/**      @bao
-/apps/web/src/features/search/**        @bao
-/apps/web/src/features/payments/**      @bao
+/apps/api/prisma/schema/catalog.prisma  @Ancuyou
+/apps/api/src/modules/products/**       @Ancuyou
+/apps/api/src/modules/search/**         @Ancuyou
+/apps/api/src/modules/payments/**       @Ancuyou
+/apps/api/src/modules/promotions/**     @Ancuyou
+/apps/web/src/features/products/**      @Ancuyou
+/apps/web/src/features/search/**        @Ancuyou
+/apps/web/src/features/payments/**      @Ancuyou
+/apps/web/src/features/promotions/**    @Ancuyou
 
 # --- Phan he cua Duy ---
-/apps/api/src/modules/cart/**           @duy
-/apps/api/src/modules/inventory/**      @duy
-/apps/api/src/modules/orders/**         @duy
-/apps/api/src/modules/shipping/**       @duy
-/apps/api/src/modules/notifications/**  @duy
-/apps/web/src/features/cart/**          @duy
-/apps/web/src/features/orders/**        @duy
-/tests/e2e/**                           @duy
-/docs/test-strategy.md                  @duy
+/apps/api/prisma/schema/orders.prisma   @DuyPhan422
+/apps/api/src/modules/cart/**           @DuyPhan422
+/apps/api/src/modules/inventory/**      @DuyPhan422
+/apps/api/src/modules/orders/**         @DuyPhan422
+/apps/api/src/modules/shipping/**       @DuyPhan422
+/apps/api/src/modules/notifications/**  @DuyPhan422
+/apps/web/src/features/cart/**          @DuyPhan422
+/apps/web/src/features/orders/**        @DuyPhan422
+/apps/web/src/features/shipping/**      @DuyPhan422
+/tests/e2e/**                           @DuyPhan422
+/docs/test-strategy.md                  @DuyPhan422
+/docs/ba/uc-index.md                    @DuyPhan422
+/docs/ba/uc-template.md                 @DuyPhan422
 
 # --- Phan he cua Tai ---
-/apps/api/src/modules/auth/**           @tai
-/apps/api/src/modules/users/**          @tai
-/apps/api/src/modules/reviews/**        @tai
-/apps/api/src/modules/returns/**        @tai
-/apps/api/src/modules/reports/**        @tai
-/apps/web/src/features/account/**       @tai
-/apps/api/prisma/schema.prisma          @tai
-/apps/api/prisma/migrations/**          @tai
-/docs/ba/data-model.md                  @tai
+/apps/api/prisma/schema/identity.prisma @KickHuynh
+/apps/api/src/modules/auth/**           @KickHuynh
+/apps/api/src/modules/users/**          @KickHuynh
+/apps/api/src/modules/reviews/**        @KickHuynh
+/apps/api/src/modules/returns/**        @KickHuynh
+/apps/api/src/modules/reports/**        @KickHuynh
+/apps/web/src/features/account/**       @KickHuynh
+/apps/web/src/features/reviews/**       @KickHuynh
+/apps/web/src/features/returns/**       @KickHuynh
+/docs/ba/data-model.md                  @KickHuynh
+
+# --- Migration: ai cung tao duoc, nhung Tai giu so do tong nen duyet cung ---
+/apps/api/prisma/migrations/**          @Ancuyou @KickHuynh

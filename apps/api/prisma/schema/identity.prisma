@@ -1,0 +1,15 @@
+// prisma/schema/identity.prisma — bang cua Tai (PH-01, PH-02, PH-10, PH-11, PH-16, HT-02, HT-03):
+// nguoi dung, vai, ma mot lan, token lam moi, dia chi, bang phi van chuyen, danh gia, anh danh gia,
+// doi tra, hoan tien, nhat ky thao tac; schema `staging` cho du lieu cao ve, schema `reporting` cho bao cao.
+//
+// Tai them model vao tep nay tu S2. Chep khuon o catalog.prisma: @map snake_case, uuid, created_at, updated_at.
+// Vi du:
+//
+// model User {
+//   id        String   @id @default(uuid()) @db.Uuid
+//   email     String   @unique @db.VarChar(254)
+//   createdAt DateTime @default(now()) @map("created_at")
+//   updatedAt DateTime @updatedAt @map("updated_at")
+//
+//   @@map("users")
+// }
