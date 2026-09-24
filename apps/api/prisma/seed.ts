@@ -1,11 +1,8 @@
 /**
- * Bo du lieu gia dung chung.
+ * Du lieu catalog gia dung cho Final HT-02 schema.
  *
- * Ma dinh danh deu CO DINH, khong sinh ngau nhien. Ly do: ba nguoi va may chay
- * tich hop lien tuc deu phai thay cung mot bo du lieu, nho vay bai kiem thu
- * moi viet duoc cau lenh kieu "mo san pham co ma 1111..." ma khong vo khi chay lai.
- *
- * Chay lai duoc nhieu lan nho upsert, khong sinh ban ghi trung.
+ * Category va Product dung slug lam business key on dinh; ProductVariant dung SKU.
+ * UUID do database sinh de seed phu thuoc dung vao Prisma final schema.
  */
 import { config as loadEnv } from 'dotenv';
 import { PrismaPg } from '@prisma/adapter-pg';
@@ -22,56 +19,78 @@ if (!connectionString) {
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 
 const CATEGORIES = [
-  { id: '11111111-1111-4111-8111-000000000001', name: 'Ao', slug: 'ao' },
-  { id: '11111111-1111-4111-8111-000000000002', name: 'Quan', slug: 'quan' },
-  { id: '11111111-1111-4111-8111-000000000003', name: 'Phu kien', slug: 'phu-kien' },
-];
+  { name: 'Ao', slug: 'ao' },
+  { name: 'Quan', slug: 'quan' },
+  { name: 'Phu kien', slug: 'phu-kien' },
+] as const;
 
 const PRODUCTS = [
-  ['22222222-2222-4222-8222-000000000001', 'Ao thun co tron basic', 'ao-thun-co-tron-basic', 199000, 1],
-  ['22222222-2222-4222-8222-000000000002', 'Ao so mi linen tay dai', 'ao-so-mi-linen-tay-dai', 459000, 1],
-  ['22222222-2222-4222-8222-000000000003', 'Ao khoac du hai lop', 'ao-khoac-du-hai-lop', 689000, 1],
-  ['22222222-2222-4222-8222-000000000004', 'Ao polo cotton pique', 'ao-polo-cotton-pique', 329000, 1],
-  ['22222222-2222-4222-8222-000000000005', 'Quan jean ong suong', 'quan-jean-ong-suong', 549000, 2],
-  ['22222222-2222-4222-8222-000000000006', 'Quan kaki tui hop', 'quan-kaki-tui-hop', 429000, 2],
-  ['22222222-2222-4222-8222-000000000007', 'Quan short the thao', 'quan-short-the-thao', 259000, 2],
-  ['22222222-2222-4222-8222-000000000008', 'Quan tay cong so', 'quan-tay-cong-so', 479000, 2],
-  ['22222222-2222-4222-8222-000000000009', 'Mu luoi trai canvas', 'mu-luoi-trai-canvas', 149000, 3],
-  ['22222222-2222-4222-8222-000000000010', 'That lung da bo', 'that-lung-da-bo', 359000, 3],
+  { name: 'Ao thun co tron basic', slug: 'ao-thun-co-tron-basic', price: 199000, categorySlug: 'ao', sku: 'SEED-001' },
+  { name: 'Ao so mi linen tay dai', slug: 'ao-so-mi-linen-tay-dai', price: 459000, categorySlug: 'ao', sku: 'SEED-002' },
+  { name: 'Ao khoac du hai lop', slug: 'ao-khoac-du-hai-lop', price: 689000, categorySlug: 'ao', sku: 'SEED-003' },
+  { name: 'Ao polo cotton pique', slug: 'ao-polo-cotton-pique', price: 329000, categorySlug: 'ao', sku: 'SEED-004' },
+  { name: 'Quan jean ong suong', slug: 'quan-jean-ong-suong', price: 549000, categorySlug: 'quan', sku: 'SEED-005' },
+  { name: 'Quan kaki tui hop', slug: 'quan-kaki-tui-hop', price: 429000, categorySlug: 'quan', sku: 'SEED-006' },
+  { name: 'Quan short the thao', slug: 'quan-short-the-thao', price: 259000, categorySlug: 'quan', sku: 'SEED-007' },
+  { name: 'Quan tay cong so', slug: 'quan-tay-cong-so', price: 479000, categorySlug: 'quan', sku: 'SEED-008' },
+  { name: 'Mu luoi trai canvas', slug: 'mu-luoi-trai-canvas', price: 149000, categorySlug: 'phu-kien', sku: 'SEED-009' },
+  { name: 'That lung da bo', slug: 'that-lung-da-bo', price: 359000, categorySlug: 'phu-kien', sku: 'SEED-010' },
 ] as const;
 
 async function main(): Promise<void> {
   for (const category of CATEGORIES) {
     await prisma.category.upsert({
-      where: { id: category.id },
-      update: { name: category.name, slug: category.slug },
+      where: { slug: category.slug },
+      update: { name: category.name },
       create: category,
     });
   }
 
-  for (const [id, name, slug, price, categoryIndex] of PRODUCTS) {
-    const data = {
-      name,
-      slug,
-      description: `${name}. Du lieu gia dung de thu giao dien, se thay bang du lieu that o tuan 2.`,
-      price,
-      imageUrl: null,
-      isActive: true,
-      categoryId: CATEGORIES[categoryIndex - 1].id,
-    };
+  for (const productSeed of PRODUCTS) {
+    const description = `${productSeed.name}. Du lieu gia dung de thu giao dien, se thay bang du lieu that o tuan 2.`;
+    const product = await prisma.product.upsert({
+      where: { slug: productSeed.slug },
+      update: {
+        name: productSeed.name,
+        description,
+        isActive: true,
+        category: { connect: { slug: productSeed.categorySlug } },
+      },
+      create: {
+        name: productSeed.name,
+        slug: productSeed.slug,
+        description,
+        isActive: true,
+        category: { connect: { slug: productSeed.categorySlug } },
+      },
+    });
 
-    await prisma.product.upsert({
-      where: { id },
-      update: data,
-      create: { id, ...data },
+    await prisma.productVariant.upsert({
+      where: { sku: productSeed.sku },
+      update: {
+        product: { connect: { id: product.id } },
+        price: productSeed.price,
+        size: null,
+        color: null,
+        isActive: true,
+      },
+      create: {
+        product: { connect: { id: product.id } },
+        sku: productSeed.sku,
+        price: productSeed.price,
+        size: null,
+        color: null,
+        isActive: true,
+      },
     });
   }
 
-  const [categories, products] = await Promise.all([
+  const [categories, products, productVariants] = await Promise.all([
     prisma.category.count(),
     prisma.product.count(),
+    prisma.productVariant.count(),
   ]);
-  console.log(`Da nap du lieu gia: ${categories} danh muc, ${products} san pham.`);
+  console.log(`Da nap du lieu gia: ${categories} danh muc, ${products} san pham, ${productVariants} phien ban.`);
 }
 
 main()

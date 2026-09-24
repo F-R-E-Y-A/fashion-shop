@@ -4,6 +4,21 @@ import { PrismaService } from '../../common/prisma/prisma.service.js';
 import { ListProductsQuery } from './dto/list-products.query.js';
 import { ProductListResponse, ProductResponse } from './dto/product.response.js';
 
+const storefrontProductInclude = {
+  category: true,
+  variants: {
+    where: { isActive: true },
+    orderBy: { price: 'asc' },
+    take: 1,
+    select: { price: true },
+  },
+  images: {
+    orderBy: { sortOrder: 'asc' },
+    take: 1,
+    select: { url: true },
+  },
+} as const;
+
 /**
  * Tang nghiep vu. Controller khong duoc goi thang Prisma, phai di qua day.
  * Ly do: khi mot phan he khac can doc san pham, no goi service nay,
@@ -18,6 +33,7 @@ export class ProductsService {
 
     const where = {
       isActive: true,
+      variants: { some: { isActive: true } },
       ...(search ? { name: { contains: search, mode: 'insensitive' as const } } : {}),
       ...(categorySlug ? { category: { slug: categorySlug } } : {}),
     };
@@ -27,7 +43,7 @@ export class ProductsService {
       this.prisma.product.count({ where }),
       this.prisma.product.findMany({
         where,
-        include: { category: true },
+        include: storefrontProductInclude,
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -45,8 +61,8 @@ export class ProductsService {
 
   async findBySlug(slug: string): Promise<ProductResponse> {
     const row = await this.prisma.product.findFirst({
-      where: { slug, isActive: true },
-      include: { category: true },
+      where: { slug, isActive: true, variants: { some: { isActive: true } } },
+      include: storefrontProductInclude,
     });
 
     if (!row) {
@@ -61,17 +77,22 @@ export class ProductsService {
     name: string;
     slug: string;
     description: string | null;
-    price: unknown;
-    imageUrl: string | null;
     category: { name: string; slug: string };
+    variants: Array<{ price: { toString(): string } }>;
+    images: Array<{ url: string }>;
   }): ProductResponse {
+    const lowestPricedVariant = row.variants[0];
+    if (!lowestPricedVariant) {
+      throw new NotFoundException('San pham khong con phien ban dang ban');
+    }
+
     return {
       id: row.id,
       name: row.name,
       slug: row.slug,
       description: row.description,
-      price: String(row.price),
-      imageUrl: row.imageUrl,
+      price: lowestPricedVariant.price.toString(),
+      imageUrl: row.images[0]?.url ?? null,
       categoryName: row.category.name,
       categorySlug: row.category.slug,
     };

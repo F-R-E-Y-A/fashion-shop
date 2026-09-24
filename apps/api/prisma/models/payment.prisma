@@ -1,0 +1,182 @@
+enum VoucherStatus {
+  INACTIVE
+  ACTIVE
+
+  @@map("voucher_status")
+  @@schema("public")
+}
+
+enum PromotionStatus {
+  INACTIVE
+  ACTIVE
+
+  @@map("promotion_status")
+  @@schema("public")
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+
+  @@map("discount_type")
+  @@schema("public")
+}
+
+enum PaymentMethod {
+  COD
+  ONLINE
+
+  @@map("payment_method")
+  @@schema("public")
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  EXPIRED
+
+  @@map("payment_status")
+  @@schema("public")
+}
+
+enum PaymentTransactionStatus {
+  RECEIVED
+  PROCESSED
+  IGNORED
+  FAILED
+
+  @@map("payment_transaction_status")
+  @@schema("public")
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+
+  @@map("job_status")
+  @@schema("public")
+}
+
+model Voucher {
+  id                String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code              String        @unique @db.VarChar
+  status            VoucherStatus @default(INACTIVE)
+  discountType      DiscountType  @map("discount_type")
+  discountValue     Decimal       @map("discount_value") @db.Decimal(12, 2)
+  maxDiscountAmount Decimal?      @map("max_discount_amount") @db.Decimal(12, 2)
+  minOrderAmount    Decimal?      @map("min_order_amount") @db.Decimal(12, 2)
+  usageLimit        Int?          @map("usage_limit")
+  perUserLimit      Int?          @map("per_user_limit")
+  startsAt          DateTime?     @map("starts_at") @db.Timestamptz(3)
+  endsAt            DateTime?     @map("ends_at") @db.Timestamptz(3)
+  createdAt         DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  usages VoucherUsage[]
+
+  @@map("vouchers")
+  @@schema("public")
+}
+
+model Promotion {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String          @db.VarChar
+  discountType      DiscountType    @map("discount_type")
+  discountValue     Decimal         @map("discount_value") @db.Decimal(12, 2)
+  maxDiscountAmount Decimal?        @map("max_discount_amount") @db.Decimal(12, 2)
+  minOrderAmount    Decimal?        @map("min_order_amount") @db.Decimal(12, 2)
+  conditions        Json?           @db.JsonB
+  status            PromotionStatus @default(INACTIVE)
+  startsAt          DateTime?       @map("starts_at") @db.Timestamptz(3)
+  endsAt            DateTime?       @map("ends_at") @db.Timestamptz(3)
+  createdAt         DateTime        @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime        @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("promotions")
+  @@schema("public")
+}
+
+model VoucherUsage {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  voucherId      String   @map("voucher_id") @db.Uuid
+  orderId        String   @unique @map("order_id") @db.Uuid
+  userId         String?  @map("user_id") @db.Uuid
+  discountAmount Decimal  @map("discount_amount") @db.Decimal(12, 2)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  voucher Voucher @relation(fields: [voucherId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  user    User?   @relation(fields: [userId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@map("voucher_usages")
+  @@schema("public")
+}
+
+model Payment {
+  id        String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId   String        @map("order_id") @db.Uuid
+  method    PaymentMethod
+  status    PaymentStatus @default(PENDING)
+  amount    Decimal       @db.Decimal(12, 2)
+  createdAt DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  order        Order                @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  transactions PaymentTransaction[]
+  refunds      Refund[]
+
+  @@map("payments")
+  @@schema("public")
+}
+
+model PaymentTransaction {
+  id                    String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  paymentId             String                   @map("payment_id") @db.Uuid
+  gateway               String                   @db.VarChar
+  externalTransactionId String                   @map("external_transaction_id") @db.VarChar
+  status                PaymentTransactionStatus
+  payload               Json?                    @db.JsonB
+  createdAt             DateTime                 @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime                 @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([gateway, externalTransactionId])
+  @@index([paymentId, createdAt])
+  @@map("payment_transactions")
+  @@schema("public")
+}
+
+model OutboxEvent {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  eventType     String    @map("event_type") @db.VarChar
+  aggregateType String    @map("aggregate_type") @db.VarChar
+  aggregateId   String    @map("aggregate_id") @db.Uuid
+  payload       Json      @db.JsonB
+  publishedAt   DateTime? @map("published_at") @db.Timestamptz(3)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([publishedAt, createdAt])
+  @@map("outbox_events")
+  @@schema("public")
+}
+
+model Job {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobType     String    @map("job_type") @db.VarChar
+  status      JobStatus @default(PENDING)
+  payload     Json?     @db.JsonB
+  scheduledAt DateTime? @map("scheduled_at") @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([status, scheduledAt])
+  @@map("jobs")
+  @@schema("public")
+}

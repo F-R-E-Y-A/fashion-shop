@@ -8,7 +8,7 @@ import { defineConfig, env } from 'prisma/config';
 loadEnv({ path: '../../.env' });
 
 export default defineConfig({
-  schema: 'prisma/schema.prisma',
+  schema: 'prisma',
   datasource: {
     url: env('DATABASE_URL'),
   },
