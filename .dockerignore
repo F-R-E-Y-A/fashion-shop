@@ -1,0 +1,14 @@
+**/node_modules
+**/dist
+**/coverage
+**/coverage-http
+**/*.tsbuildinfo
+.git
+.github
+docs
+tools
+infra
+.env
+.env.*
+apps/api/src/generated
+**/*.md

@@ -1,0 +1,91 @@
+# Trien khai tu dong len moi truong thu khi gop vao develop.
+#
+# Chia lam hai vi hai ung dung o hai noi:
+#   may chu API  -> Render (goi deploy hook, Render tu dung image tu apps/api/Dockerfile)
+#   giao dien    -> Vercel (tu dung va tu trien khai khi thay commit moi tren develop)
+#
+# Chay SAU khi CI xanh, khong chay song song: bao dam thu len moi truong thu la thu da qua kiem.
+# Bien bi mat can dat o Settings > Secrets and variables > Actions (xem docs/ops/staging.md):
+#   RENDER_DEPLOY_HOOK_URL   dia chi hook lay trong Render, Settings > Deploy Hook
+#   STAGING_API_URL          vi du https://fashion-shop-api.onrender.com
+#   STAGING_WEB_URL          vi du https://fashion-shop-web.vercel.app
+name: CD staging
+
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [develop]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: cd-staging
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Trien khai va kiem lai
+    # workflow_run chay ca khi CI do, nen phai tu loc.
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: ${{ vars.STAGING_WEB_URL }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Goi Render dung va trien khai may chu
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::error::Chua dat RENDER_DEPLOY_HOOK_URL. Xem docs/ops/staging.md muc 2."
+            exit 1
+          fi
+          curl -fsS -X POST "$HOOK" -o deploy.json
+          cat deploy.json
+
+      - name: Doi may chu chay dung commit vua gop
+        # /api/healthz tra gitSha, nho vay biet chac dang goi vao BAN MOI chu khong phai ban cu con song.
+        # Render goi free ngu khi khong ai dung nen lan danh thuc dau co the cham.
+        env:
+          API: ${{ vars.STAGING_API_URL }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          echo "Cho $API/api/healthz tra gitSha = $SHA"
+          for i in $(seq 1 60); do
+            if curl -fsS "$API/api/healthz" -o health.json 2>/dev/null; then
+              if grep -q "$SHA" health.json; then
+                echo "Da len sau $((i * 10)) giay:"; cat health.json; exit 0
+              fi
+              echo "lan $i: dang chay ban khac"; cat health.json
+            else
+              echo "lan $i: chua tra loi"
+            fi
+            sleep 10
+          done
+          echo "::error::Qua 10 phut ma staging chua chay ban moi."
+          exit 1
+
+      - name: Kiem nhanh duong dan chinh
+        env:
+          API: ${{ vars.STAGING_API_URL }}
+        run: |
+          curl -fsS "$API/api/products?pageSize=1" -o products.json
+          cat products.json
+          # Co du lieu that tren staging thi total phai lon hon 0.
+          node -e "const d=require('./products.json'); if(!Array.isArray(d.items)) {console.error('Sai hinh dang'); process.exit(1)}; console.log('total =', d.total)"
+
+      - name: Ghi lai ket qua
+        run: |
+          {
+            echo "### Trien khai staging"
+            echo ""
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Commit | \`${{ github.event.workflow_run.head_sha || github.sha }}\` |"
+            echo "| May chu | ${{ vars.STAGING_API_URL }}/api/healthz |"
+            echo "| Giao dien | ${{ vars.STAGING_WEB_URL }} |"
+            echo "| Dac ta API | ${{ vars.STAGING_API_URL }}/api/docs |"
+          } >> "$GITHUB_STEP_SUMMARY"

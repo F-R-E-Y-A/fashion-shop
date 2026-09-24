@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 
-import { PrismaService } from '../../common/prisma/prisma.service.js';
+import { skipOf, toPage } from '../../common/pagination/page.response.js';
+import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { ListProductsQuery } from './dto/list-products.query.js';
 import { ProductListResponse, ProductResponse } from './dto/product.response.js';
 
@@ -20,8 +21,8 @@ const storefrontProductInclude = {
 } as const;
 
 /**
- * Tang nghiep vu. Controller khong duoc goi thang Prisma, phai di qua day.
- * Ly do: khi mot phan he khac can doc san pham, no goi service nay,
+ * Tang nghiep vu. Controller khong duoc goi thang Prisma, phai di qua day (ESLint chan).
+ * Ly do: khi mot phan he khac can doc san pham, no tiem service nay qua index.js,
  * chu khong tu viet cau truy van vao bang cua nguoi khac.
  */
 @Injectable()
@@ -29,7 +30,7 @@ export class ProductsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(query: ListProductsQuery): Promise<ProductListResponse> {
-    const { page, pageSize, search, categorySlug } = query;
+    const { search, categorySlug } = query;
 
     const where = {
       isActive: true,
@@ -45,18 +46,16 @@ export class ProductsService {
         where,
         include: storefrontProductInclude,
         orderBy: { createdAt: 'desc' },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
+        skip: skipOf(query),
+        take: query.pageSize,
       }),
     ]);
 
-    return {
-      items: rows.map((row) => this.toResponse(row)),
+    return toPage(
+      rows.map((row) => this.toResponse(row)),
       total,
-      page,
-      pageSize,
-      totalPages: Math.max(1, Math.ceil(total / pageSize)),
-    };
+      query,
+    );
   }
 
   async findBySlug(slug: string): Promise<ProductResponse> {

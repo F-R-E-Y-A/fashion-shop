@@ -1,0 +1,39 @@
+# render.yaml — Blueprint moi truong thu TAM THOI (S1–S2) cho may chu API. Chuyen sang Azure o S3.
+# Cach dung, bien can dien va cach noi voi GitHub Actions: docs/ops/staging.md.
+# Deploy KHONG tu chay khi push (autoDeployTrigger: off): CI xanh xong thi cd-staging.yml goi deploy hook,
+# nhu vay lich su deploy va thoi gian commit -> staging nam ca trong GitHub Actions.
+services:
+  - type: web
+    name: fashion-shop-api
+    runtime: docker
+    region: singapore
+    plan: free
+    branch: develop
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/healthz
+    autoDeployTrigger: off
+    envVars:
+      - key: NODE_ENV
+        value: staging
+      - key: APP_VERSION
+        value: 0.2.0-staging
+      # Moi truong thu can co hang de xem khi trinh bay. Seed dung upsert voi ma dinh danh
+      # co dinh nen chay lai khong sinh ban ghi trung. KHONG bat bien nay tren moi truong that.
+      - key: SEED_ON_START
+        value: 'true'
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fashion-shop-db
+          property: connectionString
+      # Dia chi web tren Vercel, dien trong dashboard sau khi tao du an Vercel.
+      - key: CORS_ORIGINS
+        sync: false
+
+databases:
+  - name: fashion-shop-db
+    region: singapore
+    plan: free
+    databaseName: fashion_shop
+    user: fashion
+    postgresMajorVersion: '17'
