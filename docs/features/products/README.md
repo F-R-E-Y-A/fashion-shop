@@ -14,7 +14,7 @@ owner: Bảo
 | **Dòng việc** | PH-01 (Issue #6, nhánh `feature/ph-01-product-catalog`), S2 21/09 – 27/09 |
 | **Use case** | UC-03.1 duyệt danh mục, UC-03.4 xem chi tiết, phần sắp xếp của UC-03.3, trong [use-cases.md](use-cases.md) |
 | **Dữ liệu** | [erd.md](erd.md): sơ đồ và từ điển bảy bảng |
-| **Quyết định** | [ADR-007](LOG.md#adr-007) mô hình dữ liệu · [ADR-008](LOG.md#adr-008) hình dạng API · [ADR-009](../../LOG.md#adr-009) CSS Modules — cả ba đang **đề xuất** |
+| **Quyết định** | [ADR-007](LOG.md#adr-007) mô hình dữ liệu **đã chốt** (M2, cài ở PR #11) · [ADR-008](LOG.md#adr-008) hình dạng API · [ADR-009](../../LOG.md#adr-009) CSS Modules — hai ADR sau đang **đề xuất** |
 
 ## Giải quyết việc gì
 
@@ -22,7 +22,7 @@ Khách vào trang chủ, bấm một danh mục, mở một sản phẩm, chọn
 
 ## Ba việc trước dòng mã đầu tiên
 
-1. **Duyệt [erd.md](erd.md) và [use-cases.md](use-cases.md), chốt ADR-007 và ADR-008**: đổi dòng `Trạng thái` thành `đã chốt` hoặc sửa lại. Mã viết lại theo hai tệp này, không theo module demo.
+1. **Duyệt [use-cases.md](use-cases.md), chốt ADR-008**: đổi dòng `Trạng thái` thành `đã chốt` hoặc sửa lại. ADR-007 đã chốt ngày 25/09 và [erd.md](erd.md) đã thành lược đồ thật ([LOG](LOG.md#m2-trong-pr-11)). Mã viết lại theo hai tệp này, không theo module demo.
 2. **Nền đã sẵn**: tài liệu theo cấu trúc mới đã vào `develop` qua pull request #12 (`58f45e9`); nhánh này tách từ đó và nối với Issue #6.
 3. **Công bố hợp đồng cho Duy, đã trễ hẹn Thứ Ba 23/09.** Chữ ký đã soạn sẵn ở [products/README.md](../../../apps/api/src/modules/products/README.md) mục Hợp đồng công bố. Dán vào Issue #7 để Duy chạy trên dữ liệu giả đúng hình dạng ngay tối nay.
 
@@ -30,8 +30,8 @@ Khách vào trang chủ, bấm một danh mục, mở một sản phẩm, chọn
 
 | Hạng mục | Use case, tiêu chí | Mức |
 |---|---|---|
-| Bảy bảng theo [erd.md](erd.md); migration có ràng buộc `CHECK` viết tay; `db:drift` sạch | ADR-007 | Phải có |
-| Dữ liệu giả: hai cấp danh mục, 20 sản phẩm, vài sản phẩm có ít nhất hai cỡ và hai màu | Issue #6 | Phải có |
+| Bảy bảng theo [erd.md](erd.md); migration có ràng buộc `CHECK` viết tay; `db:drift` sạch | ADR-007 | **Xong** ở PR #11 (`f39ae11`) |
+| Dữ liệu giả: hai cấp danh mục, 20 sản phẩm, vài sản phẩm có ít nhất hai cỡ và hai màu | Issue #6 | Phải có; PR #11 đã có 10 sản phẩm, còn nâng lên 20 |
 | Liệt kê có phân trang, lọc danh mục gồm danh mục con, sắp xếp mới nhất và theo giá | UC-03.1/AC1, AC2, AC4; UC-03.3/AC4 | Phải có |
 | Cây danh mục; một danh mục theo đường dẫn, 404 khi không có | UC-03.1/AC5 | Phải có |
 | `getVariantForCart` cho Duy | Issue #6, #7 | Phải có, **làm sớm nhất** |
@@ -47,7 +47,7 @@ Khách vào trang chủ, bấm một danh mục, mở một sản phẩm, chọn
 
 Sơ đồ, từng cột, ràng buộc và chỉ mục ở [erd.md](erd.md); lý do ở [ADR-007](LOG.md#adr-007). Tóm tắt: **biến thể là đơn vị bán**, mỗi biến thể một màu, một cỡ, một mã hàng, một giá; màu, cỡ, thương hiệu là bảng tra cứu; ảnh gắn với sản phẩm, có thể gắn với một màu; `products.price_from` giữ giá thấp nhất để sắp xếp theo giá. Giỏ hàng và tồn kho của Duy trỏ khoá ngoại vào `product_variants.id`.
 
-Dữ liệu giả trong `prisma/seed/catalog.seed.ts`, mã định danh cố định như hiện nay: danh mục cha Áo, Quần, Phụ kiện, mỗi cha hai con; bảng màu, bảng cỡ có `sort_order`, vài thương hiệu; 20 sản phẩm; ảnh dùng địa chỉ ảnh mẫu cố định theo `slug` và màu, vì kho ảnh chưa có ([platform/README](../platform/README.md) lộ trình). Bài kiểm thử import hằng số từ tệp seed, không gõ lại số.
+Dữ liệu giả trong `prisma/seed/catalog.seed.ts`, mã định danh cố định như hiện nay: danh mục cha Áo, Quần, Phụ kiện và bảy danh mục con; sáu màu (có `mac-dinh`), mười cỡ có `sort_order` (có `FREE`), ba thương hiệu; 10 sản phẩm, một sản phẩm dùng biến thể mặc định; ảnh dùng địa chỉ ảnh mẫu cố định theo `slug` và màu, vì kho ảnh chưa có ([platform/README](../platform/README.md) lộ trình). Bài kiểm thử import hằng số từ tệp seed, không gõ lại số.
 
 ## API
 
@@ -71,7 +71,7 @@ Chữ ký thật và trạng thái ở [README của module](../../../apps/api/s
 |---|---|---|---|
 | Duy, PH-02 | `getVariantForCart(variantId)` và bản nhiều dòng `getVariantsForCart(ids)` | Công bố ngay; cài đặt sáng Thứ Bảy 26/09 | Bản nhiều dòng tránh mỗi dòng giỏ một truy vấn |
 | Duy, PH-02 | Chỗ đặt nút "Thêm vào giỏ" trên trang chi tiết | Chủ Nhật khi ghép | Trang chi tiết import nút từ `@/features/cart` qua cửa `index`, luật ranh giới cho phép; trước đó để nút giả bị khoá |
-| Tài, PH-03 | `importProducts(rows)` | Chữ ký Thứ Sáu, cài đặt Thứ Bảy | Chạy lại không sinh bản trùng: khớp theo `slug` và `sku` |
+| Tài, PH-03 | `importProducts(rows)` | Chữ ký Thứ Sáu, cài đặt Thứ Bảy | Chạy lại không sinh bản trùng: nhận ra sản phẩm qua `sku` của biến thể; `slug` sinh một lần khi tạo |
 
 ## Giao diện
 
@@ -105,7 +105,7 @@ Chọn biến thể: chọn màu trước thì ảnh lọc theo màu đó (khôn
 
 | Buổi | Việc | Xong khi |
 |---|---|---|
-| **T6 25/09 tối** | Ba việc ở trên. Sửa `catalog.prisma` theo [erd.md](erd.md), `npm run db:migrate -w apps/api -- --name ph_01_danh_muc_bien_the`, thêm tay các `CHECK` vào tệp SQL. Seed mới | `npm run db:drift -w apps/api` trả 0; seed chạy hai lần không trùng |
+| **T6 25/09 tối** | Ba việc ở trên. Lược đồ, migration có `CHECK`, seed M2 **đã xong sớm** trong PR #11 của Tài (`f39ae11`, CI xanh sáu chặng). Còn: sau khi PR #11 gộp, gộp `develop` vào nhánh này; `npm exec -w apps/api -- prisma migrate reset` ở máy (xoá dữ liệu, chạy lại migration và seed) vì cột mới `price_from` bắt buộc | Nhánh này có bảy bảng; `npm run db:drift -w apps/api` trả 0 ở máy |
 | **T7 26/09** | Sáng: service và controller cho liệt kê, chi tiết, danh mục, `getVariantForCart(s)`, `importProducts`; DTO cho slug; bài đơn vị và bài HTTP; báo Duy, Tài. Chiều: `HomePage`, `CategoryPage`, `CategoryMenu`, trang không tìm thấy. Tối: `ProductDetailPage` với thư viện ảnh và chọn biến thể | `npm run test:http` xanh; ba trang chạy trên máy, đủ ba trạng thái |
 | **CN 27/09 sáng** | Ghép nút giỏ của Duy. `npm run check`, `npm run test:http`. Cập nhật README này, bảng API trong `use-cases.md` theo mã, một mục *thay đổi* trong [LOG](LOG.md) kèm số đo. Mở pull request `Closes #6` | CI xanh sáu chặng; demo 19h |
 
@@ -130,7 +130,7 @@ Tên bài theo `UC-NN.m/ACk` ([testing.md](../../shared/testing.md)). Bài hiệ
 
 ## Trạng thái hôm nay (25/09/2026)
 
-Chưa bắt đầu mã PH-01. Đã có bản đề xuất [erd.md](erd.md), [use-cases.md](use-cases.md) chỉnh theo ERD, ADR-007 và ADR-008 chờ chốt. Mã hiện có chỉ là module demo hai bảng ([LOG 13/09](LOG.md)), sẽ viết lại theo ERD. Chặn: hai ADR chưa chốt; hợp đồng cho Duy trễ từ 23/09; Docker trên máy chưa chạy nên chưa chạy được `test:http`.
+Tầng dữ liệu của PH-01 xong sớm: ADR-007 chốt theo M2 và cài luôn trong PR #11 của Tài (`f39ae11`: lược đồ, migration, seed; module demo đọc giá từ `price_from`), CI xanh sáu chặng. Service, API và giao diện của PH-01 chưa bắt đầu. Chặn: PR #11 chưa gộp nên nhánh này chưa có bảy bảng; ADR-008 chưa chốt; hợp đồng cho Duy trễ từ 23/09; Docker trên máy chưa chạy nên `test:http` chỉ kiểm được trên CI.
 
 ## Còn mở
 

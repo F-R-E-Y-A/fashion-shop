@@ -21,7 +21,7 @@ Hai bảng `categories`, `products`, hai đường dẫn liệt kê và xem mộ
 <a id="adr-007"></a>
 ## 2026-09-25 · ADR-007 — Biến thể là đơn vị bán; màu, cỡ, thương hiệu là bảng tra cứu
 
-**Loại:** quyết định · **Phạm vi:** `catalog.prisma`, sơ đồ [erd.md](erd.md); ảnh hưởng giỏ hàng và tồn kho (Duy), nạp dữ liệu và sơ đồ tổng (Tài) · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi PH-01 tạo migration)
+**Loại:** quyết định · **Phạm vi:** `catalog.prisma`, sơ đồ [erd.md](erd.md); ảnh hưởng giỏ hàng và tồn kho (Duy), nạp dữ liệu và sơ đồ tổng (Tài) · **Trạng thái:** đã chốt (Bảo, 25/09, [xem mục M2](#m2-trong-pr-11)) · **Người quyết:** Bảo · **Commit:** [f39ae11](https://github.com/F-R-E-Y-A/fashion-shop/commit/f39ae11) (PR #11)
 
 ### Hiện trạng
 
@@ -112,3 +112,37 @@ Nếu tìm kiếm (UC-03.2) chuyển sang Meilisearch và cần hình dạng k�
 | AI (suy luận) | Nếu khai `/api/products/search` sau `@Get(':slug')` thì chữ `search` bị hiểu là một slug, theo thứ tự khớp đường dẫn của Express | Chưa chạy thử; lý do chính vẫn là tránh hai đường liệt kê |
 
 **Kết luận:** đề xuất theo quy ước chung, chờ Bảo chốt. **Bằng chứng:** [list-products.query.ts:15 @58f45e9](https://github.com/F-R-E-Y-A/fashion-shop/blob/58f45e9/apps/api/src/modules/products/dto/list-products.query.ts#L15), [products.controller.ts:29 @58f45e9](https://github.com/F-R-E-Y-A/fashion-shop/blob/58f45e9/apps/api/src/modules/products/products.controller.ts#L29), [use-cases.md:103 @3206aa0](https://github.com/F-R-E-Y-A/fashion-shop/blob/3206aa0/docs/features/products/use-cases.md#L103).
+
+---
+
+<a id="m2-trong-pr-11"></a>
+## 2026-09-25 · ADR-007 chốt theo mô hình M2, cài ngay trong PR #11 của Tài
+
+**Loại:** thay đổi mã, dữ liệu · **Phạm vi:** `catalog.prisma`, migration `ht02_final_baseline`, seed, module `products`; hợp đồng `importProducts` · **Commit:** [f39ae11](https://github.com/F-R-E-Y-A/fashion-shop/commit/f39ae11) trên nhánh `feature/ht-02-erd` (PR #11) · **Công cụ AI:** Claude Code (Opus 5.5)
+
+CI chặng 4 của PR #11 đỏ vì SQL viết tay tạo ràng buộc `UNIQUE NULLS NOT DISTINCT` trên `(product_id, size, color)`, còn lược đồ Prisma không khai, nên `db:drift` báo lệch. Bảo chốt **M2**: phương án C của [ADR-007](#adr-007) cộng một luật, **mọi sản phẩm có ít nhất một biến thể; sản phẩm không phân loại dùng cỡ `FREE`, màu `mac-dinh`**. Vì màu và cỡ thành khoá ngoại bắt buộc, ràng buộc duy nhất của biến thể là `@@unique` thường, Prisma mô tả được, hết lệch. Cài luôn trong PR của Tài thay vì vá tạm rồi làm lại ở PH-01.
+
+Làm trong `f39ae11`: bảy bảng M2; đoạn Prisma của migration sinh lại bằng `prisma migrate diff` từ lược đồ sau `init`, khối viết tay của Tài giữ nguyên trừ phần danh mục (bỏ `NULLS NOT DISTINCT`, thêm bảy `CHECK`); seed có cây danh mục, bảng màu, bảng cỡ, thương hiệu, một sản phẩm dùng biến thể mặc định; module demo đọc giá từ `price_from`. Hợp đồng `importProducts` viết lại theo M2 ở [README của module](../../../apps/api/src/modules/products/README.md), trả lời năm câu Tài hỏi.
+
+| Kiểm (lệnh) | Trước (`4cb8cda`) | Sau (`f39ae11`) |
+|---|---|---|
+| CI chặng 4, `npm run db:drift -w apps/api` | đỏ ở bản gốc của Tài: `Removed unique index on columns (product_id, size, color)` | `No difference detected.` |
+| CI chặng 4, `test/products.http.spec.ts` | — | `Tests 9 passed (9)` |
+| CI sáu chặng | — | xanh cả sáu, [run 36095557851](https://github.com/F-R-E-Y-A/fashion-shop/actions/runs/36095557851) |
+
+Máy nào đã có dữ liệu thì chạy `npm exec -w apps/api -- prisma migrate reset`, vì cột mới `products.price_from` bắt buộc.
+
+### Phản biện
+
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| Câu hỏi phản biện | Bảo: "CI lệch là kiểm tra gì, có phải Prisma của Tài và bảng của tôi lệch nhau?" | AI: không phải lệch giữa hai người mà giữa SQL viết tay và `.prisma` trong cùng PR. Chặng 4 chạy migration vào CSDL trắng rồi so với lược đồ; ràng buộc chỉ có trong SQL thì Prisma coi là thừa |
+| Người đưa phương án | Bảo đưa ba hướng: (1) khai bù `@@unique` có `map` trùng tên; (2A) cỡ, màu mặc định thay cho null; (2B) tách bảng theo ADR-007 | Chọn 2B, lấy ý của 2A |
+| AI phân tích hướng 1 | Che được lệch nhưng Prisma 7 không có tham số `NULLS NOT DISTINCT` cho `@@unique`, nên lược đồ nói một đằng, CSDL làm một nẻo; màu, cỡ vẫn là chữ nên ba chỗ hỏng của ADR-007 còn nguyên | Bỏ |
+| AI phân tích hướng 2A | Giá trị mặc định là ý đúng, nhưng nên là **hàng trong bảng tra cứu** (`FREE`, `mac-dinh`), không phải chuỗi rỗng trên cột chữ; giống cách Shopify tạo biến thể "Default Title" | Thành luật 5 của [erd.md](erd.md) |
+| AI sai | H-15: sau khi Bảo chốt M2, AI hiểu là để M2 cho PH-01 làm sau, đẩy bản vá tạm [`4cb8cda`](https://github.com/F-R-E-Y-A/fashion-shop/commit/4cb8cda) (hướng 1) cho CI xanh | Bảo chặn: "tôi muốn làm hoàn thiện phương án theo M2 luôn, không phải làm tạm để CI xanh". `f39ae11` thay bản vá |
+| AI tự bắt | Khi ghép tệp migration bằng script, chuỗi thay thế của `String.replace` chứa `$'` (lấy từ biểu thức `^#[0-9A-Fa-f]{6}$'`), JavaScript hiểu là "phần sau chỗ khớp" nên chèn lặp nội dung | Khôi phục tệp, ghép bằng `split` và `join`; kiểm mỗi ràng buộc xuất hiện đúng một lần trước khi commit |
+
+**Kết luận:** ADR-007 **đã chốt** theo M2 (Bảo, 25/09). Dòng Trạng thái của ADR-007 do agent sửa theo lời chốt của Bảo trong phiên làm việc. Tầng dữ liệu của PH-01 xong trước hạn; service, API, giao diện vẫn theo [README](README.md).
+
+**Bằng chứng:** màu, cỡ bắt buộc [catalog.prisma:101-102](https://github.com/F-R-E-Y-A/fashion-shop/blob/f39ae11/apps/api/prisma/schema/catalog.prisma#L101-L102) · ràng buộc thường [catalog.prisma:121](https://github.com/F-R-E-Y-A/fashion-shop/blob/f39ae11/apps/api/prisma/schema/catalog.prisma#L121) · khối `CHECK` viết tay của danh mục (bảy mới, một của Tài cho ảnh) [migration.sql:1151-1182](https://github.com/F-R-E-Y-A/fashion-shop/blob/f39ae11/apps/api/prisma/migrations/20260924184146_ht02_final_baseline/migration.sql#L1151-L1182) · biến thể mặc định trong seed [catalog.seed.ts:184-185](https://github.com/F-R-E-Y-A/fashion-shop/blob/f39ae11/apps/api/prisma/seed/catalog.seed.ts#L184-L185).

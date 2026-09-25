@@ -1,14 +1,14 @@
 ---
 title: Khám phá sản phẩm — sơ đồ quan hệ thực thể và từ điển dữ liệu
 updated: 2026-09-25
-status: đề xuất, chờ Bảo duyệt
+status: đang dùng
 owner: Bảo
 ---
 # Dữ liệu của feature sản phẩm
 
 **Chức năng:** Bảy bảng Bảo sở hữu cho PH-01: quan hệ, từng cột, ràng buộc, chỉ mục, và chỗ bảng của người khác trỏ vào.
 
-Mô hình theo [ADR-007](LOG.md#adr-007): **biến thể là đơn vị bán** (một mã hàng, một giá), **màu, cỡ, thương hiệu là bảng tra cứu**. Tài ghép phần này vào sơ đồ tổng ở [shared/data-model.md](../../shared/data-model.md); quy ước đặt tên ở cùng tệp đó. Khi `catalog.prisma` cài xong, **lược đồ Prisma là sự thật**, tệp này phải khớp nó.
+Mô hình theo [ADR-007](LOG.md#adr-007): **biến thể là đơn vị bán** (một mã hàng, một giá), **màu, cỡ, thương hiệu là bảng tra cứu**. Tài ghép phần này vào sơ đồ tổng ở [shared/data-model.md](../../shared/data-model.md); quy ước đặt tên ở cùng tệp đó. Mô hình đã cài vào [catalog.prisma](../../../apps/api/prisma/schema/catalog.prisma) trong PR #11 (commit [f39ae11](https://github.com/F-R-E-Y-A/fashion-shop/commit/f39ae11)); từ đây **lược đồ Prisma là sự thật**, tệp này phải khớp nó.
 
 ## Sơ đồ
 
@@ -46,6 +46,7 @@ erDiagram
         text description
         varchar material
         text care_instructions
+        jsonb attributes "thuộc tính phụ, không lọc"
         decimal price_from "giá thấp nhất, tính lại khi ghi biến thể"
         bool is_active
         bool is_featured
@@ -72,7 +73,7 @@ erDiagram
         uuid id PK
         varchar code UK
         varchar name
-        char hex
+        char hex "null ở màu mac-dinh"
     }
     sizes {
         uuid id PK
@@ -88,16 +89,16 @@ Mọi bảng có thêm `created_at`, `updated_at` (`timestamptz`), không vẽ c
 
 ## Từ điển dữ liệu
 
-Kiểu ghi theo PostgreSQL. Tiền `decimal(12,2)`, trả ra API dạng chuỗi ([shared/code.md](../../shared/code.md) luật 1).
+Kiểu ghi theo PostgreSQL. Chuỗi là `varchar` không đặt độ dài, theo lược đồ Prisma (`@db.VarChar`). Tiền `decimal(12,2)`, trả ra API dạng chuỗi ([shared/code.md](../../shared/code.md) luật 1).
 
 ### `categories` — danh mục, cây cha con
 
 | Cột | Kiểu | Bắt buộc | Mặc định | Ý nghĩa, ràng buộc |
 |---|---|---|---|---|
 | `id` | `uuid` | có | sinh tự động | Khoá chính |
-| `parent_id` | `uuid` | không | `null` | Khoá ngoại tới `categories.id`, `ON DELETE RESTRICT`: không xoá được danh mục còn con |
-| `name` | `varchar(120)` | có | | Tên hiện ra, ví dụ "Áo thun" |
-| `slug` | `varchar(140)` | có | | Duy nhất; dùng trên đường dẫn `/danh-muc/:slug` |
+| `parent_id` | `uuid` | không | `null` | Khoá ngoại tới `categories.id`, `ON DELETE RESTRICT`: không xoá được danh mục còn con; `CHECK (parent_id <> id)` |
+| `name` | `varchar` | có | | Tên hiện ra, ví dụ "Áo thun" |
+| `slug` | `varchar` | có | | Duy nhất; dùng trên đường dẫn `/danh-muc/:slug` |
 | `sort_order` | `int` | có | `0` | Thứ tự trên menu, nhỏ trước; `CHECK (sort_order >= 0)` |
 | `is_active` | `boolean` | có | `true` | `false` thì ẩn danh mục và sản phẩm của nó khỏi cửa hàng |
 
@@ -106,8 +107,8 @@ Kiểu ghi theo PostgreSQL. Tiền `decimal(12,2)`, trả ra API dạng chuỗi 
 | Cột | Kiểu | Bắt buộc | Mặc định | Ý nghĩa, ràng buộc |
 |---|---|---|---|---|
 | `id` | `uuid` | có | sinh tự động | Khoá chính |
-| `name` | `varchar(120)` | có | | Tên hiện ra |
-| `slug` | `varchar(140)` | có | | Duy nhất; khoá khớp khi nạp dữ liệu |
+| `name` | `varchar` | có | | Tên hiện ra |
+| `slug` | `varchar` | có | | Duy nhất; khoá khớp khi nạp dữ liệu |
 
 ### `products` — sản phẩm
 
@@ -116,12 +117,13 @@ Kiểu ghi theo PostgreSQL. Tiền `decimal(12,2)`, trả ra API dạng chuỗi 
 | `id` | `uuid` | có | sinh tự động | Khoá chính |
 | `category_id` | `uuid` | có | | Khoá ngoại tới `categories.id`, `ON DELETE RESTRICT` |
 | `brand_id` | `uuid` | không | `null` | Khoá ngoại tới `brands.id`, `ON DELETE SET NULL` |
-| `name` | `varchar(200)` | có | | Tên sản phẩm |
-| `slug` | `varchar(220)` | có | | Duy nhất; đường dẫn `/san-pham/:slug` và khoá khớp khi nạp dữ liệu |
+| `name` | `varchar` | có | | Tên sản phẩm |
+| `slug` | `varchar` | có | | Duy nhất; đường dẫn `/san-pham/:slug`. Sinh một lần khi tạo và không đổi khi tên đổi, để link cũ không gãy; nạp dữ liệu nhận ra sản phẩm qua `sku` của biến thể, không qua `slug` ([hợp đồng](../../../apps/api/src/modules/products/README.md)) |
 | `description` | `text` | không | | Mô tả |
-| `material` | `varchar(200)` | không | | Chất liệu (UC-03.4 bước 2) |
+| `material` | `varchar` | không | | Chất liệu (UC-03.4 bước 2) |
 | `care_instructions` | `text` | không | | Hướng dẫn bảo quản (UC-03.4 bước 2) |
-| `price_from` | `decimal(12,2)` | có | | Giá bán thấp nhất trong các biến thể đang bán. **Chỉ service `products` ghi**, tính lại trong cùng giao dịch mỗi khi ghi biến thể; nhờ vậy sắp xếp và lọc theo giá không phải gom nhóm |
+| `attributes` | `jsonb` | không | | Thuộc tính phụ dạng tự do, giữ từ bản của Tài để dữ liệu nạp không mất chi tiết; không lọc, không sắp xếp theo cột này |
+| `price_from` | `decimal(12,2)` | có | | Giá bán thấp nhất trong các biến thể đang bán. `CHECK (price_from >= 0)`. **Chỉ service `products` ghi**, tính lại trong cùng giao dịch mỗi khi ghi biến thể; nhờ vậy sắp xếp và lọc theo giá không phải gom nhóm |
 | `is_active` | `boolean` | có | `true` | `false` là ngừng bán: ẩn khỏi cửa hàng, giỏ báo "ngừng bán" |
 | `is_featured` | `boolean` | có | `false` | Hiện ở khối "Nổi bật" trang chủ |
 
@@ -133,7 +135,7 @@ Kiểu ghi theo PostgreSQL. Tiền `decimal(12,2)`, trả ra API dạng chuỗi 
 | `product_id` | `uuid` | có | | Khoá ngoại tới `products.id`, `ON DELETE RESTRICT` |
 | `color_id` | `uuid` | có | | Khoá ngoại tới `colors.id`, `ON DELETE RESTRICT` |
 | `size_id` | `uuid` | có | | Khoá ngoại tới `sizes.id`, `ON DELETE RESTRICT` |
-| `sku` | `varchar(64)` | có | | Mã hàng, duy nhất; khoá khớp khi nạp dữ liệu |
+| `sku` | `varchar` | có | | Mã hàng, duy nhất; khoá khớp khi nạp dữ liệu |
 | `list_price` | `decimal(12,2)` | có | | Giá niêm yết; `CHECK (list_price > 0)` |
 | `sale_price` | `decimal(12,2)` | không | `null` | Giá khuyến mãi; `CHECK (sale_price IS NULL OR (sale_price > 0 AND sale_price < list_price))` |
 | `is_active` | `boolean` | có | `true` | Biến thể ngừng bán vẫn giữ để giỏ và đơn cũ không gãy |
@@ -145,18 +147,18 @@ Duy nhất theo bộ `(product_id, color_id, size_id)`: một sản phẩm khôn
 | Cột | Kiểu | Bắt buộc | Mặc định | Ý nghĩa, ràng buộc |
 |---|---|---|---|---|
 | `id` | `uuid` | có | sinh tự động | Khoá chính |
-| `product_id` | `uuid` | có | | Khoá ngoại tới `products.id`, `ON DELETE CASCADE`: ảnh không có ai khác trỏ vào |
+| `product_id` | `uuid` | có | | Khoá ngoại tới `products.id`, `ON DELETE RESTRICT`, như mọi khoá ngoại tới `products`; sản phẩm không bị xoá cứng (luật 1) nên ảnh không cần xoá dây chuyền |
 | `color_id` | `uuid` | không | `null` | Ảnh của màu nào; `null` là ảnh dùng cho mọi màu. `ON DELETE SET NULL` |
-| `url` | `varchar(500)` | có | | Địa chỉ ảnh |
-| `alt` | `varchar(200)` | không | | Mô tả ảnh cho trình đọc màn hình ([shared/design.md](../../shared/design.md) luật 3) |
-| `sort_order` | `int` | có | `0` | Thứ tự trong thư viện ảnh; nhỏ nhất là ảnh đại diện; `CHECK (sort_order >= 0)` |
+| `url` | `varchar` | có | | Địa chỉ ảnh |
+| `alt` | `varchar` | không | | Mô tả ảnh cho trình đọc màn hình ([shared/design.md](../../shared/design.md) luật 3) |
+| `sort_order` | `int` | có | | Thứ tự trong thư viện ảnh, duy nhất trong một sản phẩm; nhỏ nhất là ảnh đại diện; `CHECK (sort_order >= 0)` |
 
 ### `colors`, `sizes` — bảng tra cứu
 
 | Bảng | Cột | Ý nghĩa, ràng buộc |
 |---|---|---|
-| `colors` | `code varchar(40)` duy nhất, `name varchar(40)`, `hex char(7)` | `code` không dấu làm khoá khớp và tham số lọc (`den`, `trang`); `name` hiện ra ("Đen"); `hex` vẽ ô màu, `CHECK (hex ~ '^#[0-9A-Fa-f]{6}$')` |
-| `sizes` | `code varchar(20)` duy nhất, `sort_order int` | `code` hiện ra và làm tham số lọc (`S`, `M`, `29`, `FREE`); `sort_order` quyết thứ tự nút cỡ, vì sắp theo chữ sẽ ra `L, M, S, XL` |
+| `colors` | `code varchar` duy nhất, `name varchar`, `hex char(7)` | `code` không dấu làm khoá khớp và tham số lọc (`den`, `trang`); `name` hiện ra ("Đen"); `hex` vẽ ô màu, bỏ trống được (màu `mac-dinh` không có ô), `CHECK (hex IS NULL OR hex ~ '^#[0-9A-Fa-f]{6}$')` |
+| `sizes` | `code varchar` duy nhất, `sort_order int` | `code` hiện ra và làm tham số lọc (`S`, `M`, `29`, `FREE`); `sort_order` quyết thứ tự nút cỡ, vì sắp theo chữ sẽ ra `L, M, S, XL`; `CHECK (sort_order >= 0)` |
 
 ## Luật dữ liệu
 
@@ -166,17 +168,22 @@ Duy nhất theo bộ `(product_id, color_id, size_id)`: một sản phẩm khôn
 | 2 | Sản phẩm chỉ hiện ở cửa hàng khi chính nó, danh mục của nó và ít nhất một biến thể đang bán (UC-03.1/BR1) | Truy vấn liệt kê |
 | 3 | `price_from` bằng giá bán nhỏ nhất (`sale_price` nếu có, không thì `list_price`) trong các biến thể đang bán | Service `products`, cùng giao dịch với lần ghi biến thể |
 | 4 | Bảng của người khác chỉ **trỏ khoá ngoại** vào đây, không ghi; muốn đọc thì gọi hàm công bố trong [README của module](../../../apps/api/src/modules/products/README.md) | Luật 2 của [CONTRIBUTING.md](../../CONTRIBUTING.md) |
+| 5 | Mọi sản phẩm có **ít nhất một biến thể**. Sản phẩm không phân loại theo màu hay cỡ dùng một biến thể **cỡ `FREE`, màu `mac-dinh`**; hai giá trị này là hàng có sẵn trong bảng tra cứu, không phải chuỗi rỗng. Nhờ vậy `color_id`, `size_id` luôn bắt buộc và ràng buộc duy nhất của biến thể là ràng buộc thường | Seed và `importProducts`; cơ sở dữ liệu không đếm được số con nên không canh bằng ràng buộc |
+| 6 | Sản phẩm gắn vào **danh mục lá**; lọc theo danh mục cha thì gồm cả danh mục con (UC-03.1/AC1) | Seed và `importProducts` |
 
-Prisma không mô tả được `CHECK`, nên các ràng buộc `CHECK` ở trên viết tay vào tệp SQL của migration, kèm chú thích dẫn về đây.
+Prisma không mô tả được `CHECK`, nên các ràng buộc `CHECK` ở trên viết tay ở cuối tệp SQL của migration [20260924184146_ht02_final_baseline](https://github.com/F-R-E-Y-A/fashion-shop/blob/f39ae11/apps/api/prisma/migrations/20260924184146_ht02_final_baseline/migration.sql#L1151-L1182), mỗi ràng buộc một tên đuôi `_ck`. Lệnh `npm run db:drift -w apps/api` không so `CHECK`, nên sửa một `CHECK` thì phải sửa bằng một migration viết tay mới.
 
 ## Chỉ mục
 
 | Chỉ mục | Phục vụ |
 |---|---|
 | `products (category_id)` | Liệt kê theo danh mục |
+| `products (brand_id)` | Lọc theo thương hiệu |
 | `products (is_active, created_at DESC)` | Sắp xếp mới nhất, mặc định của mọi danh sách |
 | `products (is_active, price_from)` | Sắp xếp theo giá |
-| `product_variants (product_id)`, `product_images (product_id, sort_order)` | Trang chi tiết |
+| Ràng buộc duy nhất `product_variants (product_id, color_id, size_id)` | Lấy biến thể của một sản phẩm: cột đầu là `product_id` nên chỉ mục của ràng buộc dùng được, không cần chỉ mục riêng |
+| `product_variants (color_id)`, `product_variants (size_id)` | Lọc theo màu, cỡ; kiểm khoá ngoại khi xoá một màu hay cỡ |
+| Ràng buộc duy nhất `product_images (product_id, sort_order)` | Thư viện ảnh của trang chi tiết |
 | `categories (parent_id)` | Dựng cây danh mục, lấy danh mục con |
 
 Số đo trước sau của chỉ mục ghi vào LOG khi có dữ liệu thật; chưa đo thì chưa thêm chỉ mục nào ngoài bảng trên.
