@@ -3,6 +3,10 @@ import test from 'node:test';
 
 import type { JsonObject, RawProductEnvelope } from '../src/contracts/raw-product.ts';
 import { normalizeYodyEnvelope } from '../src/normalization/normalize-product.ts';
+import { isCanonicalSizeCode } from '../src/normalization/size-taxonomy.ts';
+
+const plannedSizeExpansion = ['2XL', '3XL', '4XL'] as const;
+const catalogSizeExpansionActive = plannedSizeExpansion.every(isCanonicalSizeCode);
 
 function sourceVariant(overrides: JsonObject = {}): JsonObject {
   return {
@@ -47,6 +51,27 @@ test('marks a source product without variants PENDING_REVIEW with NO_VARIANT', (
   assert.equal(result.price, null);
   assert.equal(result.attributes.brand, null);
 });
+
+test(
+  'keeps planned 2XL, 3XL and 4XL variants pending review',
+  { skip: catalogSizeExpansionActive && 'Catalog size expansion is active' },
+  () => {
+    for (const code of plannedSizeExpansion) {
+      const result = normalizeYodyEnvelope(
+        envelope([sourceVariant({ sku: `SKU-VAG-${code}`, size: { name: code } })]),
+      );
+
+      assert.equal(result.normalizationStatus, 'PENDING_REVIEW');
+      assert.deepEqual(result.attributes.variants[0]?.sizeCode, code);
+      assert.equal(
+        result.validation.issues.some(
+          (entry) => entry.code === 'UNKNOWN_SIZE' && entry.path === 'variants[0].sizeCode',
+        ),
+        true,
+      );
+    }
+  },
+);
 
 test('detects conflicting duplicate color/size and duplicate SKU', () => {
   const duplicateCombination = normalizeYodyEnvelope(

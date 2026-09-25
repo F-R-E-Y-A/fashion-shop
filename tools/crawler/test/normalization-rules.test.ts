@@ -6,9 +6,15 @@ import { normalizeCategory } from '../src/normalization/category.ts';
 import { normalizeYodyColor } from '../src/normalization/color.ts';
 import { normalizePrice } from '../src/normalization/price.ts';
 import { normalizeSize } from '../src/normalization/size.ts';
+import {
+  CATALOG_CANONICAL_SIZE_CODES,
+  isCanonicalSizeCode,
+} from '../src/normalization/size-taxonomy.ts';
 import { normalizeSku } from '../src/normalization/sku.ts';
 
 const category = (slug: string, name: string): JsonObject => ({ slug, name });
+const plannedSizeExpansion = ['2XL', '3XL', '4XL'] as const;
+const catalogSizeExpansionActive = plannedSizeExpansion.every(isCanonicalSizeCode);
 
 test('maps source categories only to deterministic M2 leaves', () => {
   assert.equal(normalizeCategory(category('ao-polo-nam', 'Áo polo nam'))?.slug, 'ao-thun');
@@ -18,14 +24,50 @@ test('maps source categories only to deterministic M2 leaves', () => {
   assert.equal(normalizeCategory(category('tat-nam', 'Tất nam')), null);
 });
 
-test('normalizes allowed sizes and FREE aliases without coercing unknown sizes', () => {
+test('uses the current Catalog seed size taxonomy and normalizes active aliases', () => {
+  assert.deepEqual(CATALOG_CANONICAL_SIZE_CODES, [
+    'XS',
+    'S',
+    'M',
+    'L',
+    'XL',
+    '29',
+    '30',
+    '31',
+    '32',
+    'FREE',
+  ]);
   assert.deepEqual(normalizeSize({ name: 'M' }), { code: 'M', state: 'valid' });
   assert.deepEqual(normalizeSize({ name: 'F' }), { code: 'FREE', state: 'valid' });
   assert.deepEqual(normalizeSize('one size'), { code: 'FREE', state: 'valid' });
-  assert.deepEqual(normalizeSize('2XL'), { code: '2XL', state: 'unknown' });
-  assert.deepEqual(normalizeSize('3XL'), { code: '3XL', state: 'unknown' });
   assert.deepEqual(normalizeSize(null), { code: null, state: 'missing' });
 });
+
+test(
+  'keeps planned Catalog expansion sizes unknown until their canonical codes exist',
+  { skip: catalogSizeExpansionActive && 'Catalog size expansion is active' },
+  () => {
+    for (const code of plannedSizeExpansion) {
+      assert.deepEqual(normalizeSize(code), { code, state: 'unknown' });
+    }
+  },
+);
+
+test(
+  'activates planned aliases after Catalog adds their canonical targets',
+  { skip: !catalogSizeExpansionActive && 'Waiting for Catalog canonical size expansion' },
+  () => {
+    const futureAliases = [
+      ['XXL', '2XL'],
+      ['XXXL', '3XL'],
+      ['XXXXL', '4XL'],
+    ] as const;
+
+    for (const [source, target] of futureAliases) {
+      assert.deepEqual(normalizeSize(source), { code: target, state: 'valid' });
+    }
+  },
+);
 
 test('normalizes source-prefixed color and accepts only valid source hex', () => {
   const valid = normalizeYodyColor({ code: 'SI041', name: 'Rêu-SI041', hex: '#334713' }, 'color');

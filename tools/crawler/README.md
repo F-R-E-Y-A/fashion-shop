@@ -84,6 +84,12 @@ Normalizer chỉ map vào leaf category M2 đã duyệt, giữ brand `null` khi 
 deterministic. Unknown category/size, missing source data, invalid price và variant conflict được
 giữ lại dưới trạng thái `PENDING_REVIEW`.
 
+Canonical size của normalizer được tập trung tại `src/normalization/size-taxonomy.ts` và phải bám
+theo `SIZES` trong Catalog seed. Catalog chưa có `2XL`, `3XL`, `4XL`, vì vậy ba code này vẫn là
+`UNKNOWN_SIZE`; các alias `XXL`, `XXXL`, `XXXXL` cũng chưa hoạt động. TODO sau khi BAO cập nhật
+Catalog seed: thêm ba canonical code vào tập trung này; alias và test tương lai sẽ tự được kích hoạt.
+Không cần đổi thuật toán normalize.
+
 ## Giới hạn hiện tại
 
 - Chưa chạy collection 300–500 sản phẩm.
