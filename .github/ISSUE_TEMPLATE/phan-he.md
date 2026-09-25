@@ -1,14 +1,15 @@
 ---
 name: Phân hệ công việc
 about: Một dòng trong bảng chia việc theo sprint
-title: '[PH-00] Tên phân hệ'
+title: 'PH-NN · Tên dòng việc'
 labels: ''
 assignees: ''
 ---
 
 ## Mã và sprint
 
-Mã: PH-00 hoặc HT-00
+Mã: PH-NN (chức năng) hoặc HT-NN (nền tảng)
+Use case: UC-NN.m, UC-NN.m (xem docs/shared/use-case-index.md)
 Sprint: S0, từ ngày ... đến ngày ...
 Người thực hiện: 
 Số ngày: 6

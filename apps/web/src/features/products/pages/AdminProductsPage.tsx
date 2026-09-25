@@ -9,7 +9,7 @@ import { listProducts, productKeys } from '../api/index.js';
  *
  * Theo luat chia viec: moi nguoi tu lam man quan tri cua chinh nhung bang minh so huu,
  * va dat no trong feature cua minh, khong gom thanh mot feature "admin" chung.
- * Man day du (them, sua, an san pham) thuoc PH-14, tuan 8.
+ * Man day du (them, sua, an san pham) thuoc nhom use case UC-04, chua giao dong viec.
  */
 export function AdminProductsPage() {
   const params = { page: 1, pageSize: 1 };

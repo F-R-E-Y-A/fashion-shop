@@ -1,5 +1,5 @@
 # render.yaml — Blueprint moi truong thu TAM THOI (S1–S2) cho may chu API. Chuyen sang Azure o S3.
-# Cach dung, bien can dien va cach noi voi GitHub Actions: docs/ops/staging.md.
+# Cach dung, bien can dien va cach noi voi GitHub Actions: docs/features/platform/staging.md.
 # Deploy KHONG tu chay khi push (autoDeployTrigger: off): CI xanh xong thi cd-staging.yml goi deploy hook,
 # nhu vay lich su deploy va thoi gian commit -> staging nam ca trong GitHub Actions.
 services:

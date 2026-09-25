@@ -1,6 +1,14 @@
+---
+title: Môi trường thử — dựng và vận hành
+updated: 2026-09-24
+status: đang dùng
+owner: Bảo
+---
 # Môi trường thử: dựng và vận hành
 
-Máy chủ chạy **Render**, giao diện chạy **Vercel**. Đây là lựa chọn **tạm** để có địa chỉ chạy được ngay trong tuần đầu và bắt đầu đếm số lần triển khai. Kế hoạch chuyển sang **Azure** từ S3, xem `../TECH_DEBT.md` mục ND-07.
+**Chức năng:** Dựng môi trường thử Render và Vercel lần đầu, luồng tự triển khai, xem log, quay về bản trước, ba cái bẫy đã biết.
+
+Máy chủ chạy **Render**, giao diện chạy **Vercel**. Đây là lựa chọn **tạm** để có địa chỉ chạy được ngay trong tuần đầu và bắt đầu đếm số lần triển khai. Kế hoạch chuyển sang **Azure** từ S3, xem [TECH_DEBT.md](../../TECH_DEBT.md) mục ND-07.
 
 | | Địa chỉ |
 |---|---|

@@ -36,7 +36,8 @@
     "prod:down": "docker compose -f infra/compose.prod.yml down",
     "evidence:github": "node tools/evidence/github-metrics.mjs",
     "prepare": "node tools/git/install-hooks.mjs",
-    "lint:boundaries": "node tools/eslint/verify-boundaries.mjs"
+    "lint:boundaries": "node tools/eslint/verify-boundaries.mjs",
+    "docs:lint": "node tools/docs/lint.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

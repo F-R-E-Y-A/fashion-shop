@@ -1,4 +1,12 @@
+---
+title: Luật làm việc chung
+updated: 2026-09-24
+status: đang dùng
+owner: Bảo
+---
 # Luật làm việc chung
+
+**Chức năng:** Ba luật không được phá, ranh giới được ép thế nào, bảng nào của ai, chín bước thêm một phân hệ, điều kiện hoàn thành, nhịp tuần.
 
 ## Ba luật không được phá
 
@@ -8,7 +16,7 @@
 
 **3. Controller không gọi thẳng Prisma.** Phải đi qua tầng service. Lý do: khi phân hệ khác cần dữ liệu, họ tiêm service đó, và luật số hai tự nhiên được giữ.
 
-**Ba luật này được ép bằng máy**, không phải bằng lời nhắc. Phạm luật thì `npm run lint` báo lỗi tiếng Việt chỉ thẳng luật nào bị phạm, và CI không cho gộp. Lý do chọn cách này nằm ở `adr/adr-004-co-che-chat-luong.md`.
+**Ba luật này được ép bằng máy**, không phải bằng lời nhắc. Phạm luật thì `npm run lint` báo lỗi tiếng Việt chỉ thẳng luật nào bị phạm, và CI không cho gộp. Lý do chọn cách này nằm ở [LOG#adr-004](LOG.md#adr-004).
 
 ## Ranh giới được ép thế nào
 
@@ -46,14 +54,14 @@ Muốn thêm chỉ mục trên bảng người khác thì đề xuất kèm số
 
 ## Chín bước thêm một phân hệ
 
-1. Nhận phiếu công việc ở tab **Issues** của kho, hoặc mở phiếu mới theo mẫu nếu chưa có. **Ghi lại số phiếu**, ví dụ `#3`. Cách tìm phiếu và cách đóng phiếu ở `GIT_FLOW.md`.
-2. Tạo nhánh `feature/ph-NN-ten-ngan` từ `develop`.
+1. Nhận phiếu công việc ở tab **Issues** của kho, hoặc mở phiếu mới theo mẫu nếu chưa có. **Ghi lại số phiếu**, ví dụ `#3`. Cách tìm phiếu và cách đóng phiếu ở [shared/git.md](shared/git.md).
+2. Tạo nhánh `feature/<mã việc viết thường>-<tên ngắn>` từ `develop`, ví dụ `feature/ph-02-cart`.
 3. Thêm bảng vào tệp `.prisma` **của chính mình**, chạy `npm run db:migrate`, đặt tên migration theo việc.
 4. Thêm dữ liệu giả vào `prisma/seed/<phân hệ>.seed.ts`, gọi từ `seed/index.ts`.
 5. Chép `modules/products`, đổi tên, giữ `index.ts` làm cửa. Đăng ký vào `app.module.ts`.
 6. Chép `features/products`, đổi tên. Thêm `Route` trong `app/routes.tsx`.
 7. Viết kiểm thử: một bài đơn vị cho service, một bài HTTP cho đường dẫn, một bài cho trang.
-8. Viết đặc tả use case vào `docs/ba/`. Thêm dòng sở hữu vào `.github/CODEOWNERS`.
+8. Cập nhật tài liệu của feature trong `docs/features/<module>/`: `README.md` (trạng thái hôm nay), `use-cases.md` nếu nghiệp vụ đổi, `LOG.md` nếu có quyết định. Chép khung từ `docs/shared/templates/`. Thêm dòng sở hữu vào `.github/CODEOWNERS`.
 9. `npm run check`, rồi mở pull request vào `develop`. Điền danh sách kiểm, và **viết `Closes #<số phiếu>` vào phần thân** để gộp xong phiếu tự đóng.
 
 ## Điều kiện hoàn thành
@@ -63,8 +71,8 @@ Một dòng việc chỉ được coi là xong khi đủ hết, không cắt b�
 - Có migration nếu có đụng bảng, và có dữ liệu giả kèm theo.
 - API khớp đặc tả tại `/api/docs`.
 - Có giao diện chạy được, không chỉ có API, và đủ ba trạng thái đang tải, lỗi, không có dữ liệu.
-- Có kiểm thử cho phần lõi, tên bài ghi mã tiêu chí chấp nhận.
-- Tài liệu use case của phân hệ đã cập nhật.
+- Có kiểm thử cho phần lõi, tên bài ghi mã tiêu chí chấp nhận dạng `UC-NN.m/ACk`.
+- Tài liệu của feature trong `docs/features/<module>/` đã cập nhật, `npm run docs:lint` sạch.
 - Chạy được trên máy người khác sau khi kéo về.
 - Pull request được người khác duyệt và CI xanh cả sáu chặng.
 
@@ -91,5 +99,5 @@ Một dòng việc chỉ được coi là xong khi đủ hết, không cắt b�
 | Chờ hợp đồng của người khác | Chạy trên dữ liệu giả, đổi sang thật khi họ xong. Không ngồi đợi |
 | Lint báo lỗi ranh giới mà thấy vô lý | Mang ra buổi Thứ Tư. Có thể luật sai, sửa `tools/eslint/boundaries.mjs`. Đừng tự tắt luật |
 | Quyết định chạm từ hai người | Đưa ra buổi chốt Thứ Tư |
-| Quyết định về kiến trúc hoặc phạm vi | Hỏi giảng viên tối Chủ Nhật. Chốt xong thì viết ADR |
-| Thấy thứ biết là nợ mà chưa sửa được | Thêm một dòng vào `TECH_DEBT.md`, đừng để trong đầu |
+| Quyết định về kiến trúc hoặc phạm vi | Hỏi giảng viên tối Chủ Nhật. Chốt xong thì thêm một mục `ADR` vào `LOG.md` đúng phạm vi |
+| Thấy thứ biết là nợ mà chưa sửa được | Thêm một dòng vào [TECH_DEBT.md](TECH_DEBT.md), đừng để trong đầu |

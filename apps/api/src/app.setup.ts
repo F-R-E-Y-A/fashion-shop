@@ -36,7 +36,7 @@ export function configureApp(app: INestApplication, options: { swagger?: boolean
     const swaggerConfig = new DocumentBuilder()
       .setTitle('API website thuong mai dien tu thoi trang')
       .setDescription(
-        'Dac ta sinh tu chu thich Swagger trong tung phan he. Quy uoc duong dan, phan trang va loi: docs/api-conventions.md.',
+        'Dac ta sinh tu chu thich Swagger trong tung phan he. Quy uoc duong dan, phan trang va loi: docs/shared/api.md.',
       )
       .setVersion(config.get('APP_VERSION', { infer: true }))
       .build();
