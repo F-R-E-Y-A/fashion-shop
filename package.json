@@ -5,7 +5,8 @@
   "description": "Website thuong mai dien tu thoi trang - TLCN",
   "type": "module",
   "workspaces": [
-    "apps/*"
+    "apps/*",
+    "tools/crawler"
   ],
   "engines": {
     "node": ">=24"
@@ -37,7 +38,8 @@
     "evidence:github": "node tools/evidence/github-metrics.mjs",
     "prepare": "node tools/git/install-hooks.mjs",
     "lint:boundaries": "node tools/eslint/verify-boundaries.mjs",
-    "docs:lint": "node tools/docs/lint.mjs"
+    "docs:lint": "node tools/docs/lint.mjs",
+    "crawler": "node tools/crawler/src/cli.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

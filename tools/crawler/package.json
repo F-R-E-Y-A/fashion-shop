@@ -1,0 +1,19 @@
+{
+  "name": "@fashion-shop/crawler",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Safe, resumable raw product collector for HT-03",
+  "type": "module",
+  "scripts": {
+    "collect": "node src/cli.ts",
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.1",
+    "typescript": "~6.0.2"
+  }
+}
