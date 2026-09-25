@@ -5,7 +5,7 @@
 #   giao dien    -> Vercel (tu dung va tu trien khai khi thay commit moi tren develop)
 #
 # Chay SAU khi CI xanh, khong chay song song: bao dam thu len moi truong thu la thu da qua kiem.
-# Bien bi mat can dat o Settings > Secrets and variables > Actions (xem docs/ops/staging.md):
+# Bien bi mat can dat o Settings > Secrets and variables > Actions (xem docs/features/platform/staging.md):
 #   RENDER_DEPLOY_HOOK_URL   dia chi hook lay trong Render, Settings > Deploy Hook
 #   STAGING_API_URL          vi du https://fashion-shop-api.onrender.com
 #   STAGING_WEB_URL          vi du https://fashion-shop-web.vercel.app
@@ -40,7 +40,7 @@ jobs:
           HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
         run: |
           if [ -z "$HOOK" ]; then
-            echo "::error::Chua dat RENDER_DEPLOY_HOOK_URL. Xem docs/ops/staging.md muc 2."
+            echo "::error::Chua dat RENDER_DEPLOY_HOOK_URL. Xem docs/features/platform/staging.md muc Dung lan dau."
             exit 1
           fi
           curl -fsS -X POST "$HOOK" -o deploy.json

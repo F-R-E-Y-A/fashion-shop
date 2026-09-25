@@ -1,6 +1,18 @@
+---
+title: Mô hình dữ liệu và từ điển dữ liệu
+updated: 2026-09-25
+status: đang dùng
+owner: Tài
+---
 # Mô hình dữ liệu và từ điển dữ liệu
 
+**Chức năng:** Bức tranh dữ liệu toàn hệ thống: sơ đồ quan hệ thực thể, quy ước, bảng nào của ai, từ điển từng bảng, ràng buộc và chỉ mục.
+
 Physical database specification chốt cho HT-02. Nguồn chân lý là ERD approved trong diagram-fashion-ecommerce/draft/database; Prisma hiện tại chỉ là mẫu.
+
+![Sơ đồ quan hệ thực thể HT-02](diagrams/erd-tong-the.drawio.png)
+
+> **Ghi chú khi gộp (Bảo, 25/09).** Phần danh mục (mục 5) đang chuyển sang mô hình M2: biến thể trỏ khoá ngoại bắt buộc tới `colors`, `sizes`, sản phẩm có `brand`, danh mục có cây cha con, biến thể có giá niêm yết và giá khuyến mãi, mọi sản phẩm có ít nhất một biến thể. Nguồn cho phần này là [features/products/erd.md](https://github.com/F-R-E-Y-A/fashion-shop/blob/a03e1cc/docs/features/products/erd.md) trên nhánh PH-01; bảng ở mục 5 sẽ sửa theo khi migration của PH-01 gộp. Khi đã có migration thì lược đồ Prisma là sự thật, tệp này phải khớp nó.
 
 ## 1. Database conventions
 

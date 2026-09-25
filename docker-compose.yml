@@ -1,6 +1,6 @@
 # Moi truong phat trien tren may: chi MOT dich vu la co so du lieu.
 # Khong dinh nghia san Redis, Meilisearch, MinIO hay may chu thu. Phan he nao can dich vu gi thi
-# them o tuan cua phan he do, trong cung pull request (docs/PLATFORM_ROADMAP.md muc 3.4).
+# them o tuan cua phan he do, trong cung pull request (docs/LOG.md#adr-004, docs/features/platform/README.md).
 # Chay ca he thong nhu tren may that: infra/compose.prod.yml.
 services:
   postgres:

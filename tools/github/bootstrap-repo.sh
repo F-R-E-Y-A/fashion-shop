@@ -11,13 +11,13 @@ label "bug"               "d73a4a" "Loi da xac nhan"
 label "severity/critical" "b60205" "Chan luong chinh hoac mat du lieu, sua ngay"
 label "severity/major"    "e99695" "Sai nghiep vu, co cach di vong"
 label "severity/minor"    "fbca04" "Kho chiu, khong chan"
-label "ai-error"          "5319e7" "Loi do AI sinh, ghi vao docs/ai-log/hallucinations.md"
+label "ai-error"          "5319e7" "Loi do AI sinh, ghi vao ai-log/hallucinations.md o kho docs"
 label "tech-debt"         "c5def5" "No ky thuat, xem docs/TECH_DEBT.md"
 label "regression-test"   "0e8a16" "PR sua loi co kem test hoi quy"
 label "ph"                "1d76db" "Phan he chuc nang"
 label "ht"                "0052cc" "Hang muc nen tang"
 
-# Milestone moi sprint, ten theo docs/GIT_FLOW.md, han la Chu Nhat hop giang vien.
+# Milestone moi sprint, ten theo docs/shared/git.md, han la Chu Nhat hop giang vien.
 ms() {
   if gh api -X POST "repos/$REPO/milestones" -f title="$1" -f due_on="$2T12:00:00Z" >/dev/null 2>&1; then
     echo "milestone  $1"

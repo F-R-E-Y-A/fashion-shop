@@ -1,5 +1,5 @@
 // tools/git/pre-push.mjs — hook pre-push, hai viec:
-//   1. Chan day thang vao develop va main. Moi thay doi di qua pull request (docs/GIT_FLOW.md).
+//   1. Chan day thang vao develop va main. Moi thay doi di qua pull request (docs/shared/git.md).
 //      Truong hop khan cap: ALLOW_DIRECT_PUSH=1 git push ...
 //   2. Kiem kieu ca hai workspace truoc khi day, de CI khong do vi loi bat duoc ngay tren may.
 //      Bo qua buoc nay: SKIP_TYPECHECK=1 git push ...
@@ -27,7 +27,7 @@ const direct = remoteRefs.filter((ref) => PROTECTED.has(ref));
 if (direct.length > 0 && process.env.ALLOW_DIRECT_PUSH !== '1') {
   console.error(`
 ✖ Khong day thang vao ${direct.map((r) => r.replace('refs/heads/', '')).join(', ')}.
-  Mo pull request vao develop; CI xanh va mot nguoi khac duyet roi moi gop (docs/GIT_FLOW.md).
+  Mo pull request vao develop; CI xanh va mot nguoi khac duyet roi moi gop (docs/shared/git.md).
   Khan cap: ALLOW_DIRECT_PUSH=1 git push ...
 `);
   process.exit(1);

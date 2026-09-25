@@ -1,6 +1,14 @@
+---
+title: Kiểm thử — chạy thế nào, viết thế nào
+updated: 2026-09-24
+status: đang dùng
+owner: Bảo
+---
 # Kiểm thử: chạy thế nào, viết thế nào
 
-Tệp này nói về **cơ chế**. Tầng kiểm thử, độ phủ mong muốn và quy trình xử lý lỗi thuộc `test-strategy.md`, do Duy chốt.
+**Chức năng:** Lệnh chạy kiểm thử, bài nào viết ở đâu, khuôn nào để chép, và ba luật đặt tên để truy vết tới tiêu chí chấp nhận.
+
+Tệp này nói về **cơ chế**. Tầng kiểm thử, độ phủ mong muốn và quy trình xử lý lỗi thuộc [test-strategy.md](test-strategy.md), do Duy chốt.
 
 ## Chạy
 
@@ -39,7 +47,7 @@ Nguyên tắc chọn: **logic nghiệp vụ thì viết bài đơn vị; đườ
 
 ## Ba luật khi viết bài
 
-**1. Tên bài ghi mã dòng việc và tiêu chí chấp nhận.** Ví dụ `AC-2 tim theo ten: khong phan biet hoa thuong`. Rubric TC2.5 Mức 5 đòi test truy vết được tới tiêu chí chấp nhận; tên bài là cách rẻ nhất để làm việc đó.
+**1. Tên bài ghi mã use case và tiêu chí chấp nhận.** `describe` ghi use case, `it` ghi tiêu chí, ví dụ `describe("UC-03.4 Xem chi tiet san pham")` và `it("UC-03.4/AC5 slug khong ton tai tra 404")`. Mã tiêu chí lấy từ `docs/features/<x>/use-cases.md`. Rubric TC2.5 Mức 5 đòi test truy vết được tới tiêu chí chấp nhận; tên bài là cách rẻ nhất để làm việc đó.
 
 **2. Đừng gõ lại dữ liệu giả.** Import từ `prisma/seed/<phân hệ>.seed.ts`. Đổi dữ liệu một chỗ là mọi bài theo kịp, thay vì hỏng hàng loạt.
 
