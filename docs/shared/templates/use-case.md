@@ -1,6 +1,6 @@
 ---
 title: Mẫu đặc tả use case
-updated: 2026-09-24
+updated: 2026-09-25
 status: đang dùng
 owner: Duy
 ---
@@ -8,7 +8,7 @@ owner: Duy
 
 **Chức năng:** Khung để viết đặc tả các use case của một nhóm `UC-NN`, chép vào thư mục feature sở hữu nhóm đó.
 
-Mỗi feature một tệp `use-cases.md` chứa mọi use case của nhóm mình. Chép khung dưới, xoá phần trong ngoặc nhọn. Mẫu thật: `features/products/use-cases.md` (có từ PH-01).
+Mỗi feature một tệp `use-cases.md` chứa mọi use case của nhóm mình. Chép khung dưới, xoá phần trong ngoặc nhọn. Mẫu thật: [features/products/use-cases.md](../../features/products/use-cases.md).
 
 ````markdown
 ---

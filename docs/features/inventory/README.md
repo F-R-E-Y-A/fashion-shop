@@ -1,6 +1,6 @@
 ---
 title: Tồn kho — bản đồ
-updated: 2026-09-24
+updated: 2026-09-25
 status: chưa làm
 owner: Duy
 ---
@@ -16,7 +16,7 @@ owner: Duy
 
 ## Phụ thuộc
 
-Tồn kho tính theo đơn vị bán của danh mục. Mô hình danh mục do PH-01 đề xuất lấy **biến thể** (một màu, một cỡ) làm đơn vị bán, nên bảng tồn kho khoá theo `variant_id`, đúng như ví dụ trong `orders.prisma`. Đặc tả tồn kho trong pull request #9 đang viết theo `SKUS`; sửa khi mô hình danh mục chốt.
+Tồn kho tính theo đơn vị bán của danh mục. Mô hình danh mục do PH-01 đề xuất ([products/LOG#adr-007](../products/LOG.md#adr-007), [products/erd.md](../products/erd.md)) lấy **biến thể** (một màu, một cỡ) làm đơn vị bán, nên bảng tồn kho khoá theo `variant_id`, đúng như ví dụ trong `orders.prisma`. Đặc tả tồn kho trong pull request #9 đang viết theo `SKUS`; sửa khi mô hình danh mục chốt.
 
 ## Trạng thái hôm nay (24/09/2026)
 

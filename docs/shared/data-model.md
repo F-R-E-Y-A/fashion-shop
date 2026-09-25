@@ -1,6 +1,6 @@
 ---
 title: Mô hình dữ liệu và từ điển dữ liệu
-updated: 2026-09-24
+updated: 2026-09-25
 status: khuôn, chờ HT-02
 owner: Tài
 ---
@@ -10,7 +10,7 @@ owner: Tài
 
 > **Tài điền tệp này trong HT-02 (Issue #4).** Bảo dựng sẵn khuôn, không điền nội dung.
 >
-> Lược đồ thật nằm trong `apps/api/prisma/schema/*.prisma`, mỗi người một tệp; bảng nào của ai ghi ở [CONTRIBUTING.md](../CONTRIBUTING.md) mục quyền sở hữu bảng. Hiện mới có hai bảng mẫu `categories`, `products` để module mẫu chạy được. Mô hình của từng feature đề xuất trong LOG của feature đó, ví dụ `features/products/erd.md` của PH-01; tệp này ghép lại thành bức tranh chung.
+> Lược đồ thật nằm trong `apps/api/prisma/schema/*.prisma`, mỗi người một tệp; bảng nào của ai ghi ở [CONTRIBUTING.md](../CONTRIBUTING.md) mục quyền sở hữu bảng. Hiện mới có hai bảng mẫu `categories`, `products` để module mẫu chạy được. Mô hình của từng feature đề xuất trong LOG của feature đó, ví dụ [features/products/erd.md](../features/products/erd.md); tệp này ghép lại thành bức tranh chung.
 
 ## Sơ đồ quan hệ thực thể
 
