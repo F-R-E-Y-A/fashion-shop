@@ -64,3 +64,21 @@ Kiểm chứng ghi lúc đó, tất cả bằng lệnh: `npm run check` xanh; `n
 **Loại:** cấu hình · **Phạm vi:** GitHub · **Commit:** [afffaa6](https://github.com/F-R-E-Y-A/fashion-shop/commit/afffaa6), [5ee862c](https://github.com/F-R-E-Y-A/fashion-shop/commit/5ee862c), [85a9d93](https://github.com/F-R-E-Y-A/fashion-shop/commit/85a9d93)
 
 Nhánh `main`, `develop`; chỉ bật merge commit ([ADR-005](../../LOG.md#adr-005)); nhãn `ph`, `ht`, mức độ lỗi; milestone S1 tới S11. Kho riêng tư gói Free không khoá được nhánh và không tự đọc `CODEOWNERS`, nên có workflow `pr-reviewers.yml` gán thay. Bảy lượt chạy đầu và nợ ND-11 ghi ở [github-setup.md](github-setup.md) mục 6.
+
+---
+
+## 2026-09-25 · Hồ sơ phản biện các mục nền tảng, 15/09 tới 25/09
+
+**Loại:** phản biện, bổ sung · **Phạm vi:** các mục 15/09, 19/09, 20/09 phía trên và việc gộp PR #12 · **Nguồn:** [nhật ký AI tuần 38](https://github.com/F-R-E-Y-A/docs/blob/6d635d2/ai-log/2026-W38.md), [sổ lỗi AI](https://github.com/F-R-E-Y-A/docs/blob/main/ai-log/hallucinations.md)
+
+Phản biện của các quyết định chạm cả nhóm (ADR-004, ADR-005, nhánh dài hạn) nằm ở [docs/LOG.md](../../LOG.md), mục cùng ngày; ở đây chỉ ghi phần riêng của nền tảng.
+
+| Mục | Bên | Nội dung | Kết cục |
+|---|---|---|---|
+| 15/09 đánh giá | AI gợi ý | Tách mỗi phân hệ thành gói trong `packages/`; định nghĩa sẵn profile Compose cho Redis, Meilisearch, MinIO | Bỏ: Bảo cho là sai cỡ với nhóm ba người, chỉ thêm dịch vụ khi phân hệ cần |
+| 19/09 sửa CI | Người phản biện | Bảo yêu cầu tái hiện hai lỗi CI trên máy trước khi sửa, không sửa mò | Giữ: `PrismaConfigEnvError` và `ERR_MODULE_NOT_FOUND` tái hiện được rồi mới vá |
+| 19/09 sửa CI | AI sai | H-04 sinh Prisma Client mà thiếu `DATABASE_URL`; H-05 chạy seed khi chưa sinh client | CI trong môi trường trắng bắt được |
+| 24/09 PR #9 đỏ | AI kiểm | CI của PR #9 đỏ vì chạy `ci.yml` cũ của `develop`, cùng hai lỗi trên, không phải lỗi của Duy | Ghi vào trạng thái nền tảng; cần một sự kiện mới trên PR để chạy CI bản mới |
+| 25/09 PR #11 đỏ | AI kiểm | Chặng 4 đỏ vì `db:drift` thấy chỉ mục `UNIQUE NULLS NOT DISTINCT` viết tay mà Prisma không mô tả; 44 ràng buộc `CHECK` viết tay **không** bị báo lệch | Xác nhận chặng kiểm lệch làm đúng việc; `CHECK` viết tay dùng được |
+
+**Kết luận:** giữ nguyên tắc "cơ chế xong sớm, dịch vụ đến đúng tuần" và luật "tái hiện rồi mới sửa". **Bằng chứng:** [nhật ký tuần 38 dòng 8](https://github.com/F-R-E-Y-A/docs/blob/6d635d2/ai-log/2026-W38.md#L8), [mục 15/09 dòng 48](https://github.com/F-R-E-Y-A/fashion-shop/blob/58f45e9/docs/features/platform/LOG.md#L48), [commit 44e3d57](https://github.com/F-R-E-Y-A/fashion-shop/commit/44e3d57); log CI chặng 4 của PR #11 dòng `Removed unique index on columns (product_id, size, color)`.

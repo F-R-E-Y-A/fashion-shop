@@ -420,3 +420,100 @@ Còn lại, không chặn: đổi tiêu đề và phạm vi Issue #6, #7, #8 cho
 Luật cũ ghi "nhánh đã gộp thì xoá" cho mọi nhánh. Bảo chốt giữ `feature/platform` lâu dài vì nền tảng còn sửa nhiều trong các sprint sau: mỗi việc nền tảng là một `task/<tên>` tách từ `feature/platform`, gộp vào đó rồi xoá, và `feature/platform` mở pull request vào `develop` khi có đợt đáng gộp. Kiểm trước khi đổi: kho đang **tắt** tự xoá nhánh khi gộp (`gh api repos/F-R-E-Y-A/fashion-shop` trả `delete_branch_on_merge: false`), nên gộp pull request của `feature/platform` không làm mất nhánh.
 
 Hệ quả đã ghi vào luật: pull request vào `feature/platform` không có CI, vì [ci.yml](../.github/workflows/ci.yml) chỉ chạy cho `develop` và `main`, nên chặn chất lượng dồn về bước `feature/platform` → `develop`; `Closes #N` chỉ tự đóng Issue ở bước đó; sau mỗi lần gộp vào `develop` phải gộp `develop` ngược lại vào `feature/platform` để khỏi lệch.
+
+---
+
+## 2026-09-25 · Hồ sơ phản biện các quyết định toàn hệ thống, 13/09 tới 25/09
+
+**Loại:** phản biện, bổ sung · **Phạm vi:** ADR-001 tới ADR-006, ADR-009, hai mục thay đổi ngày 24 và 25/09 · **Nguồn:** [nhật ký AI tuần 38](https://github.com/F-R-E-Y-A/docs/blob/6d635d2/ai-log/2026-W38.md), [sổ lỗi AI](https://github.com/F-R-E-Y-A/docs/blob/main/ai-log/hallucinations.md), lịch sử commit, phiên làm việc 24–25/09
+
+Bổ sung mục **Phản biện** theo [khuôn mới](shared/templates/LOG-entry.md) cho các quyết định phía trên; mục cũ giữ nguyên. Công cụ AI: Claude Code (Opus 5 tuần 38, Opus 5.5 tuần 39) và Codex (một bản kế hoạch Bảo dán vào ngày 24/09). Mã `H-NN` là mục trong sổ lỗi AI ở kho docs.
+
+### ADR-001, ADR-002 — một khối module hoá, chỉ PostgreSQL
+
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| Câu hỏi phản biện | Dàn bài của giảng viên hướng dẫn có "collection schema cho Mongo" bên cạnh ERD Postgres | Không theo: một cơ sở dữ liệu, dữ liệu bán cấu trúc dùng `JSONB` |
+| AI gợi ý | AI soạn văn bản ADR trong khung bản 0.1; nhật ký tuần 38 không ghi AI đề xuất phương án nào ở hai quyết định này | — |
+
+**Kết luận:** giữ. **Bằng chứng:** [DanBaiHopGVHD.md:95](https://github.com/F-R-E-Y-A/docs/blob/6d635d2/tien-do/DanBaiHopGVHD.md#L95); lý do ở [ADR-002](#adr-002).
+
+### ADR-003 — NestJS 12 dạng ESM, Prisma 7 dùng adapter
+
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| AI sai | H-01 viết kiểu CommonJS; H-02 đặt `url` trong `datasource`; H-03 tưởng Prisma Client nằm trong `node_modules`. Cả ba là mô hình kéo về bản cũ phổ biến trên mạng | Bắt khi chạy thử và đọc `package.json` của thư viện |
+| Người phản biện | Bảo ghim `prisma@7.10.0`, `typescript@~6.0.2` sau khi tự kiểm npm | Giữ |
+
+**Kết luận:** giữ; thành luật "thư viện mới ra thì đọc `package.json` và tài liệu chính thức trước". **Bằng chứng:** [apps/api/package.json:41 @060abea](https://github.com/F-R-E-Y-A/fashion-shop/blob/060abea/apps/api/package.json#L41).
+
+### ADR-004 — ép ranh giới và chất lượng bằng máy
+
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| AI gợi ý | Cây tài liệu nhiều tầng kiểu dự án công ty | Bỏ: Bảo chốt tối giản, mở rộng dần |
+| Người phản biện | Bảo đòi chính luật ranh giới phải có bộ kiểm riêng | Có `verify-boundaries.mjs` |
+| AI sai | H-06 dùng `baseUrl` bị TypeScript 6 khai tử; H-07 `interface` không khớp `Record`; H-08 `z.object` cắt mất biến môi trường | H-06, H-07 do `typecheck` bắt; H-08 do tự chạy thử zod |
+
+**Kết luận:** giữ. **Bằng chứng:** [verify-boundaries.mjs:4 @c9a015a](https://github.com/F-R-E-Y-A/fashion-shop/blob/c9a015a/tools/eslint/verify-boundaries.mjs#L4), [env.ts:13 @c9a015a](https://github.com/F-R-E-Y-A/fashion-shop/blob/c9a015a/apps/api/src/infra/config/env.ts#L13), [nhật ký tuần 38 dòng 11](https://github.com/F-R-E-Y-A/docs/blob/6d635d2/ai-log/2026-W38.md#L11).
+
+### ADR-005 — gộp bằng merge commit
+
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| AI gợi ý | Squash là cách gộp duy nhất: lịch sử gọn, không cần rebase, gỡ một lệnh | Bỏ |
+| Câu hỏi phản biện | Bảo: lịch sử sạch tới mức mỗi tuần ba commit có đáng ngờ không, khi tài liệu đang trích mã commit? | |
+| AI sai | Chọn squash mà chưa đo ảnh hưởng tới bằng chứng rubric | Bảo bắt bằng câu hỏi; đo trên kho thử: squash còn 1 commit, merge commit giữ 6 |
+
+**Kết luận:** merge commit. **Bằng chứng:** [adr-005:11 @5ee862c](https://github.com/F-R-E-Y-A/fashion-shop/blob/5ee862c/docs/adr/adr-005-merge-commit.md#L11), [adr-005:21 @5ee862c](https://github.com/F-R-E-Y-A/fashion-shop/blob/5ee862c/docs/adr/adr-005-merge-commit.md#L21).
+
+### ADR-006 — tài liệu theo tính năng, một LOG, bốn họ mã
+
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| AI gợi ý (Codex) | Mỗi feature một README 7 phần cộng LOG, thêm `shared/LOG.md` | Sửa: README vượt 300 dòng ngay vì đặc tả của Duy đã 280–386 dòng |
+| AI gợi ý (Claude) | Giữ thư mục `adr/` cho quyết định toàn hệ thống | Bỏ |
+| AI sai | H-10: nói "bản ghi quyết định kiến trúc" là thứ rubric bắt nộp. Câu đó nằm trong kế hoạch của nhóm; rubric TC2.1 Mức 5 chỉ đòi giải thích lý do và phương án đã cân nhắc | Bảo bắt khi đề xuất gộp ADR vào LOG; kiểm lại bằng cách trích rubric |
+| Người phản biện | Bảo: gộp mọi quyết định vào LOG; học theo cách làm tài liệu ở nơi làm việc; rút gọn hệ mã | Giữ cả ba |
+| AI gợi ý (Claude) | Mã quyết định có tiền tố theo feature (`ADR-PRD-01`) | Bỏ: một dãy `ADR-NNN` chung khi Bảo yêu cầu đơn giản hoá |
+| AI sai | H-11: ghi lệnh `npm run db:migrate -- --name` gọi từ gốc kho; npm nuốt mất tham số | Tự bắt khi chạy thử `--help` trước khi ghi |
+| AI sai | H-12: gộp nhánh PR #9 của Duy vào nhánh tái cấu trúc, làm hai PR dính nhau | Bảo bắt khi nói muốn tận dụng ý của Duy nhưng PR của Duy vẫn độc lập; dựng lại từ `develop` |
+
+**Kết luận:** giữ; gộp qua PR #12. **Bằng chứng:** [merge commit 58f45e9](https://github.com/F-R-E-Y-A/fashion-shop/commit/58f45e9), [docs/README.md:70 @b3968ef](https://github.com/F-R-E-Y-A/fashion-shop/blob/b3968ef/docs/README.md#L70) (lệnh đúng), [commit 6ea0eb2](https://github.com/F-R-E-Y-A/fashion-shop/commit/6ea0eb2) (dựng lại trên nền không có `fe21833`), [AGENTS.md:40 @b3968ef](https://github.com/F-R-E-Y-A/fashion-shop/blob/b3968ef/AGENTS.md#L40).
+
+### ADR-009 — CSS Modules
+
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| AI gợi ý | Ban đầu: mỗi feature một tệp CSS, class có tiền tố tên feature | Sửa |
+| AI tự phản biện | Tiền tố là lời nhắc, máy không kiểm; `vite/client` đã khai kiểu cho `*.module.css` | Đổi sang CSS Modules |
+
+**Kết luận:** đề xuất CSS Modules, chờ Bảo chốt. **Bằng chứng:** [vite-env.d.ts:1 @58f45e9](https://github.com/F-R-E-Y-A/fashion-shop/blob/58f45e9/apps/web/src/vite-env.d.ts#L1), [design.md:27 @b3968ef](https://github.com/F-R-E-Y-A/fashion-shop/blob/b3968ef/docs/shared/design.md#L27).
+
+### Mã dòng việc `PH-NN` và Issue #6–#8
+
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| AI gợi ý | Mã việc `PHn` theo tiêu đề Issue ngày 20/09 | Sửa theo báo cáo tuần: PH-01, PH-02, PH-03 |
+| AI gợi ý | Đổi tiêu đề và phạm vi Issue #6–#8 cho khớp báo cáo tuần | Bỏ |
+| Người phản biện | Bảo: các Issue đặt từ trước đã đúng người, đúng việc | Giữ Issue; `PH1` và `PH-01` là một dòng việc |
+
+**Kết luận:** giữ nguyên Issue; ý "đổi tiêu đề Issue" trong mục đổi mã ngày 24/09 hết hiệu lực. Hai điểm phạm vi ghi lại để khỏi nhầm: [Issue #7](https://github.com/F-R-E-Y-A/fashion-shop/issues/7) còn giỏ khách vãng lai và gộp giỏ khi đăng nhập, báo cáo tuần thì không; phần nạp dữ liệu của PH-03 nằm ở [Issue #5](https://github.com/F-R-E-Y-A/fashion-shop/issues/5) (HT-03), không ở [Issue #8](https://github.com/F-R-E-Y-A/fashion-shop/issues/8).
+
+### `feature/platform` là nhánh dài hạn
+
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| AI gợi ý | Gộp vào `feature/platform` là thừa, vì nhánh đã gộp vào `develop` và không có CI | Sửa |
+| Người phản biện | Bảo: nền tảng còn sửa nhiều, giữ `feature/platform`, việc nền tảng đi qua `task/` | Giữ |
+
+**Kết luận:** luật mới trong `shared/git.md`. **Bằng chứng:** [git.md:79 @52c31fd](https://github.com/F-R-E-Y-A/fashion-shop/blob/52c31fd/docs/shared/git.md#L79); `gh api repos/F-R-E-Y-A/fashion-shop` → `delete_branch_on_merge: false`.
+
+### AI đối chiếu lại khẳng định của người
+
+| Người nói | Bằng chứng cho thấy | Kết cục |
+|---|---|---|
+| "Duy đã accept PR #2" | Review của Duy ở trạng thái `COMMENTED` ("oke"), không phải `APPROVED`; script minh chứng chỉ tính `APPROVED` | Cần Duy bấm Approve thì PR mới được tính là có review |
+| "`develop` trên GitHub cũ hơn máy" | Mã giống nhau, `git diff --stat` chỉ khác chú thích; chỉ tài liệu thiết kế chưa đẩy | Đối chiếu PR của Duy với cả mã lẫn thiết kế ở máy |
+
+**Bằng chứng:** [github-metrics.mjs:45 @58f45e9](https://github.com/F-R-E-Y-A/fashion-shop/blob/58f45e9/tools/evidence/github-metrics.mjs#L45); `gh api repos/F-R-E-Y-A/fashion-shop/pulls/2/reviews` → `COMMENTED`.
