@@ -1,5 +1,5 @@
-// prisma/schema/catalog.prisma — bang cua Bao: danh muc va san pham (PH-03), sau nay them
-// bien the, anh, yeu thich, da xem (PH-03), thanh toan (PH-08), khuyen mai (PH-06), su kien (HT-05).
+// prisma/schema/catalog.prisma — bang cua Bao: danh muc va san pham (PH-01), sau nay them
+// yeu thich, da xem, thanh toan, khuyen mai, bang ghi su kien. Ai so huu bang nao: docs/CONTRIBUTING.md.
 // Hai bang duoi day la MAU de chep theo: @map / @@map noi camelCase trong ma voi snake_case trong CSDL,
 // tien dung Decimal, moi bang co created_at va updated_at.
 

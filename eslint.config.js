@@ -5,7 +5,7 @@
 //   2. apps/api: controller va DTO khong cham Prisma; common/ va infra/ khong biet toi modules/;
 //      phan he chi import phan he khac qua index.js cua ho.
 //   3. apps/web: react-hooks; core/ va ui/ khong biet toi features/ va app/; vao core, ui va
-//      features chi qua index cua chung; feature khong import feature.
+//      features chi qua index cua chung; feature dung feature khac cung chi qua index cua ho.
 // Prettier dat cuoi de tat moi luat dinh dang trung voi no.
 import js from '@eslint/js';
 import { defineConfig } from 'eslint/config';

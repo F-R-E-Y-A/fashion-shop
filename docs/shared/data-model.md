@@ -1,14 +1,20 @@
+---
+title: Mô hình dữ liệu và từ điển dữ liệu
+updated: 2026-09-24
+status: khuôn, chờ HT-02
+owner: Tài
+---
 # Mô hình dữ liệu và từ điển dữ liệu
 
-> **Tài điền tệp này trong tuần 1 (HT-02).** Bảo dựng sẵn khuôn, không điền nội dung.
+**Chức năng:** Bức tranh dữ liệu toàn hệ thống: sơ đồ quan hệ thực thể, quy ước đặt tên, từ điển từng bảng, ràng buộc và chỉ mục.
+
+> **Tài điền tệp này trong HT-02 (Issue #4).** Bảo dựng sẵn khuôn, không điền nội dung.
 >
-> Lược đồ hiện tại trong `apps/api/prisma/schema.prisma` mới chỉ có hai bảng mẫu là
-> danh mục và sản phẩm, dựng để module mẫu chạy được. Đó không phải mô hình thật.
-> Mô hình đầy đủ là việc của tệp này.
+> Lược đồ thật nằm trong `apps/api/prisma/schema/*.prisma`, mỗi người một tệp; bảng nào của ai ghi ở [CONTRIBUTING.md](../CONTRIBUTING.md) mục quyền sở hữu bảng. Hiện mới có hai bảng mẫu `categories`, `products` để module mẫu chạy được. Mô hình của từng feature đề xuất trong LOG của feature đó, ví dụ `features/products/erd.md` của PH-01; tệp này ghép lại thành bức tranh chung.
 
 ## Sơ đồ quan hệ thực thể
 
-<Chèn PlantUML hoặc ảnh xuất ra. Nguồn để ở `docs/ba/erd.puml` để sửa được bằng git.>
+<Nhúng `diagrams/erd-tong-the.drawio.png`, quy ước vẽ ở [diagrams/README.md](diagrams/README.md).>
 
 ## Quy ước đặt tên
 

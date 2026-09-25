@@ -8,7 +8,9 @@ Tiểu luận chuyên ngành. Giảng viên hướng dẫn: TS. Phan Thị Huy�
 | Phan Ngọc Duy | 23110194 | `@DuyPhan422` | Chất lượng và vòng đời đơn hàng |
 | Huỳnh Ngọc Tài | 23110305 | `@KickHuynh` | Dữ liệu, tài khoản và hậu mãi |
 
-**Kế hoạch, sổ tiến độ, nhật ký AI và hồ sơ nộp khoa nằm ở kho riêng:** [`F-R-E-Y-A/docs`](https://github.com/F-R-E-Y-A/docs). Kho này chỉ giữ mã nguồn và tài liệu nói về mã.
+**Mới vào kho: đọc [docs/README.md](docs/README.md) trước, 15 phút hiểu 80% dự án.** Luật cho người và agent: [AGENTS.md](AGENTS.md).
+
+Kế hoạch, sổ tiến độ, nhật ký AI và hồ sơ nộp khoa nằm ở kho riêng [`F-R-E-Y-A/docs`](https://github.com/F-R-E-Y-A/docs). Kho này chỉ giữ mã nguồn và tài liệu nói về mã.
 
 ---
 
@@ -86,7 +88,7 @@ fashion-shop/
 │       │   └── features/         MỖI PHÂN HỆ MỘT THƯ MỤC
 │       │       └── products/     FEATURE MẪU, chép cái này
 │       ├── Dockerfile · nginx.conf · vercel.json
-├── docs/                         tài liệu, xem docs/README.md
+├── docs/                         tài liệu: README (đọc trước), LOG, shared/, features/
 ├── infra/compose.prod.yml        chạy cả cụm như môi trường thật
 ├── tools/                        luật lint, hook git, script minh chứng
 ├── .github/                      CODEOWNERS, mẫu PR, mẫu phiếu, CI và CD
@@ -102,21 +104,21 @@ fashion-shop/
 4. Thêm một dòng vào mảng `imports` trong `app.module.ts`.
 5. Chép thư mục `apps/web/src/features/products`, đổi tên. Thêm một dòng `Route` trong `app/routes.tsx`.
 6. Viết kiểm thử: một bài đơn vị cho service, một bài HTTP cho đường dẫn, một bài cho trang.
-7. Viết tài liệu use case vào `docs/ba/` theo mẫu.
+7. Cập nhật tài liệu của feature trong `docs/features/<module>/` theo mẫu ở `docs/shared/templates/`.
 8. Thêm dòng sở hữu của mình vào `.github/CODEOWNERS`.
 9. `npm run check`, rồi mở pull request vào `develop`.
 
-Ba luật không được phá, chi tiết ở `docs/CONTRIBUTING.md`:
+Ba luật không được phá, chi tiết ở [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md):
 
 - **Một phân hệ do một người làm trọn** từ bảng dữ liệu tới giao diện.
 - **Không ai ghi vào bảng của người khác.** Cần dữ liệu của họ thì gọi service họ công bố qua `index.ts`.
 - **Controller không gọi thẳng Prisma**, phải đi qua tầng service.
 
-Ba luật này được **ép bằng ESLint**, không phải bằng lời nhắc. Phạm luật thì lint báo lỗi tiếng Việt chỉ thẳng luật nào. Xem `docs/adr/adr-004-co-che-chat-luong.md`.
+Ba luật này được **ép bằng ESLint**, không phải bằng lời nhắc. Phạm luật thì lint báo lỗi tiếng Việt chỉ thẳng luật nào. Lý do ở [docs/LOG.md#adr-004](docs/LOG.md#adr-004).
 
 ## Hiểu kho mã này
 
-**Đọc `docs/CODE_TOUR.md` trước khi viết dòng mã đầu tiên.** Tài liệu đó đi qua đường đi của một yêu cầu từ trình duyệt tới cơ sở dữ liệu, giải thích mỗi tệp làm gì và bỏ đi thì hỏng chuyện gì, bảy cơ chế của kho và lý do có chúng, cùng mười hai câu tự kiểm trước buổi bảo vệ. Mất khoảng 40 phút, và tiết kiệm nhiều hơn thế.
+**Đọc [docs/README.md](docs/README.md) để có bức tranh chung, rồi [docs/shared/code-tour.md](docs/shared/code-tour.md) trước khi viết dòng mã đầu tiên.** Tài liệu đó đi qua đường đi của một yêu cầu từ trình duyệt tới cơ sở dữ liệu, giải thích mỗi tệp làm gì và bỏ đi thì hỏng chuyện gì, bảy cơ chế của kho và lý do có chúng, cùng mười hai câu tự kiểm trước buổi bảo vệ. Mất khoảng 40 phút, và tiết kiệm nhiều hơn thế.
 
 
 
@@ -132,18 +134,8 @@ Ba luật này được **ép bằng ESLint**, không phải bằng lời nhắc
 | Kiểm thử | Vitest + Supertest | Chạy ESM tự nhiên, mà NestJS 12 chỉ còn bản ESM |
 | Chất lượng | ESLint + Prettier + luật ranh giới tự viết | Ép ba luật bất biến của nhóm bằng máy |
 
-Quyết định dài hơn nằm trong `docs/adr/`.
+Quyết định dài hơn nằm trong [docs/LOG.md](docs/LOG.md), các mục `ADR-001` tới `ADR-005`.
 
 ## Chưa có gì, và bao giờ có
 
-Nguyên tắc: **cơ chế xong sớm, dịch vụ đến đúng tuần.** Thứ ba người chép suốt mười một tuần thì phải có từ đầu. Dịch vụ thì thêm vào tuần mà phân hệ cần tới nó, không dựng sẵn để đó.
-
-| Chưa có | Sẽ có ở |
-|---|---|
-| Đăng nhập, phân quyền | PH-01, tuần 2 và 3, Tài |
-| Redis, hàng đợi, tác vụ nền, bảng ghi sự kiện | HT-05, tuần 5, Bảo |
-| Meilisearch | PH-04, tuần 4, Bảo |
-| Kho ảnh | Khi phân hệ đầu tiên cần tải ảnh, tuần 2 |
-| Nhật ký có cấu trúc, số đo hiệu năng | HT-05 và HT-10, tuần 5 và 10, Bảo |
-| Kiểm thử đầu cuối và kiểm thử tải | HT-06 và HT-07, tuần 9 và 10, Duy |
-| Thư viện gọi API sinh từ OpenAPI | Khi đặc tả ổn định, tuần 3 |
+Nguyên tắc: **cơ chế xong sớm, dịch vụ đến đúng tuần.** Danh sách dịch vụ chưa có và tuần sẽ thêm nằm ở [docs/features/platform/README.md](docs/features/platform/README.md) mục Lộ trình còn lại.

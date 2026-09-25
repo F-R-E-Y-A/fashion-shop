@@ -1,6 +1,14 @@
+---
+title: Chiến lược kiểm thử
+updated: 2026-09-25
+status: khuôn, chờ nội dung từ pull request #9
+owner: Duy
+---
 # Chiến lược kiểm thử
 
-> **Duy điền tệp này trong tuần 1 (HT-04).** Bảo dựng sẵn khuôn, không điền nội dung.
+**Chức năng:** Mức nào thì gọi là đã kiểm thử đủ: tầng kiểm thử, độ phủ, phần bắt buộc có test, quy trình xử lý lỗi, dữ liệu kiểm thử.
+
+> **Duy điền tệp này trong HT-04; bản điền đang ở pull request #9.** Bảo dựng sẵn khuôn, không điền nội dung. Cách chạy và khuôn bài kiểm thử ở [testing.md](testing.md).
 > Một trang là đủ. Mục tiêu là để ba người hiểu giống nhau về mức nào thì gọi là đã kiểm thử.
 
 ## Tầng kiểm thử
@@ -22,7 +30,7 @@
 
 ## Dữ liệu cho kiểm thử
 
-<Dùng bộ dữ liệu giả trong `apps/api/prisma/seed.ts` hay dựng riêng.>
+<Dùng bộ dữ liệu giả trong `apps/api/prisma/seed/` hay dựng riêng.>
 
 ## Ba bài toán khó phải có kiểm thử riêng
 

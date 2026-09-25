@@ -34,6 +34,8 @@
 # --- Phan he cua Bao ---
 /apps/api/prisma/schema/catalog.prisma  @Ancuyou
 /apps/api/src/modules/products/**       @Ancuyou
+/docs/features/products/**              @Ancuyou
+/docs/features/platform/**              @Ancuyou
 /apps/api/src/modules/search/**         @Ancuyou
 /apps/api/src/modules/payments/**       @Ancuyou
 /apps/api/src/modules/promotions/**     @Ancuyou
@@ -53,9 +55,12 @@
 /apps/web/src/features/orders/**        @DuyPhan422
 /apps/web/src/features/shipping/**      @DuyPhan422
 /tests/e2e/**                           @DuyPhan422
-/docs/test-strategy.md                  @DuyPhan422
-/docs/ba/uc-index.md                    @DuyPhan422
-/docs/ba/uc-template.md                 @DuyPhan422
+/docs/features/cart/**                  @DuyPhan422
+/docs/features/inventory/**             @DuyPhan422
+/docs/shared/test-strategy.md           @DuyPhan422
+/docs/shared/use-case-index.md          @DuyPhan422
+/docs/shared/templates/use-case.md      @DuyPhan422
+/docs/shared/diagrams/uc-tong-quan.*    @DuyPhan422
 
 # --- Phan he cua Tai ---
 /apps/api/prisma/schema/identity.prisma @KickHuynh
@@ -67,7 +72,8 @@
 /apps/web/src/features/account/**       @KickHuynh
 /apps/web/src/features/reviews/**       @KickHuynh
 /apps/web/src/features/returns/**       @KickHuynh
-/docs/ba/data-model.md                  @KickHuynh
+/docs/features/auth/**                  @KickHuynh
+/docs/shared/data-model.md              @KickHuynh
 
 # --- Migration: ai cung tao duoc, nhung Tai giu so do tong nen duyet cung ---
 /apps/api/prisma/migrations/**          @Ancuyou @KickHuynh
