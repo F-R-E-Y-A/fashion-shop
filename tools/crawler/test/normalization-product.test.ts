@@ -53,7 +53,7 @@ test('marks a source product without variants PENDING_REVIEW with NO_VARIANT', (
 });
 
 test(
-  'keeps planned 2XL, 3XL and 4XL variants pending review',
+  'classifies planned 2XL, 3XL and 4XL variants out of scope and pending review',
   { skip: catalogSizeExpansionActive && 'Catalog size expansion is active' },
   () => {
     for (const code of plannedSizeExpansion) {
@@ -63,9 +63,10 @@ test(
 
       assert.equal(result.normalizationStatus, 'PENDING_REVIEW');
       assert.deepEqual(result.attributes.variants[0]?.sizeCode, code);
+      assert.equal(result.attributes.scope.status, 'OUT_OF_SCOPE');
       assert.equal(
-        result.validation.issues.some(
-          (entry) => entry.code === 'UNKNOWN_SIZE' && entry.path === 'variants[0].sizeCode',
+        result.attributes.scope.reasons.some(
+          (entry) => entry.code === 'OUT_OF_SCOPE_SIZE' && entry.value === code,
         ),
         true,
       );
@@ -126,6 +127,7 @@ test('normalization is deterministic and preserves only relevant original values
   const second = normalizeYodyEnvelope(raw);
   assert.deepEqual(first, second);
   assert.equal(first.normalizationStatus, 'APPROVED');
+  assert.deepEqual(first.attributes.scope, { status: 'IN_SCOPE', reasons: [] });
   assert.equal(first.attributes.material, 'Cotton');
   assert.equal(first.attributes.careInstructions, 'Giặt nhẹ');
   assert.equal('description' in first.attributes.originalValues, false);

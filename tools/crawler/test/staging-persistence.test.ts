@@ -13,10 +13,14 @@ import type {
 import { parseJsonLines, validateStagingInputValues } from '../src/persistence/staging-input.ts';
 import { persistStagingProducts } from '../src/persistence/staging-persistence.ts';
 
-function raw(sourceProductId = '1', sourceUrl = 'https://yody.vn/p/1'): RawProductEnvelope {
+function raw(
+  sourceProductId = '1',
+  sourceUrl = 'https://yody.vn/p/1',
+  source = 'YODY',
+): RawProductEnvelope {
   return {
     sourceVersion: 1,
-    source: 'YODY',
+    source,
     sourceProductId,
     sourceUrl,
     collectedAt: '2026-09-25T00:00:00.000Z',
@@ -28,15 +32,17 @@ function raw(sourceProductId = '1', sourceUrl = 'https://yody.vn/p/1'): RawProdu
 function candidate(
   sourceProductId = '1',
   name = `Product ${sourceProductId}`,
+  source = 'YODY',
 ): NormalizedCandidateOutput {
   return {
-    rawProductRecord: { source: 'YODY', sourceProductId },
+    rawProductRecord: { source, sourceProductId },
     name,
     categoryName: 'Áo thun',
     price: '100',
     attributes: {
       contractVersion: 2,
       currency: 'VND',
+      scope: { status: 'IN_SCOPE', reasons: [] },
       categorySlug: 'ao-thun',
       description: null,
       material: null,
@@ -204,6 +210,29 @@ test('rejects malformed, unsupported and orphan candidate inputs', () => {
   (unsupported.attributes as { contractVersion: number }).contractVersion = 1;
   assert.throws(() => validateStagingInputValues([raw()], [unsupported]), /contract/iu);
   assert.throws(() => validateStagingInputValues([raw()], [candidate('2')]), /Orphan/iu);
+});
+
+test('accepts a generic non-empty source and requires matching raw/candidate identity', () => {
+  const routineRaw = raw('routine-1', 'https://routine.vn/product/fixture', 'ROUTINE');
+  const routineCandidate = candidate('routine-1', 'Routine fixture', 'ROUTINE');
+  assert.equal(validateStagingInputValues([routineRaw], [routineCandidate]).length, 1);
+
+  const emptySourceRaw = structuredClone(routineRaw);
+  emptySourceRaw.source = ' ';
+  assert.throws(
+    () => validateStagingInputValues([emptySourceRaw], [routineCandidate]),
+    /raw product envelope/iu,
+  );
+  const emptySourceCandidate = structuredClone(routineCandidate);
+  emptySourceCandidate.rawProductRecord.source = ' ';
+  assert.throws(
+    () => validateStagingInputValues([routineRaw], [emptySourceCandidate]),
+    /normalized candidate contract/iu,
+  );
+  assert.throws(
+    () => validateStagingInputValues([routineRaw], [candidate('routine-1')]),
+    /Orphan/iu,
+  );
 });
 
 test('rejects duplicate raw, duplicate candidate and missing candidate identities', () => {

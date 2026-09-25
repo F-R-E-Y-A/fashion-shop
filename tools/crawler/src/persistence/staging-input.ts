@@ -36,9 +36,10 @@ function validateRaw(value: unknown, index: number): RawProductEnvelope {
   const collectedAt = raw?.collectedAt;
   if (
     raw?.sourceVersion !== 1 ||
-    raw.source !== 'YODY' ||
+    typeof raw.source !== 'string' ||
+    raw.source.trim().length === 0 ||
     typeof raw.sourceProductId !== 'string' ||
-    raw.sourceProductId.length === 0 ||
+    raw.sourceProductId.trim().length === 0 ||
     typeof raw.sourceUrl !== 'string' ||
     typeof collectedAt !== 'string' ||
     !Number.isFinite(Date.parse(collectedAt)) ||
@@ -53,15 +54,20 @@ function validateCandidate(value: unknown, index: number): NormalizedCandidateOu
   const candidate = objectValue(value);
   const rawReference = objectValue(candidate?.rawProductRecord);
   const attributes = objectValue(candidate?.attributes);
+  const scope = objectValue(attributes?.scope);
   const validation = objectValue(candidate?.validation);
   const statuses = new Set(['PENDING_REVIEW', 'DUPLICATE', 'APPROVED', 'REJECTED']);
+  const scopeStatuses = new Set(['IN_SCOPE', 'OUT_OF_SCOPE', 'REVIEW_REQUIRED']);
   if (
-    rawReference?.source !== 'YODY' ||
+    typeof rawReference?.source !== 'string' ||
+    rawReference.source.trim().length === 0 ||
     typeof rawReference.sourceProductId !== 'string' ||
-    rawReference.sourceProductId.length === 0 ||
+    rawReference.sourceProductId.trim().length === 0 ||
     typeof candidate?.name !== 'string' ||
     !statuses.has(String(candidate.normalizationStatus)) ||
     attributes?.contractVersion !== 2 ||
+    !scopeStatuses.has(String(scope?.status)) ||
+    !Array.isArray(scope?.reasons) ||
     !Array.isArray(validation?.issues) ||
     !Array.isArray(validation.warnings)
   ) {

@@ -73,6 +73,7 @@ test('builds summary from the latest manifest state', async () => {
     assert.deepEqual(
       buildRunSummary({
         runId: 'fixture-run',
+        source: 'YODY',
         startedAt: '2026-09-25T00:00:00.000Z',
         finishedAt: '2026-09-25T00:01:00.000Z',
         discovered: 3,

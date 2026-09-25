@@ -5,6 +5,8 @@ import type {
   ValidationMessage,
 } from '../contracts/normalized-product.ts';
 import type { JsonObject, JsonValue, RawProductEnvelope } from '../contracts/raw-product.ts';
+import { classifyCatalogScope } from '../scope/scope-policy.ts';
+import { yodyScopeHint } from '../sources/yody/yody-scope-mapping.ts';
 import { normalizeCategory, sourceCategory } from './category.ts';
 import { normalizeYodyColor } from './color.ts';
 import { normalizeImages } from './images.ts';
@@ -52,7 +54,9 @@ export function refreshNormalizationStatus(candidate: NormalizedCandidateOutput)
     candidate.normalizationStatus !== 'REJECTED'
   ) {
     candidate.normalizationStatus =
-      candidate.validation.issues.length === 0 ? 'APPROVED' : 'PENDING_REVIEW';
+      candidate.validation.issues.length === 0 && candidate.attributes.scope.status === 'IN_SCOPE'
+        ? 'APPROVED'
+        : 'PENDING_REVIEW';
   }
 }
 
@@ -74,8 +78,6 @@ function normalizeVariant(
   const size = normalizeSize(variant.size);
   if (size.state === 'missing') {
     issues.push(issue('MISSING_SIZE', `${path}.sizeCode`, 'Source variant has no size'));
-  } else if (size.state === 'unknown') {
-    issues.push(issue('UNKNOWN_SIZE', `${path}.sizeCode`, `Size ${size.code} is not in M2`));
   }
 
   const colorResult = normalizeYodyColor(variant.color, `${path}.color`);
@@ -181,11 +183,7 @@ export function normalizeYodyEnvelope(envelope: RawProductEnvelope): NormalizedC
   const category = normalizeCategory(categoryObject);
   const issues: ValidationMessage[] = [];
   const warnings: ValidationMessage[] = [];
-  if (!category) {
-    issues.push(
-      issue('UNKNOWN_CATEGORY', 'categorySlug', 'Source category is not mapped to an M2 leaf'),
-    );
-  }
+  const scopeHint = yodyScopeHint(categoryObject);
 
   const source = sourceVariants(product);
   if (source.length === 0)
@@ -205,15 +203,25 @@ export function normalizeYodyEnvelope(envelope: RawProductEnvelope): NormalizedC
   );
   warnings.push(...imageResult.warnings);
   const material = materialValues(product.material);
+  const scope = classifyCatalogScope({
+    categorySlug: category?.slug ?? null,
+    categoryDisposition: scopeHint.categoryDisposition,
+    sourceCategoryValue: scopeHint.sourceCategoryValue,
+    sizes: normalized.map(({ variant }) => ({
+      code: variant.sizeCode,
+      context: scopeHint.sizeContext,
+    })),
+  });
 
   const candidate: NormalizedCandidateOutput = {
-    rawProductRecord: { source: 'YODY', sourceProductId: envelope.sourceProductId },
+    rawProductRecord: { source: envelope.source, sourceProductId: envelope.sourceProductId },
     name,
     categoryName: category?.name ?? null,
     price: minimumPrice(normalized.map((value) => value.effectivePrice)),
     attributes: {
       contractVersion: 2,
       currency: 'VND',
+      scope,
       categorySlug: category?.slug ?? null,
       description: normalizedText(product.description),
       material: material.material,

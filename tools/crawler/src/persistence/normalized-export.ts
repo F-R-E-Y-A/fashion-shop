@@ -12,15 +12,17 @@ function rawEnvelope(value: unknown, line: number): RawProductEnvelope {
     value === null ||
     typeof value !== 'object' ||
     !('source' in value) ||
-    value.source !== 'YODY' ||
+    typeof value.source !== 'string' ||
+    value.source.trim().length === 0 ||
     !('sourceProductId' in value) ||
     typeof value.sourceProductId !== 'string' ||
+    value.sourceProductId.trim().length === 0 ||
     !('product' in value) ||
     value.product === null ||
     typeof value.product !== 'object' ||
     Array.isArray(value.product)
   ) {
-    throw new Error(`Invalid YODY raw envelope at line ${line}`);
+    throw new Error(`Invalid raw product envelope at line ${line}`);
   }
   return value as RawProductEnvelope;
 }

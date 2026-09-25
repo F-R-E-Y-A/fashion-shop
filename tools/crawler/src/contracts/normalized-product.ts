@@ -26,6 +26,22 @@ export type WarningCode =
   | 'INVALID_IMAGE'
   | 'NO_VALID_IMAGE';
 
+export type ScopeStatus = 'IN_SCOPE' | 'OUT_OF_SCOPE' | 'REVIEW_REQUIRED';
+
+export type ScopeReasonCode =
+  'OUT_OF_SCOPE_CATEGORY' | 'OUT_OF_SCOPE_SIZE' | 'UNKNOWN_CATEGORY' | 'UNKNOWN_SIZE';
+
+export interface ScopeReason {
+  code: ScopeReasonCode;
+  path: string;
+  value: string;
+}
+
+export interface ScopeClassification {
+  status: ScopeStatus;
+  reasons: ScopeReason[];
+}
+
 export interface ValidationMessage {
   code: ValidationCode | WarningCode;
   path: string;
@@ -62,6 +78,7 @@ export interface NormalizedVariantV2 {
 export interface NormalizedAttributesV2 {
   contractVersion: 2;
   currency: 'VND';
+  scope: ScopeClassification;
   categorySlug: string | null;
   description: string | null;
   material: string | null;
@@ -86,7 +103,7 @@ export interface NormalizedAttributesV2 {
 
 export interface NormalizedCandidateOutput {
   rawProductRecord: {
-    source: 'YODY';
+    source: string;
     sourceProductId: string;
   };
   name: string;
@@ -102,7 +119,7 @@ export interface NormalizedCandidateOutput {
 }
 
 export interface NormalizationSummary {
-  source: 'YODY';
+  source: string;
   total: number;
   approved: number;
   pendingReview: number;

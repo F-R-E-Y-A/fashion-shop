@@ -17,6 +17,7 @@ export interface FetchResult {
 
 export interface ProductSourceAdapter {
   readonly source: string;
+  readonly discoveryUrl: string;
   discover(options?: DiscoveryOptions): Promise<DiscoveredProduct[]>;
   fetch(url: string): Promise<FetchResult>;
   parse(html: string, sourceUrl: string): RawSourceProduct;

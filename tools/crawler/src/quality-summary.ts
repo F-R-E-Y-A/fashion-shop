@@ -9,16 +9,7 @@ import type { JsonValue } from './contracts/raw-product.ts';
 import { summarizeNormalization } from './normalization/normalize-collection.ts';
 import { normalizedText } from './normalization/text.ts';
 import type { RunSummary } from './persistence/manifest.ts';
-
-const targetCategorySlugs = [
-  'ao-thun',
-  'ao-so-mi',
-  'ao-khoac',
-  'quan-dai',
-  'quan-short',
-  'mu',
-  'that-lung',
-] as const;
+import { BASELINE_CATEGORY_SLUGS } from './scope/catalog-baseline.ts';
 
 export interface QualitySummary {
   collection: Pick<RunSummary, 'discovered' | 'requested' | 'succeeded' | 'failed' | 'duplicates'>;
@@ -29,11 +20,34 @@ export interface QualitySummary {
     pendingReviewRate: number;
     validImageRate: number;
   };
+  acceptance: {
+    minimumValidProduct: number;
+    missingName: number;
+    missingSourceCategory: number;
+    missingValidPrice: number;
+    acceptancePercentage: number;
+  };
+  scope: {
+    inScope: number;
+    outOfScope: number;
+    reviewRequired: number;
+    percentages: { inScope: number; outOfScope: number; reviewRequired: number };
+    reasonCounts: Record<string, number>;
+  };
   categoryCoverage: Record<string, number>;
   unknownSourceCategories: Record<string, number>;
+  outOfScopeSourceCategories: Record<string, number>;
   observedSourceSizes: Record<string, number>;
   sizeCoverage: Record<string, number>;
   imageCoverage: { withValidImage: number; withoutValidImage: number };
+  priceCoverage: {
+    withValidPrice: number;
+    withoutValidPrice: number;
+    validPriceRate: number;
+    minimumEffectivePrice: string | null;
+    maximumEffectivePrice: string | null;
+    medianEffectivePrice: string | null;
+  };
 }
 
 function percentage(numerator: number, denominator: number): number {
@@ -65,16 +79,26 @@ function sizeBucket(value: string): string {
   return 'other';
 }
 
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const middle = Math.floor(values.length / 2);
+  return values.length % 2 === 0
+    ? ((values[middle - 1] ?? 0) + (values[middle] ?? 0)) / 2
+    : (values[middle] ?? null);
+}
+
 export function buildQualitySummary(
   run: RunSummary,
   candidates: NormalizedCandidateOutput[],
 ): QualitySummary {
   const normalization = summarizeNormalization(candidates);
   const categoryCoverage = new Map<string, number>([
-    ...targetCategorySlugs.map((slug) => [slug, 0] as const),
-    ['unmapped', 0],
+    ...BASELINE_CATEGORY_SLUGS.map((slug) => [slug, 0] as const),
+    ['out-of-scope', 0],
+    ['unknown', 0],
   ]);
   const unknownSourceCategories = new Map<string, number>();
+  const outOfScopeSourceCategories = new Map<string, number>();
   const observedSourceSizes = new Map<string, number>();
   const sizeCoverage = new Map<string, number>(
     ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL', '4XL', 'numeric', 'FREE', 'other'].map((key) => [
@@ -83,14 +107,42 @@ export function buildQualitySummary(
     ]),
   );
   let withValidImage = 0;
+  let minimumValidProduct = 0;
+  let missingName = 0;
+  let missingSourceCategory = 0;
+  let missingValidPrice = 0;
+  const scopeCounts = { IN_SCOPE: 0, OUT_OF_SCOPE: 0, REVIEW_REQUIRED: 0 };
+  const scopeReasonCounts = new Map<string, number>();
+  const validPrices: number[] = [];
 
   for (const candidate of candidates) {
-    const category = candidate.attributes.categorySlug ?? 'unmapped';
+    const hasName =
+      normalizedText(candidate.name) !== null ||
+      normalizedText(candidate.attributes.originalValues.name) !== null;
+    const hasSourceCategory =
+      normalizedText(candidate.attributes.sourceCategory.name) !== null ||
+      normalizedText(candidate.attributes.sourceCategory.slug) !== null;
+    const numericPrice = candidate.price === null ? Number.NaN : Number(candidate.price);
+    const hasValidPrice = Number.isFinite(numericPrice) && numericPrice > 0;
+    if (!hasName) missingName += 1;
+    if (!hasSourceCategory) missingSourceCategory += 1;
+    if (!hasValidPrice) missingValidPrice += 1;
+    if (hasName && hasSourceCategory && hasValidPrice) minimumValidProduct += 1;
+
+    const scope = candidate.attributes.scope;
+    scopeCounts[scope.status] += 1;
+    scope.reasons.forEach((reason) => increment(scopeReasonCounts, reason.code));
+    const outOfScopeCategory = scope.reasons.some(
+      (reason) => reason.code === 'OUT_OF_SCOPE_CATEGORY',
+    );
+    const unknownCategory = scope.reasons.some((reason) => reason.code === 'UNKNOWN_CATEGORY');
+    const category =
+      candidate.attributes.categorySlug ?? (outOfScopeCategory ? 'out-of-scope' : 'unknown');
     categoryCoverage.set(category, (categoryCoverage.get(category) ?? 0) + 1);
-    if (candidate.validation.issues.some((issue) => issue.code === 'UNKNOWN_CATEGORY')) {
-      const source = candidate.attributes.sourceCategory;
-      increment(unknownSourceCategories, source.slug ?? source.name ?? '(missing)');
-    }
+    const source = candidate.attributes.sourceCategory;
+    const sourceValue = source.slug ?? source.name ?? '(missing)';
+    if (unknownCategory) increment(unknownSourceCategories, sourceValue);
+    if (outOfScopeCategory) increment(outOfScopeSourceCategories, sourceValue);
     for (const value of candidate.attributes.originalValues.sizes) {
       const size = sourceSize(value);
       if (!size) continue;
@@ -99,7 +151,10 @@ export function buildQualitySummary(
       sizeCoverage.set(bucket, (sizeCoverage.get(bucket) ?? 0) + 1);
     }
     if (candidate.attributes.images.length > 0) withValidImage += 1;
+    if (hasValidPrice) validPrices.push(numericPrice);
   }
+  validPrices.sort((left, right) => left - right);
+  const medianPrice = median(validPrices);
 
   return {
     collection: {
@@ -116,13 +171,40 @@ export function buildQualitySummary(
       pendingReviewRate: percentage(normalization.pendingReview, normalization.total),
       validImageRate: percentage(withValidImage, normalization.total),
     },
+    acceptance: {
+      minimumValidProduct,
+      missingName,
+      missingSourceCategory,
+      missingValidPrice,
+      acceptancePercentage: percentage(minimumValidProduct, normalization.total),
+    },
+    scope: {
+      inScope: scopeCounts.IN_SCOPE,
+      outOfScope: scopeCounts.OUT_OF_SCOPE,
+      reviewRequired: scopeCounts.REVIEW_REQUIRED,
+      percentages: {
+        inScope: percentage(scopeCounts.IN_SCOPE, normalization.total),
+        outOfScope: percentage(scopeCounts.OUT_OF_SCOPE, normalization.total),
+        reviewRequired: percentage(scopeCounts.REVIEW_REQUIRED, normalization.total),
+      },
+      reasonCounts: sortedRecord(scopeReasonCounts),
+    },
     categoryCoverage: Object.fromEntries(categoryCoverage),
     unknownSourceCategories: sortedRecord(unknownSourceCategories),
+    outOfScopeSourceCategories: sortedRecord(outOfScopeSourceCategories),
     observedSourceSizes: sortedRecord(observedSourceSizes),
     sizeCoverage: Object.fromEntries(sizeCoverage),
     imageCoverage: {
       withValidImage,
       withoutValidImage: normalization.total - withValidImage,
+    },
+    priceCoverage: {
+      withValidPrice: validPrices.length,
+      withoutValidPrice: normalization.total - validPrices.length,
+      validPriceRate: percentage(validPrices.length, normalization.total),
+      minimumEffectivePrice: validPrices[0] === undefined ? null : String(validPrices[0]),
+      maximumEffectivePrice: validPrices.at(-1) === undefined ? null : String(validPrices.at(-1)),
+      medianEffectivePrice: medianPrice === null ? null : String(medianPrice),
     },
   };
 }

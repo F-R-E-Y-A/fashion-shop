@@ -56,11 +56,15 @@ function loadConnectionString(): string {
 
 async function run(options: PersistCliOptions): Promise<void> {
   const pairs = await readStagingInput(options.input);
+  const sources = new Set(pairs.map((pair) => pair.raw.source));
+  if (sources.size !== 1) throw new Error('Staging input must contain exactly one source');
+  const source = sources.values().next().value;
+  if (!source) throw new Error('Staging input source is required');
   const store = new PrismaStagingStore(loadConnectionString());
   try {
     await store.connect();
     const summary = await persistStagingProducts(pairs, store, options.dryRun);
-    const verification = await store.verifySource('YODY');
+    const verification = await store.verifySource(source);
     const artifact = { recordedAt: new Date().toISOString(), ...summary, verification };
     const outputPath = resolve(
       options.input,

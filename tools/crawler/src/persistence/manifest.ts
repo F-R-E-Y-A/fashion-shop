@@ -28,7 +28,7 @@ export interface FailureEntry {
 
 export interface RunSummary {
   runId: string;
-  source: 'YODY';
+  source: string;
   startedAt: string;
   finishedAt: string;
   discovered: number;
@@ -87,6 +87,7 @@ export function latestManifestByUrl(entries: ManifestEntry[]): Map<string, Manif
 
 export function buildRunSummary(options: {
   runId: string;
+  source: string;
   startedAt: string;
   finishedAt: string;
   discovered: number;
@@ -99,7 +100,7 @@ export function buildRunSummary(options: {
   );
   return {
     runId: options.runId,
-    source: 'YODY',
+    source: options.source,
     startedAt: options.startedAt,
     finishedAt: options.finishedAt,
     discovered: options.discovered,

@@ -46,8 +46,10 @@ export function parseYodyProductHtml(html: string, sourceUrl: string): RawSource
   }
 
   return {
+    source: 'YODY',
     sourceProductId: String(id),
     sourceUrl: canonicalProductUrl(product, sourceUrl),
+    extraction: { kind: 'embedded-json', locator: 'self.PDPData' },
     product,
   };
 }

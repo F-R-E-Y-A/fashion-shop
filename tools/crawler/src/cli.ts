@@ -230,7 +230,7 @@ async function run(options: CliOptions): Promise<RunSummary> {
     stoppedReason = failure.code;
     await appendFailure(paths.failures, {
       recordedAt: new Date().toISOString(),
-      url: 'https://yody.vn/sitemap_products_1.xml',
+      url: adapter.discoveryUrl,
       attempts: failure.attempts ?? 0,
       httpStatus: failure.httpStatus,
       errorCode: failure.code,
@@ -242,6 +242,7 @@ async function run(options: CliOptions): Promise<RunSummary> {
   manifest = await loadManifest(paths.manifest);
   const summary = buildRunSummary({
     runId,
+    source: adapter.source,
     startedAt,
     finishedAt: new Date().toISOString(),
     discovered: discoveredCount,

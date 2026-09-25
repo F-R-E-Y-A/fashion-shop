@@ -1,19 +1,6 @@
-/**
- * Crawler-side snapshot of the Catalog size contract.
- * Source of truth: apps/api/prisma/seed/catalog.seed.ts (SIZES).
- */
-export const CATALOG_CANONICAL_SIZE_CODES = [
-  'XS',
-  'S',
-  'M',
-  'L',
-  'XL',
-  '29',
-  '30',
-  '31',
-  '32',
-  'FREE',
-] as const;
+import { BASELINE_SIZE_CODES, isBaselineSizeCode } from '../scope/catalog-baseline.ts';
+
+export const CATALOG_CANONICAL_SIZE_CODES = BASELINE_SIZE_CODES;
 
 const canonicalSizeCodes: ReadonlySet<string> = new Set(CATALOG_CANONICAL_SIZE_CODES);
 
@@ -30,7 +17,7 @@ const sizeAliasTargets: ReadonlyMap<string, string> = new Map([
 ]);
 
 export function isCanonicalSizeCode(code: string): boolean {
-  return canonicalSizeCodes.has(code);
+  return canonicalSizeCodes.has(code) && isBaselineSizeCode(code);
 }
 
 export function resolveActiveSizeAlias(code: string): string {

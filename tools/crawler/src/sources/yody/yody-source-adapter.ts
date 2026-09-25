@@ -12,9 +12,10 @@ const PRODUCT_SITEMAP = 'https://yody.vn/sitemap_products_1.xml';
 
 export class YodySourceAdapter implements ProductSourceAdapter {
   readonly source = 'YODY';
+  readonly discoveryUrl = PRODUCT_SITEMAP;
 
   async discover(options: DiscoveryOptions = {}) {
-    const result = await fetchTextWithPolicy(PRODUCT_SITEMAP);
+    const result = await fetchTextWithPolicy(this.discoveryUrl);
     return parseYodyProductSitemap(result.body, options.limit);
   }
 

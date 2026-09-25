@@ -7,20 +7,25 @@ export interface JsonObject {
 }
 
 export interface RawSourceProduct {
+  source: string;
   sourceProductId: string;
   sourceUrl: string;
+  extraction: {
+    kind: string;
+    locator: string;
+  };
   product: JsonObject;
 }
 
 export interface RawProductEnvelope {
   sourceVersion: 1;
-  source: 'YODY';
+  source: string;
   sourceProductId: string;
   sourceUrl: string;
   collectedAt: string;
   extraction: {
-    kind: 'embedded-json';
-    locator: 'self.PDPData';
+    kind: string;
+    locator: string;
   };
   product: JsonObject;
 }
@@ -31,11 +36,11 @@ export function createRawEnvelope(
 ): RawProductEnvelope {
   return {
     sourceVersion: 1,
-    source: 'YODY',
+    source: parsed.source,
     sourceProductId: parsed.sourceProductId,
     sourceUrl: parsed.sourceUrl,
     collectedAt,
-    extraction: { kind: 'embedded-json', locator: 'self.PDPData' },
+    extraction: parsed.extraction,
     product: parsed.product,
   };
 }
