@@ -84,3 +84,31 @@ Thực tế: (điền khi PH-01 gộp).
 ### Điều kiện xem lại
 
 Nếu tìm kiếm (UC-03.2) chuyển sang Meilisearch và cần hình dạng kết quả riêng, như điểm liên quan hay đoạn tô sáng.
+
+---
+
+## 2026-09-25 · Hồ sơ phản biện ADR-007 và ADR-008
+
+**Loại:** phản biện, bổ sung · **Phạm vi:** [ADR-007](#adr-007), [ADR-008](#adr-008) · **Công cụ AI:** Claude Code (Opus 5.5)
+
+### ADR-007 — mô hình danh mục
+
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| Người phản biện | Bảo, 24/09: mã hiện có chỉ là bản demo; sửa ERD và use case cho chuẩn rồi viết lại mã; tận dụng ý hay trong PR #9 của Duy | Mô hình quyết bằng ERD, không bằng mã cũ |
+| AI gợi ý lần đầu | Hai tầng, cỡ và màu là **cột chữ** trên biến thể (bản nháp 24/09, không đẩy lên GitHub) | Bỏ |
+| AI sai | H-13: bản nháp đó bỏ sót ba chỗ: nút cỡ sắp theo chữ ra `L, M, S, XL`; một màu gõ nhiều kiểu thành nhiều màu khi lọc; thương hiệu chữ tự do không lọc được | AI tự bắt khi dựng từ điển dữ liệu cho ERD |
+| Ý của Duy (PR #9) | Ba tầng: biến thể theo màu, `SKUS` theo cỡ, bảng `COLORS`, `SIZES`, `BRANDS` | Giữ ý màu, cỡ, thương hiệu là thực thể riêng; bỏ tầng `SKUS` để đơn vị bán vẫn là biến thể |
+| Ý của Tài (PR #11) | Hai tầng, `size` và `color` là chữ cho phép null, một cột `price`; ràng buộc duy nhất viết tay `NULLS NOT DISTINCT` | Làm CI chặng 4 đỏ vì Prisma không mô tả được ràng buộc đó; màu, cỡ là khoá ngoại bắt buộc như ADR-007 thì dùng `@@unique` thường, hết lệch |
+
+**Kết luận:** đề xuất phương án C của ADR-007, chờ Bảo chốt. **Bằng chứng:** [erd.md:159 @3206aa0](https://github.com/F-R-E-Y-A/fashion-shop/blob/3206aa0/docs/features/products/erd.md#L159) (`sizes.sort_order`), [uc-ph03:12 @fe21833](https://github.com/F-R-E-Y-A/fashion-shop/blob/fe21833/docs/ba/uc-ph03-kham-pha-san-pham.md#L12) (mô hình của Duy), [catalog.prisma:42 @be97e0e](https://github.com/F-R-E-Y-A/fashion-shop/blob/be97e0e/apps/api/prisma/schema/catalog.prisma#L42) (mô hình của Tài); log CI chặng 4 của PR #11: `Removed unique index on columns (product_id, size, color)`.
+
+### ADR-008 — hình dạng API
+
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| Câu hỏi phản biện | Bảo: mã hiện có chỉ là demo, viết lại cũng được | AI tách hai loại: bảng, service, trang của `products` là demo và viết lại tự do; quy ước `Page`, khuôn lỗi, trả 400 khi dữ liệu vào sai là **nền tảng** hai bạn đang chép, đổi thì phải có ADR |
+| AI gợi ý | Không tạo `/api/products/search` mà dùng tham số `search` đã có của đường dẫn liệt kê | Giữ |
+| AI (suy luận) | Nếu khai `/api/products/search` sau `@Get(':slug')` thì chữ `search` bị hiểu là một slug, theo thứ tự khớp đường dẫn của Express | Chưa chạy thử; lý do chính vẫn là tránh hai đường liệt kê |
+
+**Kết luận:** đề xuất theo quy ước chung, chờ Bảo chốt. **Bằng chứng:** [list-products.query.ts:15 @58f45e9](https://github.com/F-R-E-Y-A/fashion-shop/blob/58f45e9/apps/api/src/modules/products/dto/list-products.query.ts#L15), [products.controller.ts:29 @58f45e9](https://github.com/F-R-E-Y-A/fashion-shop/blob/58f45e9/apps/api/src/modules/products/products.controller.ts#L29), [use-cases.md:103 @3206aa0](https://github.com/F-R-E-Y-A/fashion-shop/blob/3206aa0/docs/features/products/use-cases.md#L103).
