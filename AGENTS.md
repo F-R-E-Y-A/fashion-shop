@@ -13,7 +13,7 @@ Claude Code, Codex, Copilot, Cursor, Gemini và người viết đọc file này
 
 1. **Theo tính năng, không theo tầng.** `docs/features/<module>/` chứa mọi thứ về một tính năng; `docs/shared/` chứa thứ đúng cho mọi tính năng; gốc `docs/` chỉ có `README`, `LOG`, `CONTRIBUTING`, `TECH_DEBT`. Tên thư mục feature trùng tên module trong mã.
 2. **Một feature tối thiểu có `README.md` và `LOG.md`.** README là bản đồ và trạng thái hôm nay; thêm `use-cases.md` khi có đặc tả. Chỉ tách thêm file khi một file phải trả lời hai câu hỏi.
-3. **`LOG.md` chỉ thêm vào cuối, và là nơi duy nhất trả lời "vì sao".** `docs/LOG.md` cho quyết định chạm cả nhóm; `docs/features/<x>/LOG.md` cho quyết định của một feature. Khuôn ở [shared/templates/LOG-entry.md](docs/shared/templates/LOG-entry.md). Quyết định có neo `<a id="adr-NNN">` và dòng `Trạng thái`: đề xuất → đã chốt → thay thế bởi → huỷ. **Chỉ người đổi trạng thái; agent chỉ viết `đề xuất`.** Sai thì thêm mục mới; ngoại lệ duy nhất là dòng `Trạng thái` và phần `Thực tế`.
+3. **`LOG.md` chỉ thêm vào cuối, và là nơi duy nhất trả lời "vì sao".** `docs/LOG.md` cho quyết định chạm cả nhóm; `docs/features/<x>/LOG.md` cho quyết định của một feature. Khuôn ở [shared/templates/LOG-entry.md](docs/shared/templates/LOG-entry.md). Quyết định có neo `<a id="adr-NNN">` và dòng `Trạng thái`: đề xuất → đã chốt → thay thế bởi → huỷ. **Chỉ người đổi trạng thái; agent chỉ viết `đề xuất`.** Mỗi quyết định có mục **Phản biện**: câu hỏi phản biện, AI gợi ý gì, AI sai gì (mã `H-NN` ở kho docs), người phản biện gì, kết luận, bằng chứng là link theo mã commit tới đúng tệp và dòng. Sai thì thêm mục mới; ngoại lệ duy nhất là dòng `Trạng thái` và phần `Thực tế`.
 4. **Hình dạng API thật là Swagger `/api/docs`, sinh từ mã.** Tài liệu chỉ giữ quy ước ([shared/api.md](docs/shared/api.md)), hợp đồng giữa các module (`README.md` trong thư mục module) và endpoint mới **đề xuất** (README feature). Endpoint đã cài đặt thì không chép hình dạng sang tài liệu.
 5. **Frontmatter `title · updated · status · owner`, và dưới H1 một dòng `**Chức năng:**`** tối đa 25 từ nói file trả lời câu hỏi gì. Không có bảng lịch sử hay "ngày soạn" trong thân; lịch sử ở LOG và git.
 6. **Bằng chứng, không cảm nhận.** Nhận định về mã kèm `đường dẫn:dòng`; số liệu kèm lệnh đo; "đã chạy" kèm lệnh, kết quả và commit. Chưa biết thì ghi `[TBD — hỏi <ai>]`; suy luận thì ghi "(suy luận)".
@@ -48,7 +48,7 @@ Những chỗ biết là chưa theo luật, sửa khi có người chạm tới:
 - Hai tệp vượt 300 dòng: [shared/code-tour.md](docs/shared/code-tour.md), [features/platform/github-setup.md](docs/features/platform/github-setup.md).
 - Pull request #9 của Duy (danh mục use case, sơ đồ, ba đặc tả, chiến lược kiểm thử) chưa gộp và còn theo cây cũ, mã `PH-NN.m`; `shared/use-case-index.md` và `shared/test-strategy.md` hiện là khuôn trống chờ nội dung đó.
 - Tên bài kiểm thử của module mẫu `products` còn dạng `PH-03`/`AC-1` (mã cũ); PH-01 viết lại theo `UC-NN.m/ACk`.
-- Tiêu đề Issue #6, #7, #8 còn `PH1`–`PH3` và phạm vi cũ; đổi theo báo cáo tuần.
+- Tiêu đề Issue #6, #7, #8 viết `PH1`–`PH3`: cùng dòng việc với `PH-01`–`PH-03`, chỉ khác cách viết; Bảo xác nhận Issue đúng, không đổi (25/09).
 
 ## Kiểm
 
