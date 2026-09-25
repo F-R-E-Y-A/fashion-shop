@@ -43,7 +43,7 @@ Lệnh đó chạy lần lượt: lint, kiểm luật ranh giới, kiểm địn
 | Đường dẫn trang | tiếng Việt không dấu, nối gạch ngang | `/san-pham/:slug` |
 | Bảng dữ liệu | số nhiều, gạch dưới | `product_variants` |
 | Cột | gạch dưới trong cơ sở dữ liệu, lưng lạc đà trong mã | `created_at` ↔ `createdAt` |
-| Nhánh | `feature/<mã việc viết thường>-<tên ngắn>` | `feature/ph-02-cart`, `feature/ht-01-docs-restructure` |
+| Nhánh | `feature/<mã việc viết thường>-<tên ngắn>` | `feature/ph-02-cart`; việc nền tảng: `task/docs-restructure` trên `feature/platform` |
 | Mã trong tài liệu và tên bài kiểm thử | theo bảng hệ mã trong `AGENTS.md` | `UC-03.4/AC2`, `ADR-007`, `ND-10` |
 
 ## Tiếng Việt trong mã

@@ -82,7 +82,7 @@ Xong nghĩa là: có migration và dữ liệu giả, API khớp Swagger, giao d
 
 ## 6. Git và GitHub
 
-- **Nhánh:** `main` (bản nộp) ← `develop` (tích hợp) ← `feature/<mã việc>-<tên>`; việc con `task/`, sửa lỗi `bugfix/`. Không đẩy thẳng vào `develop`, `main`: hook `pre-push` chặn.
+- **Nhánh:** `main` (bản nộp) ← `develop` (tích hợp) ← `feature/<mã việc>-<tên>`; việc con `task/`, sửa lỗi `bugfix/`. Riêng `feature/platform` là nhánh dài hạn: việc nền tảng làm trên `task/` rồi gộp vào đó. Không đẩy thẳng vào `develop`, `main`: hook `pre-push` chặn.
 - **Commit:** `feat(ph-01): mo ta khong dau, chu thuong dau`. Hook `commit-msg` chặn sai dạng. Có phần AI sinh thì thêm dòng `Co-Authored-By:`.
 - **Pull request:** một người khác duyệt, CI xanh, **gộp bằng merge commit** vì lịch sử commit là hồ sơ nộp kèm ([ADR-005](LOG.md#adr-005)). Workflow `pr-reviewers.yml` gán người duyệt theo `CODEOWNERS` thay cho tính năng trả phí.
 - **Việc:** mỗi dòng việc một Issue (nhãn `ph` hoặc `ht`), gắn milestone của sprint. `Closes #N` trong thân pull request thì gộp xong Issue tự đóng.

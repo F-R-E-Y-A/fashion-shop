@@ -16,7 +16,8 @@ main                      chỉ chứa bản đã nộp hoặc đã triển khai
     ├── feature/ph-01-product-catalog    một dòng việc, một người
     │   ├── task/catalog-schema        việc con, gộp vào feature cha rồi xóa
     │   └── task/catalog-list-page
-    ├── feature/ht-01-docs-restructure
+    ├── feature/platform               nhánh DÀI HẠN của nền tảng, không xoá
+    │   └── task/docs-restructure      việc nền tảng, gộp vào feature/platform rồi xoá
     ├── bugfix/cart-total-sai          sửa lỗi phát hiện lúc duyệt chéo
     └── release/v1.0                   cắt ra khi kết thúc một chặng
 ```
@@ -74,7 +75,9 @@ git push -u origin feature/ph-01-product-catalog
 - Tệp `CODEOWNERS` tự gán người duyệt theo thư mục. Chạm vào thư mục người khác thì chính họ phải duyệt.
 - Không đẩy thẳng vào `develop` và `main`. Hook `pre-push` chặn sẵn.
 - **Gộp bằng merge commit, không dùng squash.** Squash xoá mọi commit hằng ngày khỏi nhánh chính, mà lịch sử Git ở đồ án này là hồ sơ nộp kèm chứ không chỉ là công cụ. Lý do đầy đủ ở [LOG#adr-005](../LOG.md#adr-005).
-- Nhánh đã gộp thì xóa. An toàn, vì merge commit khiến mọi commit của nhánh thành tổ tiên của `develop`.
+- Nhánh đã gộp thì xóa: `task/` sau khi gộp vào nhánh feature cha, `feature/ph-NN-*` và `bugfix/` sau khi gộp vào `develop`. An toàn, vì merge commit khiến mọi commit của nhánh thành tổ tiên của nhánh đích.
+- **Ngoại lệ: `feature/platform` là nhánh dài hạn**, không xoá. Việc nền tảng làm trên `task/<tên>` tách từ `feature/platform`, gộp vào đó bằng merge commit, rồi mở pull request `feature/platform` → `develop`. Sau mỗi lần gộp vào `develop`, gộp `develop` ngược lại vào `feature/platform` để hai nhánh không lệch. Lý do: [LOG.md](../LOG.md) mục ngày 25/09.
+- Pull request vào `feature/platform` **không có CI**, vì CI chỉ chạy cho `develop` và `main`. CI chặn ở bước `feature/platform` → `develop`. `Closes #N` cũng chỉ tự đóng Issue ở bước đó, vì GitHub chỉ đóng khi gộp vào nhánh mặc định.
 
 ## Hai cách đọc lịch sử
 

@@ -297,7 +297,7 @@ Phần lý do của ADR-004 (bằng chứng phải nằm cùng chỗ thứ nó c
 <a id="adr-006"></a>
 ## 2026-09-24 · ADR-006 — Tài liệu theo tính năng, một LOG thay thư mục ADR, và chỉ còn bốn họ mã
 
-**Loại:** quyết định · **Phạm vi:** toàn bộ `docs/`, `AGENTS.md`, mẫu pull request và Issue, chú thích mã trỏ tới tài liệu · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** nhánh `feature/ht-01-docs-restructure`
+**Loại:** quyết định · **Phạm vi:** toàn bộ `docs/`, `AGENTS.md`, mẫu pull request và Issue, chú thích mã trỏ tới tài liệu · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** nhánh `task/docs-restructure` gộp vào `feature/platform`
 
 ### Hiện trạng
 
@@ -397,7 +397,7 @@ Nếu nhóm quyết dùng một thư viện thành phần có sẵn cho trang qu
 
 ## 2026-09-24 · Mã dòng việc đổi sang `PH-NN` theo báo cáo tuần
 
-**Loại:** thay đổi · **Phạm vi:** hệ mã trong [ADR-006](#adr-006), toàn bộ tài liệu và chú thích mã · **Commit:** cùng nhánh `feature/ht-01-docs-restructure`
+**Loại:** thay đổi · **Phạm vi:** hệ mã trong [ADR-006](#adr-006), toàn bộ tài liệu và chú thích mã · **Commit:** cùng nhánh `task/docs-restructure` gộp vào `feature/platform`
 
 Báo cáo tuần của Bảo ngày 24/09 đánh số ba dòng việc tuần S2 là **PH-01 Khám phá sản phẩm** (Bảo), **PH-02 Giỏ hàng** (Duy), **PH-03 Xác thực và nạp dữ liệu sản phẩm** (Tài). ADR-006 viết `PHn` theo tiêu đề Issue ngày 20/09 (`PH1`–`PH3`, cùng thứ tự). Từ nay mã việc viết `PH-NN`; phạm vi commit viết thường `feat(ph-01)`; nhánh `feature/ph-01-<tên>`.
 
@@ -412,3 +412,11 @@ Chữ `PH` từng mang ba nghĩa, nên phải ghi rõ để tránh nhầm:
 Phạm vi PH-02 tuần này chỉ còn bảng giỏ và dòng giỏ với thêm, sửa số lượng, xoá; bỏ giỏ khách vãng lai và gộp giỏ khi đăng nhập. Hệ quả: giỏ chỉ dành cho người đã đăng nhập, nên PH-02 cần `AuthGuard` của PH-03 ngay trong tuần.
 
 Còn lại, không chặn: đổi tiêu đề và phạm vi Issue #6, #7, #8 cho khớp; đánh dấu bảng §3.1.4 trong kho docs là đã cũ.
+
+## 2026-09-25 · `feature/platform` là nhánh dài hạn; việc nền tảng đi qua `task/`
+
+**Loại:** thay đổi cách làm việc · **Phạm vi:** [shared/git.md](shared/git.md) mục luật gộp · **Người quyết:** Bảo, 25/09 · **Commit:** nhánh `task/docs-restructure`
+
+Luật cũ ghi "nhánh đã gộp thì xoá" cho mọi nhánh. Bảo chốt giữ `feature/platform` lâu dài vì nền tảng còn sửa nhiều trong các sprint sau: mỗi việc nền tảng là một `task/<tên>` tách từ `feature/platform`, gộp vào đó rồi xoá, và `feature/platform` mở pull request vào `develop` khi có đợt đáng gộp. Kiểm trước khi đổi: kho đang **tắt** tự xoá nhánh khi gộp (`gh api repos/F-R-E-Y-A/fashion-shop` trả `delete_branch_on_merge: false`), nên gộp pull request của `feature/platform` không làm mất nhánh.
+
+Hệ quả đã ghi vào luật: pull request vào `feature/platform` không có CI, vì [ci.yml](../.github/workflows/ci.yml) chỉ chạy cho `develop` và `main`, nên chặn chất lượng dồn về bước `feature/platform` → `develop`; `Closes #N` chỉ tự đóng Issue ở bước đó; sau mỗi lần gộp vào `develop` phải gộp `develop` ngược lại vào `feature/platform` để khỏi lệch.
