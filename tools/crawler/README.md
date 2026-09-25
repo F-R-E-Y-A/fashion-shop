@@ -33,6 +33,13 @@ npm run crawler -- --source yody --limit 5 \
 Thêm `--force` cùng `--resume` khi thực sự cần fetch lại item thành công. Raw identity vẫn là
 `YODY + sourceProductId`; file raw không tạo hai dòng cho cùng identity.
 
+Chuẩn hóa một run đã review sang M2 contract v2, không dùng network hoặc database:
+
+```bash
+npm run crawler:normalize -- \
+  --input tools/crawler/output/ht-03/review-20260925
+```
+
 ## Discovery và parsing
 
 - Discovery dùng `https://yody.vn/sitemap_products_1.xml`.
@@ -49,6 +56,8 @@ Thêm `--force` cùng `--resume` khi thực sự cần fetch lại item thành c
 | `manifest.jsonl` | Pending/result, attempts, HTTP status, latency và checksum |
 | `failures.jsonl` | Lỗi có cấu trúc, không chứa cookie/header |
 | `run-summary.json` | Tổng số discovery/request/success/failure/duplicate |
+| `normalized-candidates.jsonl` | Candidate contract v2, status và validation messages |
+| `normalization-summary.json` | Tổng trạng thái cùng issue/warning counts |
 
 `tools/crawler/output/` đã được Git ignore. Giữ output cục bộ cho kiểm tra trước khi chạy bộ lớn.
 
@@ -70,9 +79,14 @@ npm run typecheck -w @fashion-shop/crawler
 
 Tests dùng fixture local, không phụ thuộc YODY live.
 
+Normalizer chỉ map vào leaf category M2 đã duyệt, giữ brand `null` khi payload không có brand
+đáng tin cậy, không tự gán size `FREE` hay color `mac-dinh`. Giá và SKU được chuẩn hóa dạng chuỗi
+deterministic. Unknown category/size, missing source data, invalid price và variant conflict được
+giữ lại dưới trạng thái `PENDING_REVIEW`.
+
 ## Giới hạn hiện tại
 
 - Chưa chạy collection 300–500 sản phẩm.
 - Chưa ghi `staging.raw_product_records`.
-- Chưa normalize sang M2 contract v2.
+- Chưa ghi candidate contract v2 vào PostgreSQL.
 - `ProductsService.importProducts()` chưa được triển khai, nên collector không ghi Catalog.

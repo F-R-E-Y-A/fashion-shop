@@ -39,7 +39,8 @@
     "prepare": "node tools/git/install-hooks.mjs",
     "lint:boundaries": "node tools/eslint/verify-boundaries.mjs",
     "docs:lint": "node tools/docs/lint.mjs",
-    "crawler": "node tools/crawler/src/cli.ts"
+    "crawler": "node tools/crawler/src/cli.ts",
+    "crawler:normalize": "node tools/crawler/src/normalize-cli.ts"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

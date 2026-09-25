@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "collect": "node src/cli.ts",
+    "normalize": "node src/normalize-cli.ts",
     "test": "node --test test/*.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
