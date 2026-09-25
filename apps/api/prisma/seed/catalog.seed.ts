@@ -1,5 +1,5 @@
 /**
- * Du lieu gia cua phan he danh muc va san pham (Bao, PH-03).
+ * Du lieu gia cua phan he danh muc va san pham (Bao, PH-01).
  * Ma dinh danh CO DINH de ba nguoi, CI va bai kiem thu deu thay cung mot bo du lieu.
  * Bai kiem thu import cac hang so o day thay vi go lai so, de doi du lieu mot cho la du.
  */

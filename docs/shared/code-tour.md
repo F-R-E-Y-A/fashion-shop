@@ -1,4 +1,14 @@
+---
+title: Hướng dẫn đọc sâu mã nguồn
+updated: 2026-09-24
+status: đang dùng
+owner: Bảo
+---
 # Hướng dẫn đọc mã nguồn
+
+**Chức năng:** Đọc sâu cả kho mã: đường đi một yêu cầu, mỗi tệp làm gì và bỏ đi thì sao, mười cơ chế và lý do, câu tự kiểm trước bảo vệ.
+
+Bản 15 phút của cả dự án là [docs/README.md](../README.md); tài liệu này là bản đọc sâu 40 phút cho phần mã.
 
 Tài liệu này để **hiểu cả kho mã**, không phải để tra cứu. Các tài liệu khác trả lời "làm thế nào"; tài liệu này trả lời **"cái này là cái gì, vì sao nó có mặt, bỏ đi thì sao"**.
 
@@ -176,13 +186,13 @@ Kèm theo là cổng chặn lệch lược đồ, `npm run db:drift`. Ai sửa t
 
 `src/infra/config/env.ts` khai mọi biến bằng zod. Thiếu hoặc sai thì **máy chủ dừng ngay lúc khởi động** và in đúng tên biến, thay vì chạy được rồi chết ở một chỗ không liên quan sau ba mươi phút.
 
-Có một chi tiết đáng nhớ trong tệp đó: dùng `z.looseObject` chứ không phải `z.object`. Lý do đã kiểm bằng lệnh: `z.object({A}).parse({A, B})` trả về `{A}`, tức là **cắt bỏ mọi khoá không khai báo**. Nếu dùng `z.object`, ai thêm biến mới vào `.env` mà quên khai ở đây sẽ thấy `config.get('BIEN_MOI')` trả về `undefined` và không hiểu vì sao. Đây là lỗi H-08 trong sổ lỗi AI.
+Có một chi tiết đáng nhớ trong tệp đó: dùng `z.looseObject` chứ không phải `z.object`. Lý do đã kiểm bằng lệnh: `z.object({A}).parse({A, B})` trả về `{A}`, tức là **cắt bỏ mọi khoá không khai báo**. Nếu dùng `z.object`, ai thêm biến mới vào `.env` mà quên khai ở đây sẽ thấy `config.get('BIEN_MOI')` trả về `undefined` và không hiểu vì sao. Đây là lỗi H-08 trong sổ lỗi AI ở kho docs.
 
 ### 4.6 SWC thay cho trình biên dịch mặc định của Vitest
 
 NestJS dùng **decorator** như `@Injectable()` và **metadata** của chúng để biết phải tiêm cái gì vào đâu. Trình biên dịch mặc định của Vitest là esbuild, mà **esbuild không sinh metadata cho decorator**. Hậu quả: chạy kiểm thử là lỗi tiêm phụ thuộc, dù mã hoàn toàn đúng.
 
-`vitest.config.ts` vì vậy thay esbuild bằng SWC, có bật `decoratorMetadata`. Đây là cái bẫy dễ mất nửa buổi nếu không biết trước, nên nó được ghi cả ở đây lẫn trong `testing.md`.
+`vitest.config.ts` vì vậy thay esbuild bằng SWC, có bật `decoratorMetadata`. Đây là cái bẫy dễ mất nửa buổi nếu không biết trước, nên nó được ghi cả ở đây lẫn trong [testing.md](testing.md).
 
 ### 4.7 Image Docker bốn tầng
 
@@ -217,7 +227,7 @@ Bốn kết quả trong cột cuối là đo thật trên máy chủ đang chạ
 
 **Vì sao `enableImplicitConversion: false`.** Nếu bật, `class-transformer` tự suy kiểu và đổi ngầm. Nghe tiện nhưng sinh bất ngờ: chuỗi `"false"` thành `true`, chuỗi rỗng thành `0`. Tắt nó đi thì muốn đổi kiểu phải ghi rõ `@Type(() => Number)`, tức là **ý định nằm trong mã** chứ không nằm trong hành vi ngầm của thư viện.
 
-**Chỗ pipe không với tới.** `findOne(@Param('slug') slug: string)` khai kiểu nguyên thuỷ, nên pipe bỏ qua hoàn toàn. Đã đo: gửi slug dài 500 ký tự thì trả **404 chứ không phải 400**, nghĩa là chuỗi đi thẳng tới truy vấn mà không qua kiểm tra độ dài. Prisma có tham số hoá câu lệnh nên không có nguy cơ chèn lệnh SQL, nhưng đây vẫn là **dữ liệu vào không được kiểm**. Muốn kiểm thì khai tham số đường dẫn bằng một lớp DTO thay vì chuỗi. Đã ghi vào `TECH_DEBT.md` mục ND-10.
+**Chỗ pipe không với tới.** `findOne(@Param('slug') slug: string)` khai kiểu nguyên thuỷ, nên pipe bỏ qua hoàn toàn. Đã đo: gửi slug dài 500 ký tự thì trả **404 chứ không phải 400**, nghĩa là chuỗi đi thẳng tới truy vấn mà không qua kiểm tra độ dài. Prisma có tham số hoá câu lệnh nên không có nguy cơ chèn lệnh SQL, nhưng đây vẫn là **dữ liệu vào không được kiểm**. Muốn kiểm thì khai tham số đường dẫn bằng một lớp DTO thay vì chuỗi. Đã ghi vào [TECH_DEBT.md](../TECH_DEBT.md) mục ND-10.
 
 ### 4.9 Bể kết nối cơ sở dữ liệu
 
@@ -285,10 +295,10 @@ Trả lời được mười lăm câu này thì yên tâm với mục 6 của r
 
 | # | Câu hỏi | Tìm ở |
 |---|---|---|
-| 1 | Vì sao một khối module hoá chứ không phải microservices? | `adr/adr-001` |
-| 2 | Vì sao chỉ PostgreSQL, không thêm MongoDB? | `adr/adr-002` |
-| 3 | Vì sao import tương đối phải ghi đuôi `.js` dù tệp là `.ts`? | `adr/adr-003` |
-| 4 | Vì sao ép ranh giới bằng lint chứ không bằng quy ước? | `adr/adr-004` |
+| 1 | Vì sao một khối module hoá chứ không phải microservices? | [LOG#adr-001](../LOG.md#adr-001) |
+| 2 | Vì sao chỉ PostgreSQL, không thêm MongoDB? | [LOG#adr-002](../LOG.md#adr-002) |
+| 3 | Vì sao import tương đối phải ghi đuôi `.js` dù tệp là `.ts`? | [LOG#adr-003](../LOG.md#adr-003) |
+| 4 | Vì sao ép ranh giới bằng lint chứ không bằng quy ước? | [LOG#adr-004](../LOG.md#adr-004) |
 | 5 | Giá tiền vì sao trả về dạng chuỗi? | Mục 2 của tài liệu này |
 | 6 | Vì sao đếm và lấy dữ liệu phải chung một giao dịch? | Mục 2 |
 | 7 | `z.looseObject` khác `z.object` chỗ nào, vì sao quan trọng? | Mục 4.5 |
@@ -299,7 +309,7 @@ Trả lời được mười lăm câu này thì yên tâm với mục 6 của r
 | 12 | Ứng dụng giữ bao nhiêu kết nối tới cơ sở dữ liệu, vì sao là con số đó? | Mục 4.9 |
 | 13 | Bộ lọc lỗi không bắt được loại lỗi nào? | Mục 4.10 |
 | 14 | Chỗ nào trong mã do AI sinh, và đã kiểm chứng thế nào? | Kho docs, `ai-log/` |
-| 15 | Kho mã có nợ kỹ thuật nào, xử lý khi nào? | `TECH_DEBT.md` |
+| 15 | Kho mã có nợ kỹ thuật nào, xử lý khi nào? | [TECH_DEBT.md](../TECH_DEBT.md) |
 
 Cách luyện hiệu quả nhất: **nhờ Duy hoặc Tài bốc ngẫu nhiên một tệp rồi bấm giờ ba phút**, trả lời đủ bốn câu của rubric. Làm mỗi tuần một lần ở buổi chốt Thứ Tư.
 
@@ -342,12 +352,12 @@ Sáu chỗ mà người mới hay vấp, ghi sẵn để khỏi mất thời gia
 
 | Muốn biết | Đọc |
 |---|---|
-| Luật làm việc và các bước thêm phân hệ | `CONTRIBUTING.md` |
-| Quy ước đặt tên, bốn luật máy không kiểm được | `CODING_CONVENTION.md` |
-| Đường dẫn, phân trang, mã lỗi | `api-conventions.md` |
-| Chạy và viết kiểm thử | `testing.md` |
-| Vì sao chọn kiến trúc và công nghệ | `adr/` |
-| Nợ kỹ thuật và hạn xử lý | `TECH_DEBT.md` |
-| Lộ trình nền tảng còn lại | `PLATFORM_ROADMAP.md` |
-| Dựng môi trường thử | `ops/staging.md` |
+| Luật làm việc và các bước thêm phân hệ | [CONTRIBUTING.md](../CONTRIBUTING.md) |
+| Quy ước đặt tên, bốn luật máy không kiểm được | [code.md](code.md) |
+| Đường dẫn, phân trang, mã lỗi | [api.md](api.md) |
+| Chạy và viết kiểm thử | [testing.md](testing.md) |
+| Vì sao chọn kiến trúc và công nghệ | [LOG.md](../LOG.md), các mục `ADR-` |
+| Nợ kỹ thuật và hạn xử lý | [TECH_DEBT.md](../TECH_DEBT.md) |
+| Lộ trình nền tảng còn lại | [features/platform/README.md](../features/platform/README.md) |
+| Dựng môi trường thử | [features/platform/staging.md](../features/platform/staging.md) |
 | Nhật ký AI, sổ tiến độ, hồ sơ nộp khoa | Kho [`F-R-E-Y-A/docs`](https://github.com/F-R-E-Y-A/docs) |

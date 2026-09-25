@@ -1,4 +1,12 @@
+---
+title: Sổ tay dựng và cấu hình hai kho GitHub
+updated: 2026-09-24
+status: đã chạy xong mục 1–8, giữ để dựng lại
+owner: Bảo
+---
 # Dựng và cấu hình hai kho trên GitHub
+
+**Chức năng:** Các lệnh đã dùng để dựng hai kho GitHub của nhóm: quyền, nhánh, nhãn, milestone, khoá nhánh, pull request đầu tiên.
 
 Sổ tay chạy một lần, dành cho Bảo. Làm xong thì cả nhóm clone về là viết mã được ngay từ Thứ Hai.
 
@@ -106,7 +114,7 @@ Chỉ cho phép gộp kiểu **merge commit**, và tự xoá nhánh sau khi gộ
 gh repo edit F-R-E-Y-A/fashion-shop --enable-merge-commit=true --enable-squash-merge=false --enable-rebase-merge=false --delete-branch-on-merge=true
 ```
 
-**Vì sao merge commit chứ không phải squash.** Squash gom cả nhánh thành một commit mới, nên mọi commit hằng ngày biến mất khỏi `develop`. Với đồ án này đó là mất bằng chứng, vì rubric đòi kho mã có đủ lịch sử commit suốt kỳ, và tài liệu của nhóm đang trích dẫn mã commit để đối chiếu. Lý do đầy đủ cùng số đo ở `../adr/adr-005-merge-commit.md`.
+**Vì sao merge commit chứ không phải squash.** Squash gom cả nhánh thành một commit mới, nên mọi commit hằng ngày biến mất khỏi `develop`. Với đồ án này đó là mất bằng chứng, vì rubric đòi kho mã có đủ lịch sử commit suốt kỳ, và tài liệu của nhóm đang trích dẫn mã commit để đối chiếu. Lý do đầy đủ cùng số đo ở [LOG#adr-005](../../LOG.md#adr-005).
 
 Merge commit giữ được cả hai góc nhìn, không mất gì:
 
@@ -239,9 +247,9 @@ Chốt xong thì mỗi nhánh chỉ tốn một lệnh, cắt thẳng từ `deve
 git push origin develop:refs/heads/feature/<ma-viet-thuong>-<ten-ngan>
 ```
 
-Ví dụ `git push origin develop:refs/heads/feature/ph-13-inventory`.
+Ví dụ `git push origin develop:refs/heads/feature/ph-02-cart`.
 
-Đặt tên theo `docs/GIT_FLOW.md`: `feature/<mã viết thường>-<tên ngắn>`, không dấu, nối bằng gạch ngang. Mã lấy từ bảng chia việc theo sprint trong kho `docs`.
+Đặt tên theo [shared/git.md](../../shared/git.md): `feature/<mã viết thường>-<tên ngắn>`, không dấu, nối bằng gạch ngang. Mã lấy từ bảng chia việc theo sprint trong kho `docs`.
 
 Sau khi mục 2 xong, kho có đúng ba nhánh. Kiểm lại:
 

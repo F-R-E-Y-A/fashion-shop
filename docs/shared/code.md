@@ -1,4 +1,12 @@
+---
+title: Quy ước viết mã
+updated: 2026-09-24
+status: đang dùng
+owner: Bảo
+---
 # Quy ước viết mã
+
+**Chức năng:** Quy ước viết mã mà máy không kiểm được, và bảng những quy ước máy đã ép sẵn để khỏi phải nhớ.
 
 Quy ước nào **máy kiểm được** thì đã nằm trong `eslint.config.js` và `.prettierrc`, không nhắc lại ở đây. Tệp này chỉ ghi những gì máy không kiểm được.
 
@@ -35,7 +43,8 @@ Lệnh đó chạy lần lượt: lint, kiểm luật ranh giới, kiểm địn
 | Đường dẫn trang | tiếng Việt không dấu, nối gạch ngang | `/san-pham/:slug` |
 | Bảng dữ liệu | số nhiều, gạch dưới | `product_variants` |
 | Cột | gạch dưới trong cơ sở dữ liệu, lưng lạc đà trong mã | `created_at` ↔ `createdAt` |
-| Nhánh | `feature/ph-NN-ten-ngan` | `feature/ph-05-cart` |
+| Nhánh | `feature/<mã việc viết thường>-<tên ngắn>` | `feature/ph-02-cart`, `feature/ht-01-docs-restructure` |
+| Mã trong tài liệu và tên bài kiểm thử | theo bảng hệ mã trong `AGENTS.md` | `UC-03.4/AC2`, `ADR-007`, `ND-10` |
 
 ## Tiếng Việt trong mã
 

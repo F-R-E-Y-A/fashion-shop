@@ -1,6 +1,24 @@
+---
+title: Quy ước API chung
+updated: 2026-09-24
+status: đang dùng
+owner: Bảo
+---
 # Quy ước giao diện lập trình
 
+**Chức năng:** Những gì đúng cho mọi đường dẫn API của mọi phân hệ: đặt tên, phân trang, khuôn lỗi, kiểu dữ liệu, và mỗi thứ về API được ghi ở đâu.
+
 Mọi phân hệ theo đúng các quy ước dưới đây, để giao diện web chỉ phải học một lần. Đặc tả đầy đủ và luôn đúng nằm ở `/api/docs`, sinh tự động từ chú thích trong mã.
+
+## Ba nơi ghi về API, không chồng nhau
+
+| Câu hỏi | Nơi trả lời | Ai sửa |
+|---|---|---|
+| Đường dẫn **đã cài đặt** nhận gì, trả gì | Swagger `/api/docs`, sinh từ `@ApiOperation`, `@ApiOkResponse` và DTO | Tự sinh khi sửa mã |
+| Phân hệ khác được gọi **hàm nào** của phân hệ mình | `README.md` trong thư mục module, ví dụ [products/README.md](../../apps/api/src/modules/products/README.md) | Chủ module, cùng pull request đổi chữ ký |
+| Đường dẫn **mới đề xuất**, chưa có mã | Mục API trong `docs/features/<x>/README.md` | Chủ feature; cài xong thì xoá khỏi README vì Swagger đã có |
+
+Chép hình dạng một đường dẫn đã cài đặt sang tài liệu là tạo bản sao sẽ lệch.
 
 ## Đường dẫn
 
