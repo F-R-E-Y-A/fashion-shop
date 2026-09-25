@@ -5,14 +5,10 @@ import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { ListProductsQuery } from './dto/list-products.query.js';
 import { ProductListResponse, ProductResponse } from './dto/product.response.js';
 
+// Gia lay tu products.price_from (gia ban thap nhat, service tinh lai khi ghi bien the, ADR-007),
+// nen khong can truy van phu tim bien the re nhat cho moi dong.
 const storefrontProductInclude = {
   category: true,
-  variants: {
-    where: { isActive: true },
-    orderBy: { price: 'asc' },
-    take: 1,
-    select: { price: true },
-  },
   images: {
     orderBy: { sortOrder: 'asc' },
     take: 1,
@@ -77,20 +73,16 @@ export class ProductsService {
     slug: string;
     description: string | null;
     category: { name: string; slug: string };
-    variants: Array<{ price: { toString(): string } }>;
+    priceFrom: { toString(): string };
     images: Array<{ url: string }>;
   }): ProductResponse {
-    const lowestPricedVariant = row.variants[0];
-    if (!lowestPricedVariant) {
-      throw new NotFoundException('San pham khong con phien ban dang ban');
-    }
-
     return {
       id: row.id,
       name: row.name,
       slug: row.slug,
       description: row.description,
-      price: lowestPricedVariant.price.toString(),
+      // Decimal -> chuoi, giao dien tu dinh dang. Khong tra Float.
+      price: row.priceFrom.toString(),
       imageUrl: row.images[0]?.url ?? null,
       categoryName: row.category.name,
       categorySlug: row.category.slug,

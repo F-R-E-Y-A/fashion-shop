@@ -12,7 +12,7 @@ Physical database specification chốt cho HT-02. Nguồn chân lý là ERD appr
 
 ![Sơ đồ quan hệ thực thể HT-02](diagrams/erd-tong-the.drawio.png)
 
-> **Ghi chú khi gộp (Bảo, 25/09).** Phần danh mục (mục 5) đang chuyển sang mô hình M2: biến thể trỏ khoá ngoại bắt buộc tới `colors`, `sizes`, sản phẩm có `brand`, danh mục có cây cha con, biến thể có giá niêm yết và giá khuyến mãi, mọi sản phẩm có ít nhất một biến thể. Nguồn cho phần này là [features/products/erd.md](https://github.com/F-R-E-Y-A/fashion-shop/blob/a03e1cc/docs/features/products/erd.md) trên nhánh PH-01; bảng ở mục 5 sẽ sửa theo khi migration của PH-01 gộp. Khi đã có migration thì lược đồ Prisma là sự thật, tệp này phải khớp nó.
+> **Ghi chú khi gộp (Bảo, 25/09).** Phần danh mục (mục 5) đã đổi sang mô hình M2 ngay trong PR này: bảng tra cứu `brands`, `colors`, `sizes`; biến thể trỏ khoá ngoại bắt buộc tới màu và cỡ; danh mục có cây cha con; biến thể có giá niêm yết và giá khuyến mãi. Ảnh ERD ở trên vẽ trước khi đổi, phần danh mục trong ảnh cần xuất lại. Khi đã có migration thì lược đồ Prisma là sự thật, tệp này phải khớp nó.
 
 ## 1. Database conventions
 
@@ -29,7 +29,7 @@ Physical database specification chốt cho HT-02. Nguồn chân lý là ERD appr
 |---|---:|
 | TAI | 24 |
 | DUY | 11 |
-| BAO | 16 |
+| BAO | 19 |
 
 OPTIONAL: wishlists, recently_viewed. DESIGN_PROPOSAL: administrative_areas, shipping_zones, shipping_zone_areas, refund_items. DEFERRED_PHYSICAL_DESIGN: notifications, notification_preferences.
 
@@ -105,17 +105,22 @@ Checks: shipping fee >= 0; lower weight >= 0; upper weight > lower. Address defa
 
 ## 5. Catalog / Discovery
 
-### categories, products, product_variants, product_images
-Owner: BAO. Domain: Catalog. Classification: Core.
+### categories, brands, colors, sizes, products, product_variants, product_images
+Owner: BAO. Domain: Catalog. Classification: Core. Mô hình M2, lý do ở ADR-007; sơ đồ và từ điển chi tiết ở `features/products/erd.md` (nhánh PH-01).
 
 | Table | Columns, constraints and meaning |
 |---|---|
-| categories | id UUID PK; name; slug UQ; timestamps required. |
-| products | id PK; category_id FK; name; slug UQ; description nullable; attributes JSONB nullable; is_active default true; timestamps required. |
-| product_variants | id PK; product_id FK; sku UQ; size/color nullable; price decimal(12,2); is_active default true; timestamps required. |
-| product_images | id PK; product_id FK; url; sort_order required; timestamps required. |
+| categories | id UUID PK; parent_id nullable self FK RESTRICT (cây cha con); name; slug UQ; sort_order default 0 CHECK >=0; is_active default true; CHECK parent_id <> id; timestamps required. |
+| brands | id PK; name; slug UQ (khoá khớp khi nạp dữ liệu); timestamps required. |
+| colors | id PK; code UQ không dấu (`den`, `mac-dinh`); name hiện ra; hex char(7) nullable CHECK dạng `#RRGGBB`; timestamps required. |
+| sizes | id PK; code UQ (`S`, `M`, `29`, `FREE`); sort_order default 0 CHECK >=0, quyết thứ tự nút cỡ; timestamps required. |
+| products | id PK; category_id FK RESTRICT; brand_id nullable FK SET NULL; name; slug UQ; description, material, care_instructions nullable; attributes JSONB nullable; price_from decimal(12,2) CHECK >=0 (giá bán thấp nhất trong các biến thể đang bán, chỉ service products ghi); is_active default true; is_featured default false; timestamps required. |
+| product_variants | id PK; product_id FK RESTRICT; color_id FK RESTRICT bắt buộc; size_id FK RESTRICT bắt buộc; sku UQ; list_price decimal(12,2) CHECK >0; sale_price decimal(12,2) nullable CHECK >0 và < list_price; is_active default true; UQ(product_id,color_id,size_id); timestamps required. |
+| product_images | id PK; product_id FK RESTRICT; color_id nullable FK SET NULL (null là ảnh chung); url; alt nullable; sort_order required CHECK >=0; UQ(product_id,sort_order); timestamps required. |
 
-Checks/indexes: price >= 0; product image sort_order >= 0 and UQ(product_id,sort_order); intended PostgreSQL 17 unique nulls not distinct(product_id,size,color). Product/Variant are deactivated, not hard-deleted, once referenced historically.
+Luật: mọi sản phẩm có ít nhất một biến thể; sản phẩm không phân loại dùng một biến thể cỡ `FREE`, màu `mac-dinh`. Giá bán của biến thể là sale_price nếu có, không thì list_price. Product và Variant ngừng bán bằng is_active, không xoá cứng khi đã có tham chiếu lịch sử. Mọi cột trong ràng buộc duy nhất của biến thể đều bắt buộc, nên không cần UNIQUE NULLS NOT DISTINCT.
+
+Indexes: products(category_id), (brand_id), (is_active, created_at DESC), (is_active, price_from); product_variants(color_id), (size_id); categories(parent_id).
 
 ### homepage_sections, search_query_logs, search_configurations, wishlists, recently_viewed
 Owner: BAO. Domain: Discovery. Classification: Core except OPTIONAL wishlist/recent view.

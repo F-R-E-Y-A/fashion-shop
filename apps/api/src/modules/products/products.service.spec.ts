@@ -7,7 +7,7 @@ import { ProductsService } from './products.service.js';
 
 const row = (
   overrides: Partial<{
-    variants: Array<{ price: { toString(): string } }>;
+    priceFrom: { toString(): string };
     images: Array<{ url: string }>;
   }> = {},
 ) => ({
@@ -16,7 +16,7 @@ const row = (
   slug: 'ao-thun-co-tron-basic',
   description: null,
   category: { name: 'Ao', slug: 'ao' },
-  variants: [{ price: { toString: () => '199000' } }],
+  priceFrom: { toString: () => '199000' },
   images: [{ url: 'https://example.test/first.jpg' }],
   ...overrides,
 });
@@ -40,11 +40,9 @@ describe('ProductsService (final HT-02 catalog contract)', () => {
     ({ prisma, service } = makePrisma());
   });
 
-  it('returns an active product with its lowest active variant price as an API string', async () => {
+  it('UC-03.1/AC3 gia la price_from dang chuoi, anh la anh dau theo sort_order', async () => {
     prisma.product.count.mockResolvedValue(1);
-    prisma.product.findMany.mockResolvedValue([
-      row({ variants: [{ price: { toString: () => '149000' } }] }),
-    ]);
+    prisma.product.findMany.mockResolvedValue([row({ priceFrom: { toString: () => '149000' } })]);
 
     const result = await service.list(query());
 
@@ -52,12 +50,9 @@ describe('ProductsService (final HT-02 catalog contract)', () => {
       price: '149000',
       imageUrl: 'https://example.test/first.jpg',
     });
-    const args = prisma.product.findMany.mock.calls[0]?.[0] as { include: { variants: unknown } };
-    expect(args.include.variants).toMatchObject({
-      where: { isActive: true },
-      orderBy: { price: 'asc' },
-      take: 1,
-    });
+    // Khong con truy van phu tim bien the re nhat: gia doc tu cot price_from.
+    const args = prisma.product.findMany.mock.calls[0]?.[0] as { include: object };
+    expect(args.include).not.toHaveProperty('variants');
   });
 
   it('excludes inactive products and products without an active variant', async () => {

@@ -12,7 +12,8 @@ export class ProductResponse {
   @ApiProperty() slug!: string;
   @ApiPropertyOptional({ nullable: true }) description!: string | null;
   @ApiProperty({
-    description: 'Gia thap nhat cua ProductVariant dang ban, don vi dong, dang chuoi',
+    description:
+      'Gia ban thap nhat trong cac bien the dang ban (products.price_from), don vi dong, dang chuoi',
   })
   price!: string;
   @ApiPropertyOptional({
