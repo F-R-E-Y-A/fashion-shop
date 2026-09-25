@@ -55,6 +55,10 @@ model ProductVariant {
   replacementReturnItems ReturnItem[]           @relation("ReturnReplacementVariant")
 
   @@index([productId])
+  // Khai bu rang buoc UNIQUE NULLS NOT DISTINCT da viet tay trong migration ht02_final_baseline,
+  // de db:drift khong doi xoa no. Prisma 7 chua mo ta duoc NULLS NOT DISTINCT. BAN TAM: PH-01 thay
+  // bang khoa ngoai bat buoc toi colors, sizes (ADR-007, docs/features/products/erd.md).
+  @@unique([productId, size, color], map: "product_variants_logical_combination_uq")
   @@map("product_variants")
   @@schema("public")
 }
