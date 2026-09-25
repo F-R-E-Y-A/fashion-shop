@@ -7,11 +7,17 @@
   "scripts": {
     "collect": "node src/cli.ts",
     "normalize": "node src/normalize-cli.ts",
+    "persist": "tsx src/persist-cli.ts",
     "test": "node --test test/*.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "engines": {
     "node": ">=24"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "^7.10.0",
+    "tsx": "^4.23.13"
   },
   "devDependencies": {
     "@types/node": "^26.5.1",

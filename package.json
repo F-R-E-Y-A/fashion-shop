@@ -40,7 +40,8 @@
     "lint:boundaries": "node tools/eslint/verify-boundaries.mjs",
     "docs:lint": "node tools/docs/lint.mjs",
     "crawler": "node tools/crawler/src/cli.ts",
-    "crawler:normalize": "node tools/crawler/src/normalize-cli.ts"
+    "crawler:normalize": "node tools/crawler/src/normalize-cli.ts",
+    "crawler:persist": "npm run persist -w @fashion-shop/crawler --"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

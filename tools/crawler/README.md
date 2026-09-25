@@ -40,6 +40,20 @@ npm run crawler:normalize -- \
   --input tools/crawler/output/ht-03/review-20260925
 ```
 
+Kiểm tra pairing rồi ghi rõ ràng vào hai bảng `staging`, không chạm Catalog:
+
+```bash
+npm run crawler:persist -- \
+  --input tools/crawler/output/ht-03/review-20260925 --dry-run
+npm run crawler:persist -- \
+  --input tools/crawler/output/ht-03/review-20260925
+```
+
+CLI chỉ cho phép `localhost`/`127.0.0.1` và database `fashion_shop`. Dry-run vẫn đọc trạng thái
+database để báo create/update/skip nhưng không mở transaction ghi. Khi ghi thật, mỗi cặp raw và
+candidate dùng một transaction riêng; lỗi một sản phẩm không rollback sản phẩm khác. Candidate có
+trạng thái `IMPORTED` được bảo vệ và không bị normalizer ghi đè.
+
 ## Discovery và parsing
 
 - Discovery dùng `https://yody.vn/sitemap_products_1.xml`.
@@ -58,6 +72,9 @@ npm run crawler:normalize -- \
 | `run-summary.json` | Tổng số discovery/request/success/failure/duplicate |
 | `normalized-candidates.jsonl` | Candidate contract v2, status và validation messages |
 | `normalization-summary.json` | Tổng trạng thái cùng issue/warning counts |
+| `quality-summary.json` | Tỉ lệ và coverage category, size, image của run |
+| `persistence-dry-run-summary.json` | Kế hoạch create/update/skip, không ghi database |
+| `persistence-summary.json` | Create/update/skip/failure và xác minh staging database |
 
 `tools/crawler/output/` đã được Git ignore. Giữ output cục bộ cho kiểm tra trước khi chạy bộ lớn.
 

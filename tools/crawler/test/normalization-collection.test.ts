@@ -6,6 +6,7 @@ import {
   normalizeYodyCollection,
   summarizeNormalization,
 } from '../src/normalization/normalize-collection.ts';
+import { buildQualitySummary } from '../src/quality-summary.ts';
 
 function raw(id: string, sku: string): RawProductEnvelope {
   const variant: JsonObject = {
@@ -70,4 +71,29 @@ test('summarizes actual candidate statuses and issue counts', () => {
     issueCounts: {},
     warningCounts: { NO_VALID_IMAGE: 1 },
   });
+});
+
+test('reports category, source size and image quality coverage', () => {
+  const candidates = normalizeYodyCollection([raw('1', 'ONE')]);
+  const quality = buildQualitySummary(
+    {
+      runId: 'pilot',
+      source: 'YODY',
+      startedAt: '2026-09-25T00:00:00.000Z',
+      finishedAt: '2026-09-25T00:01:00.000Z',
+      discovered: 1,
+      requested: 1,
+      succeeded: 1,
+      failed: 0,
+      duplicates: 0,
+      uniqueProducts: 1,
+      stoppedReason: null,
+    },
+    candidates,
+  );
+  assert.equal(quality.percentages.parseSuccessRate, 100);
+  assert.equal(quality.percentages.approvedRate, 100);
+  assert.equal(quality.categoryCoverage['quan-short'], 1);
+  assert.equal(quality.observedSourceSizes.M, 1);
+  assert.equal(quality.imageCoverage.withValidImage, 0);
 });
