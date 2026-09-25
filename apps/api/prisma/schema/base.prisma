@@ -19,4 +19,5 @@ generator client {
 // con luc chay that thi PrismaClient nhan adapter trong src/infra/prisma/prisma.service.ts.
 datasource db {
   provider = "postgresql"
+  schemas  = ["public", "staging", "reporting"]
 }
