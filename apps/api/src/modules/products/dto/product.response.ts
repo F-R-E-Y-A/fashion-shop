@@ -11,7 +11,10 @@ export class ProductResponse {
   @ApiProperty() name!: string;
   @ApiProperty() slug!: string;
   @ApiPropertyOptional({ nullable: true }) description!: string | null;
-  @ApiProperty({ description: 'Gia thap nhat cua ProductVariant dang ban, don vi dong, dang chuoi' }) price!: string;
+  @ApiProperty({
+    description: 'Gia thap nhat cua ProductVariant dang ban, don vi dong, dang chuoi',
+  })
+  price!: string;
   @ApiPropertyOptional({
     nullable: true,
     description: 'URL ProductImage dau tien theo sort_order; null neu chua co anh',

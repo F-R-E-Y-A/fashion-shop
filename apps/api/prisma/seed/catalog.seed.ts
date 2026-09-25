@@ -11,16 +11,76 @@ export const CATEGORIES = [
 ] as const;
 
 export const PRODUCTS = [
-  { name: 'Ao thun co tron basic', slug: 'ao-thun-co-tron-basic', price: 199000, categorySlug: 'ao', sku: 'SEED-001' },
-  { name: 'Ao so mi linen tay dai', slug: 'ao-so-mi-linen-tay-dai', price: 459000, categorySlug: 'ao', sku: 'SEED-002' },
-  { name: 'Ao khoac du hai lop', slug: 'ao-khoac-du-hai-lop', price: 689000, categorySlug: 'ao', sku: 'SEED-003' },
-  { name: 'Ao polo cotton pique', slug: 'ao-polo-cotton-pique', price: 329000, categorySlug: 'ao', sku: 'SEED-004' },
-  { name: 'Quan jean ong suong', slug: 'quan-jean-ong-suong', price: 549000, categorySlug: 'quan', sku: 'SEED-005' },
-  { name: 'Quan kaki tui hop', slug: 'quan-kaki-tui-hop', price: 429000, categorySlug: 'quan', sku: 'SEED-006' },
-  { name: 'Quan short the thao', slug: 'quan-short-the-thao', price: 259000, categorySlug: 'quan', sku: 'SEED-007' },
-  { name: 'Quan tay cong so', slug: 'quan-tay-cong-so', price: 479000, categorySlug: 'quan', sku: 'SEED-008' },
-  { name: 'Mu luoi trai canvas', slug: 'mu-luoi-trai-canvas', price: 149000, categorySlug: 'phu-kien', sku: 'SEED-009' },
-  { name: 'That lung da bo', slug: 'that-lung-da-bo', price: 359000, categorySlug: 'phu-kien', sku: 'SEED-010' },
+  {
+    name: 'Ao thun co tron basic',
+    slug: 'ao-thun-co-tron-basic',
+    price: 199000,
+    categorySlug: 'ao',
+    sku: 'SEED-001',
+  },
+  {
+    name: 'Ao so mi linen tay dai',
+    slug: 'ao-so-mi-linen-tay-dai',
+    price: 459000,
+    categorySlug: 'ao',
+    sku: 'SEED-002',
+  },
+  {
+    name: 'Ao khoac du hai lop',
+    slug: 'ao-khoac-du-hai-lop',
+    price: 689000,
+    categorySlug: 'ao',
+    sku: 'SEED-003',
+  },
+  {
+    name: 'Ao polo cotton pique',
+    slug: 'ao-polo-cotton-pique',
+    price: 329000,
+    categorySlug: 'ao',
+    sku: 'SEED-004',
+  },
+  {
+    name: 'Quan jean ong suong',
+    slug: 'quan-jean-ong-suong',
+    price: 549000,
+    categorySlug: 'quan',
+    sku: 'SEED-005',
+  },
+  {
+    name: 'Quan kaki tui hop',
+    slug: 'quan-kaki-tui-hop',
+    price: 429000,
+    categorySlug: 'quan',
+    sku: 'SEED-006',
+  },
+  {
+    name: 'Quan short the thao',
+    slug: 'quan-short-the-thao',
+    price: 259000,
+    categorySlug: 'quan',
+    sku: 'SEED-007',
+  },
+  {
+    name: 'Quan tay cong so',
+    slug: 'quan-tay-cong-so',
+    price: 479000,
+    categorySlug: 'quan',
+    sku: 'SEED-008',
+  },
+  {
+    name: 'Mu luoi trai canvas',
+    slug: 'mu-luoi-trai-canvas',
+    price: 149000,
+    categorySlug: 'phu-kien',
+    sku: 'SEED-009',
+  },
+  {
+    name: 'That lung da bo',
+    slug: 'that-lung-da-bo',
+    price: 359000,
+    categorySlug: 'phu-kien',
+    sku: 'SEED-010',
+  },
 ] as const;
 
 export async function seedCatalog(

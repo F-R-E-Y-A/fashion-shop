@@ -13,6 +13,8 @@ Thư mục này nằm trong **kho mã**, không nằm trong kho tài liệu. Lý
 | Từ điển dữ liệu, quy ước đặt tên, ràng buộc | `data-model.md` | Tài |
 | Sơ đồ hoạt động, sơ đồ tuần tự | `diagrams/<loại>-<tên>.drawio.png` | Người sở hữu luồng đó |
 
+![Sơ đồ quan hệ thực thể HT-02](diagrams/erd-tong-the.drawio.png)
+
 Sơ đồ đặt trong `diagrams/`, mô tả bằng chữ đặt ở tệp `.md` tương ứng và **nhúng ảnh vào đó**:
 
 ```markdown

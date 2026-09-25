@@ -64,7 +64,11 @@ describe('GET /api/products (PH-03 Kham pha san pham)', () => {
 
     const res = await t.http.get(`/api/products/${first.slug}`).expect(200);
 
-    expect(res.body).toMatchObject({ id: expect.any(String), name: first.name, categorySlug: 'ao' });
+    expect(res.body).toMatchObject({
+      id: expect.any(String),
+      name: first.name,
+      categorySlug: 'ao',
+    });
     expect(Number(res.body.price)).toBe(first.price);
   });
 
