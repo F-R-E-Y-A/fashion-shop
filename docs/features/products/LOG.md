@@ -146,3 +146,11 @@ Máy nào đã có dữ liệu thì chạy `npm exec -w apps/api -- prisma migra
 **Kết luận:** ADR-007 **đã chốt** theo M2 (Bảo, 25/09). Dòng Trạng thái của ADR-007 do agent sửa theo lời chốt của Bảo trong phiên làm việc. Tầng dữ liệu của PH-01 xong trước hạn; service, API, giao diện vẫn theo [README](README.md).
 
 **Bằng chứng:** màu, cỡ bắt buộc [catalog.prisma:101-102](https://github.com/F-R-E-Y-A/fashion-shop/blob/f39ae11/apps/api/prisma/schema/catalog.prisma#L101-L102) · ràng buộc thường [catalog.prisma:121](https://github.com/F-R-E-Y-A/fashion-shop/blob/f39ae11/apps/api/prisma/schema/catalog.prisma#L121) · khối `CHECK` viết tay của danh mục (bảy mới, một của Tài cho ảnh) [migration.sql:1151-1182](https://github.com/F-R-E-Y-A/fashion-shop/blob/f39ae11/apps/api/prisma/migrations/20260924184146_ht02_final_baseline/migration.sql#L1151-L1182) · biến thể mặc định trong seed [catalog.seed.ts:184-185](https://github.com/F-R-E-Y-A/fashion-shop/blob/f39ae11/apps/api/prisma/seed/catalog.seed.ts#L184-L185).
+
+## 2026-09-26 · Đồng bộ nền dữ liệu và chia task PH-01
+
+**Loại:** thay đổi quy trình · **Phạm vi:** nhánh `feature/ph-01-product-catalog`, kế hoạch trong [README](README.md) · **Commit:** [38eaac2](https://github.com/F-R-E-Y-A/fashion-shop/commit/38eaac2) · **Công cụ AI:** Codex
+
+PR #11 của Tài đã mang mô hình M2 vào `develop`; PR #13 thêm collector và staging, chưa nạp vào Catalog. Bảo yêu cầu review và gộp PR #13, đồng bộ PH-01 rồi chia việc để triển khai. PR #13 được duyệt, gộp bằng merge commit [f4c1f13](https://github.com/F-R-E-Y-A/fashion-shop/commit/f4c1f13). Khi gộp `develop` vào PH-01, xung đột ở `docs/shared/data-model.md` được giải bằng bản HT-02 đã điền và lời mở đầu cập nhật theo lược đồ Prisma thật.
+
+Chia việc thành các nhánh `task/` theo [quy ước git](../../shared/git.md): hợp đồng giỏ hàng trước vì Duy đang chờ; tiếp đó nạp Catalog, API và giao diện. ADR-008 vẫn là `đề xuất`; việc mở rộng API chờ Bảo chốt hình dạng.

@@ -1,6 +1,6 @@
 ---
 title: Khám phá sản phẩm — bản đồ và kế hoạch PH-01
-updated: 2026-09-25
+updated: 2026-09-26
 status: đang làm
 owner: Bảo
 ---
@@ -20,11 +20,11 @@ owner: Bảo
 
 Khách vào trang chủ, bấm một danh mục, mở một sản phẩm, chọn được cỡ và màu, thấy giá đổi theo lựa chọn. Xong PH-01 thì Duy có biến thể để bỏ vào giỏ, Tài có hàm để nạp hơn 300 sản phẩm thật.
 
-## Ba việc trước dòng mã đầu tiên
+## Việc cần chốt và phối hợp
 
-1. **Duyệt [use-cases.md](use-cases.md), chốt ADR-008**: đổi dòng `Trạng thái` thành `đã chốt` hoặc sửa lại. ADR-007 đã chốt ngày 25/09 và [erd.md](erd.md) đã thành lược đồ thật ([LOG](LOG.md#m2-trong-pr-11)). Mã viết lại theo hai tệp này, không theo module demo.
-2. **Nền đã sẵn**: tài liệu theo cấu trúc mới đã vào `develop` qua pull request #12 (`58f45e9`); nhánh này tách từ đó và nối với Issue #6.
-3. **Công bố hợp đồng cho Duy, đã trễ hẹn Thứ Ba 23/09.** Chữ ký đã soạn sẵn ở [products/README.md](../../../apps/api/src/modules/products/README.md) mục Hợp đồng công bố. Dán vào Issue #7 để Duy chạy trên dữ liệu giả đúng hình dạng ngay tối nay.
+1. **Duyệt [use-cases.md](use-cases.md), chốt ADR-008 trước khi mở rộng API**: Bảo xác nhận phương án A hoặc B rồi đổi dòng `Trạng thái` trong [LOG](LOG.md#adr-008). ADR-007 đã chốt; lược đồ M2 trong [erd.md](erd.md) đã có ở nhánh này.
+2. **Nền đã đồng bộ**: PR #11 (schema M2) và PR #13 (crawler/staging) đã vào `develop`; nhánh PH-01 nhận cả hai ở merge commit `38eaac2`. PR #13 chưa đưa dữ liệu thật vào Catalog.
+3. **Công bố hợp đồng cho Duy**: chữ ký ở [README của module](../../../apps/api/src/modules/products/README.md) mục Hợp đồng công bố. Dán vào Issue #7; cài `getVariantForCart(s)` trước các trang.
 
 ## Phạm vi S2
 
@@ -101,13 +101,18 @@ Trang chủ                               Chi tiết sản phẩm
 
 Chọn biến thể: chọn màu trước thì ảnh lọc theo màu đó (không có ảnh riêng thì dùng ảnh chung), cỡ không có biến thể đang bán với màu đã chọn thì hiện mờ và không bấm được; đủ màu và cỡ thì giá và mã hàng đổi theo. Thành phần mới đặt trong `features/products/components/`, kiểu bằng `*.module.css` theo [shared/design.md](../../shared/design.md).
 
-## Kế hoạch từng buổi
+## Task của PH-01
 
-| Buổi | Việc | Xong khi |
+Mỗi `task/` tách từ `feature/ph-01-product-catalog`, có kiểm thử cùng mã, rồi gộp bằng merge commit về nhánh feature. Một Issue #6 theo dõi cả feature; không mở Issue trùng cho từng task.
+
+| Thứ tự | Nhánh task | Phạm vi và điều kiện xong |
 |---|---|---|
-| **T6 25/09 tối** | Ba việc ở trên. Lược đồ, migration có `CHECK`, seed M2 **đã xong sớm** trong PR #11 của Tài (`f39ae11`, CI xanh sáu chặng). Còn: sau khi PR #11 gộp, gộp `develop` vào nhánh này; `npm exec -w apps/api -- prisma migrate reset` ở máy (xoá dữ liệu, chạy lại migration và seed) vì cột mới `price_from` bắt buộc | Nhánh này có bảy bảng; `npm run db:drift -w apps/api` trả 0 ở máy |
-| **T7 26/09** | Sáng: service và controller cho liệt kê, chi tiết, danh mục, `getVariantForCart(s)`, `importProducts`; DTO cho slug; bài đơn vị và bài HTTP; báo Duy, Tài. Chiều: `HomePage`, `CategoryPage`, `CategoryMenu`, trang không tìm thấy. Tối: `ProductDetailPage` với thư viện ảnh và chọn biến thể | `npm run test:http` xanh; ba trang chạy trên máy, đủ ba trạng thái |
-| **CN 27/09 sáng** | Ghép nút giỏ của Duy. `npm run check`, `npm run test:http`. Cập nhật README này, bảng API trong `use-cases.md` theo mã, một mục *thay đổi* trong [LOG](LOG.md) kèm số đo. Mở pull request `Closes #6` | CI xanh sáu chặng; demo 19h |
+| 1 | `task/catalog-cart-contract` | Cài `getVariantForCart` và `getVariantsForCart`, kiểm thử giá, trạng thái bán và ảnh; xuất kiểu qua `index.ts` để Duy dùng. |
+| 2 | `task/catalog-import` | Cài `importProducts` theo hợp đồng M2, mỗi dòng một transaction; chạy lại không sinh trùng, kiểm thử dòng lỗi và idempotency. |
+| 3 | `task/catalog-api` | Nâng seed, hoàn thiện liệt kê, danh mục, chi tiết và HTTP tests theo ADR-008 đã chốt. |
+| 4 | `task/catalog-web` | Trang chủ và danh mục với phân trang, sắp xếp, ba trạng thái; trang chi tiết và phần có thể trượt theo thứ tự ưu tiên ở dưới. |
+
+Trước PR `Closes #6`: chạy `npm run check`, `npm run docs:lint`, kiểm thử HTTP, cập nhật README/LOG và đối chiếu Swagger với API đã cài.
 
 Thứ tự cắt khi thiếu giờ: đã xem gần đây → sản phẩm liên quan → thư viện ảnh nhiều ảnh (giữ một ảnh) → trang chi tiết đầy đủ. **Không cắt** `getVariantForCart`, `importProducts`, ba trạng thái, kiểm thử.
 
@@ -128,9 +133,9 @@ Tên bài theo `UC-NN.m/ACk` ([testing.md](../../shared/testing.md)). Bài hiệ
 | `importProducts` chạy hai lần không sinh bản trùng | `test/products-import.http.spec.ts` | — |
 | Ba trạng thái ở trang chủ, trang danh mục, trang chi tiết | `features/products/pages/*.test.tsx` | — |
 
-## Trạng thái hôm nay (25/09/2026)
+## Trạng thái hôm nay (26/09/2026)
 
-Tầng dữ liệu của PH-01 xong sớm: ADR-007 chốt theo M2 và cài luôn trong PR #11 của Tài (`f39ae11`: lược đồ, migration, seed; module demo đọc giá từ `price_from`), CI xanh sáu chặng. Service, API và giao diện của PH-01 chưa bắt đầu. Chặn: PR #11 chưa gộp nên nhánh này chưa có bảy bảng; ADR-008 chưa chốt; hợp đồng cho Duy trễ từ 23/09; Docker trên máy chưa chạy nên `test:http` chỉ kiểm được trên CI.
+Tầng dữ liệu M2 từ PR #11 và crawler/staging từ PR #13 đã có trên nhánh PH-01 qua `38eaac2`. Kiểm thử HTTP với database local chưa chạy trong phiên này. Hợp đồng giỏ hàng và nạp Catalog mới ở trạng thái hẹn, chưa có mã; task đầu tiên là `task/catalog-cart-contract`. ADR-008 còn chờ Bảo chốt trước khi mở rộng API.
 
 ## Còn mở
 
