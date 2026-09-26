@@ -138,5 +138,6 @@ Chạy cả cụm trên máy như môi trường thật: `npm run prod:up`, mở
 | Đường dẫn API nhận gì, trả gì | Swagger `/api/docs`; quy ước ở [shared/api.md](shared/api.md) |
 | Viết mã, kiểm thử, giao diện theo quy ước nào | [shared/code.md](shared/code.md) · [shared/testing.md](shared/testing.md) · [shared/test-strategy.md](shared/test-strategy.md) · [shared/design.md](shared/design.md) |
 | Bảng nào của ai, sơ đồ ở đâu | [CONTRIBUTING.md](CONTRIBUTING.md) · [shared/data-model.md](shared/data-model.md) · [shared/diagrams/](shared/diagrams/README.md) |
+| Dataset HT-03 lấy từ đâu, chất lượng thế nào | [shared/data-sources/ht-03-yody.md](shared/data-sources/ht-03-yody.md) |
 | Còn nợ gì | [TECH_DEBT.md](TECH_DEBT.md) |
 | Kế hoạch, tiến độ, nhật ký AI | [Kho docs](https://github.com/F-R-E-Y-A/docs) |
