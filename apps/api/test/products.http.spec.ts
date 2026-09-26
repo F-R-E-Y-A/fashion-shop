@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { CATEGORY_IDS, PRODUCTS } from '../prisma/seed/catalog.seed.js';
+import { priceFromOf, PRODUCTS } from '../prisma/seed/catalog.seed.js';
 import { createTestApp, type TestApp } from './helpers/create-test-app.js';
 import { resetDatabase } from './helpers/db.js';
 
@@ -42,13 +42,14 @@ describe('GET /api/products (PH-03 Kham pha san pham)', () => {
   });
 
   it('AC-4 loc theo danh muc bang categorySlug', async () => {
-    const expected = PRODUCTS.filter((p) => p.categoryId === CATEGORY_IDS.ao).length;
+    // San pham nam o danh muc la; loc ca danh muc con (UC-03.1/AC1) la viec cua PH-01.
+    const expected = PRODUCTS.filter((p) => p.categorySlug === 'ao-thun').length;
 
-    const res = await t.http.get('/api/products').query({ categorySlug: 'ao' }).expect(200);
+    const res = await t.http.get('/api/products').query({ categorySlug: 'ao-thun' }).expect(200);
 
     expect(res.body.total).toBe(expected);
     const items = res.body.items as { categorySlug: string }[];
-    expect(items.every((item) => item.categorySlug === 'ao')).toBe(true);
+    expect(items.every((item) => item.categorySlug === 'ao-thun')).toBe(true);
   });
 
   it('AC-2 tim theo ten khong phan biet hoa thuong', async () => {
@@ -64,8 +65,13 @@ describe('GET /api/products (PH-03 Kham pha san pham)', () => {
 
     const res = await t.http.get(`/api/products/${first.slug}`).expect(200);
 
-    expect(res.body).toMatchObject({ id: first.id, name: first.name, categorySlug: 'ao' });
-    expect(Number(res.body.price)).toBe(first.price);
+    expect(res.body).toMatchObject({
+      id: expect.any(String),
+      name: first.name,
+      categorySlug: first.categorySlug,
+    });
+    // Gia la price_from: gia ban thap nhat, tinh ca gia khuyen mai (ADR-007).
+    expect(Number(res.body.price)).toBe(priceFromOf(first));
   });
 
   describe('truong hop loi tra dung khuon ApiErrorBody', () => {

@@ -1,18 +1,189 @@
-// prisma/schema/orders.prisma — bang cua Duy (gio hang PH-02, sau nay ton kho, don hang, van don, thong bao):
-// ton kho va bien dong kho, giu hang, gio hang va dong gio hang, don hang va dong don hang,
-// lich su trang thai don, van don, thong bao va tuy chon nhan thong bao.
-//
-// Duy them model vao tep nay tu S2 (PH-02 gio hang). Chep khuon o catalog.prisma.
-// Khoa ngoai sang bang cua Bao (products, variants) thi duoc; ghi vao bang do thi khong.
-// Vi du:
-//
-// model InventoryItem {
-//   id        String   @id @default(uuid()) @db.Uuid
-//   variantId String   @unique @map("variant_id") @db.Uuid
-//   onHand    Int      @default(0) @map("on_hand")
-//   reserved  Int      @default(0)
-//   createdAt DateTime @default(now()) @map("created_at")
-//   updatedAt DateTime @updatedAt @map("updated_at")
-//
-//   @@map("inventory_items")
-// }
+// Commerce, inventory, and fulfillment models. Owner: DUY.
+enum StockMovementType {
+  RECEIPT
+  SALE
+  RETURN
+  ADJUSTMENT
+
+  @@map("stock_movement_type")
+  @@schema("public")
+}
+
+enum OrderStatus {
+  PENDING_CONFIRMATION
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  PARTIALLY_REFUNDED
+  REFUNDED
+
+  @@map("order_status")
+  @@schema("public")
+}
+
+enum ShipmentStatus {
+  PENDING
+  IN_TRANSIT
+  DELIVERED
+  FAILED
+  RETURNED
+
+  @@map("shipment_status")
+  @@schema("public")
+}
+
+model Inventory {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productVariantId String   @unique @map("product_variant_id") @db.Uuid
+  quantityOnHand   Int      @map("quantity_on_hand")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@map("inventory")
+  @@schema("public")
+}
+
+model StockMovement {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productVariantId String            @map("product_variant_id") @db.Uuid
+  movementType     StockMovementType @map("movement_type")
+  quantityDelta    Int               @map("quantity_delta")
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@map("stock_movements")
+  @@schema("public")
+}
+
+model InventoryReservation {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productVariantId String    @map("product_variant_id") @db.Uuid
+  orderId          String    @map("order_id") @db.Uuid
+  quantity         Int
+  expiresAt        DateTime  @map("expires_at") @db.Timestamptz(3)
+  releasedAt       DateTime? @map("released_at") @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  order          Order          @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([orderId, productVariantId])
+  @@index([expiresAt])
+  @@index([orderId])
+  @@map("inventory_reservations")
+  @@schema("public")
+}
+
+model Cart {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @unique @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  items CartItem[]
+
+  @@map("carts")
+  @@schema("public")
+}
+
+model CartItem {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cartId           String   @map("cart_id") @db.Uuid
+  productVariantId String   @map("product_variant_id") @db.Uuid
+  quantity         Int
+  isSelected       Boolean  @default(true) @map("is_selected")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  cart           Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@unique([cartId, productVariantId])
+  @@map("cart_items")
+  @@schema("public")
+}
+
+model Order {
+  id                      String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId                  String?     @map("user_id") @db.Uuid
+  orderCode               String      @unique @map("order_code") @db.VarChar
+  customerEmail           String      @map("customer_email") @db.VarChar
+  status                  OrderStatus
+  shippingRateId          String?     @map("shipping_rate_id") @db.Uuid
+  shippingAddressSnapshot Json        @map("shipping_address_snapshot") @db.JsonB
+  subtotalAmount          Decimal     @map("subtotal_amount") @db.Decimal(12, 2)
+  discountAmount          Decimal     @map("discount_amount") @db.Decimal(12, 2)
+  shippingFeeAmount       Decimal     @map("shipping_fee_amount") @db.Decimal(12, 2)
+  totalAmount             Decimal     @map("total_amount") @db.Decimal(12, 2)
+  createdAt               DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt               DateTime    @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  customer              User?                  @relation("OrderCustomer", fields: [userId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  shippingRate          ShippingRate?          @relation(fields: [shippingRateId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  inventoryReservations InventoryReservation[]
+  items                 OrderItem[]
+  statusHistory         OrderStatusHistory[]
+  shipment              Shipment?
+  payments              Payment[]
+  voucherUsage          VoucherUsage?
+  returns               Return[]
+
+  @@map("orders")
+  @@schema("public")
+}
+
+model OrderItem {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId          String   @map("order_id") @db.Uuid
+  productVariantId String   @map("product_variant_id") @db.Uuid
+  quantity         Int
+  unitPrice        Decimal  @map("unit_price") @db.Decimal(12, 2)
+  productSnapshot  Json     @map("product_snapshot") @db.JsonB
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  order          Order          @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  review         Review?
+  returnItems    ReturnItem[]
+
+  @@unique([orderId, productVariantId])
+  @@map("order_items")
+  @@schema("public")
+}
+
+model OrderStatusHistory {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId     String      @map("order_id") @db.Uuid
+  status      OrderStatus
+  actorUserId String?     @map("actor_user_id") @db.Uuid
+  createdAt   DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  order     Order @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  actorUser User? @relation("OrderStatusActor", fields: [actorUserId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([orderId, createdAt])
+  @@map("order_status_history")
+  @@schema("public")
+}
+
+model Shipment {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId        String         @unique @map("order_id") @db.Uuid
+  trackingNumber String?        @map("tracking_number") @db.VarChar
+  status         ShipmentStatus @default(PENDING)
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+
+  @@map("shipments")
+  @@schema("public")
+}

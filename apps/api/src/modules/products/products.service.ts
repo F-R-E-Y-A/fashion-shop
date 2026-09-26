@@ -5,6 +5,17 @@ import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { ListProductsQuery } from './dto/list-products.query.js';
 import { ProductListResponse, ProductResponse } from './dto/product.response.js';
 
+// Gia lay tu products.price_from (gia ban thap nhat, service tinh lai khi ghi bien the, ADR-007),
+// nen khong can truy van phu tim bien the re nhat cho moi dong.
+const storefrontProductInclude = {
+  category: true,
+  images: {
+    orderBy: { sortOrder: 'asc' },
+    take: 1,
+    select: { url: true },
+  },
+} as const;
+
 /**
  * Tang nghiep vu. Controller khong duoc goi thang Prisma, phai di qua day (ESLint chan).
  * Ly do: khi mot phan he khac can doc san pham, no tiem service nay qua index.js,
@@ -19,6 +30,7 @@ export class ProductsService {
 
     const where = {
       isActive: true,
+      variants: { some: { isActive: true } },
       ...(search ? { name: { contains: search, mode: 'insensitive' as const } } : {}),
       ...(categorySlug ? { category: { slug: categorySlug } } : {}),
     };
@@ -28,7 +40,7 @@ export class ProductsService {
       this.prisma.product.count({ where }),
       this.prisma.product.findMany({
         where,
-        include: { category: true },
+        include: storefrontProductInclude,
         orderBy: { createdAt: 'desc' },
         skip: skipOf(query),
         take: query.pageSize,
@@ -44,8 +56,8 @@ export class ProductsService {
 
   async findBySlug(slug: string): Promise<ProductResponse> {
     const row = await this.prisma.product.findFirst({
-      where: { slug, isActive: true },
-      include: { category: true },
+      where: { slug, isActive: true, variants: { some: { isActive: true } } },
+      include: storefrontProductInclude,
     });
 
     if (!row) {
@@ -60,18 +72,18 @@ export class ProductsService {
     name: string;
     slug: string;
     description: string | null;
-    price: unknown;
-    imageUrl: string | null;
     category: { name: string; slug: string };
+    priceFrom: { toString(): string };
+    images: Array<{ url: string }>;
   }): ProductResponse {
     return {
       id: row.id,
       name: row.name,
       slug: row.slug,
       description: row.description,
-      // Decimal -> chuoi, giao dien tu quyet dinh cach hien thi. Khong tra Float.
-      price: String(row.price),
-      imageUrl: row.imageUrl,
+      // Decimal -> chuoi, giao dien tu dinh dang. Khong tra Float.
+      price: row.priceFrom.toString(),
+      imageUrl: row.images[0]?.url ?? null,
       categoryName: row.category.name,
       categorySlug: row.category.slug,
     };
