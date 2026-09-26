@@ -104,6 +104,57 @@ export class AuthService {
     return { accessToken, user: authenticatedUser, refreshToken };
   }
 
+  async refresh(refreshToken: string | undefined): Promise<AuthenticationResult> {
+    if (!refreshToken) throw this.invalidRefreshToken();
+
+    const tokenHash = this.tokens.hashRefreshToken(refreshToken);
+    const now = new Date();
+    const replacement = await this.prisma.$transaction(async (transaction) => {
+      const current = await transaction.refreshToken.findUnique({
+        where: { tokenHash },
+        include: {
+          user: { include: { userRoles: { include: { role: { select: { code: true } } } } } },
+        },
+      });
+      if (
+        !current ||
+        current.revokedAt ||
+        current.expiresAt <= now ||
+        current.user.status !== UserStatus.ACTIVE
+      ) {
+        throw this.invalidRefreshToken();
+      }
+
+      const nextRefreshToken = this.tokens.generateRefreshToken();
+      const created = await transaction.refreshToken.create({
+        data: {
+          userId: current.userId,
+          tokenHash: this.tokens.hashRefreshToken(nextRefreshToken),
+          familyId: current.familyId,
+          expiresAt: this.tokens.refreshTokenExpiresAt(now),
+        },
+      });
+      const revoked = await transaction.refreshToken.updateMany({
+        where: { id: current.id, revokedAt: null },
+        data: { revokedAt: now, replacedByTokenId: created.id },
+      });
+      if (revoked.count !== 1) throw this.invalidRefreshToken();
+
+      return { refreshToken: nextRefreshToken, user: this.toAuthenticatedUser(current.user) };
+    });
+
+    return this.withAccessToken(replacement.user, replacement.refreshToken);
+  }
+
+  async logout(refreshToken: string | undefined): Promise<void> {
+    if (!refreshToken) return;
+
+    await this.prisma.refreshToken.updateMany({
+      where: { tokenHash: this.tokens.hashRefreshToken(refreshToken), revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+  }
+
   private async withAccessToken(
     user: AuthenticatedUserResponse,
     refreshToken: string,
@@ -138,6 +189,13 @@ export class AuthService {
     return new UnauthorizedException({
       error: 'INVALID_CREDENTIALS',
       message: 'Email hoac mat khau khong dung',
+    });
+  }
+
+  private invalidRefreshToken(): UnauthorizedException {
+    return new UnauthorizedException({
+      error: 'UNAUTHORIZED',
+      message: 'Khong duoc phep truy cap',
     });
   }
 

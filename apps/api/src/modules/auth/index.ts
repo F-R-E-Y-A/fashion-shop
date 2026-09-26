@@ -1,6 +1,5 @@
-/** Public module boundary. Guards and decorators are added in the next PH3 phase. */
+/** Stable public integration boundary for feature modules. */
+export { AuthGuard } from './auth.guard.js';
 export { AuthModule } from './auth.module.js';
-export { AuthService } from './auth.service.js';
-export { PasswordHasherService } from './password-hasher.service.js';
-export type { AccessTokenPayload } from './token.service.js';
-export { TokenService } from './token.service.js';
+export { CurrentUser } from './current-user.decorator.js';
+export type { CurrentUserType } from './current-user.type.js';

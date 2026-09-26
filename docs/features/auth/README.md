@@ -19,8 +19,8 @@ owner: Tài
 Duy cần biết ai đang đăng nhập để gộp giỏ. Issue #8 hẹn công bố trước hết Thứ Ba 23/09:
 
 ```
-AuthGuard      // gan @CurrentUser() vao yeu cau
-CurrentUser    // { id, email, roles }
+AuthGuard      // xac minh Bearer access JWT va gan principal an toan vao request
+CurrentUser    // decorator lay { id, email, roles }
 ```
 
 Khi có mã, chữ ký thật ghi ở `apps/api/src/modules/auth/README.md` theo mẫu [products/README.md](../../../apps/api/src/modules/products/README.md).
@@ -28,5 +28,7 @@ Khi có mã, chữ ký thật ghi ở `apps/api/src/modules/auth/README.md` theo
 ## Trạng thái hôm nay (26/09/2026)
 
 `identity.prisma` và migration baseline đã có `users`, `roles`, `user_roles`, `refresh_tokens`.
-Phase 2 đã có đăng ký/đăng nhập, JWT access token và refresh cookie HttpOnly. Refresh/logout,
-guard, decorator và giao diện chưa được cài đặt.
+Phase 4 đã có refresh/logout: refresh cookie HttpOnly được rotate khi cấp access token mới, còn
+logout revoke refresh session hiện tại và xóa cookie. Hai endpoint này không cần access token.
+Phase 5 giữ access token và user trong bộ nhớ giao diện; khi tải lại trang, app gọi `/auth/refresh`
+bằng cookie HttpOnly để khôi phục phiên. Logout luôn xóa state giao diện, kể cả khi gọi API gặp lỗi.

@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 
 import { queryClient } from '@/core';
+import { AuthProvider } from '@/features/account';
 
 import { ErrorBoundary } from './ErrorBoundary.js';
 
@@ -11,7 +12,9 @@ export function AppProviders({ children }: { children: ReactNode }) {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <BrowserRouter>{children}</BrowserRouter>
+        <AuthProvider>
+          <BrowserRouter>{children}</BrowserRouter>
+        </AuthProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );

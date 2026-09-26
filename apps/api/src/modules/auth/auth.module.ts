@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 
 import type { Env } from '../../infra/config/env.js';
 import { AuthController } from './auth.controller.js';
+import { AuthGuard } from './auth.guard.js';
 import { AuthService } from './auth.service.js';
 import { PasswordHasherService } from './password-hasher.service.js';
 import { TokenService } from './token.service.js';
@@ -19,7 +20,7 @@ import { TokenService } from './token.service.js';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, PasswordHasherService, TokenService],
-  exports: [AuthService, PasswordHasherService, TokenService],
+  providers: [AuthGuard, AuthService, PasswordHasherService, TokenService],
+  exports: [AuthGuard, AuthService, PasswordHasherService, TokenService],
 })
 export class AuthModule {}
