@@ -6,4 +6,5 @@
 export type { ListProductsQuery } from './dto/list-products.query.js';
 export { ProductListResponse, ProductResponse } from './dto/product.response.js';
 export { ProductsModule } from './products.module.js';
+export type { VariantForCart } from './products.service.js';
 export { ProductsService } from './products.service.js';

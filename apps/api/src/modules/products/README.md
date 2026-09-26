@@ -20,8 +20,8 @@ Phân hệ khác lấy dữ liệu sản phẩm bằng cách tiêm `ProductsServ
 |---|---|---|
 | `list(query)` | Đường dẫn `GET /api/products` | Đã có; PH-01 thêm `sort`, `featured`, danh mục con |
 | `findBySlug(slug)` | Đường dẫn `GET /api/products/:slug` | Đã có; PH-01 thêm ảnh và biến thể |
-| `getVariantForCart(variantId)` | Duy, giỏ hàng (PH-02) | **Hẹn**, chữ ký dưới đây, cài đặt 26/09 |
-| `getVariantsForCart(variantIds)` | Duy, trang giỏ hàng nhiều dòng | **Hẹn**, cài đặt 26/09 |
+| `getVariantForCart(variantId)` | Duy, giỏ hàng (PH-02) | **Đã cài** ở `c7811ea`; `null` khi không có biến thể |
+| `getVariantsForCart(variantIds)` | Duy, trang giỏ hàng nhiều dòng | **Đã cài** ở `c7811ea`; một truy vấn, giữ thứ tự đầu vào và bỏ ID không có |
 | `importProducts(rows)` | Tài, nạp dữ liệu thật (HT-03, PH-03) | **Hẹn**, chữ ký dưới đây, cài đặt 26/09 |
 
 ```ts

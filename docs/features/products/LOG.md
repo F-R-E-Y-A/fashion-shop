@@ -154,3 +154,11 @@ Máy nào đã có dữ liệu thì chạy `npm exec -w apps/api -- prisma migra
 PR #11 của Tài đã mang mô hình M2 vào `develop`; PR #13 thêm collector và staging, chưa nạp vào Catalog. Bảo yêu cầu review và gộp PR #13, đồng bộ PH-01 rồi chia việc để triển khai. PR #13 được duyệt, gộp bằng merge commit [f4c1f13](https://github.com/F-R-E-Y-A/fashion-shop/commit/f4c1f13). Khi gộp `develop` vào PH-01, xung đột ở `docs/shared/data-model.md` được giải bằng bản HT-02 đã điền và lời mở đầu cập nhật theo lược đồ Prisma thật.
 
 Chia việc thành các nhánh `task/` theo [quy ước git](../../shared/git.md): hợp đồng giỏ hàng trước vì Duy đang chờ; tiếp đó nạp Catalog, API và giao diện. ADR-008 vẫn là `đề xuất`; việc mở rộng API chờ Bảo chốt hình dạng.
+
+## 2026-09-26 · Hợp đồng đọc biến thể cho giỏ hàng
+
+**Loại:** thay đổi mã · **Phạm vi:** `ProductsService`, cửa `index.ts`, hợp đồng module · **Commit:** [c7811ea](https://github.com/F-R-E-Y-A/fashion-shop/commit/c7811ea) · **Công cụ AI:** Codex
+
+Giỏ hàng của Duy cần biết cả biến thể đã ngừng bán để hiện trạng thái thay vì coi nó là ID không tồn tại. Vì vậy hàm đọc không lọc `isActive`; kết quả trả `isActive: false` khi sản phẩm hoặc biến thể ngừng bán, và chỉ trả `null` cho ID không có. Hàm nhiều ID dùng một lần `findMany`, sau đó sắp theo thứ tự đầu vào để giao diện giỏ giữ đúng thứ tự. Giá dùng `salePrice` nếu có, ảnh ưu tiên màu đang chọn rồi ảnh chung; cỡ `FREE` và màu `mac-dinh` không hiện trong nhãn.
+
+**Bằng chứng mã:** [products.service.ts:90](https://github.com/F-R-E-Y-A/fashion-shop/blob/c7811ea/apps/api/src/modules/products/products.service.ts#L90) · [products.service.ts:108](https://github.com/F-R-E-Y-A/fashion-shop/blob/c7811ea/apps/api/src/modules/products/products.service.ts#L108) · [index.ts:9](https://github.com/F-R-E-Y-A/fashion-shop/blob/c7811ea/apps/api/src/modules/products/index.ts#L9).

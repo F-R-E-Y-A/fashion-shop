@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { skipOf, toPage } from '../../common/pagination/page.response.js';
+import type { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { ListProductsQuery } from './dto/list-products.query.js';
 import { ProductListResponse, ProductResponse } from './dto/product.response.js';
@@ -15,6 +16,25 @@ const storefrontProductInclude = {
     select: { url: true },
   },
 } as const;
+
+const cartVariantInclude = {
+  color: true,
+  size: true,
+  product: { include: { images: { orderBy: { sortOrder: 'asc' } } } },
+} as const;
+
+type CartVariant = Prisma.ProductVariantGetPayload<{ include: typeof cartVariantInclude }>;
+
+export interface VariantForCart {
+  variantId: string;
+  productId: string;
+  productSlug: string;
+  name: string;
+  variantLabel: string;
+  price: string;
+  imageUrl: string | null;
+  isActive: boolean;
+}
 
 /**
  * Tang nghiep vu. Controller khong duoc goi thang Prisma, phai di qua day (ESLint chan).
@@ -65,6 +85,47 @@ export class ProductsService {
     }
 
     return this.toResponse(row);
+  }
+
+  async getVariantForCart(variantId: string): Promise<VariantForCart | null> {
+    return (await this.getVariantsForCart([variantId]))[0] ?? null;
+  }
+
+  async getVariantsForCart(variantIds: string[]): Promise<VariantForCart[]> {
+    if (variantIds.length === 0) return [];
+
+    const variants = await this.prisma.productVariant.findMany({
+      where: { id: { in: variantIds } },
+      include: cartVariantInclude,
+    });
+    const byId = new Map(variants.map((variant) => [variant.id, variant]));
+    return variantIds.flatMap((id) => {
+      const variant = byId.get(id);
+      return variant ? [this.toVariantForCart(variant)] : [];
+    });
+  }
+
+  private toVariantForCart(variant: CartVariant): VariantForCart {
+    const images = variant.product.images;
+    const image =
+      images.find((item) => item.colorId === variant.colorId) ??
+      images.find((item) => item.colorId === null) ??
+      images[0];
+    const labelParts = [
+      variant.size.code === 'FREE' ? null : variant.size.code,
+      variant.color.code === 'mac-dinh' ? null : variant.color.name,
+    ].filter((part): part is string => part !== null);
+
+    return {
+      variantId: variant.id,
+      productId: variant.productId,
+      productSlug: variant.product.slug,
+      name: variant.product.name,
+      variantLabel: labelParts.join(' / '),
+      price: (variant.salePrice ?? variant.listPrice).toString(),
+      imageUrl: image?.url ?? null,
+      isActive: variant.isActive && variant.product.isActive,
+    };
   }
 
   private toResponse(row: {

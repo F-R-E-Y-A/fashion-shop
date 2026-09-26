@@ -24,7 +24,7 @@ Khách vào trang chủ, bấm một danh mục, mở một sản phẩm, chọn
 
 1. **Duyệt [use-cases.md](use-cases.md), chốt ADR-008 trước khi mở rộng API**: Bảo xác nhận phương án A hoặc B rồi đổi dòng `Trạng thái` trong [LOG](LOG.md#adr-008). ADR-007 đã chốt; lược đồ M2 trong [erd.md](erd.md) đã có ở nhánh này.
 2. **Nền đã đồng bộ**: PR #11 (schema M2) và PR #13 (crawler/staging) đã vào `develop`; nhánh PH-01 nhận cả hai ở merge commit `38eaac2`. PR #13 chưa đưa dữ liệu thật vào Catalog.
-3. **Công bố hợp đồng cho Duy**: chữ ký ở [README của module](../../../apps/api/src/modules/products/README.md) mục Hợp đồng công bố. Dán vào Issue #7; cài `getVariantForCart(s)` trước các trang.
+3. **Công bố hợp đồng cho Duy**: `getVariantForCart(s)` đã cài và chữ ký ở [README của module](../../../apps/api/src/modules/products/README.md) mục Hợp đồng công bố. Còn dán vào Issue #7 để Duy dùng đúng hình dạng.
 
 ## Phạm vi S2
 
@@ -34,7 +34,7 @@ Khách vào trang chủ, bấm một danh mục, mở một sản phẩm, chọn
 | Dữ liệu giả: hai cấp danh mục, 20 sản phẩm, vài sản phẩm có ít nhất hai cỡ và hai màu | Issue #6 | Phải có; PR #11 đã có 10 sản phẩm, còn nâng lên 20 |
 | Liệt kê có phân trang, lọc danh mục gồm danh mục con, sắp xếp mới nhất và theo giá | UC-03.1/AC1, AC2, AC4; UC-03.3/AC4 | Phải có |
 | Cây danh mục; một danh mục theo đường dẫn, 404 khi không có | UC-03.1/AC5 | Phải có |
-| `getVariantForCart` cho Duy | Issue #6, #7 | Phải có, **làm sớm nhất** |
+| `getVariantForCart` cho Duy | Issue #6, #7 | Đã cài ở `c7811ea`; còn công bố trên Issue #7 |
 | Trang chủ, trang danh mục; ba trạng thái ở mọi trang | UC-03.1 | Phải có |
 | Kiểm thử đơn vị cho service, kiểm thử HTTP cho đường dẫn mới | [testing.md](../../shared/testing.md) | Phải có |
 | `importProducts` cho Tài nạp dữ liệu thật cuối tuần | Issue #6 | Phải có |
@@ -69,7 +69,7 @@ Chữ ký thật và trạng thái ở [README của module](../../../apps/api/s
 
 | Ai chờ | Thứ gì | Hạn | Ghi chú |
 |---|---|---|---|
-| Duy, PH-02 | `getVariantForCart(variantId)` và bản nhiều dòng `getVariantsForCart(ids)` | Công bố ngay; cài đặt sáng Thứ Bảy 26/09 | Bản nhiều dòng tránh mỗi dòng giỏ một truy vấn |
+| Duy, PH-02 | `getVariantForCart(variantId)` và bản nhiều dòng `getVariantsForCart(ids)` | Đã cài; công bố trên Issue #7 | Bản nhiều dòng tránh mỗi dòng giỏ một truy vấn |
 | Duy, PH-02 | Chỗ đặt nút "Thêm vào giỏ" trên trang chi tiết | Chủ Nhật khi ghép | Trang chi tiết import nút từ `@/features/cart` qua cửa `index`, luật ranh giới cho phép; trước đó để nút giả bị khoá |
 | Tài, PH-03 | `importProducts(rows)` | Chữ ký Thứ Sáu, cài đặt Thứ Bảy | Chạy lại không sinh bản trùng: nhận ra sản phẩm qua `sku` của biến thể; `slug` sinh một lần khi tạo |
 
@@ -107,7 +107,7 @@ Mỗi `task/` tách từ `feature/ph-01-product-catalog`, có kiểm thử cùng
 
 | Thứ tự | Nhánh task | Phạm vi và điều kiện xong |
 |---|---|---|
-| 1 | `task/catalog-cart-contract` | Cài `getVariantForCart` và `getVariantsForCart`, kiểm thử giá, trạng thái bán và ảnh; xuất kiểu qua `index.ts` để Duy dùng. |
+| 1 | `task/catalog-cart-contract` | Đã cài hai hàm, kiểm thử giá, trạng thái bán và ảnh, xuất kiểu qua `index.ts`; còn công bố cho Duy ở Issue #7. |
 | 2 | `task/catalog-import` | Cài `importProducts` theo hợp đồng M2, mỗi dòng một transaction; chạy lại không sinh trùng, kiểm thử dòng lỗi và idempotency. |
 | 3 | `task/catalog-api` | Nâng seed, hoàn thiện liệt kê, danh mục, chi tiết và HTTP tests theo ADR-008 đã chốt. |
 | 4 | `task/catalog-web` | Trang chủ và danh mục với phân trang, sắp xếp, ba trạng thái; trang chi tiết và phần có thể trượt theo thứ tự ưu tiên ở dưới. |
@@ -129,13 +129,13 @@ Tên bài theo `UC-NN.m/ACk` ([testing.md](../../shared/testing.md)). Bài hiệ
 | UC-03.3/AC4 `sort=price_asc` đúng chiều | `products.http.spec.ts` | — |
 | UC-03.4/AC1 chi tiết đủ ảnh và biến thể | `products.http.spec.ts` | — |
 | UC-03.4/AC2, AC5 ngừng bán hoặc slug lạ trả 404 | có sẵn một phần | — |
-| `getVariantForCart` đúng hình dạng Issue #7, `null` khi không có | `products.service.spec.ts` | — |
+| `getVariantForCart` đúng hình dạng Issue #7, `null` khi không có | `products.service.spec.ts` | Đã có bài kiểm thử ở `c7811ea` |
 | `importProducts` chạy hai lần không sinh bản trùng | `test/products-import.http.spec.ts` | — |
 | Ba trạng thái ở trang chủ, trang danh mục, trang chi tiết | `features/products/pages/*.test.tsx` | — |
 
 ## Trạng thái hôm nay (26/09/2026)
 
-Tầng dữ liệu M2 từ PR #11 và crawler/staging từ PR #13 đã có trên nhánh PH-01 qua `38eaac2`. Kiểm thử HTTP với database local chưa chạy trong phiên này. Hợp đồng giỏ hàng và nạp Catalog mới ở trạng thái hẹn, chưa có mã; task đầu tiên là `task/catalog-cart-contract`. ADR-008 còn chờ Bảo chốt trước khi mở rộng API.
+Tầng dữ liệu M2 từ PR #11 và crawler/staging từ PR #13 đã có trên nhánh PH-01 qua `38eaac2`. Hợp đồng giỏ hàng đã cài ở `c7811ea`; `importProducts` chưa có mã. Kiểm thử HTTP với database local chưa chạy trong phiên này. ADR-008 còn chờ Bảo chốt trước khi mở rộng API.
 
 ## Còn mở
 
