@@ -28,5 +28,5 @@ Khi có mã, chữ ký thật ghi ở `apps/api/src/modules/auth/README.md` theo
 ## Trạng thái hôm nay (26/09/2026)
 
 `identity.prisma` và migration baseline đã có `users`, `roles`, `user_roles`, `refresh_tokens`.
-Phase 1 đang thêm seed vai `CUSTOMER` và primitive bảo mật; endpoint, guard, decorator và giao diện
-chưa được cài đặt.
+Phase 2 đã có đăng ký/đăng nhập, JWT access token và refresh cookie HttpOnly. Refresh/logout,
+guard, decorator và giao diện chưa được cài đặt.

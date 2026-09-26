@@ -3,6 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 
 import type { Env } from '../../infra/config/env.js';
+import { AuthController } from './auth.controller.js';
+import { AuthService } from './auth.service.js';
 import { PasswordHasherService } from './password-hasher.service.js';
 import { TokenService } from './token.service.js';
 
@@ -16,7 +18,8 @@ import { TokenService } from './token.service.js';
       }),
     }),
   ],
-  providers: [PasswordHasherService, TokenService],
-  exports: [PasswordHasherService, TokenService],
+  controllers: [AuthController],
+  providers: [AuthService, PasswordHasherService, TokenService],
+  exports: [AuthService, PasswordHasherService, TokenService],
 })
 export class AuthModule {}
