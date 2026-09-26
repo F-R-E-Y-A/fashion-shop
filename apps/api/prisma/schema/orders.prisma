@@ -1,0 +1,18 @@
+// prisma/schema/orders.prisma — bang cua Duy (gio hang PH-02, sau nay ton kho, don hang, van don, thong bao):
+// ton kho va bien dong kho, giu hang, gio hang va dong gio hang, don hang va dong don hang,
+// lich su trang thai don, van don, thong bao va tuy chon nhan thong bao.
+//
+// Duy them model vao tep nay tu S2 (PH-02 gio hang). Chep khuon o catalog.prisma.
+// Khoa ngoai sang bang cua Bao (products, variants) thi duoc; ghi vao bang do thi khong.
+// Vi du:
+//
+// model InventoryItem {
+//   id        String   @id @default(uuid()) @db.Uuid
+//   variantId String   @unique @map("variant_id") @db.Uuid
+//   onHand    Int      @default(0) @map("on_hand")
+//   reserved  Int      @default(0)
+//   createdAt DateTime @default(now()) @map("created_at")
+//   updatedAt DateTime @updatedAt @map("updated_at")
+//
+//   @@map("inventory_items")
+// }

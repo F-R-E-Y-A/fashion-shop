@@ -1,0 +1,18 @@
+# Cau hinh quet khoa bi mat. Chay o job security cua CI tren toan bo lich su.
+# Chay tren may truoc khi day (tuy chon):
+#   docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest dir /repo --config /repo/.gitleaks.toml
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Cac chuoi giong khoa nhung khong phai khoa that"
+paths = [
+  '''\.env\.example$''',
+  '''package-lock\.json$''',
+  '''docs/.*\.md$''',
+]
+regexes = [
+  # Mat khau CSDL cua moi truong phat trien tren may va cua CI: cong khai co y, khong bao gio dung that.
+  '''postgresql://(fashion|ci|build|test):(fashion|ci|build|test)@''',
+  '''POSTGRES_PASSWORD[=:]\s*["']?fashion["']?''',
+]

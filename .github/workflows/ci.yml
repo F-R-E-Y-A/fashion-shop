@@ -1,42 +1,95 @@
 # Cong chan: pull request nao do thi khong gop duoc.
-# Ban 0.1 co ba viec: kiem kieu du lieu, dung thu ban chay duoc, va migration ap duoc len
-# mot Postgres trong. Kiem thu don vi va dau cuoi se them o cac ban sau,
-# theo HT-06 va HT-07 trong bang chia viec.
+#
+# Sau chang, chay song song, xep theo thoi gian tra ket qua:
+#   1. quality    dinh dang, lint, luat ranh gioi phan he
+#   2. build      kiem kieu va dung thu ca hai ung dung
+#   3. test       kiem thu don vi (may chu va giao dien), co bao cao do phu
+#   4. api        migration, kiem lech luoc do, du lieu gia, kiem thu qua HTTP tren Postgres that
+#   5. security   quet lo khoa bi mat va quet lo hong thu vien
+#   6. docker     dung thu hai image va thu chay len de goi /api/healthz
 name: CI
 
 on:
   pull_request:
     branches: [develop, main]
   push:
-    branches: [develop]
+    branches: [develop, main]
+
+# Mot nhanh chi giu mot luot chay: day commit moi thi huy luot cu de tiet kiem phut Actions.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '24'
 
 jobs:
-  build:
-    name: Kiem kieu va dung thu
+  quality:
+    name: 1. Dinh dang, lint, ranh gioi
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
+      - run: npm ci
+      - name: Kiem dinh dang
+        run: npm run format:check
+      - name: Lint
+        run: npm run lint
+      - name: Luat ranh gioi phan he con chay
+        run: npm run lint:boundaries
 
-      - name: Cai goi
-        run: npm ci
-
+  build:
+    name: 2. Kiem kieu va dung thu
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
       - name: Sinh Prisma Client
-        run: npm run db:generate -w apps/api
-
+        # prisma.config.ts doi DATABASE_URL ngay luc nap; generate khong ket noi nen gia tri gia la du.
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
+        run: npm run db:generate
       - name: Kiem kieu du lieu
-        run: npm run typecheck --workspaces --if-present
-
+        run: npm run typecheck
       - name: Dung thu ca hai ung dung
-        run: npm run build --workspaces --if-present
+        run: npm run build
 
-  migrate:
-    name: Migration ap duoc len co so du lieu trong
+  test:
+    name: 3. Kiem thu don vi
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Sinh Prisma Client
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
+        run: npm run db:generate
+      - name: Kiem thu don vi kem do phu
+        run: npm run test:cov
+      - name: Luu bao cao do phu
+        # Minh chung cho tieu chi TC2.5 cua rubric: tai ve o tab Artifacts cua luot chay.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-unit
+          path: |
+            apps/api/coverage/
+            apps/web/coverage/
+          retention-days: 30
+
+  api:
+    name: 4. Migration va kiem thu qua HTTP
     runs-on: ubuntu-latest
 
     services:
@@ -53,22 +106,128 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://fashion:fashion@localhost:5432/fashion_shop?schema=public
+      # Tren CI dung chung mot CSDL cho ca hai; CI=true nen test/setup-env.ts cho phep trung.
+      DATABASE_URL_TEST: postgresql://fashion:fashion@localhost:5432/fashion_shop?schema=public
+      CORS_ORIGINS: http://localhost:5174
 
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
-
-      - name: Cai goi
-        run: npm ci
-
+      - run: npm ci
+      - name: Sinh Prisma Client
+        # migrate deploy KHONG sinh client nhu migrate dev, nen buoc nay phai co truoc seed va test.
+        run: npm run db:generate
       - name: Ap toan bo migration
-        run: npx prisma migrate deploy
-        working-directory: apps/api
-
+        run: npm run db:deploy -w apps/api
+      - name: Luoc do trong ma khop voi migration
+        # Ai sua tep .prisma ma quen tao migration thi buoc nay do. Ma thoat 2 nghia la co khac biet.
+        run: npm run db:drift -w apps/api
       - name: Nap du lieu gia
-        run: npx prisma db seed
-        working-directory: apps/api
+        run: npm run db:seed
+      - name: Kiem thu qua HTTP kem do phu
+        run: npm run test:http:cov -w apps/api
+      - name: Luu bao cao do phu HTTP
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-http
+          path: apps/api/coverage-http/
+          retention-days: 30
+
+  security:
+    name: 5. Quet bi mat va thu vien
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # gitleaks quet ca lich su, khong chi ban lam viec
+      - name: Quet khoa bi mat bang gitleaks
+        # Dung thang tep nhi phan thay vi gitleaks-action: action doi giay phep voi kho cua to chuc.
+        env:
+          GITLEAKS_VERSION: 8.30.1
+        run: |
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz gitleaks
+          ./gitleaks dir . --config .gitleaks.toml --report-format sarif --report-path gitleaks.sarif --redact --verbose
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - name: Quet lo hong thu vien
+        # Chi do khi co lo hong MUC NGHIEM TRONG. Cac muc cao hien tai deu den tu thu vien cap duoi
+        # cua NestJS va Prisma, khong tu sua duoc; ghi trong docs/TECH_DEBT.md muc ND-01.
+        run: |
+          npm audit --audit-level=critical
+          npm audit --json > npm-audit.json || true
+      - name: Luu ket qua quet
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            gitleaks.sarif
+            npm-audit.json
+          retention-days: 30
+
+  docker:
+    name: 6. Dung image va thu chay
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Dung image may chu
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          load: true
+          tags: fashion-shop-api:ci
+          build-args: |
+            GIT_SHA=${{ github.sha }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+
+      - name: Dung image giao dien
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          load: true
+          tags: fashion-shop-web:ci
+          build-args: |
+            VITE_API_URL=/api
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
+
+      - name: Image chay len va tra 200 o /api/healthz
+        # Dung thu duoc chua du: image phai chay duoc, ap duoc migration va tra loi that.
+        run: |
+          docker network create ci-net
+          docker run -d --name pg --network ci-net \
+            -e POSTGRES_USER=fashion -e POSTGRES_PASSWORD=fashion -e POSTGRES_DB=fashion_shop \
+            --health-cmd "pg_isready -U fashion -d fashion_shop" --health-interval 3s \
+            postgres:17-alpine
+          for i in $(seq 1 30); do
+            [ "$(docker inspect -f '{{.State.Health.Status}}' pg)" = healthy ] && break
+            sleep 2
+          done
+          docker run -d --name api --network ci-net -p 3001:3001 \
+            -e DATABASE_URL='postgresql://fashion:fashion@pg:5432/fashion_shop?schema=public' \
+            -e CORS_ORIGINS=http://localhost:8080 \
+            fashion-shop-api:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:3001/api/healthz > health.json; then break; fi
+            sleep 2
+          done
+          cat health.json
+          grep -q '"status":"ok"' health.json
+          grep -q '${{ github.sha }}' health.json
+          docker logs api | tail -20
+
+      - name: Don dep
+        if: always()
+        run: docker rm -f api pg || true

@@ -1,0 +1,22 @@
+// prisma/schema/base.prisma — generator va datasource. Chi Bao sua tep nay.
+//
+// Luoc do tach theo CHU SO HUU: Prisma gop moi tep .prisma trong thu muc nay thanh mot luoc do.
+//   catalog.prisma   Bao   danh muc, san pham, bien the, anh, yeu thich, thanh toan, khuyen mai, su kien
+//   orders.prisma    Duy   gio hang, ton kho, don hang, van don, thong bao
+//   identity.prisma  Tai   nguoi dung, vai, token, dia chi, danh gia, doi tra, hoan tien, nhat ky thao tac
+//
+// Khoa ngoai duoc tro sang bang cua nguoi khac. GHI vao bang cua nguoi khac thi khong
+// (docs/CONTRIBUTING.md, luat 2). Moi pull request chi kem MOT migration, dat ten theo viec.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+// Prisma 7 khong con nhan `url` o day. Duong ket noi cho lenh migrate nam trong prisma.config.ts,
+// con luc chay that thi PrismaClient nhan adapter trong src/infra/prisma/prisma.service.ts.
+datasource db {
+  provider = "postgresql"
+}
