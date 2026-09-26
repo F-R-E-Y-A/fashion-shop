@@ -1,4 +1,5 @@
 import { seedCatalog } from '../../prisma/seed/catalog.seed.js';
+import { seedIdentity } from '../../prisma/seed/identity.seed.js';
 import type { PrismaClient } from '../../src/generated/prisma/client.js';
 
 /**
@@ -17,5 +18,5 @@ export async function resetDatabase(prisma: PrismaClient): Promise<void> {
     await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${list} RESTART IDENTITY CASCADE`);
   }
 
-  await seedCatalog(prisma);
+  await Promise.all([seedCatalog(prisma), seedIdentity(prisma)]);
 }
