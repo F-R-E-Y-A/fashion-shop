@@ -21,9 +21,30 @@ const row = (
   ...overrides,
 });
 
+const cartRow = () => ({
+  id: 'v-1',
+  productId: 'p-1',
+  colorId: 'c-den',
+  isActive: true,
+  listPrice: { toString: () => '199000' },
+  salePrice: { toString: () => '149000' },
+  color: { code: 'den', name: 'Đen' },
+  size: { code: 'M' },
+  product: {
+    slug: 'ao-thun-co-tron-basic',
+    name: 'Ao thun co tron basic',
+    isActive: true,
+    images: [
+      { colorId: null, url: 'https://example.test/common.jpg' },
+      { colorId: 'c-den', url: 'https://example.test/black.jpg' },
+    ],
+  },
+});
+
 function makePrisma() {
   const prisma = {
     product: { count: vi.fn(), findMany: vi.fn(), findFirst: vi.fn() },
+    productVariant: { findMany: vi.fn() },
     $transaction: vi.fn((operations: unknown[]) => Promise.all(operations)),
   };
   return { prisma, service: new ProductsService(prisma as unknown as PrismaService) };
@@ -89,5 +110,60 @@ describe('ProductsService (final HT-02 catalog contract)', () => {
         where: { slug: 'khong-co', isActive: true, variants: { some: { isActive: true } } },
       }),
     );
+  });
+
+  it('Issue #7: returns null for a missing variant and skips a query for an empty cart', async () => {
+    prisma.productVariant.findMany.mockResolvedValue([]);
+
+    await expect(service.getVariantForCart('missing')).resolves.toBeNull();
+    await expect(service.getVariantsForCart([])).resolves.toEqual([]);
+    expect(prisma.productVariant.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.productVariant.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: ['missing'] } } }),
+    );
+  });
+
+  it('Issue #7: reads sale price and matching color image for the cart contract', async () => {
+    prisma.productVariant.findMany.mockResolvedValue([cartRow()]);
+
+    await expect(service.getVariantForCart('v-1')).resolves.toEqual({
+      variantId: 'v-1',
+      productId: 'p-1',
+      productSlug: 'ao-thun-co-tron-basic',
+      name: 'Ao thun co tron basic',
+      variantLabel: 'M / Đen',
+      price: '149000',
+      imageUrl: 'https://example.test/black.jpg',
+      isActive: true,
+    });
+  });
+
+  it('Issue #7: preserves cart order and reports inactive products and variants', async () => {
+    const first = cartRow();
+    const defaultVariant = {
+      ...cartRow(),
+      id: 'v-2',
+      isActive: false,
+      salePrice: null,
+      color: { code: 'mac-dinh', name: 'Mặc định' },
+      size: { code: 'FREE' },
+      product: {
+        ...cartRow().product,
+        isActive: false,
+        images: [{ colorId: null, url: 'https://example.test/common.jpg' }],
+      },
+    };
+    prisma.productVariant.findMany.mockResolvedValue([first, defaultVariant]);
+
+    const result = await service.getVariantsForCart(['v-2', 'missing', 'v-1']);
+
+    expect(result.map((item) => item.variantId)).toEqual(['v-2', 'v-1']);
+    expect(result[0]).toMatchObject({
+      variantLabel: '',
+      price: '199000',
+      imageUrl: 'https://example.test/common.jpg',
+      isActive: false,
+    });
+    expect(prisma.productVariant.findMany).toHaveBeenCalledTimes(1);
   });
 });
