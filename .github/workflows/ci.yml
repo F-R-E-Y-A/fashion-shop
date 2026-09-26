@@ -218,6 +218,7 @@ jobs:
           docker run -d --name api --network ci-net -p 3001:3001 \
             -e DATABASE_URL='postgresql://fashion:fashion@pg:5432/fashion_shop?schema=public' \
             -e CORS_ORIGINS=http://localhost:8080 \
+            -e JWT_ACCESS_SECRET=ci-only-jwt-access-secret-not-for-production \
             fashion-shop-api:ci
           for i in $(seq 1 30); do
             if curl -fsS http://localhost:3001/api/healthz > health.json; then break; fi
