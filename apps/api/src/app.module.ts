@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 
 import { validateEnv } from './infra/config/env.js';
 import { PrismaModule } from './infra/prisma/prisma.module.js';
+import { AuthModule } from './modules/auth/index.js';
 import { HealthModule } from './modules/health/index.js';
 import { ProductsModule } from './modules/products/index.js';
 
@@ -24,6 +25,7 @@ import { ProductsModule } from './modules/products/index.js';
     }),
     PrismaModule,
 
+    AuthModule,
     HealthModule,
     ProductsModule,
   ],

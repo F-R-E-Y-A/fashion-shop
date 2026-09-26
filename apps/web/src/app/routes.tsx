@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router-dom';
 
+import { LoginPage, RegisterPage } from '@/features/account';
 import { AdminProductsPage, ProductDetailPage, ProductListPage } from '@/features/products';
 
 import { AdminLayout } from './AdminLayout.js';
@@ -18,6 +19,8 @@ export function AppRoutes() {
       <Route element={<StoreLayout />}>
         <Route index element={<ProductListPage />} />
         <Route path="san-pham/:slug" element={<ProductDetailPage />} />
+        <Route path="login" element={<LoginPage />} />
+        <Route path="register" element={<RegisterPage />} />
       </Route>
 
       <Route path="quan-tri" element={<AdminLayout />}>

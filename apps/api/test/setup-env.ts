@@ -20,3 +20,5 @@ if (testUrl === process.env.DATABASE_URL && process.env.CI !== 'true') {
 
 process.env.DATABASE_URL = testUrl;
 process.env.NODE_ENV = 'test';
+// Secret chi dung cho HTTP test; production phai cung cap JWT_ACCESS_SECRET tu moi truong.
+process.env.JWT_ACCESS_SECRET ??= 'test-access-secret-with-at-least-thirty-two-characters';
