@@ -170,3 +170,11 @@ Giỏ hàng của Duy cần biết cả biến thể đã ngừng bán để hi�
 Mỗi dòng nạp chạy trong một transaction; SKU xác định sản phẩm để chạy lại mà không sinh bản trùng. Khi cập nhật, biến thể vắng mặt được tắt thay vì xoá để giỏ và đơn còn tham chiếu; ảnh đồng bộ theo thứ tự mảng. Bổ sung chặn SKU lặp trong một dòng và dùng SQL `NULL` cho `attributes` vắng mặt; ảnh mang `colorCode` không khớp biến thể thành ảnh chung.
 
 Bằng chứng trên `eb8cc61`: `npm run check` exit 0 (API unit 17/17, web 3/3, crawler 47 pass, 1 skip); `npm run test:http` exit 0 (17/17); `git diff --cached --check` trước commit fix exit 0. Chữ ký công bố cho Tài giữ nguyên ở [README module](../../../apps/api/src/modules/products/README.md).
+
+## 2026-09-27 · Hoàn thiện API khám phá sản phẩm
+
+**Loại:** thay đổi mã · **Phạm vi:** seed, danh mục, danh sách, chi tiết và liên quan · **Commit:** [bee54a0](https://github.com/F-R-E-Y-A/fashion-shop/commit/bee54a0) · **Công cụ AI:** Codex
+
+Danh sách lọc cả danh mục con, sắp xếp ổn định theo giá hoặc ngày tạo và có bộ lọc nổi bật. Chi tiết trả ảnh, màu, cỡ, giá từng biến thể; danh mục có cây và đường dẫn phân cấp. Slug đi qua DTO để trả 400 khi sai khuôn. Seed tăng lên 20 sản phẩm cho bản xem trước; ảnh sản phẩm trong seed vẫn là ảnh mẫu.
+
+**Bằng chứng:** `npm run check` exit 0 (API unit 18/18, web 3/3, crawler 47 pass, 1 skip); `npm run test:http` exit 0 (29/29); `npm run db:drift -w apps/api` báo `No difference detected.`

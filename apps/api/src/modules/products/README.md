@@ -18,8 +18,9 @@ Phân hệ khác lấy dữ liệu sản phẩm bằng cách tiêm `ProductsServ
 
 | Hàm | Ai gọi | Trạng thái |
 |---|---|---|
-| `list(query)` | Đường dẫn `GET /api/products` | Đã có; PH-01 thêm `sort`, `featured`, danh mục con |
-| `findBySlug(slug)` | Đường dẫn `GET /api/products/:slug` | Đã có; PH-01 thêm ảnh và biến thể |
+| `list(query)` | Đường dẫn `GET /api/products` | **Đã cài** `sort`, `featured`, danh mục con ở `bee54a0` |
+| `findBySlug(slug)` | Đường dẫn `GET /api/products/:slug` | **Đã cài** ảnh và biến thể ở `bee54a0` |
+| `related(slug, limit)` | Đường dẫn `GET /api/products/:slug/related` | **Đã cài** ở `bee54a0` |
 | `getVariantForCart(variantId)` | Duy, giỏ hàng (PH-02) | **Đã cài** ở `c7811ea`; `null` khi không có biến thể |
 | `getVariantsForCart(variantIds)` | Duy, trang giỏ hàng nhiều dòng | **Đã cài** ở `c7811ea`; một truy vấn, giữ thứ tự đầu vào và bỏ ID không có |
 | `importProducts(rows)` | Tài, nạp dữ liệu thật (HT-03, PH-03) | **Đã cài** ở [b2c8de0](https://github.com/F-R-E-Y-A/fashion-shop/commit/b2c8de0), kiểm dữ liệu bổ sung ở [eb8cc61](https://github.com/F-R-E-Y-A/fashion-shop/commit/eb8cc61) |

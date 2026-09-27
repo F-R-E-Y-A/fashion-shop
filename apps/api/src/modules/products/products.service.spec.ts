@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { Prisma } from '../../generated/prisma/client.js';
 import type { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { ListProductsQuery } from './dto/list-products.query.js';
 import { ProductsService } from './products.service.js';
@@ -9,6 +10,7 @@ const row = (
   overrides: Partial<{
     priceFrom: { toString(): string };
     images: Array<{ url: string }>;
+    variants: Array<{ listPrice: Prisma.Decimal; salePrice: Prisma.Decimal | null }>;
   }> = {},
 ) => ({
   id: 'p-1',
@@ -16,6 +18,8 @@ const row = (
   slug: 'ao-thun-co-tron-basic',
   description: null,
   category: { name: 'Ao', slug: 'ao' },
+  brand: null,
+  variants: [],
   priceFrom: { toString: () => '199000' },
   images: [{ url: 'https://example.test/first.jpg' }],
   ...overrides,
@@ -53,7 +57,7 @@ function makePrisma() {
 const query = (overrides: Partial<ListProductsQuery> = {}): ListProductsQuery =>
   Object.assign(new ListProductsQuery(), overrides);
 
-describe('ProductsService (final HT-02 catalog contract)', () => {
+describe('ProductsService (UC-03.1 catalog)', () => {
   let prisma: ReturnType<typeof makePrisma>['prisma'];
   let service: ProductsService;
 
@@ -71,9 +75,23 @@ describe('ProductsService (final HT-02 catalog contract)', () => {
       price: '149000',
       imageUrl: 'https://example.test/first.jpg',
     });
-    // Khong con truy van phu tim bien the re nhat: gia doc tu cot price_from.
+    // Include biến thể đang bán để biết có giá gạch ngang hay không.
     const args = prisma.product.findMany.mock.calls[0]?.[0] as { include: object };
-    expect(args.include).not.toHaveProperty('variants');
+    expect(args.include).toHaveProperty('variants');
+  });
+
+  it('UC-03.1/AC3 hiện giá niêm yết khi biến thể rẻ nhất đang giảm', async () => {
+    prisma.product.count.mockResolvedValue(1);
+    prisma.product.findMany.mockResolvedValue([
+      row({
+        priceFrom: new Prisma.Decimal('149000'),
+        variants: [
+          { listPrice: new Prisma.Decimal('199000'), salePrice: new Prisma.Decimal('149000') },
+        ],
+      }),
+    ]);
+    const result = await service.list(query());
+    expect(result.items[0]).toMatchObject({ price: '149000', listPrice: '199000' });
   });
 
   it('excludes inactive products and products without an active variant', async () => {
@@ -107,7 +125,11 @@ describe('ProductsService (final HT-02 catalog contract)', () => {
     await expect(service.findBySlug('khong-co')).rejects.toBeInstanceOf(NotFoundException);
     expect(prisma.product.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { slug: 'khong-co', isActive: true, variants: { some: { isActive: true } } },
+        where: expect.objectContaining({
+          slug: 'khong-co',
+          isActive: true,
+          variants: { some: { isActive: true } },
+        }),
       }),
     );
   });

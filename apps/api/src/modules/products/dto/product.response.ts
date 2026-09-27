@@ -23,6 +23,8 @@ export class ProductResponse {
   imageUrl!: string | null;
   @ApiProperty() categoryName!: string;
   @ApiProperty() categorySlug!: string;
+  @ApiPropertyOptional({ nullable: true }) brandName!: string | null;
+  @ApiPropertyOptional({ nullable: true }) listPrice!: string | null;
 }
 
 export class ProductListResponse {
