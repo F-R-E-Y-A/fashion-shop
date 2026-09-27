@@ -1,0 +1,89 @@
+{
+  "collection": {
+    "discovered": 30,
+    "requested": 30,
+    "succeeded": 30,
+    "failed": 0,
+    "duplicates": 0
+  },
+  "normalization": {
+    "source": "YODY",
+    "total": 30,
+    "approved": 11,
+    "pendingReview": 19,
+    "duplicate": 0,
+    "rejected": 0,
+    "issueCounts": {
+      "NO_VARIANT": 1,
+      "UNKNOWN_CATEGORY": 7,
+      "UNKNOWN_SIZE": 75
+    },
+    "warningCounts": {
+      "INVALID_HEX": 14,
+      "NO_VALID_IMAGE": 2
+    }
+  },
+  "percentages": {
+    "parseSuccessRate": 100,
+    "approvedRate": 36.67,
+    "pendingReviewRate": 63.33,
+    "validImageRate": 93.33
+  },
+  "categoryCoverage": {
+    "ao-thun": 9,
+    "ao-so-mi": 6,
+    "ao-khoac": 1,
+    "quan-dai": 5,
+    "quan-short": 2,
+    "mu": 0,
+    "that-lung": 0,
+    "unmapped": 7
+  },
+  "unknownSourceCategories": {
+    "ao-phao-tre-em": 1,
+    "dam-va-chan-vay-nu": 5,
+    "nam": 1
+  },
+  "observedSourceSizes": {
+    "4": 2,
+    "6": 2,
+    "8": 2,
+    "10": 3,
+    "25": 10,
+    "26": 7,
+    "27": 4,
+    "28": 5,
+    "29": 4,
+    "30": 1,
+    "31": 2,
+    "32": 2,
+    "33": 6,
+    "34": 6,
+    "2XL": 9,
+    "3XL": 13,
+    "4XL": 5,
+    "5XL": 1,
+    "L": 15,
+    "M": 20,
+    "S": 31,
+    "XL": 13,
+    "XS": 8
+  },
+  "sizeCoverage": {
+    "XS": 8,
+    "S": 31,
+    "M": 20,
+    "L": 15,
+    "XL": 13,
+    "2XL": 9,
+    "3XL": 13,
+    "4XL": 5,
+    "numeric": 56,
+    "FREE": 0,
+    "other": 1
+  },
+  "imageCoverage": {
+    "withValidImage": 28,
+    "withoutValidImage": 2
+  }
+}

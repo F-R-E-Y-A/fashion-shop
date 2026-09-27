@@ -1,0 +1,15 @@
+{
+  "source": "YODY",
+  "total": 5,
+  "approved": 2,
+  "pendingReview": 3,
+  "duplicate": 0,
+  "rejected": 0,
+  "issueCounts": {
+    "NO_VARIANT": 1,
+    "UNKNOWN_SIZE": 3
+  },
+  "warningCounts": {
+    "NO_VALID_IMAGE": 2
+  }
+}

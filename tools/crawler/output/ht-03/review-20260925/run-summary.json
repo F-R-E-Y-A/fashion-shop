@@ -1,0 +1,13 @@
+{
+  "runId": "review-20260925",
+  "source": "YODY",
+  "startedAt": "2026-09-25T06:48:35.581Z",
+  "finishedAt": "2026-09-25T06:49:03.046Z",
+  "discovered": 5,
+  "requested": 5,
+  "succeeded": 5,
+  "failed": 0,
+  "duplicates": 0,
+  "uniqueProducts": 5,
+  "stoppedReason": null
+}
