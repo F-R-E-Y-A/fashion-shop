@@ -4,15 +4,39 @@
 //
 // Duy them model vao tep nay tu S2 (PH-02 gio hang). Chep khuon o catalog.prisma.
 // Khoa ngoai sang bang cua Bao (products, variants) thi duoc; ghi vao bang do thi khong.
-// Vi du:
-//
-// model InventoryItem {
-//   id        String   @id @default(uuid()) @db.Uuid
-//   variantId String   @unique @map("variant_id") @db.Uuid
-//   onHand    Int      @default(0) @map("on_hand")
-//   reserved  Int      @default(0)
-//   createdAt DateTime @default(now()) @map("created_at")
-//   updatedAt DateTime @updatedAt @map("updated_at")
-//
-//   @@map("inventory_items")
-// }
+
+/// Gio hang — mot nguoi dung (hoac mot khach vang lai) chi co mot gio tai mot thoi diem.
+/// Khach vang lai dung guest_token (UUID luu trong cookie); sau khi dang nhap se gop vao gio tai khoan.
+model Cart {
+  id         String   @id @default(uuid()) @db.Uuid
+  /// NULL neu la khach vang lai chua dang nhap.
+  userId     String?  @map("user_id") @db.Uuid
+  /// UUID ngau nhien do frontend sinh, luu trong cookie httpOnly; NULL khi da dang nhap.
+  guestToken String?  @unique @map("guest_token") @db.VarChar(64)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  items CartItem[]
+
+  @@index([userId])
+  @@map("carts")
+}
+
+/// Dong trong gio hang — moi dong la mot bien the san pham voi so luong.
+/// Them cung mot bien the thi cong don, khong tao dong moi: dam bao boi rang buoc unique(cart_id, variant_id).
+model CartItem {
+  id        String   @id @default(uuid()) @db.Uuid
+  cartId    String   @map("cart_id") @db.Uuid
+  /// Khoa ngoai logic sang product_variants (cua Bao). Chua co model Prisma vi Bao chua them vao schema;
+  /// rang buoc vat ly se them sau khi Bao them ProductVariant.
+  variantId String   @map("variant_id") @db.Uuid
+  quantity  Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  cart Cart @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, variantId])
+  @@index([cartId])
+  @@map("cart_items")
+}
