@@ -10,8 +10,13 @@ import {
 
 import { ApiError, apiRequest, type ApiRequestOptions } from '@/core';
 
-import { login as loginRequest, logout as logoutRequest, refresh, register } from './api/index.js';
-import type { AuthenticatedUser, AuthResponse, Credentials } from './types.js';
+import {
+  login as loginRequest,
+  logout as logoutRequest,
+  refresh,
+  register as registerRequest,
+} from './api/index.js';
+import type { AuthenticatedUser, AuthResponse, Credentials, RegisterResponse } from './types.js';
 
 interface AuthContextValue {
   user: AuthenticatedUser | null;
@@ -19,7 +24,8 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
   login(credentials: Credentials): Promise<void>;
-  register(credentials: Credentials): Promise<void>;
+  /** Chi tao tai khoan PENDING_VERIFICATION va gui OTP; KHONG dang nhap. */
+  register(credentials: Credentials): Promise<RegisterResponse>;
   logout(): Promise<void>;
   authenticatedRequest<T>(
     path: string,
@@ -80,6 +86,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [applyAuthentication],
   );
 
+  const register = useCallback((credentials: Credentials) => registerRequest(credentials), []);
+
   const authenticatedRequest = useCallback(
     async <T,>(path: string, options: Omit<ApiRequestOptions, 'accessToken'> = {}): Promise<T> => {
       const token = accessTokenRef.current;
@@ -112,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isAuthenticated: user !== null,
     isLoading,
     login: (credentials) => authenticate(loginRequest, credentials),
-    register: (credentials) => authenticate(register, credentials),
+    register,
     logout: async () => {
       clearAuthentication();
       try {

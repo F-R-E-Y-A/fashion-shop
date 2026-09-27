@@ -18,3 +18,21 @@ export class AuthResponse {
   @ApiProperty({ type: AuthenticatedUserResponse })
   user!: AuthenticatedUserResponse;
 }
+
+export class RegisterResponse {
+  @ApiProperty({ example: true, description: 'Luon la true: dang ky khong cap phien dang nhap.' })
+  verificationRequired!: true;
+
+  @ApiProperty({ format: 'email' })
+  email!: string;
+}
+
+export class VerifyEmailResponse {
+  @ApiProperty({ example: true })
+  verified!: true;
+}
+
+export class ResendVerificationResponse {
+  @ApiProperty({ example: true, description: 'Luon true, ke ca khi email khong ton tai.' })
+  accepted!: true;
+}

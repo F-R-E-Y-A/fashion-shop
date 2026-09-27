@@ -13,3 +13,16 @@ export interface Credentials {
   email: string;
   password: string;
 }
+
+export interface RegisterResponse {
+  verificationRequired: true;
+  email: string;
+}
+
+export interface VerifyEmailResponse {
+  verified: true;
+}
+
+export interface ResendVerificationResponse {
+  accepted: true;
+}

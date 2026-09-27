@@ -22,3 +22,8 @@ process.env.DATABASE_URL = testUrl;
 process.env.NODE_ENV = 'test';
 // Secret chi dung cho HTTP test; production phai cung cap JWT_ACCESS_SECRET tu moi truong.
 process.env.JWT_ACCESS_SECRET ??= 'test-access-secret-with-at-least-thirty-two-characters';
+process.env.OTP_PEPPER ??= 'test-otp-pepper-with-at-least-thirty-two-characters';
+// MailService that duoc thay bang FakeMailService trong test/helpers/create-test-app.ts nen cac
+// bien SMTP o day chi can hop le voi env.ts, khong bao gio duoc dung that.
+process.env.SMTP_HOST ??= 'localhost';
+process.env.SMTP_FROM ??= 'no-reply@fashion-shop.test';
