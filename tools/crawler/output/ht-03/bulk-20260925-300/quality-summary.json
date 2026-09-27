@@ -1,0 +1,169 @@
+{
+  "collection": {
+    "discovered": 315,
+    "requested": 315,
+    "succeeded": 314,
+    "failed": 1,
+    "duplicates": 0
+  },
+  "normalization": {
+    "source": "YODY",
+    "total": 314,
+    "approved": 90,
+    "pendingReview": 224,
+    "duplicate": 0,
+    "rejected": 0,
+    "issueCounts": {
+      "DUPLICATE_VARIANT": 2,
+      "MISSING_SIZE": 50,
+      "NO_VARIANT": 2
+    },
+    "warningCounts": {
+      "INVALID_HEX": 354,
+      "NO_VALID_IMAGE": 8
+    }
+  },
+  "percentages": {
+    "parseSuccessRate": 99.68,
+    "approvedRate": 28.66,
+    "pendingReviewRate": 71.34,
+    "validImageRate": 97.45
+  },
+  "acceptance": {
+    "minimumValidProduct": 312,
+    "missingName": 0,
+    "missingSourceCategory": 0,
+    "missingValidPrice": 2,
+    "acceptancePercentage": 99.36
+  },
+  "scope": {
+    "inScope": 106,
+    "outOfScope": 160,
+    "reviewRequired": 48,
+    "percentages": {
+      "inScope": 33.76,
+      "outOfScope": 50.96,
+      "reviewRequired": 15.29
+    },
+    "reasonCounts": {
+      "OUT_OF_SCOPE_CATEGORY": 38,
+      "OUT_OF_SCOPE_SIZE": 242,
+      "UNKNOWN_CATEGORY": 63,
+      "UNKNOWN_SIZE": 57
+    }
+  },
+  "categoryCoverage": {
+    "ao-thun": 82,
+    "ao-so-mi": 40,
+    "ao-khoac": 8,
+    "quan-dai": 45,
+    "quan-short": 23,
+    "mu": 3,
+    "that-lung": 12,
+    "out-of-scope": 38,
+    "unknown": 63
+  },
+  "unknownSourceCategories": {
+    "ao-ba-lo-nam": 2,
+    "ao-giu-nhiet-nu": 1,
+    "ao-hoodie-ao-ni-tre-em": 1,
+    "ao-len-nu": 6,
+    "ao-len-tre-em": 1,
+    "ao-phao-nam": 1,
+    "ao-phao-nu": 3,
+    "ao-vest-nam": 2,
+    "do-bo-ngan-tay-nam": 1,
+    "do-bo-ngan-tay-nu": 3,
+    "do-bo-ngan-tay-tre-em": 1,
+    "giay-nam": 3,
+    "giay-nu": 1,
+    "nam": 2,
+    "quan-lot-nam": 4,
+    "quan-lot-nu": 3,
+    "quan-tre-em": 3,
+    "san-pham-khac-nam": 1,
+    "san-pham-khac-nu": 1,
+    "san-pham-khac-tre-em": 6,
+    "tat-nam": 2,
+    "tat-nu": 7,
+    "tui-xach-nam": 3,
+    "vi-nam": 3,
+    "vi-nu": 2
+  },
+  "outOfScopeSourceCategories": {
+    "ao-phao-tre-em": 1,
+    "dam-va-chan-vay-be-gai": 9,
+    "dam-va-chan-vay-nu": 28
+  },
+  "observedSourceSizes": {
+    "2": 33,
+    "3": 4,
+    "4": 39,
+    "5": 5,
+    "6": 41,
+    "8": 33,
+    "10": 19,
+    "12": 11,
+    "14": 9,
+    "25": 58,
+    "26": 45,
+    "27": 26,
+    "28": 33,
+    "29": 61,
+    "30": 63,
+    "31": 51,
+    "32": 50,
+    "33": 58,
+    "34": 41,
+    "35": 6,
+    "36": 8,
+    "37": 1,
+    "38": 1,
+    "39": 5,
+    "40": 5,
+    "41": 4,
+    "42": 4,
+    "43": 3,
+    "10-11": 6,
+    "12-13": 5,
+    "14-15": 1,
+    "2XL": 103,
+    "3XL": 59,
+    "4-5": 5,
+    "4XL": 24,
+    "5XL": 2,
+    "6-7": 6,
+    "8-9": 7,
+    "F": 1,
+    "L": 218,
+    "M": 226,
+    "S": 212,
+    "XL": 195,
+    "XS": 12
+  },
+  "sizeCoverage": {
+    "XS": 12,
+    "S": 212,
+    "M": 226,
+    "L": 218,
+    "XL": 195,
+    "2XL": 103,
+    "3XL": 59,
+    "4XL": 24,
+    "numeric": 717,
+    "FREE": 1,
+    "other": 32
+  },
+  "imageCoverage": {
+    "withValidImage": 306,
+    "withoutValidImage": 8
+  },
+  "priceCoverage": {
+    "withValidPrice": 312,
+    "withoutValidPrice": 2,
+    "validPriceRate": 99.36,
+    "minimumEffectivePrice": "4500",
+    "maximumEffectivePrice": "629000",
+    "medianEffectivePrice": "49000"
+  }
+}
