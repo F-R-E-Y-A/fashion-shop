@@ -15,16 +15,21 @@ import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import type {
   AuthenticatedUserResponse,
   AuthResponse,
+  ForgotPasswordResponse,
   RegisterResponse,
   ResendVerificationResponse,
+  ResetPasswordResponse,
   VerifyEmailResponse,
 } from './dto/auth.response.js';
 import { LoginRequest, RegisterRequest } from './dto/auth-credentials.request.js';
+import { ForgotPasswordRequest } from './dto/forgot-password.request.js';
 import { ResendVerificationRequest } from './dto/resend-verification.request.js';
+import { ResetPasswordRequest } from './dto/reset-password.request.js';
 import { VerifyEmailRequest } from './dto/verify-email.request.js';
 import { normalizeEmail } from './email.js';
 import { OtpService } from './otp.service.js';
 import { PasswordHasherService } from './password-hasher.service.js';
+import { buildPasswordResetEmail } from './password-reset-email.js';
 import { TokenService } from './token.service.js';
 import { buildVerificationEmail } from './verification-email.js';
 
@@ -216,6 +221,101 @@ export class AuthService {
     }
 
     return accepted;
+  }
+
+  /**
+   * Always returns the same generic response. Policy: only an ACTIVE account ever gets a real
+   * PASSWORD_RESET OTP + email. PENDING_VERIFICATION cannot log in regardless of password (it is
+   * blocked by EMAIL_NOT_VERIFIED, a separate purpose/flow), and LOCKED/DISABLED are deliberate
+   * administrative holds that self-service password recovery must not undermine — both cases are
+   * silently accepted here, exactly like an unknown email, so this endpoint cannot be used to learn
+   * whether an email exists or what state its account is in.
+   */
+  async forgotPassword(request: ForgotPasswordRequest): Promise<ForgotPasswordResponse> {
+    const email = normalizeEmail(request.email);
+    const accepted: ForgotPasswordResponse = { accepted: true };
+
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true, status: true },
+    });
+    if (!user || user.status !== UserStatus.ACTIVE) return accepted;
+
+    const issuedCode = await this.prisma.$transaction(async (transaction) => {
+      if (
+        await this.otp.isWithinResendCooldown(transaction, {
+          email,
+          purpose: OtpPurpose.PASSWORD_RESET,
+        })
+      ) {
+        return null;
+      }
+      const issued = await this.otp.issue(transaction, {
+        email,
+        purpose: OtpPurpose.PASSWORD_RESET,
+        userId: user.id,
+      });
+      return issued.code;
+    });
+    if (!issuedCode) return accepted;
+
+    try {
+      await this.mail.send(buildPasswordResetEmail({ to: email, code: issuedCode }));
+    } catch {
+      this.logger.warn(`Gui email dat lai mat khau that bai (email=${email})`);
+    }
+
+    return accepted;
+  }
+
+  /**
+   * Changes the password on a correct, unexpired, not-yet-exhausted PASSWORD_RESET OTP, and revokes
+   * every refresh session the user currently holds (not just one family) so a stolen/old session
+   * cannot survive a password reset. Follows the exact same outcome-after-transaction discipline as
+   * verifyEmail(): nothing throws inside the transaction for an expected outcome, so the OTP
+   * consumption, password change, and session revocation either all commit together or none do —
+   * there is no state where the password changed but the OTP is still usable, or vice versa.
+   *
+   * Known limitation (documented, not fixed here): an access token issued before the reset is a
+   * short-lived JWT with no session/jti linkage, so it keeps working until its own TTL expires.
+   * Revoking it early would need an access-token blacklist, explicitly out of scope for PH3.2.
+   */
+  async resetPassword(request: ResetPasswordRequest): Promise<ResetPasswordResponse> {
+    const email = normalizeEmail(request.email);
+
+    const outcome = await this.prisma.$transaction(async (transaction) => {
+      const user = await transaction.user.findUnique({
+        where: { email },
+        select: { id: true, status: true },
+      });
+      if (!user || user.status !== UserStatus.ACTIVE) return { status: 'INVALID' } as const;
+
+      const result = await this.otp.verify(transaction, {
+        email,
+        purpose: OtpPurpose.PASSWORD_RESET,
+        code: request.code,
+      });
+      if (result.status !== 'VERIFIED') return result;
+
+      const passwordHash = await this.passwordHasher.hash(request.newPassword);
+      await transaction.user.update({ where: { id: user.id }, data: { passwordHash } });
+      await transaction.refreshToken.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      return result;
+    });
+
+    switch (outcome.status) {
+      case 'VERIFIED':
+        return { reset: true };
+      case 'EXPIRED':
+        throw this.otpExpired();
+      case 'ATTEMPTS_EXCEEDED':
+        throw this.otpAttemptsExceeded();
+      case 'INVALID':
+        throw this.otpInvalid();
+    }
   }
 
   async refresh(refreshToken: string | undefined): Promise<AuthenticationResult> {

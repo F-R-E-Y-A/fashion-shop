@@ -75,6 +75,9 @@ export function LoginPage() {
         </button>
       </form>
       <p>
+        <Link to="/quen-mat-khau">Quên mật khẩu?</Link>
+      </p>
+      <p>
         Chưa có tài khoản? <Link to="/register">Đăng ký</Link>
       </p>
     </section>
