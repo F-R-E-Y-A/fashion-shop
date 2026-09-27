@@ -1,6 +1,6 @@
 ---
 title: Khám phá sản phẩm — bản đồ và kế hoạch PH-01
-updated: 2026-09-26
+updated: 2026-09-27
 status: đang làm
 owner: Bảo
 ---
@@ -31,7 +31,7 @@ Khách vào trang chủ, bấm một danh mục, mở một sản phẩm, chọn
 | Hạng mục | Use case, tiêu chí | Mức |
 |---|---|---|
 | Bảy bảng theo [erd.md](erd.md); migration có ràng buộc `CHECK` viết tay; `db:drift` sạch | ADR-007 | **Xong** ở PR #11 (`f39ae11`) |
-| Dữ liệu giả: hai cấp danh mục, 20 sản phẩm, vài sản phẩm có ít nhất hai cỡ và hai màu | Issue #6 | Phải có; PR #11 đã có 10 sản phẩm, còn nâng lên 20 |
+| Dữ liệu giả: hai cấp danh mục, 20 sản phẩm, vài sản phẩm có ít nhất hai cỡ và hai màu | Issue #6 | **Xong** ở `bee54a0` |
 | Liệt kê có phân trang, lọc danh mục gồm danh mục con, sắp xếp mới nhất và theo giá | UC-03.1/AC1, AC2, AC4; UC-03.3/AC4 | Phải có |
 | Cây danh mục; một danh mục theo đường dẫn, 404 khi không có | UC-03.1/AC5 | Phải có |
 | `getVariantForCart` cho Duy | Issue #6, #7 | Đã cài ở `c7811ea`; còn công bố trên Issue #7 |
@@ -47,19 +47,11 @@ Khách vào trang chủ, bấm một danh mục, mở một sản phẩm, chọn
 
 Sơ đồ, từng cột, ràng buộc và chỉ mục ở [erd.md](erd.md); lý do ở [ADR-007](LOG.md#adr-007). Tóm tắt: **biến thể là đơn vị bán**, mỗi biến thể một màu, một cỡ, một mã hàng, một giá; màu, cỡ, thương hiệu là bảng tra cứu; ảnh gắn với sản phẩm, có thể gắn với một màu; `products.price_from` giữ giá thấp nhất để sắp xếp theo giá. Giỏ hàng và tồn kho của Duy trỏ khoá ngoại vào `product_variants.id`.
 
-Dữ liệu giả trong `prisma/seed/catalog.seed.ts`, mã định danh cố định như hiện nay: danh mục cha Áo, Quần, Phụ kiện và bảy danh mục con; sáu màu (có `mac-dinh`), mười cỡ có `sort_order` (có `FREE`), ba thương hiệu; 10 sản phẩm, một sản phẩm dùng biến thể mặc định; ảnh dùng địa chỉ ảnh mẫu cố định theo `slug` và màu, vì kho ảnh chưa có ([platform/README](../platform/README.md) lộ trình). Bài kiểm thử import hằng số từ tệp seed, không gõ lại số.
+Dữ liệu giả trong `prisma/seed/catalog.seed.ts`: danh mục cha Áo, Quần, Phụ kiện và bảy danh mục con; sáu màu (có `mac-dinh`), mười cỡ có `sort_order` (có `FREE`), ba thương hiệu; 20 sản phẩm. Ảnh dùng địa chỉ mẫu cố định theo `slug` và màu, vì kho ảnh chưa có ([platform/README](../platform/README.md) lộ trình). Bài kiểm thử import hằng số từ tệp seed, không gõ lại số.
 
 ## API
 
-Theo [shared/api.md](../../shared/api.md) và [ADR-008](LOG.md#adr-008). Đây là **đề xuất**; cài xong dòng nào thì xoá dòng đó, Swagger `/api/docs` là nguồn.
-
-| Đường dẫn | Việc | Tham số, hình dạng | Tiêu chí |
-|---|---|---|---|
-| `GET /api/products` | Có sẵn, mở rộng | thêm `sort=newest\|price_asc\|price_desc` (mặc định `newest`), `featured=true`; `categorySlug` gồm cả danh mục con. Mỗi dòng: `id, name, slug, brandName, categoryName, categorySlug, imageUrl, price, listPrice` (`listPrice` khác `null` khi đang giảm giá) | UC-03.1/AC1, AC2, AC4; UC-03.3/AC4 |
-| `GET /api/products/:slug` | Có sẵn, mở rộng | thêm `material`, `careInstructions`, `brandName`, `breadcrumb[]`, `colors[]` (`code, name, hex`), `images[]` (`url, alt, colorCode`), `variants[]` (`id, sku, colorCode, sizeCode, price, listPrice`, xếp theo thứ tự cỡ); slug khai bằng lớp DTO để đi qua `ValidationPipe` (ND-10) | UC-03.4/AC1, AC2, AC5 |
-| `GET /api/products/:slug/related` | Mới | `limit` mặc định 4; cùng danh mục, trừ chính nó, đang bán | UC-03.4 |
-| `GET /api/categories` | Mới | cây danh mục đang hiện: `id, name, slug, children[]`, xếp theo `sortOrder` | UC-03.1 |
-| `GET /api/categories/:slug` | Mới | `id, name, slug, breadcrumb[]` (`name, slug` từ gốc xuống); 404 `NOT_FOUND` khi không có | UC-03.1/AC5 |
+Theo [shared/api.md](../../shared/api.md) và [ADR-008](LOG.md#adr-008). Năm đường dẫn đọc sản phẩm, danh mục đã cài ở `bee54a0`; hình dạng thật do Swagger `/api/docs` sinh từ mã. Kiểm thử HTTP nằm trong `apps/api/test/products.http.spec.ts` và `apps/api/test/categories.http.spec.ts`.
 
 `CategoriesController` đặt trong module `products` vì cùng một chủ và cùng bảng; không tạo module mới.
 
@@ -118,7 +110,7 @@ Thứ tự cắt khi thiếu giờ: đã xem gần đây → sản phẩm liên 
 
 ## Kiểm thử và nghiệm thu
 
-Tên bài theo `UC-NN.m/ACk` ([testing.md](../../shared/testing.md)). Bài hiện có trong module mẫu còn tên `PH-03`, `AC-1`; viết lại khi sửa.
+Tên bài theo `UC-NN.m/ACk` ([testing.md](../../shared/testing.md)). Kiểm thử API đã chạy trong Pha 2; kiểm thử giao diện sẽ bổ sung trong Pha 3.
 
 | Tiêu chí | Bài kiểm thử dự kiến | Kết quả |
 |---|---|---|
@@ -133,9 +125,9 @@ Tên bài theo `UC-NN.m/ACk` ([testing.md](../../shared/testing.md)). Bài hiệ
 | `importProducts` chạy hai lần không sinh bản trùng | `test/products-import.http.spec.ts` | — |
 | Ba trạng thái ở trang chủ, trang danh mục, trang chi tiết | `features/products/pages/*.test.tsx` | — |
 
-## Trạng thái hôm nay (26/09/2026)
+## Trạng thái hôm nay (27/09/2026)
 
-Tầng dữ liệu M2 từ PR #11 và crawler/staging từ PR #13 đã có trên nhánh PH-01 qua `38eaac2`. Hợp đồng giỏ hàng đã cài ở `c7811ea`; `importProducts` chưa có mã. Kiểm thử HTTP với database local chưa chạy trong phiên này. ADR-008 còn chờ Bảo chốt trước khi mở rộng API.
+Tầng dữ liệu M2 và crawler/staging đã có trên nhánh PH-01. Hợp đồng giỏ hàng ở `c7811ea`; `importProducts` ở `b2c8de0`, bổ sung ở `eb8cc61`; API danh mục và sản phẩm ở `bee54a0`. `npm run check` và `npm run test:http` đã qua trên Pha 2; tiếp theo là giao diện web. ADR-008 là quyết định Bảo đã chốt.
 
 ## Còn mở
 
