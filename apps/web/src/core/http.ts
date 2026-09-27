@@ -24,13 +24,19 @@ export class ApiError extends Error {
 
 export type QueryParams = Record<string, string | number | boolean | undefined>;
 
-export async function apiGet<T>(path: string, params?: QueryParams): Promise<T> {
+export async function apiGet<T>(
+  path: string,
+  params?: QueryParams,
+  headers?: Record<string, string>,
+): Promise<T> {
   const url = new URL(`${BASE_URL}${path}`);
   for (const [key, value] of Object.entries(params ?? {})) {
     if (value !== undefined && value !== '') url.searchParams.set(key, String(value));
   }
 
-  const response = await fetch(url, { headers: { Accept: 'application/json' } });
+  const response = await fetch(url, {
+    headers: { Accept: 'application/json', ...headers },
+  });
 
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as ApiErrorBody | null;
@@ -47,6 +53,43 @@ export async function apiGet<T>(path: string, params?: QueryParams): Promise<T> 
 
   return (await response.json()) as T;
 }
+
+async function apiMutate<T>(
+  method: 'POST' | 'PATCH' | 'PUT' | 'DELETE',
+  path: string,
+  body?: unknown,
+  headers?: Record<string, string>,
+): Promise<T> {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...headers },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+
+  if (!response.ok) {
+    const err = (await response.json().catch(() => null)) as ApiErrorBody | null;
+    throw new ApiError(
+      err ?? {
+        statusCode: response.status,
+        code: 'UNKNOWN',
+        message: `May chu tra ve ma ${response.status}`,
+        path,
+        timestamp: new Date().toISOString(),
+      },
+    );
+  }
+
+  return (await response.json()) as T;
+}
+
+export const apiPost = <T>(path: string, body?: unknown, headers?: Record<string, string>) =>
+  apiMutate<T>('POST', path, body, headers);
+
+export const apiPatch = <T>(path: string, body?: unknown, headers?: Record<string, string>) =>
+  apiMutate<T>('PATCH', path, body, headers);
+
+export const apiDel = <T>(path: string, headers?: Record<string, string>) =>
+  apiMutate<T>('DELETE', path, undefined, headers);
 
 /** Hinh dang tra ve cua moi duong dan liet ke, khop Page<T> ben may chu. */
 export interface Page<T> {
