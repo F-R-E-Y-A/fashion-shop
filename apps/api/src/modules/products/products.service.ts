@@ -154,7 +154,7 @@ export class ProductsService {
       material: row.material ?? null,
       careInstructions: row.careInstructions ?? null,
       attributes:
-        row.attributes === undefined ? Prisma.JsonNull : (row.attributes as Prisma.InputJsonObject),
+        row.attributes === undefined ? Prisma.DbNull : (row.attributes as Prisma.InputJsonObject),
       priceFrom,
     };
     const product = existingProductId

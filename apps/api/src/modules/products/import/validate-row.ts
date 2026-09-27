@@ -8,7 +8,12 @@ export function validateRow(row: ImportProductRow): ImportRowError | null {
   }
 
   const seen = new Set<string>();
+  const seenSkus = new Set<string>();
   for (const [index, variant] of row.variants.entries()) {
+    if (seenSkus.has(variant.sku)) {
+      return new ImportRowError('SKU_CONFLICT', `Trùng SKU ở biến thể ${index}`);
+    }
+    seenSkus.add(variant.sku);
     try {
       const list = new Prisma.Decimal(variant.listPrice);
       if (!list.isFinite() || list.lte(0)) throw new Error('listPrice');

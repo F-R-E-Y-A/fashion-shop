@@ -31,6 +31,10 @@ describe('validateRow', () => {
     expect(validateRow(row([one, { ...one, sku: 'TEST-2' }]))?.reason).toBe('DUPLICATE_COLOR_SIZE');
   });
 
+  it('cùng SKU cho hai cặp màu/cỡ phải bị từ chối', () => {
+    expect(validateRow(row([one, { ...one, sizeCode: 'M' }]))?.reason).toBe('SKU_CONFLICT');
+  });
+
   it('giá hợp lệ và hai cỡ khác nhau thì qua', () => {
     expect(validateRow(row([one, { ...one, sku: 'TEST-2', sizeCode: 'M' }]))).toBeNull();
   });
