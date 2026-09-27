@@ -84,40 +84,35 @@ model InventoryReservation {
 }
 
 /// Gio hang — PH-02, Phan Ngoc Duy.
-/// userId nullable: ho tro khach vang lai chua dang nhap (dung guestToken).
-/// Khac ERD khuon (userId bat buoc) vi pham vi S2 chua co auth; se cap nhat khi Tai them User model.
+/// userId nullable de ho tro khach vang lai (guestToken).
 model Cart {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  /// NULL neu la khach vang lai chua dang nhap.
-  userId     String?  @map("user_id") @db.Uuid
-  /// UUID ngau nhien do frontend sinh, luu trong cookie; NULL khi da dang nhap.
+  userId     String?  @unique @map("user_id") @db.Uuid
   guestToken String?  @unique @map("guest_token") @db.VarChar(64)
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  user  User?      @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
   items CartItem[]
 
-  @@index([userId])
   @@map("carts")
   @@schema("public")
 }
 
-
 /// Dong trong gio hang — PH-02, Phan Ngoc Duy.
-/// variantId la khoa ngoai logic sang product_variants (cua Bao).
-/// FK vat ly se them sau khi Bao them model ProductVariant vao schema.
 model CartItem {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  cartId    String   @map("cart_id") @db.Uuid
-  variantId String   @map("variant_id") @db.Uuid
-  quantity  Int      @default(1)
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cartId           String   @map("cart_id") @db.Uuid
+  productVariantId String   @map("product_variant_id") @db.Uuid
+  quantity         Int      @default(1)
+  isSelected       Boolean  @default(true) @map("is_selected")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  cart Cart @relation(fields: [cartId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  cart           Cart           @relation(fields: [cartId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
-  @@unique([cartId, variantId])
-  @@index([cartId])
+  @@unique([cartId, productVariantId])
   @@map("cart_items")
   @@schema("public")
 }

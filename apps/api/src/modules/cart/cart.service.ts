@@ -56,7 +56,7 @@ export class CartService {
     const dbItems = await this.prisma.cartItem.findMany({ where: { cartId: cart.id } });
 
     const items: CartItemResponse[] = dbItems.map((item) => {
-      const variant = getMockVariant(item.variantId);
+      const variant = getMockVariant(item.productVariantId);
       return {
         ...variant,
         quantity: item.quantity,
@@ -74,7 +74,7 @@ export class CartService {
 
   /**
    * Them bien the vao gio. Neu da co thi cong don so luong.
-   * Dam bao rang buoc: (cartId, variantId) unique.
+   * Dam bao rang buoc: (cartId, productVariantId) unique.
    */
   async addItem(
     variantId: string,
@@ -90,8 +90,8 @@ export class CartService {
     const cart = await this.findOrCreateCart(userId, guestToken);
 
     await this.prisma.cartItem.upsert({
-      where: { cartId_variantId: { cartId: cart.id, variantId } },
-      create: { cartId: cart.id, variantId, quantity },
+      where: { cartId_productVariantId: { cartId: cart.id, productVariantId: variantId } },
+      create: { cartId: cart.id, productVariantId: variantId, quantity },
       update: { quantity: { increment: quantity } },
     });
 
@@ -109,12 +109,12 @@ export class CartService {
 
     const cart = await this.findOrCreateCart(userId, guestToken);
     const item = await this.prisma.cartItem.findUnique({
-      where: { cartId_variantId: { cartId: cart.id, variantId } },
+      where: { cartId_productVariantId: { cartId: cart.id, productVariantId: variantId } },
     });
     if (!item) throw new NotFoundException('Khong tim thay dong gio hang.');
 
     await this.prisma.cartItem.update({
-      where: { cartId_variantId: { cartId: cart.id, variantId } },
+      where: { cartId_productVariantId: { cartId: cart.id, productVariantId: variantId } },
       data: { quantity },
     });
 
@@ -127,7 +127,7 @@ export class CartService {
 
     const cart = await this.findOrCreateCart(userId, guestToken);
     await this.prisma.cartItem.deleteMany({
-      where: { cartId: cart.id, variantId },
+      where: { cartId: cart.id, productVariantId: variantId },
     });
 
     return this.getCart(userId, guestToken);
@@ -154,8 +154,14 @@ export class CartService {
 
     for (const item of guestItems) {
       await this.prisma.cartItem.upsert({
-        where: { cartId_variantId: { cartId: userCart.id, variantId: item.variantId } },
-        create: { cartId: userCart.id, variantId: item.variantId, quantity: item.quantity },
+        where: {
+          cartId_productVariantId: { cartId: userCart.id, productVariantId: item.productVariantId },
+        },
+        create: {
+          cartId: userCart.id,
+          productVariantId: item.productVariantId,
+          quantity: item.quantity,
+        },
         update: { quantity: { increment: item.quantity } },
       });
     }
