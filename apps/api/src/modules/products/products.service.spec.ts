@@ -104,19 +104,24 @@ describe('ProductsService (UC-03.1 catalog)', () => {
     expect(args.where).toMatchObject({
       isActive: true,
       variants: { some: { isActive: true } },
+      images: { some: {} },
       name: { contains: 'AO', mode: 'insensitive' },
     });
   });
 
-  it('uses the first image ordered by sort order and returns null without images', async () => {
+  it('requires a real image before a product can appear in the storefront', async () => {
     prisma.product.count.mockResolvedValue(1);
-    prisma.product.findMany.mockResolvedValue([row({ images: [] })]);
+    prisma.product.findMany.mockResolvedValue([row()]);
 
     const result = await service.list(query());
 
-    expect(result.items[0]?.imageUrl).toBeNull();
-    const args = prisma.product.findMany.mock.calls[0]?.[0] as { include: { images: unknown } };
+    expect(result.items[0]?.imageUrl).toBe('https://example.test/first.jpg');
+    const args = prisma.product.findMany.mock.calls[0]?.[0] as {
+      include: { images: unknown };
+      where: { images: unknown };
+    };
     expect(args.include.images).toMatchObject({ orderBy: { sortOrder: 'asc' }, take: 1 });
+    expect(args.where.images).toEqual({ some: {} });
   });
 
   it('returns NotFound for a non-sellable product detail', async () => {
@@ -129,6 +134,7 @@ describe('ProductsService (UC-03.1 catalog)', () => {
           slug: 'khong-co',
           isActive: true,
           variants: { some: { isActive: true } },
+          images: { some: {} },
         }),
       }),
     );

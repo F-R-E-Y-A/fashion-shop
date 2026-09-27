@@ -15,26 +15,30 @@ export function StoreLayout() {
         <Link className={styles.brand} to="/">
           THỜI TRANG
         </Link>
-        <CategoryMenu />
-        <Link to="/san-pham" aria-label="Tìm sản phẩm">
-          <SearchIcon />
-        </Link>
-        <div className="nav nav--account" aria-live="polite">
-          {isLoading && <span className="nav__status">Đang khôi phục phiên…</span>}
-          {!isLoading && !isAuthenticated && (
-            <>
-              <NavLink to="/login">Đăng nhập</NavLink>
-              <NavLink to="/register">Đăng ký</NavLink>
-            </>
-          )}
-          {!isLoading && isAuthenticated && (
-            <>
-              <span className="nav__status">{user?.email}</span>
-              <button type="button" className="nav__logout" onClick={() => void logout()}>
-                Đăng xuất
-              </button>
-            </>
-          )}
+        <div className={styles.menu}>
+          <CategoryMenu />
+        </div>
+        <div className={styles.actions}>
+          <Link className={styles.search} to="/san-pham" aria-label="Tìm sản phẩm">
+            <SearchIcon />
+          </Link>
+          <div className={styles.account} aria-live="polite">
+            {isLoading && <span className={styles.accountStatus}>Đang khôi phục phiên…</span>}
+            {!isLoading && !isAuthenticated && (
+              <>
+                <NavLink to="/login">Đăng nhập</NavLink>
+                <NavLink to="/register">Đăng ký</NavLink>
+              </>
+            )}
+            {!isLoading && isAuthenticated && (
+              <>
+                <span className={styles.accountStatus}>{user?.email}</span>
+                <button type="button" className={styles.logout} onClick={() => void logout()}>
+                  Đăng xuất
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </header>
       <main className={styles.main}>

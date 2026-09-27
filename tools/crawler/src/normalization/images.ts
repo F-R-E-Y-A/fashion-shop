@@ -4,6 +4,7 @@ import type {
   ValidationMessage,
 } from '../contracts/normalized-product.ts';
 import type { JsonObject, JsonValue } from '../contracts/raw-product.ts';
+import { embeddedDescriptionImages } from './html-description.ts';
 import { normalizedText } from './text.ts';
 
 function asObject(value: JsonValue | undefined): JsonObject | null {
@@ -33,6 +34,7 @@ export function normalizeImages(
   productName: string,
   sourceVariants: JsonObject[],
   normalizedVariants: NormalizedVariantV2[],
+  descriptionMarkup: unknown[] = [],
 ): { images: NormalizedImage[]; warnings: ValidationMessage[] } {
   const collected: Array<{
     url: string;
@@ -69,6 +71,41 @@ export function normalizeImages(
     });
   });
 
+  if (collected.length === 0) {
+    const colors = [...new Set(normalizedVariants.flatMap((variant) => variant.color?.code ?? []))];
+    for (const markup of descriptionMarkup) {
+      for (const embedded of embeddedDescriptionImages(markup)) {
+        const url = canonicalizeImageUrl(
+          embedded.src.startsWith('//') ? `https:${embedded.src}` : embedded.src,
+        );
+        if (!url) continue;
+        const pathname = new URL(url).pathname.toLowerCase();
+        const matchingColors = colors.filter((code) => {
+          const token = code.replace(/^yody-/u, '').toLowerCase();
+          return (
+            token.length > 0 &&
+            new RegExp(`(?:^|[^a-z0-9])${token}(?:[^a-z0-9]|$)`, 'u').test(pathname)
+          );
+        });
+        if (matchingColors.length !== 1) continue;
+        const color = normalizedVariants.find(
+          (variant) => variant.color?.code === matchingColors[0],
+        )?.color;
+        if (!color) continue;
+        collected.push({
+          url,
+          position: collected.length,
+          variantIndex: normalizedVariants.findIndex(
+            (variant) => variant.color?.code === color.code,
+          ),
+          imageIndex: collected.length,
+          colorCode: color.code,
+          colorName: color.name,
+        });
+      }
+    }
+  }
+
   collected.sort(
     (left, right) =>
       left.variantIndex - right.variantIndex ||
@@ -79,8 +116,9 @@ export function normalizeImages(
   const seen = new Set<string>();
   const images: NormalizedImage[] = [];
   for (const image of collected) {
-    if (seen.has(image.url)) continue;
-    seen.add(image.url);
+    const key = `${image.url}\u0000${image.colorCode ?? ''}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     images.push({
       url: image.url,
       alt: image.colorName ? `${productName} - ${image.colorName}` : productName,

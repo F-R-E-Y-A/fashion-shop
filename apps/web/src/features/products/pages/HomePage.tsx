@@ -10,11 +10,20 @@ import { HeroSection } from '../components/HeroSection.js';
 import { ProductGrid } from '../components/ProductGrid.js';
 import { SectionHeader } from '../components/SectionHeader.js';
 
-function HomeRow({ title, params }: { title: string; params: ListProductsParams }) {
+function HomeRow({
+  title,
+  params,
+  hideWhenEmpty = false,
+}: {
+  title: string;
+  params: ListProductsParams;
+  hideWhenEmpty?: boolean;
+}) {
   const query = useQuery({
     queryKey: productKeys.list(params),
     queryFn: () => listProducts(params),
   });
+  if (hideWhenEmpty && query.data && query.data.items.length === 0) return null;
   return (
     <section className={`${styles.container} ${styles.section}`}>
       <SectionHeader title={title} to="/san-pham" />
@@ -36,7 +45,7 @@ export function HomePage() {
       <div className={styles.container}>
         <CategoryTiles />
       </div>
-      <HomeRow title="NỔI BẬT" params={{ featured: true, pageSize: 4 }} />
+      <HomeRow title="NỔI BẬT" params={{ featured: true, pageSize: 4 }} hideWhenEmpty />
       <CampaignBand />
     </>
   );

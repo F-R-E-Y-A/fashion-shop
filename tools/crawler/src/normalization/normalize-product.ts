@@ -9,6 +9,7 @@ import { classifyCatalogScope } from '../scope/scope-policy.ts';
 import { yodyScopeHint } from '../sources/yody/yody-scope-mapping.ts';
 import { normalizeCategory, sourceCategory } from './category.ts';
 import { normalizeYodyColor } from './color.ts';
+import { cleanDescriptionHtml } from './html-description.ts';
 import { normalizeImages } from './images.ts';
 import { minimumPrice, normalizePrice } from './price.ts';
 import { normalizeSize } from './size.ts';
@@ -42,6 +43,18 @@ function materialValues(value: JsonValue | undefined): {
     material: normalizedText(material?.component) ?? normalizedText(material?.name),
     careInstructions: normalizedText(material?.preserve),
   };
+}
+
+function normalizeDescription(product: JsonObject, productName: string): string | null {
+  const candidates = [product.description, product.unicorn_description, product.seo_description]
+    .map(cleanDescriptionHtml)
+    .filter((value): value is string => value !== null);
+  const meaningful = candidates.find((value) => value.length >= 80);
+  if (meaningful) return meaningful;
+  return (
+    candidates.find((value) => value.toLocaleLowerCase() !== productName.toLocaleLowerCase()) ??
+    null
+  );
 }
 
 function issue(code: ValidationMessage['code'], path: string, message: string): ValidationMessage {
@@ -200,6 +213,7 @@ export function normalizeYodyEnvelope(envelope: RawProductEnvelope): NormalizedC
     name,
     source,
     normalized.map((value) => value.variant),
+    [product.description, product.unicorn_description],
   );
   warnings.push(...imageResult.warnings);
   const material = materialValues(product.material);
@@ -223,7 +237,7 @@ export function normalizeYodyEnvelope(envelope: RawProductEnvelope): NormalizedC
       currency: 'VND',
       scope,
       categorySlug: category?.slug ?? null,
-      description: normalizedText(product.description),
+      description: normalizeDescription(product, name),
       material: material.material,
       careInstructions: material.careInstructions,
       sourceCategory: sourceCategory(categoryObject),

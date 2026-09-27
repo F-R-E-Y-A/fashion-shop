@@ -178,3 +178,58 @@ Bằng chứng trên `eb8cc61`: `npm run check` exit 0 (API unit 17/17, web 3/3,
 Danh sách lọc cả danh mục con, sắp xếp ổn định theo giá hoặc ngày tạo và có bộ lọc nổi bật. Chi tiết trả ảnh, màu, cỡ, giá từng biến thể; danh mục có cây và đường dẫn phân cấp. Slug đi qua DTO để trả 400 khi sai khuôn. Seed tăng lên 20 sản phẩm cho bản xem trước; ảnh sản phẩm trong seed vẫn là ảnh mẫu.
 
 **Bằng chứng:** `npm run check` exit 0 (API unit 18/18, web 3/3, crawler 47 pass, 1 skip); `npm run test:http` exit 0 (29/29); `npm run db:drift -w apps/api` báo `No difference detected.`
+
+## 2026-09-27 · Làm sạch dữ liệu crawl, bỏ sản phẩm seed và sửa UX trước nghiệm thu
+
+**Loại:** thay đổi mã và dữ liệu · **Phạm vi:** normalizer, Catalog local, runtime seed, storefront · **Commit:** chưa tạo; nhánh `task/catalog-data-ux` đang có thay đổi chưa commit.
+
+Chuẩn hóa mô tả từ HTML sang text bằng parse5; khi mô tả chính quá ngắn, chọn mô tả nguồn hợp lệ dài ít nhất 80 ký tự thay vì tự viết nội dung ([normalizer](../../../tools/crawler/src/normalization/normalize-product.ts#L49), [parser](../../../tools/crawler/src/normalization/html-description.ts#L1)). Ảnh được lọc theo màu nguồn; trên sản phẩm có ảnh từ host `cdn.nhanh.vn`, cả trang local lẫn trang sản phẩm YODY gốc trả `ERR_NAME_NOT_RESOLVED` qua kiểm tra Network. Lệnh refresh local bỏ 4 URL không truy cập được, giữ nguyên raw/candidate và đặt product không còn ảnh hợp lệ thành inactive ([refresh script](../../../apps/api/scripts/refresh-approved-catalog.ts#L19), [ProductsService](../../../apps/api/src/modules/products/products.service.ts#L185)). Vì vậy sản phẩm source ID 14382 không có ảnh dùng được và API detail trả 404; không thay bằng ảnh của sản phẩm khác.
+
+Sản phẩm giả được chuyển sang test fixtures, runtime seed chỉ upsert danh mục và bảng tra cứu ([catalog seed](../../../apps/api/prisma/seed/catalog.seed.ts#L51)). Script cleanup đã sao lưu, quét khóa ngoại và xóa 20 product, 97 variant, 54 ảnh seed; không phát hiện tham chiếu ngoài và không xóa taxonomy. Sau đó đã chạy lại seed runtime; số sản phẩm seed vẫn bằng 0. Dữ liệu local sau refresh: 90 product crawl đã import, 339 variant, 1.199 ảnh, 87 product active; staging có 90 candidate APPROVED/IMPORTED. Lệnh API list trả total=87. Phép đo trực tiếp PostgreSQL dùng node pg COUNT trên products, product_variants, product_images, SKU SEED-*, products.is_active và staging candidate status; kết quả `{"products":90,"variants":339,"images":1199,"seedproducts":0,"activeproducts":87,"importedcandidates":90}`. `npm run db:seed -w apps/api` chạy lại vẫn cho `{"products":90,"variants":339,"images":1199,"seedproducts":0,"activeproducts":87}`.
+
+Backup trước khi xóa seed: `../work/backups/ph01-seed-products-2026-09-27T09-58-11.171Z.json`, SHA-256 `730B146A277B9005C6D3E52FDD55E49F5652C0D9325612D4605E6295038415C2`. Backup Catalog trước refresh cuối: `../work/backups/ph01-approved-catalog-2026-09-27T10-16-38.936Z.json`, SHA-256 `46ED88581BB685925B6E25753EAC03B6A937CE422A1B6D173562DE116D2DF365`. Backup đầu trước lần refresh đầu cũng còn nguyên: SHA-256 `04C467CFBDDBAF13E3FFBD5F1970387EAD4B5DF051CFB25770B7CCB04D3F49CE`. Các file nằm ngoài repository trong `../work/backups/`.
+
+Web chuyển lên đầu khi điều hướng mới và phục hồi vị trí khi Back; gallery có toàn bộ ảnh, nút trái/phải và phím mũi tên; lựa chọn màu chỉ hiện nếu có ảnh chung hoặc ảnh khớp màu. Header dùng grid ba vùng; hero đặt ảnh bằng object-fit contain để giữ gương mặt trong khung ([scroll manager](../../../apps/web/src/app/ScrollManager.tsx#L4), [gallery](../../../apps/web/src/features/products/pages/ProductDetailPage.tsx#L99), [header](../../../apps/web/src/app/StoreLayout.module.css#L10), [hero](../../../apps/web/src/features/products/components/HeroSection.tsx#L4)). Preview đã kiểm bằng mắt tại trang chủ, danh mục Áo và chi tiết Bambo; Bảo chưa duyệt cuối cùng.
+
+**Kiểm chứng:** `npm run check` exit 0; 5 dòng cuối: `ℹ fail 0` / `ℹ cancelled 0` / `ℹ skipped 1` / `ℹ todo 0` / `ℹ duration_ms 584.7232`. `npm run test:http` exit 0, 57/57; 5 dòng cuối: `(Use node --trace-deprecation ...)` / `Test Files 4 passed (4)` / `Tests 57 passed (57)` / `Start at 17:27:33` / `Duration 99.39s`. `npm run db:drift -w apps/api` → `No difference detected.`; `npm run build -w apps/web` exit 0 (cảnh báo bundle JS lớn hơn 500 kB); `node tools/docs/lint.mjs docs/features/products` → 4 tệp đạt; `git diff --check` exit 0.
+
+### Quyết định cần Bảo chốt
+
+<a id="adr-010"></a>
+## 2026-09-27 · ADR-010 — Chỉ đưa product và lựa chọn màu có ảnh dùng được lên storefront
+
+**Loại:** quyết định · **Phạm vi:** API Catalog và product detail web · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** chưa tạo
+
+### Hiện trạng
+
+API không đưa product thiếu ảnh vào danh sách; service đặt product inactive khi import row không còn ảnh ([ProductsService:185](../../../apps/api/src/modules/products/products.service.ts#L185)). Web chỉ đưa color có ảnh dùng chung hoặc ảnh được gắn đúng màu vào bộ chọn ([variants.ts:26](../../../apps/web/src/features/products/lib/variants.ts#L26)). Sau refresh, product source ID 14382 có 0 ảnh dùng được; API detail cho slug áo sơ mi Kẻ Tăm trả 404. Host ảnh gốc `cdn.nhanh.vn` không phân giải DNS cả ở local storefront lẫn trang nguồn YODY.
+
+### Phương án
+
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Ẩn product không ảnh dùng được và không cho chọn màu thiếu ảnh khớp/chung | Không còn panel ảnh rỗng hoặc ảnh sai màu | 3 product và một số lựa chọn màu tạm không hiện | Có; sửa nguồn ảnh rồi refresh lại từ candidate |
+| B. Giữ toàn bộ product/màu, thay ảnh thiếu bằng placeholder | Giữ số lượng danh mục | Người mua không xem được ảnh gốc; placeholder không giải quyết nguồn ảnh | Có |
+| Không đổi | Không phát sinh công việc | Lỗi ảnh trống và lựa chọn sai tiếp tục xuất hiện | Có |
+
+**Chọn A để thử nghiệm trên local** theo yêu cầu chỉ trưng bày dữ liệu thật và tránh trình bày ảnh/màu sai. Đây là đề xuất để Bảo chốt; nếu `cdn.nhanh.vn` hoạt động lại, bỏ host khỏi danh sách lọc rồi refresh và kiểm lại sản phẩm source ID 14382.
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: product không ảnh dùng được không xuất hiện; lựa chọn màu khớp ảnh; runtime seed không tạo lại sản phẩm giả. Thực tế ngày 27/09: API list total 87, product seed 0, product active 87 trên 90 product đã import; Bambo detail có ảnh và 3 lựa chọn màu có thumbnail; API detail Kẻ Tăm trả 404. Chờ Bảo duyệt thiết kế trước PR.
+
+### Điều kiện xem lại
+
+Mở lại khi YODY/CDN cung cấp URL ảnh khác, DNS `cdn.nhanh.vn` khôi phục, hoặc Bảo muốn giữ product không ảnh với trạng thái placeholder riêng.
+
+## 2026-09-27 · Đồng bộ ảnh ba danh mục với hero và làm lại bộ sắp xếp
+
+**Loại:** thay đổi giao diện · **Phạm vi:** home category tiles, category sort · **Commit:** chưa tạo; nhánh `task/catalog-data-ux`.
+
+Bảo chỉ rõ ảnh tham chiếu: Áo là chân dung người mẫu đã duyệt ở hero, Quần là phần quần của cùng bộ trang phục, Phụ kiện là túi xách trong bối cảnh cùng chiến dịch. Ba ảnh được sinh riêng từ hero và ảnh bố cục tham chiếu, lưu PNG gốc ở `../work/assets/home/`, xuất WebP `category-{ao,quan,phu-kien}.webp` vào `apps/web/public/images/home/`. Ảnh sản phẩm trong lưới vẫn lấy từ dữ liệu crawl; chỉ ba ảnh điều hướng danh mục dùng chiến dịch tĩnh. `CategoryTiles` không còn gọi API sản phẩm để chọn ảnh đầu tiên ([CategoryTiles.tsx](../../../apps/web/src/features/products/components/CategoryTiles.tsx)).
+
+Bộ sắp xếp giữ `select` để dùng bàn phím và giữ URL query đang có; thêm nhãn hiển thị, khung, mũi tên và trạng thái hover/focus theo màu trang ([SortSelect.tsx](../../../apps/web/src/features/products/components/SortSelect.tsx), [Catalog.module.css](../../../apps/web/src/features/products/components/Catalog.module.css)). Preview tại `http://localhost:5174/` và `/danh-muc/phu-kien` đã được chụp và xem; Bảo cần duyệt giao diện cuối trước commit, PR và đóng Issue #6.
+
+**Kiểm chứng:** WebP có kích thước 1000 × 1250 theo Pillow; kích thước byte lần lượt 52.080, 91.204, 95.646 (`python` mở và lưu WebP, output lưu trong phiên). `npm run test -w apps/web -- CategoryPage.test.tsx` exit 0, 2/2; `npm run check` exit 0 trên HEAD `0548ae9`, 5 dòng cuối `ℹ fail 0` / `ℹ cancelled 0` / `ℹ skipped 1` / `ℹ todo 0` / `ℹ duration_ms 588.0596`.
+
+Sau khi chỉnh khoảng cách ba ô còn 6px, chạy lại `npm.cmd run check` exit 0 trên HEAD `0548ae9`; 5 dòng cuối `ℹ fail 0` / `ℹ cancelled 0` / `ℹ skipped 1` / `ℹ todo 0` / `ℹ duration_ms 561.7604`. `npm.cmd run build -w apps/web` exit 0, `✓ built in 712ms`; còn cảnh báo chunk JS >500 kB từ Vite. Đã xem thêm trang chủ ở viewport desktop sau chỉnh khoảng cách.

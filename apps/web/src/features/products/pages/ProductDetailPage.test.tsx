@@ -76,6 +76,83 @@ describe('ProductDetailPage (UC-03.4)', () => {
     expect(screen.getByText('Mã hàng: TRANG-S')).toBeInTheDocument();
   });
 
+  it('có nút qua ảnh và cho chọn toàn bộ thumbnail', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        return response(
+          url.pathname.endsWith('/related')
+            ? []
+            : {
+                ...detail,
+                images: Array.from({ length: 5 }, (_, index) => ({
+                  url: `/image-${index + 1}.jpg`,
+                  alt: `Ảnh ${index + 1}`,
+                  colorCode: null,
+                })),
+              },
+        );
+      }),
+    );
+    renderDetail();
+    await screen.findByRole('heading', { name: 'Mẫu thử' });
+
+    expect(screen.getAllByRole('button', { name: /^Xem ảnh/ })).toHaveLength(5);
+    fireEvent.click(screen.getByRole('button', { name: 'Ảnh tiếp theo' }));
+    expect(screen.getByRole('img', { name: 'Ảnh 2' })).toHaveAttribute('src', '/image-2.jpg');
+    fireEvent.click(screen.getByRole('button', { name: 'Ảnh trước' }));
+    expect(screen.getByRole('img', { name: 'Ảnh 1' })).toHaveAttribute('src', '/image-1.jpg');
+  });
+
+  it('ẩn lựa chọn màu không có ảnh liên quan để tránh ghép nhầm ảnh màu khác', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        return response(
+          url.pathname.endsWith('/related')
+            ? []
+            : {
+                ...detail,
+                images: [{ url: '/den.jpg', alt: 'Đen', colorCode: 'den' }],
+              },
+        );
+      }),
+    );
+    renderDetail();
+    await screen.findByRole('heading', { name: 'Mẫu thử' });
+
+    expect(screen.queryByRole('button', { name: 'Trắng' })).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Đen' })).toHaveAttribute('src', '/den.jpg');
+  });
+
+  it('ẩn bộ chọn màu khi không ảnh nào khớp với màu của biến thể', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        return response(
+          url.pathname.endsWith('/related')
+            ? []
+            : {
+                ...detail,
+                images: [{ url: '/unmatched.jpg', alt: 'Ảnh sản phẩm', colorCode: 'khac' }],
+              },
+        );
+      }),
+    );
+    renderDetail();
+    await screen.findByRole('heading', { name: 'Mẫu thử' });
+
+    expect(screen.queryByRole('button', { name: 'Đen' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Trắng' })).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Ảnh sản phẩm' })).toHaveAttribute(
+      'src',
+      '/unmatched.jpg',
+    );
+  });
+
   it('404 có lối về trang chủ', async () => {
     vi.stubGlobal(
       'fetch',

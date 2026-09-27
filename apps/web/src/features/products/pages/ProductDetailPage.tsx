@@ -9,7 +9,13 @@ import { getProductDetail, getRelatedProducts, productKeys } from '../api/index.
 import { Breadcrumb } from '../components/Breadcrumb.js';
 import { ProductGrid } from '../components/ProductGrid.js';
 import { SectionHeader } from '../components/SectionHeader.js';
-import { availableSizes, findVariant, imagesForColor, isDefaultOnly } from '../lib/variants.js';
+import {
+  availableSizes,
+  colorsWithImages,
+  findVariant,
+  imagesForColor,
+  isDefaultOnly,
+} from '../lib/variants.js';
 import styles from './ProductDetailPage.module.css';
 
 export function ProductDetailPage() {
@@ -27,6 +33,7 @@ export function ProductDetailPage() {
   const [chosenColor, setChosenColor] = useState<string | null>(null);
   const [chosenSize, setChosenSize] = useState<string | null>(null);
   const [activeImage, setActiveImage] = useState(0);
+  const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(() => new Set());
 
   if (product.isPending)
     return (
@@ -54,20 +61,27 @@ export function ProductDetailPage() {
   }
 
   const data = product.data;
-  const color = data.colors.some((c) => c.code === chosenColor)
-    ? chosenColor
-    : (data.colors[0]?.code ?? null);
-  const sizes = [...new Set(data.variants.map((v) => v.sizeCode))];
-  const sizesForColor = availableSizes(data.variants, color);
-  const hideColor = isDefaultOnly(
-    data.colors.map((c) => c.code),
-    'mac-dinh',
+  const colorChoices = colorsWithImages(data.colors, data.images);
+  const variantsForAvailableColors = data.variants.filter((variant) =>
+    colorChoices.some((choice) => choice.code === variant.colorCode),
   );
-  const hideSize = isDefaultOnly(sizes, 'FREE');
+  const color = colorChoices.some((c) => c.code === chosenColor)
+    ? chosenColor
+    : (colorChoices[0]?.code ?? null);
+  const sizes = [...new Set(variantsForAvailableColors.map((v) => v.sizeCode))];
+  const sizesForColor = availableSizes(variantsForAvailableColors, color);
+  const hideColor =
+    colorChoices.length === 0 ||
+    isDefaultOnly(
+      colorChoices.map((c) => c.code),
+      'mac-dinh',
+    );
+  const hideSize = sizes.length === 0 || isDefaultOnly(sizes, 'FREE');
   const size = chosenSize && sizesForColor.has(chosenSize) ? chosenSize : hideSize ? 'FREE' : null;
-  const variant = findVariant(data.variants, color, size);
-  const gallery = imagesForColor(data.images, color);
+  const variant = findVariant(variantsForAvailableColors, color, size);
+  const gallery = colorChoices.length > 0 ? imagesForColor(data.images, color) : data.images;
   const currentImage = gallery[activeImage] ?? gallery[0];
+  const currentImageFailed = currentImage ? failedImageUrls.has(currentImage.url) : false;
   const displayedListPrice = variant ? variant.listPrice : data.listPrice;
   const breadcrumb = [
     { name: 'Trang chủ', to: '/' },
@@ -79,11 +93,61 @@ export function ProductDetailPage() {
       <Breadcrumb items={breadcrumb} />
       <article className={styles.detail}>
         <div className={styles.gallery}>
-          <div className={styles.mainImage}>
-            {currentImage && <img src={currentImage.url} alt={currentImage.alt ?? data.name} />}
+          <div
+            className={styles.mainImage}
+            tabIndex={gallery.length > 1 ? 0 : undefined}
+            aria-label={gallery.length > 1 ? 'Thư viện ảnh sản phẩm' : undefined}
+            onKeyDown={(event) => {
+              if (gallery.length < 2) return;
+              if (event.key === 'ArrowLeft') {
+                event.preventDefault();
+                setActiveImage((index) => (index - 1 + gallery.length) % gallery.length);
+              } else if (event.key === 'ArrowRight') {
+                event.preventDefault();
+                setActiveImage((index) => (index + 1) % gallery.length);
+              }
+            }}
+          >
+            {currentImage && !currentImageFailed ? (
+              <img
+                src={currentImage.url}
+                alt={currentImage.alt ?? data.name}
+                onError={() => {
+                  setFailedImageUrls((failed) => new Set(failed).add(currentImage.url));
+                }}
+              />
+            ) : (
+              <p role="status" className={styles.imageFallback}>
+                {currentImage
+                  ? 'Ảnh này hiện không tải được.'
+                  : 'Sản phẩm chưa có ảnh phù hợp với màu này.'}
+              </p>
+            )}
+            {gallery.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  className={`${styles.galleryArrow} ${styles.galleryPrevious}`}
+                  aria-label="Ảnh trước"
+                  onClick={() =>
+                    setActiveImage((index) => (index - 1 + gallery.length) % gallery.length)
+                  }
+                >
+                  ‹
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.galleryArrow} ${styles.galleryNext}`}
+                  aria-label="Ảnh tiếp theo"
+                  onClick={() => setActiveImage((index) => (index + 1) % gallery.length)}
+                >
+                  ›
+                </button>
+              </>
+            )}
           </div>
           <div className={styles.thumbnails}>
-            {gallery.slice(0, 4).map((image, index) => (
+            {gallery.map((image, index) => (
               <button
                 type="button"
                 key={`${image.url}-${index}`}
@@ -91,7 +155,13 @@ export function ProductDetailPage() {
                 aria-pressed={index === activeImage}
                 onClick={() => setActiveImage(index)}
               >
-                <img src={image.url} alt="" />
+                <img
+                  src={image.url}
+                  alt=""
+                  onError={() => {
+                    setFailedImageUrls((failed) => new Set(failed).add(image.url));
+                  }}
+                />
               </button>
             ))}
           </div>
@@ -107,23 +177,35 @@ export function ProductDetailPage() {
           {!hideColor && (
             <fieldset className={styles.choices}>
               <legend>Màu</legend>
-              {data.colors.map((item) => (
-                <button
-                  type="button"
-                  key={item.code}
-                  aria-label={item.name}
-                  aria-pressed={color === item.code}
-                  style={{ '--swatch': item.hex ?? 'var(--surface)' } as CSSProperties}
-                  onClick={() => {
-                    const nextSizes = availableSizes(data.variants, item.code);
-                    setChosenColor(item.code);
-                    if (size && !nextSizes.has(size)) setChosenSize(null);
-                    setActiveImage(0);
-                  }}
-                >
-                  <span className={styles.swatch} />
-                </button>
-              ))}
+              {colorChoices.map((item) =>
+                (() => {
+                  const colorImage = data.images.find((image) => image.colorCode === item.code);
+                  return (
+                    <button
+                      type="button"
+                      key={item.code}
+                      aria-label={item.name}
+                      aria-pressed={color === item.code}
+                      onClick={() => {
+                        const nextSizes = availableSizes(data.variants, item.code);
+                        setChosenColor(item.code);
+                        if (size && !nextSizes.has(size)) setChosenSize(null);
+                        setActiveImage(0);
+                      }}
+                    >
+                      {colorImage ? (
+                        <img className={styles.colorImage} src={colorImage.url} alt="" />
+                      ) : item.hex ? (
+                        <span
+                          className={styles.swatch}
+                          style={{ '--swatch': item.hex } as CSSProperties}
+                        />
+                      ) : null}
+                      <span>{item.name}</span>
+                    </button>
+                  );
+                })(),
+              )}
             </fieldset>
           )}
           {!hideSize && (
@@ -146,7 +228,7 @@ export function ProductDetailPage() {
             Thêm vào giỏ
           </button>
           <small>Giỏ hàng sắp ra mắt.</small>
-          {data.description && <p>{data.description}</p>}
+          {data.description && <p className={styles.description}>{data.description}</p>}
           {data.material && <p>Chất liệu: {data.material}</p>}
           {data.careInstructions && <p>Bảo quản: {data.careInstructions}</p>}
         </div>

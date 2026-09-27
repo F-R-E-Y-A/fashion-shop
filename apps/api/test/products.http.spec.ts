@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { priceFromOf, PRODUCTS } from '../prisma/seed/catalog.seed.js';
+import { priceFromOf, PRODUCTS } from './fixtures/catalog-products.js';
 import { createTestApp, type TestApp } from './helpers/create-test-app.js';
 import { resetDatabase } from './helpers/db.js';
 
