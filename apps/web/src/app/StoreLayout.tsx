@@ -1,29 +1,40 @@
-import { Link, NavLink, Outlet } from 'react-router-dom';
+import { Link, Outlet } from 'react-router-dom';
 
-/**
- * Khung trang cua hang. Moi trang ban cho khach deu nam trong khung nay.
- * Them trang thi them mot dong Route trong app/routes.tsx, khong sua tep nay.
- */
+import { CategoryMenu } from '@/features/products';
+import { SearchIcon } from '@/ui';
+
+import styles from './StoreLayout.module.css';
+
 export function StoreLayout() {
   return (
-    <div className="shell">
-      <header className="shell__header">
-        <Link to="/" className="brand">
-          Thời trang
+    <div className={styles.shell}>
+      <header className={styles.header}>
+        <Link className={styles.brand} to="/">
+          THỜI TRANG
         </Link>
-        <nav className="nav">
-          <NavLink to="/" end>
-            Sản phẩm
-          </NavLink>
-          <NavLink to="/quan-tri">Quản trị</NavLink>
-        </nav>
+        <CategoryMenu />
+        <Link to="/san-pham" aria-label="Tìm sản phẩm">
+          <SearchIcon />
+        </Link>
       </header>
-
-      <main className="shell__main">
+      <main className={styles.main}>
         <Outlet />
       </main>
-
-      <footer className="shell__footer">Tiểu luận chuyên ngành · Nhóm 3 người · Bản 0.2</footer>
+      <footer className={styles.footer}>
+        <div>
+          <Link className={styles.brand} to="/">
+            THỜI TRANG
+          </Link>
+          <p>Phong cách là tự do.</p>
+        </div>
+        <div>
+          <p>DANH MỤC</p>
+          <CategoryMenu />
+        </div>
+        <small>
+          © {new Date().getFullYear()} Thời Trang · <Link to="/quan-tri">Quản trị</Link>
+        </small>
+      </footer>
     </div>
   );
 }
