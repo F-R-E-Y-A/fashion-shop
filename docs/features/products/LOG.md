@@ -162,3 +162,11 @@ Chia việc thành các nhánh `task/` theo [quy ước git](../../shared/git.md
 Giỏ hàng của Duy cần biết cả biến thể đã ngừng bán để hiện trạng thái thay vì coi nó là ID không tồn tại. Vì vậy hàm đọc không lọc `isActive`; kết quả trả `isActive: false` khi sản phẩm hoặc biến thể ngừng bán, và chỉ trả `null` cho ID không có. Hàm nhiều ID dùng một lần `findMany`, sau đó sắp theo thứ tự đầu vào để giao diện giỏ giữ đúng thứ tự. Giá dùng `salePrice` nếu có, ảnh ưu tiên màu đang chọn rồi ảnh chung; cỡ `FREE` và màu `mac-dinh` không hiện trong nhãn.
 
 **Bằng chứng mã:** [products.service.ts:90](https://github.com/F-R-E-Y-A/fashion-shop/blob/c7811ea/apps/api/src/modules/products/products.service.ts#L90) · [products.service.ts:108](https://github.com/F-R-E-Y-A/fashion-shop/blob/c7811ea/apps/api/src/modules/products/products.service.ts#L108) · [index.ts:9](https://github.com/F-R-E-Y-A/fashion-shop/blob/c7811ea/apps/api/src/modules/products/index.ts#L9).
+
+## 2026-09-27 · Cài `importProducts` theo hợp đồng M2
+
+**Loại:** thay đổi mã · **Phạm vi:** `ProductsService`, kiểu công bố, kiểm dữ liệu và test Postgres · **Commit:** [b2c8de0](https://github.com/F-R-E-Y-A/fashion-shop/commit/b2c8de0), [eb8cc61](https://github.com/F-R-E-Y-A/fashion-shop/commit/eb8cc61)
+
+Mỗi dòng nạp chạy trong một transaction; SKU xác định sản phẩm để chạy lại mà không sinh bản trùng. Khi cập nhật, biến thể vắng mặt được tắt thay vì xoá để giỏ và đơn còn tham chiếu; ảnh đồng bộ theo thứ tự mảng. Bổ sung chặn SKU lặp trong một dòng và dùng SQL `NULL` cho `attributes` vắng mặt; ảnh mang `colorCode` không khớp biến thể thành ảnh chung.
+
+Bằng chứng trên `eb8cc61`: `npm run check` exit 0 (API unit 17/17, web 3/3, crawler 47 pass, 1 skip); `npm run test:http` exit 0 (17/17); `git diff --cached --check` trước commit fix exit 0. Chữ ký công bố cho Tài giữ nguyên ở [README module](../../../apps/api/src/modules/products/README.md).

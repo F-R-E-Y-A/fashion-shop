@@ -22,7 +22,7 @@ Phân hệ khác lấy dữ liệu sản phẩm bằng cách tiêm `ProductsServ
 | `findBySlug(slug)` | Đường dẫn `GET /api/products/:slug` | Đã có; PH-01 thêm ảnh và biến thể |
 | `getVariantForCart(variantId)` | Duy, giỏ hàng (PH-02) | **Đã cài** ở `c7811ea`; `null` khi không có biến thể |
 | `getVariantsForCart(variantIds)` | Duy, trang giỏ hàng nhiều dòng | **Đã cài** ở `c7811ea`; một truy vấn, giữ thứ tự đầu vào và bỏ ID không có |
-| `importProducts(rows)` | Tài, nạp dữ liệu thật (HT-03, PH-03) | **Hẹn**, chữ ký dưới đây, cài đặt 26/09 |
+| `importProducts(rows)` | Tài, nạp dữ liệu thật (HT-03, PH-03) | **Đã cài** ở [b2c8de0](https://github.com/F-R-E-Y-A/fashion-shop/commit/b2c8de0), kiểm dữ liệu bổ sung ở [eb8cc61](https://github.com/F-R-E-Y-A/fashion-shop/commit/eb8cc61) |
 
 ```ts
 /** Du lieu mot bien the de hien trong gio. Hinh dang hen trong Issue #6 va #7, cong them productSlug. */
@@ -68,7 +68,7 @@ export type ImportFailReason =
   | 'DUPLICATE_COLOR_SIZE' // hai bien the cung mau cung co
   | 'CATEGORY_NOT_FOUND' // khong co danh muc slug nay, hoac danh muc khong phai la
   | 'SIZE_NOT_FOUND'
-  | 'SKU_CONFLICT'; // cac sku cua dong thuoc tu hai san pham tro len
+  | 'SKU_CONFLICT'; // SKU trung trong dong, hoac cac SKU thuoc tu hai san pham tro len
 
 export type ImportRowResult =
   | { sourceKey: string; status: 'created' | 'updated'; productId: string; slug: string }
@@ -81,10 +81,10 @@ Luật của `importProducts`, theo mô hình M2 ([erd.md](../../../../../docs/f
 
 | # | Luật | Vì sao |
 |---|---|---|
-| 1 | **Nhận ra sản phẩm qua `sku`**: không `sku` nào của dòng có sẵn thì tạo sản phẩm mới; có và cùng thuộc một sản phẩm thì cập nhật sản phẩm đó; thuộc từ hai sản phẩm trở lên thì `SKU_CONFLICT`. Tài sinh `sku` ổn định từ nguồn, ví dụ `<SOURCE>-<sourceProductId>-<MAU>-<CO>` | Tên sản phẩm đổi giữa hai lần chạy vẫn nhận ra, mà không phải thêm cột nguồn vào bảng của Bảo |
+| 1 | **Nhận ra sản phẩm qua `sku`**: không `sku` nào của dòng có sẵn thì tạo sản phẩm mới; có và cùng thuộc một sản phẩm thì cập nhật sản phẩm đó; thuộc từ hai sản phẩm trở lên hoặc lặp SKU ngay trong dòng thì `SKU_CONFLICT`. Tài sinh `sku` ổn định từ nguồn, ví dụ `<SOURCE>-<sourceProductId>-<MAU>-<CO>` | Tên sản phẩm đổi giữa hai lần chạy vẫn nhận ra, mà không phải thêm cột nguồn vào bảng của Bảo |
 | 2 | **`slug` sinh một lần khi tạo**: `slugify(name)` + `-` + 6 ký tự đầu của `sha1(sourceKey)`; cập nhật không đổi `slug` | Hai sản phẩm trùng tên không đụng nhau; đường dẫn cũ không gãy khi tên đổi |
 | 3 | Cập nhật ghi đè tên, mô tả, danh mục, thương hiệu, giá. Biến thể có trong dòng thì bật `is_active = true`; biến thể cũ không còn trong dòng thì `is_active = false`, **không xoá**. `products.is_active` không đổi. `price_from` tính lại | Giỏ và đơn của Duy trỏ vào biến thể (luật 1 của erd.md); ẩn sản phẩm là quyết định của người, không phải của lần nạp |
-| 4 | Ảnh ghi theo `(product_id, sort_order)` bằng thứ tự mảng, ảnh thừa bị xoá. `colorCode` của ảnh phải là màu có trong `variants` của dòng | Ảnh không ai khác trỏ vào |
+| 4 | Ảnh ghi theo `(product_id, sort_order)` bằng thứ tự mảng, ảnh thừa bị xoá. `colorCode` không thuộc màu của dòng được lưu thành ảnh chung (`colorId = null`) | Ảnh không ai khác trỏ vào; ảnh không khớp màu vẫn dùng được |
 | 5 | Danh mục và cỡ là **danh sách đóng**: không có thì dòng lỗi, không tự tạo. Thương hiệu và màu là **danh sách mở**: chưa có thì tạo, có rồi giữ nguyên tên | Danh mục có cây, cỡ có thứ tự: tự tạo sẽ lệch menu và nút cỡ. Một dòng nạp không được sửa tên màu mà sản phẩm khác đang dùng |
 | 6 | **Mỗi dòng một giao dịch**; dòng lỗi không kéo dòng khác. Hàm không ghi bảng `staging` | Tài đánh dấu `IMPORTED` cho dòng `created`, `updated` trong giao dịch của mình. Nếu chết giữa hai bước thì chạy lại: luật 1 làm lần sau thành cập nhật, không sinh bản trùng |
 
