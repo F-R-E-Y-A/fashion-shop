@@ -35,6 +35,19 @@ export const envSchema = z.looseObject({
     .string()
     .regex(/^[1-9]\d*[smhd]$/u, 'phai co dang 15m, 1h hoac 30d')
     .default('30d'),
+  /** Dung de tron OTP truoc khi bam HMAC-SHA256; bat buoc, khong co default de khong lo tren prod. */
+  OTP_PEPPER: z.string().min(32, 'phai dai it nhat 32 ky tu'),
+  /** May chu SMTP gui email xac thuc. Local dung Mailpit (xem docker-compose.yml). */
+  SMTP_HOST: z.string().min(1, 'thieu SMTP_HOST'),
+  SMTP_PORT: z.coerce.number().int().positive().default(1025),
+  SMTP_SECURE: z
+    .enum(['true', 'false'])
+    .transform((value) => value === 'true')
+    .default(false),
+  /** Bo trong khi may chu SMTP khong doi xac thuc (Mailpit local). */
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().min(1, 'thieu SMTP_FROM'),
   APP_VERSION: z.string().default('0.0.0-dev'),
   /** Ma commit dang chay: CI truyen GIT_SHA khi dung image; Render tu cap RENDER_GIT_COMMIT. */
   GIT_SHA: z.string().optional(),

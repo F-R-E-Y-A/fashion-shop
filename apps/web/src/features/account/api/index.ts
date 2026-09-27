@@ -1,1 +1,9 @@
-export { getCurrentUser, login, logout, refresh, register } from './auth.api.js';
+export {
+  getCurrentUser,
+  login,
+  logout,
+  refresh,
+  register,
+  resendVerification,
+  verifyEmail,
+} from './auth.api.js';

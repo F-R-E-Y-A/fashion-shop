@@ -27,8 +27,16 @@ import { AuthGuard } from './auth.guard.js';
 import { AuthService } from './auth.service.js';
 import { CurrentUser } from './current-user.decorator.js';
 import type { CurrentUserType } from './current-user.type.js';
-import { AuthenticatedUserResponse, AuthResponse } from './dto/auth.response.js';
+import {
+  AuthenticatedUserResponse,
+  AuthResponse,
+  RegisterResponse,
+  ResendVerificationResponse,
+  VerifyEmailResponse,
+} from './dto/auth.response.js';
 import { LoginRequest, RegisterRequest } from './dto/auth-credentials.request.js';
+import { ResendVerificationRequest } from './dto/resend-verification.request.js';
+import { VerifyEmailRequest } from './dto/verify-email.request.js';
 import {
   clearRefreshCookieOptions,
   REFRESH_TOKEN_COOKIE_NAME,
@@ -85,17 +93,35 @@ export class AuthController {
   }
 
   @Post('register')
-  @ApiOperation({ summary: 'Dang ky tai khoan va tao phien dang nhap' })
-  @ApiCreatedResponse({ type: AuthResponse })
+  @ApiOperation({
+    summary: 'Dang ky tai khoan, gui OTP xac thuc email. Khong cap phien dang nhap.',
+  })
+  @ApiCreatedResponse({ type: RegisterResponse })
   @ApiBadRequestResponse({ description: 'Email hoac mat khau khong hop le' })
   @ApiConflictResponse({ description: 'Email da duoc su dung' })
-  async register(
-    @Body() request: RegisterRequest,
-    @Res({ passthrough: true }) response: Response,
-  ): Promise<AuthResponse> {
-    const result = await this.auth.register(request);
-    this.setRefreshCookie(response, result.refreshToken);
-    return { accessToken: result.accessToken, user: result.user };
+  async register(@Body() request: RegisterRequest): Promise<RegisterResponse> {
+    return this.auth.register(request);
+  }
+
+  @Post('verify-email')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Xac thuc email bang OTP 6 chu so, chuyen tai khoan sang ACTIVE' })
+  @ApiOkResponse({ type: VerifyEmailResponse })
+  @ApiBadRequestResponse({
+    description: 'Ma xac thuc khong dung, da het han, hoac vuot qua so lan thu',
+  })
+  async verifyEmail(@Body() request: VerifyEmailRequest): Promise<VerifyEmailResponse> {
+    return this.auth.verifyEmail(request);
+  }
+
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Gui lai OTP xac thuc email; luon tra ve phan hoi chung chung' })
+  @ApiOkResponse({ type: ResendVerificationResponse })
+  async resendVerification(
+    @Body() request: ResendVerificationRequest,
+  ): Promise<ResendVerificationResponse> {
+    return this.auth.resendVerification(request);
   }
 
   @Post('login')

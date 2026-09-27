@@ -16,8 +16,8 @@ export function RegisterPage() {
     setError(null);
     setIsSubmitting(true);
     try {
-      await register({ email, password });
-      navigate('/');
+      const result = await register({ email, password });
+      navigate('/xac-thuc-email', { state: { email: result.email } });
     } catch {
       setError('Không thể đăng ký. Hãy kiểm tra thông tin và thử lại.');
     } finally {
