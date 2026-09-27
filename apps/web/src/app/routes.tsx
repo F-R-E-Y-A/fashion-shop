@@ -1,5 +1,6 @@
 import { Route, Routes } from 'react-router-dom';
 
+import { CartPage } from '@/features/cart';
 import { AdminProductsPage, ProductDetailPage, ProductListPage } from '@/features/products';
 
 import { AdminLayout } from './AdminLayout.js';
@@ -18,6 +19,7 @@ export function AppRoutes() {
       <Route element={<StoreLayout />}>
         <Route index element={<ProductListPage />} />
         <Route path="san-pham/:slug" element={<ProductDetailPage />} />
+        <Route path="gio-hang" element={<CartPage />} />
       </Route>
 
       <Route path="quan-tri" element={<AdminLayout />}>
