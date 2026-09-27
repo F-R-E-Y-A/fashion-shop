@@ -102,6 +102,7 @@ model Cart {
   @@schema("public")
 }
 
+
 /// Dong trong gio hang — PH-02, Phan Ngoc Duy.
 /// variantId la khoa ngoai logic sang product_variants (cua Bao).
 /// FK vat ly se them sau khi Bao them model ProductVariant vao schema.
@@ -120,6 +121,7 @@ model CartItem {
   @@map("cart_items")
   @@schema("public")
 }
+
 
 model Order {
   id                      String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid

@@ -22,7 +22,9 @@ const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) })
 
 async function main(): Promise<void> {
   const catalog = await seedCatalog(prisma);
-  console.log(`Da nap du lieu gia: ${catalog.categories} danh muc, ${catalog.products} san pham.`);
+  console.log(
+    `Da nap du lieu gia: ${catalog.categories} danh muc, ${catalog.products} san pham, ${catalog.productVariants} phien ban.`,
+  );
 }
 
 main()

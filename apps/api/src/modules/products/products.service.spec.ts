@@ -5,25 +5,25 @@ import type { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { ListProductsQuery } from './dto/list-products.query.js';
 import { ProductsService } from './products.service.js';
 
-/**
- * Kiem thu DON VI: PrismaService duoc GIA bang vi.fn, khong cham co so du lieu, chay trong vai ms.
- * Ten bai ghi ma dong viec va tieu chi chap nhan (PH-03/AC-n) de truy vet toi dac ta use case.
- * Chep tep nay khi viet service moi. Kiem thu qua HTTP that nam o apps/api/test/.
- */
-const row = {
+const row = (
+  overrides: Partial<{
+    priceFrom: { toString(): string };
+    images: Array<{ url: string }>;
+  }> = {},
+) => ({
   id: 'p-1',
   name: 'Ao thun co tron basic',
   slug: 'ao-thun-co-tron-basic',
   description: null,
-  price: 199000,
-  imageUrl: null,
   category: { name: 'Ao', slug: 'ao' },
-};
+  priceFrom: { toString: () => '199000' },
+  images: [{ url: 'https://example.test/first.jpg' }],
+  ...overrides,
+});
 
 function makePrisma() {
   const prisma = {
     product: { count: vi.fn(), findMany: vi.fn(), findFirst: vi.fn() },
-    // $transaction that nhan mang cac loi goi; ban gia chi can tra ket qua tung cai theo thu tu.
     $transaction: vi.fn((operations: unknown[]) => Promise.all(operations)),
   };
   return { prisma, service: new ProductsService(prisma as unknown as PrismaService) };
@@ -32,7 +32,7 @@ function makePrisma() {
 const query = (overrides: Partial<ListProductsQuery> = {}): ListProductsQuery =>
   Object.assign(new ListProductsQuery(), overrides);
 
-describe('ProductsService (PH-03 Kham pha san pham)', () => {
+describe('ProductsService (final HT-02 catalog contract)', () => {
   let prisma: ReturnType<typeof makePrisma>['prisma'];
   let service: ProductsService;
 
@@ -40,24 +40,22 @@ describe('ProductsService (PH-03 Kham pha san pham)', () => {
     ({ prisma, service } = makePrisma());
   });
 
-  it('AC-1 phan trang: trang 2 co 12 dong thi bo qua 12 dong, totalPages lam tron len', async () => {
-    prisma.product.count.mockResolvedValue(25);
-    prisma.product.findMany.mockResolvedValue([row]);
+  it('UC-03.1/AC3 gia la price_from dang chuoi, anh la anh dau theo sort_order', async () => {
+    prisma.product.count.mockResolvedValue(1);
+    prisma.product.findMany.mockResolvedValue([row({ priceFrom: { toString: () => '149000' } })]);
 
-    const result = await service.list(query({ page: 2, pageSize: 12 }));
+    const result = await service.list(query());
 
-    expect(prisma.product.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ skip: 12, take: 12 }),
-    );
-    expect(result).toMatchObject({ total: 25, page: 2, pageSize: 12, totalPages: 3 });
     expect(result.items[0]).toMatchObject({
-      slug: 'ao-thun-co-tron-basic',
-      price: '199000',
-      categoryName: 'Ao',
+      price: '149000',
+      imageUrl: 'https://example.test/first.jpg',
     });
+    // Khong con truy van phu tim bien the re nhat: gia doc tu cot price_from.
+    const args = prisma.product.findMany.mock.calls[0]?.[0] as { include: object };
+    expect(args.include).not.toHaveProperty('variants');
   });
 
-  it('AC-2 tim theo ten: khong phan biet hoa thuong va chi lay san pham dang ban', async () => {
+  it('excludes inactive products and products without an active variant', async () => {
     prisma.product.count.mockResolvedValue(0);
     prisma.product.findMany.mockResolvedValue([]);
 
@@ -66,22 +64,30 @@ describe('ProductsService (PH-03 Kham pha san pham)', () => {
     const args = prisma.product.findMany.mock.calls[0]?.[0] as { where: unknown };
     expect(args.where).toMatchObject({
       isActive: true,
+      variants: { some: { isActive: true } },
       name: { contains: 'AO', mode: 'insensitive' },
     });
   });
 
-  it('AC-1 danh sach rong: totalPages toi thieu la 1 de giao dien khong hien "trang 1 tren 0"', async () => {
-    prisma.product.count.mockResolvedValue(0);
-    prisma.product.findMany.mockResolvedValue([]);
+  it('uses the first image ordered by sort order and returns null without images', async () => {
+    prisma.product.count.mockResolvedValue(1);
+    prisma.product.findMany.mockResolvedValue([row({ images: [] })]);
 
     const result = await service.list(query());
 
-    expect(result).toMatchObject({ items: [], total: 0, totalPages: 1 });
+    expect(result.items[0]?.imageUrl).toBeNull();
+    const args = prisma.product.findMany.mock.calls[0]?.[0] as { include: { images: unknown } };
+    expect(args.include.images).toMatchObject({ orderBy: { sortOrder: 'asc' }, take: 1 });
   });
 
-  it('AC-3 slug khong ton tai thi nem NotFoundException, khong tra null', async () => {
+  it('returns NotFound for a non-sellable product detail', async () => {
     prisma.product.findFirst.mockResolvedValue(null);
 
     await expect(service.findBySlug('khong-co')).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.product.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { slug: 'khong-co', isActive: true, variants: { some: { isActive: true } } },
+      }),
+    );
   });
 });
