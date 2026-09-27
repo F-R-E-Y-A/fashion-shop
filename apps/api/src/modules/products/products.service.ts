@@ -5,6 +5,7 @@ import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { ListProductsQuery } from './dto/list-products.query.js';
 import { ProductListResponse, ProductResponse } from './dto/product.response.js';
+import { ProductDetailResponse } from './dto/product-detail.response.js';
 import type { ImportProductRow, ImportRowResult } from './import/import.types.js';
 import { ImportRowError } from './import/import-row.error.js';
 import { sourceSlug } from './import/slug.js';
@@ -14,12 +15,37 @@ import { validateRow } from './import/validate-row.js';
 // nen khong can truy van phu tim bien the re nhat cho moi dong.
 const storefrontProductInclude = {
   category: true,
+  brand: { select: { name: true } },
+  variants: {
+    where: { isActive: true },
+    select: { listPrice: true, salePrice: true },
+  },
   images: {
     orderBy: { sortOrder: 'asc' },
     take: 1,
     select: { url: true },
   },
 } as const;
+
+const detailProductInclude = {
+  category: { include: { parent: true } },
+  brand: { select: { name: true } },
+  images: { orderBy: { sortOrder: 'asc' }, include: { color: true } },
+  variants: { where: { isActive: true }, include: { color: true, size: true } },
+} as const;
+
+const visibleCategory: Prisma.CategoryWhereInput = {
+  isActive: true,
+  OR: [{ parentId: null }, { parent: { isActive: true } }],
+};
+
+function listPriceOf(
+  variants: Array<{ listPrice: Prisma.Decimal; salePrice: Prisma.Decimal | null }>,
+  priceFrom: Prisma.Decimal,
+): string | null {
+  const discounted = variants.find((variant) => variant.salePrice?.equals(priceFrom));
+  return discounted?.listPrice.toString() ?? null;
+}
 
 const cartVariantInclude = {
   color: true,
@@ -212,12 +238,26 @@ export class ProductsService {
   async list(query: ListProductsQuery): Promise<ProductListResponse> {
     const { search, categorySlug } = query;
 
-    const where = {
+    const where: Prisma.ProductWhereInput = {
       isActive: true,
       variants: { some: { isActive: true } },
-      ...(search ? { name: { contains: search, mode: 'insensitive' as const } } : {}),
-      ...(categorySlug ? { category: { slug: categorySlug } } : {}),
+      category: categorySlug
+        ? {
+            AND: [
+              visibleCategory,
+              { OR: [{ slug: categorySlug }, { parent: { slug: categorySlug } }] },
+            ],
+          }
+        : visibleCategory,
+      ...(search ? { name: { contains: search, mode: 'insensitive' } } : {}),
+      ...(query.featured ? { isFeatured: true } : {}),
     };
+    const orderBy: Prisma.ProductOrderByWithRelationInput[] =
+      query.sort === 'price_asc'
+        ? [{ priceFrom: 'asc' }, { id: 'asc' }]
+        : query.sort === 'price_desc'
+          ? [{ priceFrom: 'desc' }, { id: 'asc' }]
+          : [{ createdAt: 'desc' }, { id: 'asc' }];
 
     // Dem va lay du lieu trong cung mot giao dich de hai con so luon khop nhau.
     const [total, rows] = await this.prisma.$transaction([
@@ -225,7 +265,7 @@ export class ProductsService {
       this.prisma.product.findMany({
         where,
         include: storefrontProductInclude,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         skip: skipOf(query),
         take: query.pageSize,
       }),
@@ -238,17 +278,80 @@ export class ProductsService {
     );
   }
 
-  async findBySlug(slug: string): Promise<ProductResponse> {
+  async findBySlug(slug: string): Promise<ProductDetailResponse> {
     const row = await this.prisma.product.findFirst({
-      where: { slug, isActive: true, variants: { some: { isActive: true } } },
-      include: storefrontProductInclude,
+      where: {
+        slug,
+        isActive: true,
+        category: visibleCategory,
+        variants: { some: { isActive: true } },
+      },
+      include: detailProductInclude,
     });
+    if (!row) throw new NotFoundException(`Không tìm thấy sản phẩm: ${slug}`);
 
-    if (!row) {
-      throw new NotFoundException(`Khong tim thay san pham co duong dan "${slug}"`);
-    }
+    const variants = [...row.variants].sort(
+      (a, b) => a.size.sortOrder - b.size.sortOrder || a.color.code.localeCompare(b.color.code),
+    );
+    const colors = [
+      ...new Map(
+        variants.map((variant) => [
+          variant.color.code,
+          { code: variant.color.code, name: variant.color.name, hex: variant.color.hex },
+        ]),
+      ).values(),
+    ];
+    return {
+      ...this.toResponse(row),
+      material: row.material,
+      careInstructions: row.careInstructions,
+      breadcrumb: [
+        ...(row.category.parent
+          ? [{ name: row.category.parent.name, slug: row.category.parent.slug }]
+          : []),
+        { name: row.category.name, slug: row.category.slug },
+      ],
+      colors,
+      images: row.images.map((image) => ({
+        url: image.url,
+        alt: image.alt,
+        colorCode: image.color?.code ?? null,
+      })),
+      variants: variants.map((variant) => ({
+        id: variant.id,
+        sku: variant.sku,
+        colorCode: variant.color.code,
+        sizeCode: variant.size.code,
+        price: (variant.salePrice ?? variant.listPrice).toString(),
+        listPrice: variant.salePrice ? variant.listPrice.toString() : null,
+      })),
+    };
+  }
 
-    return this.toResponse(row);
+  async related(slug: string, limit: number): Promise<ProductResponse[]> {
+    const current = await this.prisma.product.findFirst({
+      where: {
+        slug,
+        isActive: true,
+        category: visibleCategory,
+        variants: { some: { isActive: true } },
+      },
+      select: { id: true, categoryId: true },
+    });
+    if (!current) throw new NotFoundException(`Không tìm thấy sản phẩm: ${slug}`);
+    const rows = await this.prisma.product.findMany({
+      where: {
+        id: { not: current.id },
+        categoryId: current.categoryId,
+        isActive: true,
+        category: visibleCategory,
+        variants: { some: { isActive: true } },
+      },
+      include: storefrontProductInclude,
+      orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+      take: limit,
+    });
+    return rows.map((product) => this.toResponse(product));
   }
 
   async getVariantForCart(variantId: string): Promise<VariantForCart | null> {
@@ -298,7 +401,9 @@ export class ProductsService {
     slug: string;
     description: string | null;
     category: { name: string; slug: string };
-    priceFrom: { toString(): string };
+    brand: { name: string } | null;
+    variants: Array<{ listPrice: Prisma.Decimal; salePrice: Prisma.Decimal | null }>;
+    priceFrom: Prisma.Decimal;
     images: Array<{ url: string }>;
   }): ProductResponse {
     return {
@@ -311,6 +416,8 @@ export class ProductsService {
       imageUrl: row.images[0]?.url ?? null,
       categoryName: row.category.name,
       categorySlug: row.category.slug,
+      brandName: row.brand?.name ?? null,
+      listPrice: listPriceOf(row.variants, row.priceFrom),
     };
   }
 }
