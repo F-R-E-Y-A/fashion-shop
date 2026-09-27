@@ -57,7 +57,7 @@ Khi một loại hàng cần thuộc tính biến thể khác màu và cỡ (ví
 <a id="adr-008"></a>
 ## 2026-09-25 · ADR-008 — API của PH-01 đi theo quy ước chung: đường dẫn phẳng, hình dạng `Page`, `camelCase`
 
-**Loại:** quyết định · **Phạm vi:** đường dẫn `/api/products`, `/api/categories` · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi PH-01 cài đặt)
+**Loại:** quyết định · **Phạm vi:** đường dẫn `/api/products`, `/api/categories` · **Trạng thái:** đã chốt · **Người quyết:** Bảo · **Commit:** (điền khi PH-01 cài đặt)
 
 ### Hiện trạng
 
