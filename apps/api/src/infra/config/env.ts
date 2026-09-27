@@ -40,7 +40,10 @@ export const envSchema = z.looseObject({
   /** May chu SMTP gui email xac thuc. Local dung Mailpit (xem docker-compose.yml). */
   SMTP_HOST: z.string().min(1, 'thieu SMTP_HOST'),
   SMTP_PORT: z.coerce.number().int().positive().default(1025),
-  SMTP_SECURE: z.coerce.boolean().default(false),
+  SMTP_SECURE: z
+    .enum(['true', 'false'])
+    .transform((value) => value === 'true')
+    .default(false),
   /** Bo trong khi may chu SMTP khong doi xac thuc (Mailpit local). */
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
