@@ -127,7 +127,7 @@ Tên bài theo `UC-NN.m/ACk` ([testing.md](../../shared/testing.md)). Kiểm th�
 
 ## Trạng thái hôm nay (27/09/2026)
 
-Tầng dữ liệu M2 và crawler/staging đã có trên nhánh PH-01. Hợp đồng giỏ hàng ở `c7811ea`; `importProducts` ở `b2c8de0`, bổ sung ở `eb8cc61`; API danh mục và sản phẩm ở `bee54a0`. `npm run check` và `npm run test:http` đã qua trên Pha 2; tiếp theo là giao diện web. ADR-008 là quyết định Bảo đã chốt.
+Pha 1 (import M2 ở `b2c8de0`, `eb8cc61`), Pha 2 (API danh mục và chi tiết ở `bee54a0`), và Pha 3 (Giao diện web trang chủ, danh mục, chi tiết, token màu và components ở `ca74f6b`) đã hoàn tất và được gộp vào `feature/ph-01-product-catalog`. `npm run check`, unit test web (14/14) và `npm run test:http` (29/29) đều đạt; sẵn sàng nghiệm thu và đóng PH-01. ADR-008 là quyết định Bảo đã chốt.
 
 ## Còn mở
 
