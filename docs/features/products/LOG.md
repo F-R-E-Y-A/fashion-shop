@@ -233,3 +233,9 @@ Bộ sắp xếp giữ `select` để dùng bàn phím và giữ URL query đang
 **Kiểm chứng:** WebP có kích thước 1000 × 1250 theo Pillow; kích thước byte lần lượt 52.080, 91.204, 95.646 (`python` mở và lưu WebP, output lưu trong phiên). `npm run test -w apps/web -- CategoryPage.test.tsx` exit 0, 2/2; `npm run check` exit 0 trên HEAD `0548ae9`, 5 dòng cuối `ℹ fail 0` / `ℹ cancelled 0` / `ℹ skipped 1` / `ℹ todo 0` / `ℹ duration_ms 588.0596`.
 
 Sau khi chỉnh khoảng cách ba ô còn 6px, chạy lại `npm.cmd run check` exit 0 trên HEAD `0548ae9`; 5 dòng cuối `ℹ fail 0` / `ℹ cancelled 0` / `ℹ skipped 1` / `ℹ todo 0` / `ℹ duration_ms 561.7604`. `npm.cmd run build -w apps/web` exit 0, `✓ built in 712ms`; còn cảnh báo chunk JS >500 kB từ Vite. Đã xem thêm trang chủ ở viewport desktop sau chỉnh khoảng cách.
+
+## 2026-09-27 · Bảo duyệt giao diện PH-01, chuẩn bị PR
+
+**Loại:** nghiệm thu giao diện · **Phạm vi:** PH-01 · **Commit:** `44d361b`, merge vào nhánh feature tại `4f07243`.
+
+Bảo xác nhận đã duyệt giao diện. Phần làm sạch Catalog và UX được commit trên `task/catalog-data-ux`, rồi gộp vào `feature/ph-01-product-catalog` theo quy ước nhánh. Mở PR từ nhánh feature vào `develop` để CI và người khác review trước khi merge; `Closes #6` đặt trong mô tả PR để Issue chỉ đóng sau khi gộp. Trạng thái ADR-010 vẫn là đề xuất.

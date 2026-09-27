@@ -129,9 +129,9 @@ Tên bài theo `UC-NN.m/ACk` ([testing.md](../../shared/testing.md)). Kiểm th�
 
 ## Trạng thái hôm nay (27/09/2026)
 
-Các pha nền của PH-01 đã được gộp vào `feature/ph-01-product-catalog`; nhánh thực thi hiện tại là `task/catalog-data-ux` trên HEAD `0548ae9`, có thay đổi chưa commit. Đợt này đã làm sạch mô tả crawl, nạp lại 90 candidate đã duyệt, tách sản phẩm giả sang test fixtures, xóa seed khỏi DB local và sửa scroll, gallery, màu, header, hero. DB local sau khi chạy lại `npm run db:seed -w apps/api` có 90 product, 339 variant, 1.199 ảnh, 0 product seed và 87 product active; API list trả total=87. Ba product không có ảnh dùng được không xuất hiện trong storefront.
+Các pha nền của PH-01 và `task/catalog-data-ux` đã được gộp vào `feature/ph-01-product-catalog`. Đợt này đã làm sạch mô tả crawl, nạp lại 90 candidate đã duyệt, tách sản phẩm giả sang test fixtures, xóa seed khỏi DB local và sửa scroll, gallery, màu, header, hero. DB local sau khi chạy lại `npm run db:seed -w apps/api` có 90 product, 339 variant, 1.199 ảnh, 0 product seed và 87 product active; API list trả total=87. Ba product không có ảnh dùng được không xuất hiện trong storefront.
 
-Kiểm tra: `npm run check` exit 0 (API unit 28/28, web 27/27, crawler 50 pass, 1 skip); `npm run test:http` exit 0 (57/57); `npm run db:drift -w apps/api` không thấy lệch; `npm run build -w apps/web` exit 0 với cảnh báo chunk JavaScript trên 500 kB; kiểm tài liệu feature exit 0. Bảo cần xem trang chủ, danh mục và chi tiết trên preview trước. **Chưa tạo commit/PR, chưa push và chưa đóng Issue #6.** Sau khi Bảo nói giao diện đạt, mới gộp task vào feature, push, tạo PR tới develop có `Closes #6`; chờ CI/review rồi merge.
+Kiểm tra: `npm run check` exit 0 (API unit 28/28, web 27/27, crawler 50 pass, 1 skip); `npm run test:http` exit 0 (57/57); `npm run db:drift -w apps/api` không thấy lệch; `npm run build -w apps/web` exit 0 với cảnh báo chunk JavaScript trên 500 kB; kiểm tài liệu feature exit 0. Bảo đã duyệt giao diện. Nhánh feature dùng để mở PR vào `develop` với `Closes #6`; cần CI và người khác review trước khi merge. Issue #6 chưa đóng.
 
 ## Còn mở
 
