@@ -1,5 +1,6 @@
 import { Link, Route, Routes } from 'react-router-dom';
 
+import { LoginPage, RegisterPage } from '@/features/account';
 import {
   AdminProductsPage,
   CategoryPage,
@@ -28,6 +29,8 @@ export function AppRoutes() {
         <Route path="danh-muc/:slug" element={<CategoryPage />} />
         <Route path="san-pham" element={<ProductListPage />} />
         <Route path="san-pham/:slug" element={<ProductDetailPage />} />
+        <Route path="login" element={<LoginPage />} />
+        <Route path="register" element={<RegisterPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
       <Route path="quan-tri" element={<AdminLayout />}>

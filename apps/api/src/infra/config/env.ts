@@ -24,6 +24,17 @@ export const envSchema = z.looseObject({
     ),
   /** Cac goc web duoc goi API, cach nhau bang dau phay. Staging dien dung dia chi web cua no. */
   CORS_ORIGINS: z.string().default('http://localhost:5174'),
+  /** Bat buoc tu moi truong; khong co default de khong bao gio dua production secret vao ma nguon. */
+  JWT_ACCESS_SECRET: z.string().min(32, 'phai dai it nhat 32 ky tu'),
+  /** Chuoi thoi luong nguyen duong: 15m, 1h, 30d... */
+  JWT_ACCESS_TTL: z
+    .string()
+    .regex(/^[1-9]\d*[smhd]$/u, 'phai co dang 15m, 1h hoac 30d')
+    .default('15m'),
+  REFRESH_TOKEN_TTL: z
+    .string()
+    .regex(/^[1-9]\d*[smhd]$/u, 'phai co dang 15m, 1h hoac 30d')
+    .default('30d'),
   APP_VERSION: z.string().default('0.0.0-dev'),
   /** Ma commit dang chay: CI truyen GIT_SHA khi dung image; Render tu cap RENDER_GIT_COMMIT. */
   GIT_SHA: z.string().optional(),

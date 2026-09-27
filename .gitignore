@@ -14,4 +14,3 @@ coverage-http/
 .vercel/
 apps/api/src/generated/
 *.tsbuildinfo
-tools/crawler/output/

@@ -24,13 +24,24 @@ export class ApiError extends Error {
 
 export type QueryParams = Record<string, string | number | boolean | undefined>;
 
-export async function apiGet<T>(path: string, params?: QueryParams): Promise<T> {
-  const url = new URL(`${BASE_URL}${path}`);
-  for (const [key, value] of Object.entries(params ?? {})) {
-    if (value !== undefined && value !== '') url.searchParams.set(key, String(value));
-  }
+export interface ApiRequestOptions {
+  method?: 'GET' | 'POST';
+  body?: unknown;
+  accessToken?: string;
+  credentials?: RequestCredentials;
+}
 
-  const response = await fetch(url, { headers: { Accept: 'application/json' } });
+export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: options.method ?? 'GET',
+    credentials: options.credentials,
+    headers: {
+      Accept: 'application/json',
+      ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...(options.accessToken ? { Authorization: `Bearer ${options.accessToken}` } : {}),
+    },
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+  });
 
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as ApiErrorBody | null;
@@ -45,7 +56,17 @@ export async function apiGet<T>(path: string, params?: QueryParams): Promise<T> 
     );
   }
 
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
+}
+
+export async function apiGet<T>(path: string, params?: QueryParams): Promise<T> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params ?? {})) {
+    if (value !== undefined && value !== '') query.set(key, String(value));
+  }
+  const search = query.toString();
+  return apiRequest<T>(search ? `${path}?${search}` : path);
 }
 
 /** Hinh dang tra ve cua moi duong dan liet ke, khop Page<T> ben may chu. */

@@ -1,0 +1,19 @@
+{
+  "recordedAt": "2026-09-25T07:30:11.266Z",
+  "mode": "dry-run",
+  "total": 30,
+  "createdRaw": 30,
+  "updatedRaw": 0,
+  "createdCandidates": 30,
+  "updatedCandidates": 0,
+  "skippedImported": 0,
+  "failed": 0,
+  "failures": [],
+  "verification": {
+    "source": "YODY",
+    "rawCount": 0,
+    "candidateCount": 0,
+    "duplicateRawIdentities": 0,
+    "duplicateCandidateRelations": 0
+  }
+}
