@@ -16,7 +16,18 @@ export function imagesForColor(images: ProductImage[], colorCode: string | null)
   const matching = images.filter(
     (image) => image.colorCode === null || image.colorCode === colorCode,
   );
-  return matching.length > 0 ? matching : images.slice(0, 1);
+  const seen = new Set<string>();
+  return matching.filter((image) => {
+    if (seen.has(image.url)) return false;
+    seen.add(image.url);
+    return true;
+  });
+}
+export function colorsWithImages<T extends { code: string }>(
+  colors: T[],
+  images: ProductImage[],
+): T[] {
+  return colors.filter((color) => imagesForColor(images, color.code).length > 0);
 }
 export function isDefaultOnly(values: string[], defaultCode: string): boolean {
   return new Set(values).size === 1 && values[0] === defaultCode;

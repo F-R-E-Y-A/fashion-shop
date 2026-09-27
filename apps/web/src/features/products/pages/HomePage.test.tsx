@@ -44,7 +44,7 @@ function renderHome() {
 
 afterEach(() => vi.unstubAllGlobals());
 describe('HomePage (UC-03.1)', () => {
-  it('hero hiện cùng sản phẩm mới; nổi bật rỗng báo trạng thái', async () => {
+  it('hiện sản phẩm mới và ẩn mục nổi bật khi chưa có sản phẩm được chọn', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
@@ -56,7 +56,8 @@ describe('HomePage (UC-03.1)', () => {
     renderHome();
     expect(screen.getByRole('heading', { name: 'MẶC CHẤT RIÊNG' })).toBeInTheDocument();
     expect(await screen.findByText('Mẫu mới')).toBeInTheDocument();
-    expect(await screen.findByText('Chưa có sản phẩm để khám phá.')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'NỔI BẬT' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Chưa có sản phẩm để khám phá.')).not.toBeInTheDocument();
   });
 
   it('lỗi tải hàng mới có nút thử lại', async () => {

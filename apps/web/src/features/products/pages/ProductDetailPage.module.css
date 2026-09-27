@@ -13,24 +13,65 @@
   min-width: 0;
 }
 .mainImage {
+  position: relative;
   aspect-ratio: 3 / 4;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
   background: var(--surface);
 }
 .mainImage img {
+  display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+}
+.galleryArrow {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  transform: translateY(-50%);
+  border: 1px solid rgb(255 255 255 / 72%);
+  border-radius: 50%;
+  background: rgb(255 255 255 / 88%);
+  color: var(--ink);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.galleryArrow:hover {
+  background: var(--ink);
+  color: var(--on-dark);
+}
+.galleryPrevious {
+  left: 16px;
+}
+.galleryNext {
+  right: 16px;
+}
+.imageFallback {
+  margin: 0;
+  padding: 24px;
+  color: var(--muted);
+  text-align: center;
 }
 .thumbnails {
   display: flex;
   gap: 8px;
   margin-top: 12px;
+  overflow-x: auto;
 }
 .thumbnails button {
+  flex: 0 0 76px;
   width: 76px;
   padding: 0;
   border: 1px solid var(--line);
   background: none;
+  cursor: pointer;
 }
 .thumbnails button[aria-pressed='true'] {
   border-color: var(--ink);
@@ -58,6 +99,11 @@
   font-size: 0.9rem;
   margin-left: 12px;
 }
+.description {
+  max-width: 65ch;
+  line-height: 1.7;
+  white-space: pre-line;
+}
 .sku {
   font-size: 0.75rem;
   color: var(--muted);
@@ -76,11 +122,25 @@
   font-size: 0.8rem;
 }
 .choices button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   background: var(--bg);
   color: var(--ink);
   border: 1px solid var(--line);
   min-width: 38px;
   min-height: 38px;
+  padding: 4px 10px;
+}
+.colorImage {
+  display: block;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  object-fit: cover;
 }
 .choices button[aria-pressed='true'] {
   border-color: var(--ink);

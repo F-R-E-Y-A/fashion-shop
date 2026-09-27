@@ -182,6 +182,7 @@ export class ProductsService {
       attributes:
         row.attributes === undefined ? Prisma.DbNull : (row.attributes as Prisma.InputJsonObject),
       priceFrom,
+      isActive: row.images.length > 0,
     };
     const product = existingProductId
       ? await tx.product.update({ where: { id: existingProductId }, data: productData })
@@ -241,6 +242,7 @@ export class ProductsService {
     const where: Prisma.ProductWhereInput = {
       isActive: true,
       variants: { some: { isActive: true } },
+      images: { some: {} },
       category: categorySlug
         ? {
             AND: [
@@ -285,6 +287,7 @@ export class ProductsService {
         isActive: true,
         category: visibleCategory,
         variants: { some: { isActive: true } },
+        images: { some: {} },
       },
       include: detailProductInclude,
     });
@@ -346,6 +349,7 @@ export class ProductsService {
         isActive: true,
         category: visibleCategory,
         variants: { some: { isActive: true } },
+        images: { some: {} },
       },
       include: storefrontProductInclude,
       orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],

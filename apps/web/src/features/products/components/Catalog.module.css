@@ -27,6 +27,57 @@
   font-size: 0.7rem;
   letter-spacing: var(--tracking-caps);
 }
+.sortControl {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 9px;
+  min-width: 204px;
+  cursor: pointer;
+}
+.sortCaption {
+  color: var(--muted);
+  font: 500 0.65rem var(--font-body);
+  letter-spacing: var(--tracking-caps);
+}
+.sortField {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border: 1px solid rgb(30 20 12 / 0.25);
+  background: rgb(255 255 255 / 0.65);
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+.sortField:hover {
+  border-color: var(--espresso);
+  background: #fff;
+}
+.sortField:focus-within {
+  border-color: var(--espresso);
+  box-shadow: 0 0 0 3px rgb(133 92 57 / 0.16);
+}
+.sortField select {
+  appearance: none;
+  width: 100%;
+  min-height: 49px;
+  padding: 0 47px 0 16px;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font: 500 0.79rem var(--font-body);
+  cursor: pointer;
+}
+.sortField svg {
+  position: absolute;
+  right: 15px;
+  width: 18px;
+  height: 18px;
+  pointer-events: none;
+}
 .productGrid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
@@ -50,6 +101,16 @@
   display: block;
   transition: transform 400ms ease;
 }
+.missingImage {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-align: center;
+}
 .cardName {
   font: 500 0.75rem var(--font-body);
   letter-spacing: var(--tracking-caps);
@@ -70,14 +131,39 @@
 }
 .hero {
   min-height: min(88vh, 720px);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   display: flex;
   align-items: center;
   color: var(--on-dark);
-  background:
-    linear-gradient(90deg, var(--espresso) 0 28%, transparent 58%),
-    url('/images/home/hero.webp') right center / cover no-repeat;
+  background: var(--espresso);
+}
+.hero::before {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    var(--espresso) 0 28%,
+    rgb(30 20 12 / 0.82) 48%,
+    transparent 78%
+  );
+  pointer-events: none;
+}
+.heroImage {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: right center;
 }
 .heroContent {
+  position: relative;
+  z-index: 2;
   width: min(1200px, 100%);
   margin-inline: auto;
   padding: 72px clamp(16px, 4vw, 56px);
@@ -120,7 +206,7 @@
 .categoryTiles {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  gap: 6px;
 }
 .tile {
   min-height: clamp(280px, 30vw, 420px);
@@ -138,12 +224,25 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 500ms ease;
+}
+.tile:hover img {
+  transform: scale(1.035);
+}
+.tile:focus-visible {
+  outline: 3px solid var(--espresso);
+  outline-offset: 3px;
 }
 .tile::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(to top, rgb(0 0 0 / 0.55), transparent 60%);
+  background: linear-gradient(
+    to top,
+    rgb(22 14 9 / 0.75),
+    rgb(22 14 9 / 0.14) 43%,
+    transparent 70%
+  );
 }
 .tile span {
   position: relative;
@@ -227,8 +326,7 @@
 }
 @media (max-width: 760px) {
   .hero {
-    min-height: 620px;
-    background-position: 65% center;
+    min-height: clamp(620px, 110vw, 760px);
   }
   .heroContent {
     background: linear-gradient(90deg, rgb(30 20 12 / 0.9), transparent);

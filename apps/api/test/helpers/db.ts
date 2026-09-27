@@ -1,9 +1,10 @@
 import { seedCatalog } from '../../prisma/seed/catalog.seed.js';
 import { seedIdentity } from '../../prisma/seed/identity.seed.js';
 import type { PrismaClient } from '../../src/generated/prisma/client.js';
+import { seedTestCatalogProducts } from '../fixtures/catalog-products.js';
 
 /**
- * Xoa sach MOI bang trong schema public (tru bang migration) roi nap lai du lieu gia.
+ * Xoa sach cac bang test (tru bang migration), roi nap taxonomy va san pham fixture.
  * Khong liet ke ten bang cung: ai them bang moi thi ham nay tu bao ca bang do.
  * Chi chay tren CSDL kiem thu (test/setup-env.ts bao dam dieu nay).
  */
@@ -18,5 +19,6 @@ export async function resetDatabase(prisma: PrismaClient): Promise<void> {
     await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${list} RESTART IDENTITY CASCADE`);
   }
 
-  await Promise.all([seedCatalog(prisma), seedIdentity(prisma)]);
+  await seedCatalog(prisma);
+  await Promise.all([seedTestCatalogProducts(prisma), seedIdentity(prisma)]);
 }

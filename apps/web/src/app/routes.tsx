@@ -10,6 +10,7 @@ import {
 } from '@/features/products';
 
 import { AdminLayout } from './AdminLayout.js';
+import { ScrollManager } from './ScrollManager.js';
 import { StoreLayout } from './StoreLayout.js';
 
 function NotFoundPage() {
@@ -23,19 +24,22 @@ function NotFoundPage() {
 
 export function AppRoutes() {
   return (
-    <Routes>
-      <Route element={<StoreLayout />}>
-        <Route index element={<HomePage />} />
-        <Route path="danh-muc/:slug" element={<CategoryPage />} />
-        <Route path="san-pham" element={<ProductListPage />} />
-        <Route path="san-pham/:slug" element={<ProductDetailPage />} />
-        <Route path="login" element={<LoginPage />} />
-        <Route path="register" element={<RegisterPage />} />
-        <Route path="*" element={<NotFoundPage />} />
-      </Route>
-      <Route path="quan-tri" element={<AdminLayout />}>
-        <Route index element={<AdminProductsPage />} />
-      </Route>
-    </Routes>
+    <>
+      <ScrollManager />
+      <Routes>
+        <Route element={<StoreLayout />}>
+          <Route index element={<HomePage />} />
+          <Route path="danh-muc/:slug" element={<CategoryPage />} />
+          <Route path="san-pham" element={<ProductListPage />} />
+          <Route path="san-pham/:slug" element={<ProductDetailPage />} />
+          <Route path="login" element={<LoginPage />} />
+          <Route path="register" element={<RegisterPage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+        <Route path="quan-tri" element={<AdminLayout />}>
+          <Route index element={<AdminProductsPage />} />
+        </Route>
+      </Routes>
+    </>
   );
 }

@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
-import { PRODUCTS, skuOf } from '../prisma/seed/catalog.seed.js';
 import type { ImportProductRow } from '../src/modules/products/index.js';
 import { ProductsService } from '../src/modules/products/index.js';
+import { PRODUCTS, skuOf } from './fixtures/catalog-products.js';
 import { createTestApp, type TestApp } from './helpers/create-test-app.js';
 import { resetDatabase } from './helpers/db.js';
 
@@ -53,6 +53,24 @@ describe('ProductsService.importProducts — M2', () => {
     expect(await t.prisma.product.count()).toBe(countBefore + 1);
     expect((await t.prisma.product.findUnique({ where: { id: first.productId } }))?.name).toBe(
       'Tên đã đổi',
+    );
+  });
+
+  it('ẩn sản phẩm chưa có ảnh và tự hiển thị lại sau khi có ảnh thật', async () => {
+    const first = (await service.importProducts([makeRow('no-image', { images: [] })]))[0];
+    if (!first || first.status !== 'created') throw new Error('Import thiếu ảnh phải tạo bản ghi');
+    expect((await t.prisma.product.findUnique({ where: { id: first.productId } }))?.isActive).toBe(
+      false,
+    );
+
+    const updated = (
+      await service.importProducts([
+        makeRow('no-image', { images: [{ url: 'https://cdn.test/real.jpg' }] }),
+      ])
+    )[0];
+    expect(updated).toMatchObject({ status: 'updated', productId: first.productId });
+    expect((await t.prisma.product.findUnique({ where: { id: first.productId } }))?.isActive).toBe(
+      true,
     );
   });
 
