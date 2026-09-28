@@ -179,9 +179,10 @@ export class AuthService {
       });
       if (result.status !== 'VERIFIED') return result;
 
+      // Only the request that consumed the OTP gets here, so the timestamp is written once.
       await transaction.user.update({
         where: { id: user.id },
-        data: { status: UserStatus.ACTIVE },
+        data: { status: UserStatus.ACTIVE, emailVerifiedAt: new Date() },
       });
       return result;
     });

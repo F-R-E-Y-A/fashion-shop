@@ -10,9 +10,9 @@ owner: Tài
 
 | | |
 |---|---|
-| **Người sở hữu** | Tài · `apps/api/src/modules/auth`, `apps/api/src/modules/users` · `apps/web/src/features/account` · bảng trong `prisma/schema/identity.prisma` |
-| **Dòng việc** | PH-03 (Issue #8, nhánh `feature/ph3-auth`), sprint S2 |
-| **Use case** | UC-01.1 đăng ký, UC-01.2 đăng nhập, UC-01.4 đăng xuất. Đặc tả của Duy đang ở pull request #9, chưa gộp; khi gộp đặt tại `docs/features/auth/use-cases.md` |
+| **Người sở hữu** | Tài · `apps/api/src/modules/auth` · `apps/web/src/features/account` · bảng trong `prisma/schema/identity.prisma` |
+| **Dòng việc** | PH-03 (Issue #8), sprint S2. Đã gộp vào `develop`: nền tảng auth #14, PH3.1 #18, PH3.2 #19, PH3.3 #20, PH3.4 #21 |
+| **Use case** | Đặc tả của Duy đã gộp qua pull request #9 tại [uc-ph01-tai-khoan-xac-thuc.md](../../shared/uc-ph01-tai-khoan-xac-thuc.md), còn theo mã cũ `PH-01.m` (đăng ký, đăng nhập, đặt lại mật khẩu, đăng xuất, hồ sơ, địa chỉ, vóc dáng) và chưa chuyển sang `UC-NN.m` hay về `docs/features/auth/use-cases.md`. Xác thực email OTP và đổi mật khẩu (PH3.1, PH3.3) chưa có use case riêng |
 
 ## Hợp đồng công bố
 
@@ -23,11 +23,20 @@ AuthGuard      // xac minh Bearer access JWT va gan principal an toan vao reques
 CurrentUser    // decorator lay { id, email, roles }
 ```
 
-Khi có mã, chữ ký thật ghi ở `apps/api/src/modules/auth/README.md` theo mẫu [products/README.md](../../../apps/api/src/modules/products/README.md).
+Cả hai đã có mã và đã gộp; chữ ký thật ghi ở [modules/auth/README.md](../../../apps/api/src/modules/auth/README.md) theo mẫu [products/README.md](../../../apps/api/src/modules/products/README.md).
 
-## Trạng thái hôm nay (27/09/2026)
+## Trạng thái hôm nay (28/09/2026)
 
-`identity.prisma` và migration baseline đã có `users`, `roles`, `user_roles`, `refresh_tokens`.
+Xác thực đã xong và nằm trong `develop`: đăng ký, đăng nhập, `GET /auth/me`, refresh/logout (nền tảng, #14),
+xác thực email bằng OTP (PH3.1), quên và đặt lại mật khẩu (PH3.2), đổi mật khẩu (PH3.3), hardening bảo mật
+(PH3.4: giới hạn tốc độ, replay refresh token, `authVersion`). Chi tiết từng bước ở các mục dưới.
+
+Chưa có, biết và cố ý: **phân quyền theo vai trò**. `roles` chỉ là một trường của `CurrentUser`; không có
+`RolesGuard` hay `@Roles`, route web `/quan-tri` không kiểm đăng nhập hay vai trò, và API chưa có endpoint
+quản trị nào (module `products` chỉ có `GET` công khai). Ghi ở [ND-03](../../TECH_DEBT.md). Cũng chưa có: hồ
+sơ cá nhân, địa chỉ, hồ sơ vóc dáng, OAuth, 2FA.
+
+Nền tảng ban đầu: `identity.prisma` và migration baseline đã có `users`, `roles`, `user_roles`, `refresh_tokens`.
 Phase 4 đã có refresh/logout: refresh cookie HttpOnly được rotate khi cấp access token mới, còn
 logout revoke refresh session hiện tại và xóa cookie. Hai endpoint này không cần access token.
 Phase 5 giữ access token và user trong bộ nhớ giao diện; khi tải lại trang, app gọi `/auth/refresh`
@@ -40,7 +49,9 @@ bằng cookie HttpOnly để khôi phục phiên. Logout luôn xóa state giao d
 ```
 POST /auth/register        -> tạo User PENDING_VERIFICATION + CUSTOMER, tạo OtpCode, gửi email OTP
                                KHÔNG cấp access token, KHÔNG tạo refresh token, KHÔNG set cookie
-POST /auth/verify-email     -> đúng OTP thì User -> ACTIVE, OTP bị consume. Không cấp session.
+POST /auth/verify-email     -> đúng OTP thì User -> ACTIVE và ghi `emailVerifiedAt` (cùng một lệnh cập nhật
+                               trong transaction), OTP bị consume. Không cấp session. Xác thực thất bại
+                               hay dùng lại OTP đã dùng thì không đổi `emailVerifiedAt`.
 POST /auth/resend-verification -> luôn trả { accepted: true }, kể cả email không tồn tại/đã ACTIVE
 POST /auth/login            -> như cũ; PENDING_VERIFICATION + mật khẩu đúng -> lỗi EMAIL_NOT_VERIFIED
 ```
