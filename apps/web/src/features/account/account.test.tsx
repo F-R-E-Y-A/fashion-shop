@@ -6,6 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { StoreLayout } from '@/app/StoreLayout';
 
+vi.mock('@/features/products', () => ({
+  CategoryMenu: () => <nav data-testid="mock-category-menu" />,
+}));
+
 import { AuthProvider, useAuth } from './AuthProvider.js';
 import { ChangePasswordPage } from './pages/ChangePasswordPage.js';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage.js';

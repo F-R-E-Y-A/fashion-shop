@@ -10,12 +10,25 @@ export function Loading({ label = 'Đang tải...' }: { label?: string }) {
   );
 }
 
-export function ErrorNote({ error, label }: { error?: unknown; label?: string }) {
+export function ErrorNote({
+  error,
+  label,
+  onRetry,
+}: {
+  error?: unknown;
+  label?: string;
+  onRetry?: () => void;
+}) {
   const message = label ?? (error instanceof Error ? error.message : 'Đã có lỗi xảy ra');
   return (
-    <p className="state state--error" role="alert">
-      {message}
-    </p>
+    <div className="state state--error" role="alert">
+      <p>{message}</p>
+      {onRetry && (
+        <button type="button" onClick={onRetry}>
+          Thử lại →
+        </button>
+      )}
+    </div>
   );
 }
 

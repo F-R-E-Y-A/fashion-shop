@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom';
+import { Link, Route, Routes } from 'react-router-dom';
 
 import {
   ChangePasswordPage,
@@ -8,37 +8,49 @@ import {
   ResetPasswordPage,
   VerifyEmailPage,
 } from '@/features/account';
-import { AdminProductsPage, ProductDetailPage, ProductListPage } from '@/features/products';
+import {
+  AdminProductsPage,
+  CategoryPage,
+  HomePage,
+  ProductDetailPage,
+  ProductListPage,
+} from '@/features/products';
 
 import { AdminLayout } from './AdminLayout.js';
+import { ScrollManager } from './ScrollManager.js';
 import { StoreLayout } from './StoreLayout.js';
 
-/**
- * Bang duong dan cua toan bo giao dien. DUY NHAT tep nay duoc import cac feature.
- *
- * Them trang moi: lam trang trong feature cua minh, xuat qua index.ts cua feature,
- * roi them mot dong Route o day. Duong dan viet tieng Viet khong dau, noi bang dau gach ngang,
- * giong quy uoc ben may chu.
- */
+function NotFoundPage() {
+  return (
+    <div className="state">
+      <h1>Không tìm thấy trang</h1>
+      <Link to="/">Về trang chủ</Link>
+    </div>
+  );
+}
+
 export function AppRoutes() {
   return (
-    <Routes>
-      <Route element={<StoreLayout />}>
-        <Route index element={<ProductListPage />} />
-        <Route path="san-pham/:slug" element={<ProductDetailPage />} />
-        <Route path="login" element={<LoginPage />} />
-        <Route path="register" element={<RegisterPage />} />
-        <Route path="xac-thuc-email" element={<VerifyEmailPage />} />
-        <Route path="quen-mat-khau" element={<ForgotPasswordPage />} />
-        <Route path="dat-lai-mat-khau" element={<ResetPasswordPage />} />
-        <Route path="doi-mat-khau" element={<ChangePasswordPage />} />
-      </Route>
-
-      <Route path="quan-tri" element={<AdminLayout />}>
-        <Route index element={<AdminProductsPage />} />
-      </Route>
-
-      <Route path="*" element={<p className="state">Không tìm thấy trang.</p>} />
-    </Routes>
+    <>
+      <ScrollManager />
+      <Routes>
+        <Route element={<StoreLayout />}>
+          <Route index element={<HomePage />} />
+          <Route path="danh-muc/:slug" element={<CategoryPage />} />
+          <Route path="san-pham" element={<ProductListPage />} />
+          <Route path="san-pham/:slug" element={<ProductDetailPage />} />
+          <Route path="login" element={<LoginPage />} />
+          <Route path="register" element={<RegisterPage />} />
+          <Route path="xac-thuc-email" element={<VerifyEmailPage />} />
+          <Route path="quen-mat-khau" element={<ForgotPasswordPage />} />
+          <Route path="dat-lai-mat-khau" element={<ResetPasswordPage />} />
+          <Route path="doi-mat-khau" element={<ChangePasswordPage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+        <Route path="quan-tri" element={<AdminLayout />}>
+          <Route index element={<AdminProductsPage />} />
+        </Route>
+      </Routes>
+    </>
   );
 }

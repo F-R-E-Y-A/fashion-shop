@@ -37,7 +37,12 @@ export function normalizeYodyColor(value: unknown, path: string): ColorNormaliza
   const suffix = new RegExp(`(?:[-\\s]+)${escapeRegExp(sourceCode)}$`, 'iu');
   const name = sourceName.replace(suffix, '').trim() || sourceName;
   const sourceHex = normalizedText(source.hex);
-  const validHex = sourceHex !== null && /^#[0-9a-f]{6}$/iu.test(sourceHex);
+  const shortHex =
+    sourceHex !== null ? /^#([0-9a-f])([0-9a-f])([0-9a-f])$/iu.exec(sourceHex) : null;
+  const expandedHex = shortHex
+    ? `#${shortHex[1]}${shortHex[1]}${shortHex[2]}${shortHex[2]}${shortHex[3]}${shortHex[3]}`
+    : sourceHex;
+  const validHex = expandedHex !== null && /^#[0-9a-f]{6}$/iu.test(expandedHex);
   const warning =
     sourceHex && !validHex
       ? {
@@ -51,7 +56,7 @@ export function normalizeYodyColor(value: unknown, path: string): ColorNormaliza
     color: {
       code: `yody-${codeToken}`,
       name,
-      hex: validHex ? sourceHex.toUpperCase() : null,
+      hex: validHex ? expandedHex.toUpperCase() : null,
     },
     warning,
   };

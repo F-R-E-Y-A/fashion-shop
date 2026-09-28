@@ -1,20 +1,19 @@
-/* Ban 0.1: mot tep CSS thuan, du de nhin duoc.
-   Bo thanh phan dung chung that se dung o ban sau, khi da chot he mau va kieu chu. */
-
 :root {
-  --ink: #1a1a1a;
-  --muted: #6b6b6b;
-  --line: #e4e4e4;
-  --bg: #ffffff;
-  --accent: #111827;
+  --bg: #f8f7f5;
+  --surface: #f1ebe3;
+  --ink: #111111;
+  --muted: #6b6a73;
+  --line: #e4e0da;
+  --espresso: #1e140c;
+  --on-dark: #f8f7f5;
+  --accent: #925d3b;
+  --accent-bright: #af7642;
   --danger: #b42318;
-  --radius: 10px;
-  font-family:
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    Roboto,
-    sans-serif;
+  --radius: 2px;
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body: 'Be Vietnam Pro', system-ui, sans-serif;
+  --tracking-caps: 0.14em;
+  font-family: var(--font-body);
   color: var(--ink);
   background: var(--bg);
 }
@@ -29,9 +28,21 @@ a {
   color: inherit;
   text-decoration: none;
 }
-h1 {
-  font-size: 1.5rem;
-  margin: 0 0 1rem;
+h1,
+h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
 }
 
 /* --- khung cua hang --- */
@@ -203,6 +214,10 @@ button:disabled {
   margin-top: 1.5rem;
   font-size: 0.9rem;
   color: var(--muted);
+}
+.pager [aria-current='page'] {
+  background: var(--ink);
+  color: var(--on-dark);
 }
 
 /* --- chi tiet --- */

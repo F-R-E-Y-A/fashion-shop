@@ -1,6 +1,6 @@
 /**
  * Chay truoc moi tep kiem thu HTTP: tro may chu vao CSDL KIEM THU, khong bao gio la CSDL that,
- * vi resetDatabase() xoa sach moi bang truoc khi nap lai du lieu gia.
+ * vi resetDatabase() xoa sach moi bang truoc khi nap lai taxonomy va fixture kiem thu.
  * Tren may: DATABASE_URL_TEST trong .env (tao bang npm run db:test:prepare).
  * Tren CI: hai bien tro cung mot Postgres dung xong bo, CI=true nen cho phep trung nhau.
  */

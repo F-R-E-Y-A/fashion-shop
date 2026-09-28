@@ -46,7 +46,7 @@ Không dùng nữa: `UC-NN` của bản nháp 13/09, `R1`–`R5` của lộ trì
 Những chỗ biết là chưa theo luật, sửa khi có người chạm tới:
 
 - Hai tệp vượt 300 dòng: [shared/code-tour.md](docs/shared/code-tour.md), [features/platform/github-setup.md](docs/features/platform/github-setup.md).
-- Pull request #9 của Duy (danh mục use case, sơ đồ, ba đặc tả, chiến lược kiểm thử) chưa gộp và còn theo cây cũ, mã `PH-NN.m`; `shared/use-case-index.md` và `shared/test-strategy.md` hiện là khuôn trống chờ nội dung đó.
+- Pull request #9 của Duy đã gộp (`513db5f`) nhưng còn theo mã cũ `PH-NN.m` và thiếu frontmatter: `shared/diagrams/uc-tong-quan.md`, `shared/uc-ph01-tai-khoan-xac-thuc.md`, `shared/uc-ph13-ton-kho.md`. `shared/use-case-index.md` vẫn là khuôn trống. Đặc tả UC-03 duy nhất là [features/products/use-cases.md](docs/features/products/use-cases.md).
 - Tên bài kiểm thử của module mẫu `products` còn dạng `PH-03`/`AC-1` (mã cũ); PH-01 viết lại theo `UC-NN.m/ACk`.
 - Tiêu đề Issue #6, #7, #8 còn `PH1`–`PH3` và phạm vi cũ; đổi theo báo cáo tuần.
 

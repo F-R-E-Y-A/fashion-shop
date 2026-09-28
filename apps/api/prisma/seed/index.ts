@@ -24,7 +24,7 @@ const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) })
 async function main(): Promise<void> {
   const [catalog, identity] = await Promise.all([seedCatalog(prisma), seedIdentity(prisma)]);
   console.log(
-    `Da nap du lieu gia: ${catalog.categories} danh muc, ${catalog.products} san pham, ${catalog.productVariants} phien ban, ${identity.roles} vai tro.`,
+    `Da nap du lieu nen: ${catalog.categories} danh muc, ${catalog.brands} thuong hieu, ${catalog.colors} mau, ${catalog.sizes} co, ${identity.roles} vai tro.`,
   );
 }
 

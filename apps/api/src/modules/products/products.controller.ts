@@ -3,6 +3,9 @@ import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { ListProductsQuery } from './dto/list-products.query.js';
 import { ProductListResponse, ProductResponse } from './dto/product.response.js';
+import { ProductDetailResponse } from './dto/product-detail.response.js';
+import { ProductSlugParam } from './dto/product-slug.param.js';
+import { RelatedProductsQuery } from './dto/related-products.query.js';
 import { ProductsService } from './products.service.js';
 
 /**
@@ -26,10 +29,20 @@ export class ProductsController {
     return this.products.list(query);
   }
 
+  @Get(':slug/related')
+  @ApiOperation({ summary: 'Sản phẩm cùng danh mục' })
+  @ApiOkResponse({ type: ProductResponse, isArray: true })
+  related(
+    @Param() { slug }: ProductSlugParam,
+    @Query() { limit }: RelatedProductsQuery,
+  ): Promise<ProductResponse[]> {
+    return this.products.related(slug, limit);
+  }
+
   @Get(':slug')
-  @ApiOperation({ summary: 'Xem mot san pham theo duong dan rut gon' })
-  @ApiOkResponse({ type: ProductResponse })
-  findOne(@Param('slug') slug: string): Promise<ProductResponse> {
+  @ApiOperation({ summary: 'Chi tiết sản phẩm theo slug' })
+  @ApiOkResponse({ type: ProductDetailResponse })
+  findOne(@Param() { slug }: ProductSlugParam): Promise<ProductDetailResponse> {
     return this.products.findBySlug(slug);
   }
 }
