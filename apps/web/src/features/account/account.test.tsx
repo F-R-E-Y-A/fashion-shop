@@ -7,8 +7,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StoreLayout } from '@/app/StoreLayout';
 
 import { AuthProvider, useAuth } from './AuthProvider.js';
+import { ForgotPasswordPage } from './pages/ForgotPasswordPage.js';
 import { LoginPage } from './pages/LoginPage.js';
 import { RegisterPage } from './pages/RegisterPage.js';
+import { ResetPasswordPage } from './pages/ResetPasswordPage.js';
 import { VerifyEmailPage } from './pages/VerifyEmailPage.js';
 
 const authenticated = {
@@ -63,6 +65,31 @@ function renderVerifyPage(initialEmail = 'customer@example.com') {
     >
       <Routes>
         <Route path="/xac-thuc-email" element={<VerifyEmailPage />} />
+        <Route path="/login" element={<p>Trang đăng nhập</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+/** Neither password-recovery page uses AuthProvider: they only call the OTP endpoints directly. */
+function renderForgotPasswordPage() {
+  return render(
+    <MemoryRouter initialEntries={['/quen-mat-khau']}>
+      <Routes>
+        <Route path="/quen-mat-khau" element={<ForgotPasswordPage />} />
+        <Route path="/dat-lai-mat-khau" element={<p>Trang đặt lại mật khẩu</p>} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+function renderResetPasswordPage(initialEmail = 'customer@example.com') {
+  return render(
+    <MemoryRouter
+      initialEntries={[{ pathname: '/dat-lai-mat-khau', state: { email: initialEmail } }]}
+    >
+      <Routes>
+        <Route path="/dat-lai-mat-khau" element={<ResetPasswordPage />} />
         <Route path="/login" element={<p>Trang đăng nhập</p>} />
       </Routes>
     </MemoryRouter>,
@@ -310,5 +337,113 @@ describe('Account authentication (PH3)', () => {
 
     expect(await screen.findByRole('status')).toHaveTextContent('một mã mới đã được gửi');
     expect(screen.getByRole('button', { name: /Gửi lại sau \d+s/ })).toBeDisabled();
+  });
+
+  it('shows a forgot-password link on the login page', async () => {
+    mockFetch(mockResponse({}, 401));
+
+    renderWithRoutes('/login');
+
+    expect(await screen.findByRole('link', { name: 'Quên mật khẩu?' })).toHaveAttribute(
+      'href',
+      '/quen-mat-khau',
+    );
+  });
+
+  it('shows the generic message when the backend accepts the request for an eligible account', async () => {
+    mockFetch(mockResponse({ accepted: true }));
+    const user = userEvent.setup();
+
+    renderForgotPasswordPage();
+    await user.type(screen.getByLabelText('Email'), 'customer@example.com');
+    await user.click(screen.getByRole('button', { name: 'Gửi mã đặt lại mật khẩu' }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Nếu email tồn tại và đủ điều kiện, mã đặt lại mật khẩu đã được gửi.',
+    );
+    await user.click(screen.getByRole('button', { name: 'Tôi đã có mã' }));
+    expect(await screen.findByText('Trang đặt lại mật khẩu')).toBeInTheDocument();
+  });
+
+  it('shows the exact same generic message for an unknown email (indistinguishable from an eligible one)', async () => {
+    // The API always answers 200 { accepted: true } for an unknown/ineligible email too, so this
+    // is the same response shape as the "eligible" test above — the UI has no way to tell them
+    // apart, which is the point: it renders the identical status message either way.
+    mockFetch(mockResponse({ accepted: true }));
+    const user = userEvent.setup();
+
+    renderForgotPasswordPage();
+    await user.type(screen.getByLabelText('Email'), 'never-registered@example.com');
+    await user.click(screen.getByRole('button', { name: 'Gửi mã đặt lại mật khẩu' }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      'Nếu email tồn tại và đủ điều kiện, mã đặt lại mật khẩu đã được gửi.',
+    );
+  });
+
+  it('shows a retry error, not the generic success message, when the request fails', async () => {
+    mockFetch(mockResponse({}, 500));
+    const user = userEvent.setup();
+
+    renderForgotPasswordPage();
+    await user.type(screen.getByLabelText('Email'), 'customer@example.com');
+    await user.click(screen.getByRole('button', { name: 'Gửi mã đặt lại mật khẩu' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Không thể gửi yêu cầu lúc này. Vui lòng thử lại.',
+    );
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('rejects a mismatched password confirmation without calling the API', async () => {
+    const user = userEvent.setup();
+
+    renderResetPasswordPage();
+    await user.type(screen.getByLabelText('Mã đặt lại mật khẩu'), '123456');
+    await user.type(screen.getByLabelText('Mật khẩu mới'), 'NewPassword123');
+    await user.type(screen.getByLabelText('Xác nhận mật khẩu mới'), 'DifferentPassword123');
+    await user.click(screen.getByRole('button', { name: 'Đặt lại mật khẩu' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Mật khẩu xác nhận không khớp.');
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('resets the password and shows a success state with a login CTA', async () => {
+    mockFetch(mockResponse({ reset: true }));
+    const user = userEvent.setup();
+
+    renderResetPasswordPage();
+    await user.type(screen.getByLabelText('Mã đặt lại mật khẩu'), '123456');
+    await user.type(screen.getByLabelText('Mật khẩu mới'), 'NewPassword123');
+    await user.type(screen.getByLabelText('Xác nhận mật khẩu mới'), 'NewPassword123');
+    await user.click(screen.getByRole('button', { name: 'Đặt lại mật khẩu' }));
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Mật khẩu đã được đặt lại');
+    await user.click(screen.getByRole('button', { name: 'Đăng nhập ngay' }));
+    expect(await screen.findByText('Trang đăng nhập')).toBeInTheDocument();
+  });
+
+  it('shows an OTP-expired error on reset-password without leaving the form', async () => {
+    mockFetch(
+      mockResponse(
+        {
+          statusCode: 400,
+          code: 'OTP_EXPIRED',
+          message: 'Ma xac thuc da het han',
+          path: '/auth/reset-password',
+          timestamp: new Date().toISOString(),
+        },
+        400,
+      ),
+    );
+    const user = userEvent.setup();
+
+    renderResetPasswordPage();
+    await user.type(screen.getByLabelText('Mã đặt lại mật khẩu'), '123456');
+    await user.type(screen.getByLabelText('Mật khẩu mới'), 'NewPassword123');
+    await user.type(screen.getByLabelText('Xác nhận mật khẩu mới'), 'NewPassword123');
+    await user.click(screen.getByRole('button', { name: 'Đặt lại mật khẩu' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Mã đặt lại mật khẩu đã hết hạn');
   });
 });

@@ -26,3 +26,11 @@ export interface VerifyEmailResponse {
 export interface ResendVerificationResponse {
   accepted: true;
 }
+
+export interface ForgotPasswordResponse {
+  accepted: true;
+}
+
+export interface ResetPasswordResponse {
+  reset: true;
+}

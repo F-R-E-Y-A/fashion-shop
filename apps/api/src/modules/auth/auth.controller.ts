@@ -30,12 +30,16 @@ import type { CurrentUserType } from './current-user.type.js';
 import {
   AuthenticatedUserResponse,
   AuthResponse,
+  ForgotPasswordResponse,
   RegisterResponse,
   ResendVerificationResponse,
+  ResetPasswordResponse,
   VerifyEmailResponse,
 } from './dto/auth.response.js';
 import { LoginRequest, RegisterRequest } from './dto/auth-credentials.request.js';
+import { ForgotPasswordRequest } from './dto/forgot-password.request.js';
 import { ResendVerificationRequest } from './dto/resend-verification.request.js';
+import { ResetPasswordRequest } from './dto/reset-password.request.js';
 import { VerifyEmailRequest } from './dto/verify-email.request.js';
 import {
   clearRefreshCookieOptions,
@@ -122,6 +126,25 @@ export class AuthController {
     @Body() request: ResendVerificationRequest,
   ): Promise<ResendVerificationResponse> {
     return this.auth.resendVerification(request);
+  }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Yeu cau OTP dat lai mat khau; luon tra ve phan hoi chung chung' })
+  @ApiOkResponse({ type: ForgotPasswordResponse })
+  async forgotPassword(@Body() request: ForgotPasswordRequest): Promise<ForgotPasswordResponse> {
+    return this.auth.forgotPassword(request);
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Dat lai mat khau bang OTP; khong cap phien dang nhap' })
+  @ApiOkResponse({ type: ResetPasswordResponse })
+  @ApiBadRequestResponse({
+    description: 'Ma OTP khong dung/het han/vuot qua so lan thu, hoac mat khau moi khong hop le',
+  })
+  async resetPassword(@Body() request: ResetPasswordRequest): Promise<ResetPasswordResponse> {
+    return this.auth.resetPassword(request);
   }
 
   @Post('login')

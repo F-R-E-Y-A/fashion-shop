@@ -11,6 +11,7 @@ import { createTestApp, type TestApp } from './helpers/create-test-app.js';
 import { resetDatabase } from './helpers/db.js';
 
 const password = 'Password123';
+const newPassword = 'NewPassword123';
 
 function refreshTokenFrom(headers: Record<string, unknown>): string {
   const cookies = headers['set-cookie'];
@@ -407,6 +408,315 @@ describe('POST /api/auth (PH3 + PH3.1 Account, Authentication, Email Verificatio
         .expect(200);
       expect(response.body).toEqual({ accepted: true });
       expect(t.mail.sent.length).toBe(sentBefore);
+    });
+  });
+
+  /** Requests a reset OTP for an ACTIVE account and returns the code that was "emailed". */
+  async function requestPasswordReset(email: string): Promise<string> {
+    await t.http.post('/api/auth/forgot-password').send({ email }).expect(200);
+    const code = t.mail.lastCodeSentTo(email);
+    if (!code) throw new Error(`No password-reset email captured for ${email}`);
+    return code;
+  }
+
+  describe('forgot-password', () => {
+    it('issues a PASSWORD_RESET OTP and emails it for an ACTIVE account', async () => {
+      const email = 'forgot-active@example.com';
+      await activateAndLogin(email);
+
+      const response = await t.http.post('/api/auth/forgot-password').send({ email }).expect(200);
+      expect(response.body).toEqual({ accepted: true });
+
+      const otp = await t.prisma.otpCode.findFirst({
+        where: { email, purpose: OtpPurpose.PASSWORD_RESET },
+      });
+      expect(otp).toMatchObject({ consumedAt: null, attemptCount: 0 });
+      expect(otp?.codeHash).not.toMatch(/^\d{6}$/);
+      const sent = t.mail.sent.find(
+        (message) => message.to === email && /dat lai mat khau/i.test(message.subject),
+      );
+      expect(sent?.text).toMatch(/\b\d{6}\b/);
+    });
+
+    it('does not create an EMAIL_VERIFICATION OTP as a side effect', async () => {
+      const email = 'forgot-no-cross-purpose@example.com';
+      await activateAndLogin(email);
+
+      await t.http.post('/api/auth/forgot-password').send({ email }).expect(200);
+
+      const emailVerificationOtp = await t.prisma.otpCode.findFirst({
+        where: { email, purpose: OtpPurpose.EMAIL_VERIFICATION, consumedAt: null },
+      });
+      expect(emailVerificationOtp).toBeNull();
+    });
+
+    it('returns the generic response for an unknown email without creating an OTP', async () => {
+      const email = 'forgot-unknown@example.com';
+
+      const response = await t.http.post('/api/auth/forgot-password').send({ email }).expect(200);
+      expect(response.body).toEqual({ accepted: true });
+      expect(await t.prisma.otpCode.findFirst({ where: { email } })).toBeNull();
+      expect(t.mail.sent.some((message) => message.to === email)).toBe(false);
+    });
+
+    it('returns the generic response for a PENDING_VERIFICATION account without creating a PASSWORD_RESET OTP', async () => {
+      const email = 'forgot-pending@example.com';
+      await registerPending(email);
+      const sentBefore = t.mail.sent.length;
+
+      const response = await t.http.post('/api/auth/forgot-password').send({ email }).expect(200);
+      expect(response.body).toEqual({ accepted: true });
+      expect(
+        await t.prisma.otpCode.findFirst({ where: { email, purpose: OtpPurpose.PASSWORD_RESET } }),
+      ).toBeNull();
+      expect(t.mail.sent.length).toBe(sentBefore);
+    });
+
+    it.each([UserStatus.LOCKED, UserStatus.DISABLED])(
+      'returns the generic response for a %s account without creating a PASSWORD_RESET OTP',
+      async (status) => {
+        const email = `forgot-${status.toLowerCase()}@example.com`;
+        await activateAndLogin(email);
+        await t.prisma.user.update({ where: { email }, data: { status } });
+        const sentBefore = t.mail.sent.length;
+
+        const response = await t.http.post('/api/auth/forgot-password').send({ email }).expect(200);
+        expect(response.body).toEqual({ accepted: true });
+        expect(
+          await t.prisma.otpCode.findFirst({
+            where: { email, purpose: OtpPurpose.PASSWORD_RESET },
+          }),
+        ).toBeNull();
+        expect(t.mail.sent.length).toBe(sentBefore);
+      },
+    );
+
+    it('enforces the 60-second resend cooldown by silently skipping issuance', async () => {
+      const email = 'forgot-cooldown@example.com';
+      await activateAndLogin(email);
+      await requestPasswordReset(email);
+      const sentBefore = t.mail.sent.length;
+
+      const response = await t.http.post('/api/auth/forgot-password').send({ email }).expect(200);
+      expect(response.body).toEqual({ accepted: true });
+      expect(t.mail.sent.length).toBe(sentBefore);
+    });
+  });
+
+  describe('reset-password', () => {
+    it('changes the password on a correct OTP: old password fails, new password logs in', async () => {
+      const email = 'reset-ok@example.com';
+      await activateAndLogin(email);
+      const code = await requestPasswordReset(email);
+
+      const response = await t.http
+        .post('/api/auth/reset-password')
+        .send({ email, code, newPassword })
+        .expect(200);
+      expect(response.body).toEqual({ reset: true });
+      expect(response.headers['set-cookie']).toBeUndefined();
+      expect(JSON.stringify(response.body)).not.toContain('accessToken');
+
+      const user = await t.prisma.user.findUnique({ where: { email } });
+      expect(user?.passwordHash).not.toBe(newPassword);
+      expect(user?.passwordHash).not.toBe(password);
+
+      await t.http.post('/api/auth/login').send({ email, password }).expect(401);
+      await t.http.post('/api/auth/login').send({ email, password: newPassword }).expect(200);
+    });
+
+    it('consumes the OTP so the same code cannot reset the password twice', async () => {
+      const email = 'reset-replay@example.com';
+      await activateAndLogin(email);
+      const code = await requestPasswordReset(email);
+
+      await t.http.post('/api/auth/reset-password').send({ email, code, newPassword }).expect(200);
+      const replay = await t.http
+        .post('/api/auth/reset-password')
+        .send({ email, code, newPassword: 'AnotherPassword123' })
+        .expect(400);
+      expect(replay.body).toMatchObject({ code: 'OTP_INVALID' });
+    });
+
+    it('increments attemptCount on an incorrect code without changing the password', async () => {
+      const email = 'reset-wrong@example.com';
+      await activateAndLogin(email);
+      await requestPasswordReset(email);
+
+      const response = await t.http
+        .post('/api/auth/reset-password')
+        .send({ email, code: '000000', newPassword })
+        .expect(400);
+      expect(response.body).toMatchObject({ code: 'OTP_INVALID' });
+
+      const otp = await t.prisma.otpCode.findFirst({
+        where: { email, purpose: OtpPurpose.PASSWORD_RESET },
+      });
+      expect(otp?.attemptCount).toBe(1);
+      await t.http.post('/api/auth/login').send({ email, password }).expect(200);
+    });
+
+    it('rejects once max attempts are exceeded, even with the correct code', async () => {
+      const email = 'reset-exceeded@example.com';
+      await activateAndLogin(email);
+      const code = await requestPasswordReset(email);
+
+      for (let i = 0; i < 5; i++) {
+        await t.http
+          .post('/api/auth/reset-password')
+          .send({ email, code: '000000', newPassword })
+          .expect(400);
+      }
+
+      const response = await t.http
+        .post('/api/auth/reset-password')
+        .send({ email, code, newPassword })
+        .expect(400);
+      expect(response.body).toMatchObject({ code: 'OTP_ATTEMPTS_EXCEEDED' });
+      await t.http.post('/api/auth/login').send({ email, password }).expect(200);
+    });
+
+    it('rejects an expired code', async () => {
+      const email = 'reset-expired@example.com';
+      await activateAndLogin(email);
+      const code = await requestPasswordReset(email);
+      await t.prisma.otpCode.updateMany({
+        where: { email, purpose: OtpPurpose.PASSWORD_RESET },
+        data: { expiresAt: new Date(Date.now() - 1_000) },
+      });
+
+      const response = await t.http
+        .post('/api/auth/reset-password')
+        .send({ email, code, newPassword })
+        .expect(400);
+      expect(response.body).toMatchObject({ code: 'OTP_EXPIRED' });
+    });
+
+    it('rejects an EMAIL_VERIFICATION OTP even when its code value matches', async () => {
+      const email = 'reset-wrong-purpose@example.com';
+      await activateAndLogin(email);
+      await requestPasswordReset(email); // creates a real PASSWORD_RESET OTP with an unrelated code
+      const foreignCode = '999999';
+      await t.prisma.otpCode.create({
+        data: {
+          email,
+          purpose: OtpPurpose.EMAIL_VERIFICATION,
+          codeHash: hashOtpCode(
+            process.env.OTP_PEPPER!,
+            email,
+            OtpPurpose.EMAIL_VERIFICATION,
+            foreignCode,
+          ),
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      });
+
+      const response = await t.http
+        .post('/api/auth/reset-password')
+        .send({ email, code: foreignCode, newPassword })
+        .expect(400);
+      expect(response.body).toMatchObject({ code: 'OTP_INVALID' });
+      await t.http.post('/api/auth/login').send({ email, password }).expect(200);
+    });
+
+    it('rejects a weak new password without consuming the OTP', async () => {
+      const email = 'reset-weak-password@example.com';
+      await activateAndLogin(email);
+      const code = await requestPasswordReset(email);
+
+      const response = await t.http
+        .post('/api/auth/reset-password')
+        .send({ email, code, newPassword: 'weakpass' })
+        .expect(400);
+      expect(response.body).toMatchObject({ statusCode: 400, code: 'BAD_REQUEST' });
+
+      // The OTP must still work afterward: DTO validation failed before touching OtpService.
+      await t.http.post('/api/auth/reset-password').send({ email, code, newPassword }).expect(200);
+    });
+  });
+
+  describe('reset-password session revocation', () => {
+    it('revokes every refresh session across every family, not just the current one', async () => {
+      const email = 'reset-revoke-all@example.com';
+      const session1 = await activateAndLogin(email);
+      const login2 = await t.http.post('/api/auth/login').send({ email, password }).expect(200);
+      const session2Token = expectRefreshCookie(login2.headers);
+
+      const activeBefore = await t.prisma.refreshToken.count({
+        where: { userId: session1.id, revokedAt: null },
+      });
+      expect(activeBefore).toBe(2);
+
+      const code = await requestPasswordReset(email);
+      await t.http.post('/api/auth/reset-password').send({ email, code, newPassword }).expect(200);
+
+      const activeAfter = await t.prisma.refreshToken.count({
+        where: { userId: session1.id, revokedAt: null },
+      });
+      expect(activeAfter).toBe(0);
+
+      await t.http
+        .post('/api/auth/refresh')
+        .set('Cookie', `refresh_token=${session1.refreshToken}`)
+        .expect(401);
+      await t.http
+        .post('/api/auth/refresh')
+        .set('Cookie', `refresh_token=${session2Token}`)
+        .expect(401);
+    });
+  });
+
+  describe('reset-password / forgot-password concurrency', () => {
+    it('lets only one of two concurrent resets with the same correct OTP succeed', async () => {
+      const email = 'concurrent-reset-correct@example.com';
+      await activateAndLogin(email);
+      const code = await requestPasswordReset(email);
+
+      const [first, second] = await Promise.all([
+        t.http.post('/api/auth/reset-password').send({ email, code, newPassword }),
+        t.http.post('/api/auth/reset-password').send({ email, code, newPassword }),
+      ]);
+
+      expect([first.status, second.status].sort()).toEqual([200, 400]);
+      await t.http.post('/api/auth/login').send({ email, password: newPassword }).expect(200);
+    });
+
+    it('accumulates attemptCount correctly across concurrent wrong-code submissions', async () => {
+      const email = 'concurrent-reset-wrong@example.com';
+      await activateAndLogin(email);
+      await requestPasswordReset(email);
+
+      const responses = await Promise.all([
+        t.http.post('/api/auth/reset-password').send({ email, code: '111111', newPassword }),
+        t.http.post('/api/auth/reset-password').send({ email, code: '222222', newPassword }),
+      ]);
+      expect(responses.every((response) => response.status === 400)).toBe(true);
+
+      const otp = await t.prisma.otpCode.findFirst({
+        where: { email, purpose: OtpPurpose.PASSWORD_RESET },
+      });
+      expect(otp?.attemptCount).toBe(2);
+    });
+
+    it('never leaves the old OTP usable once a concurrent forgot-password (resend) has completed', async () => {
+      const email = 'concurrent-reset-resend@example.com';
+      await activateAndLogin(email);
+      const oldCode = await requestPasswordReset(email);
+      await t.prisma.otpCode.updateMany({
+        where: { email, purpose: OtpPurpose.PASSWORD_RESET },
+        data: { createdAt: new Date(Date.now() - 61_000) },
+      });
+
+      await Promise.all([
+        t.http.post('/api/auth/reset-password').send({ email, code: oldCode, newPassword }),
+        t.http.post('/api/auth/forgot-password').send({ email }),
+      ]);
+
+      const replay = await t.http
+        .post('/api/auth/reset-password')
+        .send({ email, code: oldCode, newPassword: 'YetAnotherPassword123' });
+      expect(replay.status).toBe(400);
+      expect(replay.body).toMatchObject({ code: 'OTP_INVALID' });
     });
   });
 

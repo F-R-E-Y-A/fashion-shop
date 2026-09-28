@@ -83,3 +83,51 @@ luôn trả cùng một phản hồi chung chung bất kể email tồn tại ha
 khoản. Đăng ký không rollback khi gửi email thất bại: user vẫn ở PENDING_VERIFICATION và có thể
 dùng resend. Chưa làm ở PH3.1 (xem `docs/TECH_DEBT.md` nếu cần mở nợ): rate limiting toàn cục,
 revoke cả họ refresh-token khi phát hiện replay, quên/đặt lại mật khẩu, đổi mật khẩu, OAuth.
+
+## PH3.2 — Quên mật khẩu / đặt lại mật khẩu, nhánh `feature/ph3-password-recovery`
+
+### Luồng
+
+```
+POST /auth/forgot-password  -> luon tra { accepted: true }. Chi tao OTP PASSWORD_RESET + gui email
+                                khi user dang ACTIVE (xem "Policy theo UserStatus" duoi day).
+POST /auth/reset-password   -> dung OTP dung: doi passwordHash, consume OTP, revoke MOI refresh
+                                token con hieu luc cua user (khong chi mot family). Khong cap session.
+```
+
+Giao diện: `/quen-mat-khau` (nhập email, luôn hiện thông báo chung chung) → `/dat-lai-mat-khau`
+(email + OTP + mật khẩu mới + xác nhận). Đặt lại thành công hiện nút "Đăng nhập ngay", không tự
+đăng nhập — giống hệt cách `/xac-thuc-email` xử lý ở PH3.1. `LoginPage` có thêm link "Quên mật khẩu?".
+
+### Policy theo UserStatus (quyết định của PH3.2)
+
+Chỉ tài khoản **ACTIVE** mới thực sự nhận OTP `PASSWORD_RESET` + email. Ba trường hợp còn lại đều
+trả cùng response chung chung như email không tồn tại, **không** tạo OTP:
+
+- **PENDING_VERIFICATION**: tài khoản này không đăng nhập được dù mật khẩu gì (bị chặn bởi
+  `EMAIL_NOT_VERIFIED`), nên "quên mật khẩu" không giải quyết được gì; lối ra đúng là
+  `resend-verification`, không phải `forgot-password`.
+- **LOCKED / DISABLED**: đây là hành động khóa có chủ đích; cho tự phục hồi mật khẩu sẽ làm mất tác
+  dụng của việc khóa, nên giữ nguyên chặn như `login()`/`refresh()` đã làm.
+
+### Tái sử dụng từ PH3.1, không sửa gì
+
+`OtpService` (`issue`/`verify`/`isWithinResendCooldown`) đã trung lập theo `OtpPurpose` từ thiết kế
+ban đầu ([LOG#adr-010](LOG.md#adr-010)) nên PH3.2 dùng thẳng với `OtpPurpose.PASSWORD_RESET`, không
+sửa `otp.service.ts`. `MailService` dùng lại nguyên vẹn, chỉ thêm `password-reset-email.ts` soạn nội
+dung riêng. Mã OTP dùng chung decorator `IsOtpCode` (`otp-policy.ts`, tách ra từ PH3.2 để
+`verify-email` và `reset-password` không lặp lại luật `^\d{6}$`). Mật khẩu mới dùng lại
+`IsStrongPassword` và `PasswordHasherService` y hệt `register()`, không có logic hash thứ hai.
+Không có migration nào ở PH3.2: `OtpPurpose.PASSWORD_RESET`, `OtpCode`, `RefreshToken.revokedAt` đã
+đủ từ trước.
+
+### Transaction và revoke session
+
+`resetPassword()` theo đúng kỷ luật đã sửa ở PH3.1 ([LOG#adr-010](LOG.md#adr-010) phần "Thực tế"):
+không throw bên trong `$transaction` cho một outcome đã biết trước, chỉ throw sau khi transaction đã
+commit. Khi OTP đúng, cùng một transaction: consume OTP, đổi `passwordHash`, và
+`refreshToken.updateMany({userId, revokedAt: null} -> revokedAt: now)` cho **toàn bộ** family, không
+chỉ family hiện tại — nên không có trạng thái nửa vời (đổi mật khẩu nhưng OTP chưa consume, hoặc
+ngược lại). Giới hạn đã biết: access token JWT ngắn hạn đã cấp trước đó không có `jti`/session
+linkage nên vẫn còn hiệu lực tới khi hết TTL riêng của nó; cần access-token blacklist để đóng hẳn,
+việc đó nằm ngoài PH3.2.

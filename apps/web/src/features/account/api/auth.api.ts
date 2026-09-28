@@ -4,8 +4,10 @@ import type {
   AuthenticatedUser,
   AuthResponse,
   Credentials,
+  ForgotPasswordResponse,
   RegisterResponse,
   ResendVerificationResponse,
+  ResetPasswordResponse,
   VerifyEmailResponse,
 } from '../types.js';
 
@@ -21,6 +23,19 @@ export const resendVerification = (email: string): Promise<ResendVerificationRes
   apiRequest<ResendVerificationResponse>('/auth/resend-verification', {
     method: 'POST',
     body: { email },
+  });
+
+export const forgotPassword = (email: string): Promise<ForgotPasswordResponse> =>
+  apiRequest<ForgotPasswordResponse>('/auth/forgot-password', { method: 'POST', body: { email } });
+
+export const resetPassword = (
+  email: string,
+  code: string,
+  newPassword: string,
+): Promise<ResetPasswordResponse> =>
+  apiRequest<ResetPasswordResponse>('/auth/reset-password', {
+    method: 'POST',
+    body: { email, code, newPassword },
   });
 
 export const login = (credentials: Credentials): Promise<AuthResponse> =>

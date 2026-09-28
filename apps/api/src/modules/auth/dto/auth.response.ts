@@ -36,3 +36,16 @@ export class ResendVerificationResponse {
   @ApiProperty({ example: true, description: 'Luon true, ke ca khi email khong ton tai.' })
   accepted!: true;
 }
+
+export class ForgotPasswordResponse {
+  @ApiProperty({
+    example: true,
+    description: 'Luon true, ke ca khi email khong ton tai hoac khong du dieu kien dat lai.',
+  })
+  accepted!: true;
+}
+
+export class ResetPasswordResponse {
+  @ApiProperty({ example: true })
+  reset!: true;
+}
