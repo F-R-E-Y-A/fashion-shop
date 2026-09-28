@@ -104,11 +104,20 @@ jobs:
           --health-cmd "pg_isready -U fashion -d fashion_shop"
           --health-interval 5s --health-timeout 5s --health-retries 10
 
+      # Bo dem gioi han toc do (PH3.4). Kiem thu HTTP chay tren Redis that, khong mock.
+      redis:
+        image: redis:7-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+
     env:
       DATABASE_URL: postgresql://fashion:fashion@localhost:5432/fashion_shop?schema=public
       # Tren CI dung chung mot CSDL cho ca hai; CI=true nen test/setup-env.ts cho phep trung.
       DATABASE_URL_TEST: postgresql://fashion:fashion@localhost:5432/fashion_shop?schema=public
       CORS_ORIGINS: http://localhost:5174
+      REDIS_URL: redis://localhost:6379
 
     steps:
       - uses: actions/checkout@v4
@@ -215,10 +224,17 @@ jobs:
             [ "$(docker inspect -f '{{.State.Health.Status}}' pg)" = healthy ] && break
             sleep 2
           done
+          docker run -d --name redis --network ci-net redis:7-alpine
           docker run -d --name api --network ci-net -p 3001:3001 \
             -e DATABASE_URL='postgresql://fashion:fashion@pg:5432/fashion_shop?schema=public' \
             -e CORS_ORIGINS=http://localhost:8080 \
             -e JWT_ACCESS_SECRET=ci-only-jwt-access-secret-not-for-production \
+            -e OTP_PEPPER=ci-only-otp-pepper-not-for-production-use \
+            -e SMTP_HOST=localhost \
+            -e SMTP_FROM=no-reply@fashion-shop.ci \
+            -e REDIS_URL=redis://redis:6379 \
+            -e RATE_LIMIT_PEPPER=ci-only-rate-limit-pepper-not-for-production \
+            -e TRUST_PROXY_HOPS=0 \
             fashion-shop-api:ci
           for i in $(seq 1 30); do
             if curl -fsS http://localhost:3001/api/healthz > health.json; then break; fi
@@ -231,4 +247,4 @@ jobs:
 
       - name: Don dep
         if: always()
-        run: docker rm -f api pg || true
+        run: docker rm -f api pg redis || true

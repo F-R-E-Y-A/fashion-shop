@@ -195,8 +195,8 @@ Web chuyển lên đầu khi điều hướng mới và phục hồi vị trí k
 
 ### Quyết định cần Bảo chốt
 
-<a id="adr-010"></a>
-## 2026-09-27 · ADR-010 — Chỉ đưa product và lựa chọn màu có ảnh dùng được lên storefront
+<a id="adr-018"></a>
+## 2026-09-27 · ADR-018 — Chỉ đưa product và lựa chọn màu có ảnh dùng được lên storefront
 
 **Loại:** quyết định · **Phạm vi:** API Catalog và product detail web · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** chưa tạo
 
@@ -238,4 +238,10 @@ Sau khi chỉnh khoảng cách ba ô còn 6px, chạy lại `npm.cmd run check` 
 
 **Loại:** nghiệm thu giao diện · **Phạm vi:** PH-01 · **Commit:** `44d361b`, merge vào nhánh feature tại `4f07243`.
 
-Bảo xác nhận đã duyệt giao diện. Phần làm sạch Catalog và UX được commit trên `task/catalog-data-ux`, rồi gộp vào `feature/ph-01-product-catalog` theo quy ước nhánh. Mở PR từ nhánh feature vào `develop` để CI và người khác review trước khi merge; `Closes #6` đặt trong mô tả PR để Issue chỉ đóng sau khi gộp. Trạng thái ADR-010 vẫn là đề xuất.
+Bảo xác nhận đã duyệt giao diện. Phần làm sạch Catalog và UX được commit trên `task/catalog-data-ux`, rồi gộp vào `feature/ph-01-product-catalog` theo quy ước nhánh. Mở PR từ nhánh feature vào `develop` để CI và người khác review trước khi merge; `Closes #6` đặt trong mô tả PR để Issue chỉ đóng sau khi gộp. Trạng thái ADR-018 vẫn là đề xuất.
+
+## 2026-09-28 · Đính chính mã ADR khi đồng bộ `develop`
+
+**Loại:** đính chính · **Phạm vi:** ADR của Catalog.
+
+Trong khi PR #17 chờ review, các PR xác thực đã dùng ADR-010 đến ADR-017 trên `develop`. Mục Catalog từng ghi ADR-010 ở nhánh feature bị trùng; đổi anchor và tiêu đề thành ADR-018 theo dãy chung, giữ nguyên nội dung và trạng thái đề xuất. Đây là sửa mã tham chiếu để lint tài liệu nhận một ADR duy nhất, không phải quyết định mới.

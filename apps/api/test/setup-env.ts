@@ -22,3 +22,14 @@ process.env.DATABASE_URL = testUrl;
 process.env.NODE_ENV = 'test';
 // Secret chi dung cho HTTP test; production phai cung cap JWT_ACCESS_SECRET tu moi truong.
 process.env.JWT_ACCESS_SECRET ??= 'test-access-secret-with-at-least-thirty-two-characters';
+process.env.OTP_PEPPER ??= 'test-otp-pepper-with-at-least-thirty-two-characters';
+// MailService that duoc thay bang FakeMailService trong test/helpers/create-test-app.ts nen cac
+// bien SMTP o day chi can hop le voi env.ts, khong bao gio duoc dung that.
+process.env.SMTP_HOST ??= 'localhost';
+process.env.SMTP_FROM ??= 'no-reply@fashion-shop.test';
+// Redis that: kiem thu HTTP chay tren Redis local/CI, khong mock (dieu can chung minh la gioi han
+// hoat dong that). Khoa cua NODE_ENV=test nam rieng, xem rateLimitKeyPrefix.
+process.env.REDIS_URL ??= 'redis://localhost:6379';
+process.env.RATE_LIMIT_PEPPER ??= 'test-rate-limit-pepper-with-at-least-thirty-two-chars';
+// Tin dung 1 proxy de test gia lap cac IP khach khac nhau bang header X-Forwarded-For.
+process.env.TRUST_PROXY_HOPS ??= '1';

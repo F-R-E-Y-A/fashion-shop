@@ -33,6 +33,7 @@ export function StoreLayout() {
             {!isLoading && isAuthenticated && (
               <>
                 <span className={styles.accountStatus}>{user?.email}</span>
+                <NavLink to="/doi-mat-khau">Đổi mật khẩu</NavLink>
                 <button type="button" className={styles.logout} onClick={() => void logout()}>
                   Đăng xuất
                 </button>

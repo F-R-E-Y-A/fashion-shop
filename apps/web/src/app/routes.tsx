@@ -1,6 +1,13 @@
 import { Link, Route, Routes } from 'react-router-dom';
 
-import { LoginPage, RegisterPage } from '@/features/account';
+import {
+  ChangePasswordPage,
+  ForgotPasswordPage,
+  LoginPage,
+  RegisterPage,
+  ResetPasswordPage,
+  VerifyEmailPage,
+} from '@/features/account';
 import {
   AdminProductsPage,
   CategoryPage,
@@ -34,6 +41,10 @@ export function AppRoutes() {
           <Route path="san-pham/:slug" element={<ProductDetailPage />} />
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
+          <Route path="xac-thuc-email" element={<VerifyEmailPage />} />
+          <Route path="quen-mat-khau" element={<ForgotPasswordPage />} />
+          <Route path="dat-lai-mat-khau" element={<ResetPasswordPage />} />
+          <Route path="doi-mat-khau" element={<ChangePasswordPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
         <Route path="quan-tri" element={<AdminLayout />}>
