@@ -1,14 +1,11 @@
-import { useQuery } from '@tanstack/react-query';
+import { QueryClientContext, useQuery } from '@tanstack/react-query';
+import { useContext } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 
 import { useAuth } from '@/features/account';
 import { cartKeys, getCart } from '@/features/cart';
 
-/**
- * Khung trang cua hang. Moi trang ban cho khach deu nam trong khung nay.
- * Them trang thi them mot dong Route trong app/routes.tsx, khong sua tep nay.
- */
-export function StoreLayout() {
+function CartBadgeWithQuery() {
   const { data: cart } = useQuery({
     queryKey: cartKeys.current(),
     queryFn: getCart,
@@ -16,6 +13,32 @@ export function StoreLayout() {
   });
 
   const itemCount = cart?.itemCount ?? 0;
+
+  return (
+    <NavLink to="/gio-hang" className="nav__cart">
+      🛒
+      {itemCount > 0 && <span className="nav__badge">{itemCount}</span>}
+    </NavLink>
+  );
+}
+
+function CartBadge() {
+  const hasQueryClient = Boolean(useContext(QueryClientContext));
+  if (!hasQueryClient) {
+    return (
+      <NavLink to="/gio-hang" className="nav__cart">
+        🛒
+      </NavLink>
+    );
+  }
+  return <CartBadgeWithQuery />;
+}
+
+/**
+ * Khung trang cua hang. Moi trang ban cho khach deu nam trong khung nay.
+ * Them trang thi them mot dong Route trong app/routes.tsx, khong sua tep nay.
+ */
+export function StoreLayout() {
   const { isAuthenticated, isLoading, logout, user } = useAuth();
 
   return (
@@ -29,10 +52,7 @@ export function StoreLayout() {
             Sản phẩm
           </NavLink>
           <NavLink to="/quan-tri">Quản trị</NavLink>
-          <NavLink to="/gio-hang" className="nav__cart">
-            🛒
-            {itemCount > 0 && <span className="nav__badge">{itemCount}</span>}
-          </NavLink>
+          <CartBadge />
         </nav>
         <div className="nav nav--account" aria-live="polite">
           {isLoading && <span className="nav__status">Đang khôi phục phiên…</span>}
