@@ -38,10 +38,14 @@ export class AuthGuard implements CanActivate {
         id: true,
         email: true,
         status: true,
+        authVersion: true,
         userRoles: { select: { role: { select: { code: true } } } },
       },
     });
     if (!user || user.status !== UserStatus.ACTIVE) throw this.unauthorized();
+    // Token cap truoc luc doi/dat lai mat khau mang `ver` cu (hoac khong co, coi la 0) nen khong
+    // khop authVersion hien tai. Khong them truy van: da doc `user` cho moi request tu truoc.
+    if ((payload.ver ?? 0) !== user.authVersion) throw this.unauthorized();
 
     request.user = {
       id: user.id,

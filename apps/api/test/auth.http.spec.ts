@@ -70,6 +70,7 @@ describe('POST /api/auth (PH3 + PH3.1 Account, Authentication, Email Verificatio
 
   beforeEach(async () => {
     await resetDatabase(t.prisma);
+    await t.resetRateLimits();
   });
 
   afterAll(async () => {
@@ -870,7 +871,7 @@ describe('POST /api/auth (PH3 + PH3.1 Account, Authentication, Email Verificatio
 
     it('rejects a validly signed token for a user that no longer exists', async () => {
       const tokens = t.app.get(TokenService);
-      const accessToken = await tokens.signAccessToken(randomUUID());
+      const accessToken = await tokens.signAccessToken(randomUUID(), 0);
 
       expectUnauthorized(
         await t.http.get('/api/auth/me').set('Authorization', `Bearer ${accessToken}`).expect(401),
@@ -923,7 +924,8 @@ describe('POST /api/auth (PH3 + PH3.1 Account, Authentication, Email Verificatio
       expect(replacement?.tokenHash).not.toBe(replacementRawToken);
     });
 
-    it('rejects a rotated token and accepts its replacement', async () => {
+    it('treats reuse of a rotated token as replay: rejects it and revokes its whole family', async () => {
+      // PH3.4 changed this on purpose: before, the replacement kept working after a replay.
       const session = await activateAndLogin('refresh-replay@example.com');
       const firstRefresh = await t.http
         .post('/api/auth/refresh')
@@ -938,12 +940,12 @@ describe('POST /api/auth (PH3 + PH3.1 Account, Authentication, Email Verificatio
       expectUnauthorized(replay);
       expect(replay.headers['set-cookie']).toBeUndefined();
 
-      const secondRefresh = await t.http
-        .post('/api/auth/refresh')
-        .set('Cookie', `refresh_token=${replacement}`)
-        .expect(200);
-      expectPublicAuthenticationResponse(secondRefresh.body);
-      expectRefreshCookie(secondRefresh.headers);
+      expectUnauthorized(
+        await t.http
+          .post('/api/auth/refresh')
+          .set('Cookie', `refresh_token=${replacement}`)
+          .expect(401),
+      );
     });
 
     it('rejects an expired refresh token without creating a replacement', async () => {
@@ -1176,7 +1178,7 @@ describe('POST /api/auth (PH3 + PH3.1 Account, Authentication, Email Verificatio
       await registerPending(email);
       const user = await t.prisma.user.findUnique({ where: { email } });
       const tokens = t.app.get(TokenService);
-      const accessToken = await tokens.signAccessToken(user!.id);
+      const accessToken = await tokens.signAccessToken(user!.id, user!.authVersion);
 
       expectUnauthorized(
         await t.http

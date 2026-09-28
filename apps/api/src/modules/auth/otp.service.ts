@@ -1,3 +1,5 @@
+import { createHmac } from 'node:crypto';
+
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
@@ -99,6 +101,31 @@ export class OtpService {
     // count === 0 means a concurrent request already consumed or invalidated (resend) this exact
     // row between our read above and this write; only the winner may report VERIFIED.
     return consumed.count === 0 ? { status: 'INVALID' } : { status: 'VERIFIED' };
+  }
+
+  /**
+   * Issues a code only if the resend cooldown has elapsed, and does so atomically per
+   * (email, purpose): a transaction-scoped Postgres advisory lock serializes concurrent issuers, so
+   * the second of two simultaneous requests waits for the first to commit, then sees its row inside
+   * the cooldown and issues nothing. Without the lock both would read "no active code", both would
+   * pass, and the user would receive two different codes (and two emails).
+   *
+   * Why a DB lock and not Redis `SET NX`: OTP state already lives in Postgres, the lock is released
+   * automatically on commit/rollback (no TTL to size, no deadlock if a process dies mid-request),
+   * it works across API instances, and OTP correctness must not depend on a cache being up. The key
+   * is an HMAC so the raw email never reaches the lock call. Must run inside a transaction.
+   */
+  async issueIfCooldownElapsed(
+    client: Prisma.TransactionClient,
+    params: { email: string; purpose: OtpPurpose; userId?: string },
+  ): Promise<IssuedOtp | null> {
+    const lockKey = createHmac('sha256', this.pepper())
+      .update(`otp-issue:${params.purpose}:${params.email}`)
+      .digest('hex');
+    await client.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${lockKey}, 0))`;
+
+    if (await this.isWithinResendCooldown(client, params)) return null;
+    return this.issue(client, params);
   }
 
   /** True while a still-fresh code exists for email+purpose, i.e. resend must wait. */

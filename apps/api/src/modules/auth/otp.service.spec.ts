@@ -9,6 +9,8 @@ const PEPPER = 'test-otp-pepper-with-at-least-thirty-two-characters';
 
 function makeClient() {
   return {
+    // Tagged-template call: $executeRaw`SELECT pg_advisory_xact_lock(...)`.
+    $executeRaw: vi.fn().mockResolvedValue(1),
     otpCode: {
       updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       create: vi.fn().mockResolvedValue({}),
@@ -202,5 +204,72 @@ describe('OtpService.isWithinResendCooldown', () => {
         purpose: OtpPurpose.EMAIL_VERIFICATION,
       }),
     ).resolves.toBe(false);
+  });
+});
+
+describe('OtpService.issueIfCooldownElapsed', () => {
+  const params = { email: 'a@example.com', purpose: OtpPurpose.PASSWORD_RESET, userId: 'user-1' };
+
+  it('takes the advisory lock BEFORE reading the cooldown, then issues when it has elapsed', async () => {
+    const client = makeClient();
+    const order: string[] = [];
+    client.$executeRaw.mockImplementation(async () => {
+      order.push('lock');
+      return 1;
+    });
+    client.otpCode.findFirst.mockImplementation(async () => {
+      order.push('cooldown-read');
+      return null;
+    });
+    client.otpCode.create.mockImplementation(async () => {
+      order.push('create');
+      return {};
+    });
+
+    const issued = await makeService().issueIfCooldownElapsed(client as never, params);
+
+    expect(order).toEqual(['lock', 'cooldown-read', 'create']);
+    expect(issued?.code).toMatch(/^\d{6}$/);
+  });
+
+  it('issues nothing and creates no row while a recent code is inside the cooldown', async () => {
+    const client = makeClient();
+    client.otpCode.findFirst.mockResolvedValue({ createdAt: new Date() });
+
+    await expect(makeService().issueIfCooldownElapsed(client as never, params)).resolves.toBeNull();
+
+    expect(client.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(client.otpCode.create).not.toHaveBeenCalled();
+    expect(client.otpCode.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('locks on a key that is the same for the same email+purpose and never contains the raw email', async () => {
+    const lockKeys: string[] = [];
+    const record = (client: ReturnType<typeof makeClient>) =>
+      client.$executeRaw.mockImplementation(async (_strings: unknown, key: string) => {
+        lockKeys.push(key);
+        return 1;
+      });
+    const first = makeClient();
+    const second = makeClient();
+    const other = makeClient();
+    [first, second, other].forEach(record);
+    first.otpCode.findFirst.mockResolvedValue(null);
+    second.otpCode.findFirst.mockResolvedValue(null);
+    other.otpCode.findFirst.mockResolvedValue(null);
+    const service = makeService();
+
+    await service.issueIfCooldownElapsed(first as never, params);
+    await service.issueIfCooldownElapsed(second as never, params);
+    await service.issueIfCooldownElapsed(other as never, {
+      ...params,
+      purpose: OtpPurpose.EMAIL_VERIFICATION,
+    });
+
+    expect(lockKeys[0]).toBe(lockKeys[1]);
+    // Different purpose for the same email must not serialize against password reset.
+    expect(lockKeys[2]).not.toBe(lockKeys[0]);
+    expect(lockKeys.join(' ')).not.toContain('example.com');
+    expect(lockKeys[0]).toMatch(/^[0-9a-f]{64}$/);
   });
 });

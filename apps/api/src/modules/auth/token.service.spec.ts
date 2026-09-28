@@ -23,15 +23,26 @@ function createService(): TokenService {
 }
 
 describe('TokenService', () => {
-  it('signs and verifies an access token with only the subject claim', async () => {
+  it('signs an access token carrying only the subject and the credential version', async () => {
     const service = createService();
 
-    const token = await service.signAccessToken('user-123');
+    const token = await service.signAccessToken('user-123', 7);
     const payload = await service.verifyAccessToken(token);
 
     expect(payload.sub).toBe('user-123');
+    expect(payload.ver).toBe(7);
+    expect(Object.keys(payload).sort()).toEqual(['exp', 'iat', 'sub', 'ver']);
     expect(payload).not.toHaveProperty('password');
     expect(payload).not.toHaveProperty('roles');
+    expect(payload).not.toHaveProperty('email');
+  });
+
+  it('records version 0 explicitly rather than omitting the claim', async () => {
+    const service = createService();
+
+    const payload = await service.verifyAccessToken(await service.signAccessToken('user-123', 0));
+
+    expect(payload.ver).toBe(0);
   });
 
   it('generates a raw refresh token and hashes it deterministically', () => {
