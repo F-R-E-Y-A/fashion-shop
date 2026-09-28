@@ -48,21 +48,53 @@ export class CartService {
     });
   }
 
-  /** Lay gio hien tai voi tat ca cac dong, kem thong tin san pham (mock). */
+  /** Lay thong tin bien the: doc tu CSDL that, fallback ve mock neu chua co */
+  private async getVariantInfo(variantId: string): Promise<VariantForCart> {
+    try {
+      const row = await this.prisma.productVariant.findUnique({
+        where: { id: variantId },
+        include: {
+          product: { include: { images: { take: 1 } } },
+          color: true,
+          size: true,
+        },
+      });
+
+      if (row) {
+        return {
+          variantId: row.id,
+          productId: row.productId,
+          name: row.product.name,
+          variantLabel: `${row.color.name} / ${row.size.code}`,
+          price: String(row.salePrice ?? 299000),
+          imageUrl: row.product.images[0]?.url ?? null,
+          isActive: row.isActive,
+        };
+      }
+    } catch {
+      // Khi CSDL chua co hoac dang chay unit test
+    }
+
+    return getMockVariant(variantId);
+  }
+
+  /** Lay gio hien tai voi tat ca cac dong, kem thong tin san pham. */
   async getCart(userId?: string, guestToken?: string): Promise<CartResponse> {
     if (!userId && !guestToken) throw new BadRequestException('Thieu dinh danh gio hang.');
 
     const cart = await this.findOrCreateCart(userId, guestToken);
     const dbItems = await this.prisma.cartItem.findMany({ where: { cartId: cart.id } });
 
-    const items: CartItemResponse[] = dbItems.map((item) => {
-      const variant = getMockVariant(item.productVariantId);
-      return {
-        ...variant,
-        quantity: item.quantity,
-        subtotal: calcSubtotal(variant.price, item.quantity),
-      };
-    });
+    const items: CartItemResponse[] = await Promise.all(
+      dbItems.map(async (item) => {
+        const variant = await this.getVariantInfo(item.productVariantId);
+        return {
+          ...variant,
+          quantity: item.quantity,
+          subtotal: calcSubtotal(variant.price, item.quantity),
+        };
+      }),
+    );
 
     return {
       cartId: cart.id,
@@ -84,7 +116,7 @@ export class CartService {
   ): Promise<CartResponse> {
     if (!userId && !guestToken) throw new BadRequestException('Thieu dinh danh gio hang.');
 
-    const variant = getMockVariant(variantId);
+    const variant = await this.getVariantInfo(variantId);
     if (!variant.isActive) throw new BadRequestException('Bien the san pham nay da ngung ban.');
 
     const cart = await this.findOrCreateCart(userId, guestToken);

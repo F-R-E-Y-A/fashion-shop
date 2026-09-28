@@ -1,37 +1,9 @@
--- CreateTable
-CREATE TABLE "carts" (
-    "id" UUID NOT NULL,
-    "user_id" UUID,
-    "guest_token" VARCHAR(64),
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
+-- AlterTable: cho phep khach vang lai chua dang nhap (user_id co the null) va them guest_token
+ALTER TABLE "carts" ALTER COLUMN "user_id" DROP NOT NULL;
+ALTER TABLE "carts" ADD COLUMN "guest_token" VARCHAR(64);
 
-    CONSTRAINT "carts_pkey" PRIMARY KEY ("id")
-);
+-- AlterTable: so luong mac dinh khi them dong moi la 1
+ALTER TABLE "cart_items" ALTER COLUMN "quantity" SET DEFAULT 1;
 
--- CreateTable
-CREATE TABLE "cart_items" (
-    "id" UUID NOT NULL,
-    "cart_id" UUID NOT NULL,
-    "variant_id" UUID NOT NULL,
-    "quantity" INTEGER NOT NULL DEFAULT 1,
-    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "cart_items_pkey" PRIMARY KEY ("id")
-);
-
--- CreateIndex
+-- CreateIndex: ma khach vang lai phai duy nhat
 CREATE UNIQUE INDEX "carts_guest_token_key" ON "carts"("guest_token");
-
--- CreateIndex
-CREATE INDEX "carts_user_id_idx" ON "carts"("user_id");
-
--- CreateIndex
-CREATE INDEX "cart_items_cart_id_idx" ON "cart_items"("cart_id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "cart_items_cart_id_variant_id_key" ON "cart_items"("cart_id", "variant_id");
-
--- AddForeignKey
-ALTER TABLE "cart_items" ADD CONSTRAINT "cart_items_cart_id_fkey" FOREIGN KEY ("cart_id") REFERENCES "carts"("id") ON DELETE CASCADE ON UPDATE CASCADE;
