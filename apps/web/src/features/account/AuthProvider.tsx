@@ -27,6 +27,8 @@ interface AuthContextValue {
   /** Chi tao tai khoan PENDING_VERIFICATION va gui OTP; KHONG dang nhap. */
   register(credentials: Credentials): Promise<RegisterResponse>;
   logout(): Promise<void>;
+  /** Thanh cong thi xoa access token/user o bo nho: nguoi dung phai dang nhap lai. */
+  changePassword(currentPassword: string, newPassword: string): Promise<void>;
   authenticatedRequest<T>(
     path: string,
     options?: Omit<ApiRequestOptions, 'accessToken'>,
@@ -114,6 +116,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [restoreAccessToken],
   );
 
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string): Promise<void> => {
+      await authenticatedRequest<void>('/auth/change-password', {
+        method: 'POST',
+        body: { currentPassword, newPassword },
+      });
+      clearAuthentication();
+    },
+    [authenticatedRequest, clearAuthentication],
+  );
+
   const value: AuthContextValue = {
     user,
     accessToken,
@@ -129,6 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // The local session remains cleared even when an idempotent logout request cannot finish.
       }
     },
+    changePassword,
     authenticatedRequest,
   };
 

@@ -1,4 +1,5 @@
 export { AuthProvider, useAuth } from './AuthProvider.js';
+export { ChangePasswordPage } from './pages/ChangePasswordPage.js';
 export { ForgotPasswordPage } from './pages/ForgotPasswordPage.js';
 export { LoginPage } from './pages/LoginPage.js';
 export { RegisterPage } from './pages/RegisterPage.js';

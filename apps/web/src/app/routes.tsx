@@ -1,6 +1,7 @@
 import { Route, Routes } from 'react-router-dom';
 
 import {
+  ChangePasswordPage,
   ForgotPasswordPage,
   LoginPage,
   RegisterPage,
@@ -30,6 +31,7 @@ export function AppRoutes() {
         <Route path="xac-thuc-email" element={<VerifyEmailPage />} />
         <Route path="quen-mat-khau" element={<ForgotPasswordPage />} />
         <Route path="dat-lai-mat-khau" element={<ResetPasswordPage />} />
+        <Route path="doi-mat-khau" element={<ChangePasswordPage />} />
       </Route>
 
       <Route path="quan-tri" element={<AdminLayout />}>

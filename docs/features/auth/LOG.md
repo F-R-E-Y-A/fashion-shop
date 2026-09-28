@@ -126,3 +126,52 @@ cáo triển khai). `git diff --stat` xác nhận không có migration mới, kh
 
 Khi làm Change Password hoặc access-token blacklist: xem lại giới hạn "access token cũ còn sống tới
 TTL" ở trên — có thể cần thiết kế lại cùng lúc với session/device management.
+
+---
+
+<a id="adr-012"></a>
+
+## 2026-09-28 · ADR-012 — Đổi mật khẩu thu hồi mọi refresh session, ghi hash có điều kiện, buộc đăng nhập lại
+
+**Loại:** quyết định · **Phạm vi:** `apps/api/src/modules/auth`, `apps/web/src/features/account`, `apps/web/src/app/StoreLayout.tsx` · **Trạng thái:** đề xuất · **Người quyết:** Tài · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+
+`AuthGuard` (`auth.guard.ts:35-44`) đã truy vấn lại `UserStatus` cho từng request và chặn tài khoản
+không ACTIVE bằng `401` chung. `RefreshToken.revokedAt` và chỉ mục `userId` (`identity.prisma`) đủ để
+thu hồi mọi session bằng một `updateMany`. Mọi endpoint auth hiện có dùng `POST`. Không cần migration.
+`authenticatedRequest()` (`AuthProvider.tsx`) tự refresh-retry mọi lần gặp `401`.
+
+### Phương án
+
+| Quyết định | Chọn | Vì sao / cái giá |
+|---|---|---|
+| Sau đổi mật khẩu, session cũ | **Thu hồi toàn bộ, buộc login lại** | Mục đích đổi mật khẩu là vô hiệu credential cũ; giữ lại phiên hiện tại sẽ chừa cửa cho kẻ đã có refresh cookie. Giá: người dùng phải đăng nhập lại |
+| Chống hai request đổi song song | **`updateMany({ id, passwordHash: <đã đọc> })`** (khoá lạc quan) | Không cần khoá hàng hay Redis; request thua có `count = 0`. Giá: request thua nhận `CURRENT_PASSWORD_INVALID` dù mật khẩu nó gửi từng đúng — chấp nhận, vì lúc ghi nó đúng là đã lỗi thời |
+| Mã HTTP khi sai mật khẩu hiện tại | **400** (không 401) | Người gọi đã xác thực (guard đã qua); đây là lỗi dữ liệu nghiệp vụ như `OTP_INVALID`. 401 sẽ khiến `authenticatedRequest()` refresh-retry vô ích |
+| Chặn LOCKED/DISABLED/PENDING | **Nhờ `AuthGuard`, không kiểm lại** | Guard đã truy vấn trạng thái hiện tại cho chính request này; kiểm lại chỉ trùng lặp |
+| Chặn trang đổi mật khẩu khi chưa đăng nhập | **Kiểm ngay trong trang, không dựng `RequireAuth`** | Repo chưa có kiến trúc route-guard; dựng chung cho một trang là quá tay ([ND-03](../../TECH_DEBT.md)) |
+
+### Quyết định phụ
+
+- Đọc `passwordHash` và chạy bcrypt (`verify` x2, `hash` x1) **ngoài** transaction để không giữ
+  transaction mở qua ba phép bcrypt; trong transaction chỉ còn ghi hash + revoke.
+- Không throw trong transaction: outcome `STALE`/`CHANGED` trả về, map sang lỗi HTTP sau khi commit,
+  cùng kỷ luật [ADR-010](#adr-010)/[ADR-011](#adr-011).
+- Xoá `refresh_token` bằng đúng `clearRefreshCookieOptions` của `logout`, không nhân đôi cấu hình cookie.
+- `AuthProvider.changePassword()` xoá access token/user ở bộ nhớ khi thành công.
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: hai request song song cùng mật khẩu hiện tại → đúng một `204`; sau đổi, mật khẩu cũ `401`,
+mật khẩu mới `200`, mọi refresh cookie cũ `401`, cookie hiện tại bị xoá.
+Thực tế: test HTTP (`describe change-password`, 11 ca) pass trên Postgres thật; test đua chạy lặp 5 lần
+đều pass. Kiểm chứng ngược (mutation): bỏ điều kiện `passwordHash` khỏi `updateMany` thì test đua
+**fail** với `[204, 204]` (last-write-wins), khôi phục thì pass lại — nghĩa là test thật sự bảo vệ
+được điều kiện này, không pass nhờ may mắn về thời gian.
+
+### Giới hạn và điều kiện xem lại
+
+Access token đã cấp trước khi đổi mật khẩu vẫn sống tới hết TTL (mặc định 15 phút) nếu ai đó giữ nó
+ngoài trình duyệt, vì chưa có `jti`/session linkage/blacklist; giao diện chỉ xoá token của chính nó.
+Xem lại khi làm Security Hardening hoặc session/device management.

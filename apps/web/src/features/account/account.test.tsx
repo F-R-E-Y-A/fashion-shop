@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StoreLayout } from '@/app/StoreLayout';
 
 import { AuthProvider, useAuth } from './AuthProvider.js';
+import { ChangePasswordPage } from './pages/ChangePasswordPage.js';
 import { ForgotPasswordPage } from './pages/ForgotPasswordPage.js';
 import { LoginPage } from './pages/LoginPage.js';
 import { RegisterPage } from './pages/RegisterPage.js';
@@ -94,6 +95,32 @@ function renderResetPasswordPage(initialEmail = 'customer@example.com') {
       </Routes>
     </MemoryRouter>,
   );
+}
+
+/** Unlike the OTP pages, ChangePasswordPage needs AuthProvider; StoreLayout shows the auth state. */
+function renderChangePasswordPage() {
+  return render(
+    <AuthProvider>
+      <MemoryRouter initialEntries={['/doi-mat-khau']}>
+        <Routes>
+          <Route element={<StoreLayout />}>
+            <Route path="/doi-mat-khau" element={<ChangePasswordPage />} />
+            <Route path="/login" element={<p>Trang đăng nhập</p>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>
+    </AuthProvider>,
+  );
+}
+
+async function fillChangePasswordForm(
+  user: ReturnType<typeof userEvent.setup>,
+  values: { current: string; next: string; confirm: string },
+) {
+  await user.type(await screen.findByLabelText('Mật khẩu hiện tại'), values.current);
+  await user.type(screen.getByLabelText('Mật khẩu mới'), values.next);
+  await user.type(screen.getByLabelText('Xác nhận mật khẩu mới'), values.confirm);
+  await user.click(screen.getByRole('button', { name: 'Đổi mật khẩu' }));
 }
 
 function renderStore() {
@@ -445,5 +472,180 @@ describe('Account authentication (PH3)', () => {
     await user.click(screen.getByRole('button', { name: 'Đặt lại mật khẩu' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Mã đặt lại mật khẩu đã hết hạn');
+  });
+
+  describe('change password', () => {
+    it('redirects an unauthenticated visitor to the login page instead of showing the form', async () => {
+      mockFetch(mockResponse({}, 401));
+
+      renderChangePasswordPage();
+
+      expect(await screen.findByText('Trang đăng nhập')).toBeInTheDocument();
+      expect(screen.queryByLabelText('Mật khẩu hiện tại')).not.toBeInTheDocument();
+    });
+
+    it('shows the form and a navbar link to it for an authenticated user', async () => {
+      mockFetch(mockResponse(authenticated));
+
+      renderChangePasswordPage();
+
+      expect(await screen.findByLabelText('Mật khẩu hiện tại')).toBeInTheDocument();
+      expect(screen.getByLabelText('Mật khẩu mới')).toBeInTheDocument();
+      expect(screen.getByLabelText('Xác nhận mật khẩu mới')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: 'Đổi mật khẩu' })).toHaveAttribute(
+        'href',
+        '/doi-mat-khau',
+      );
+    });
+
+    it('rejects a mismatched confirmation without calling the API', async () => {
+      mockFetch(mockResponse(authenticated));
+      const user = userEvent.setup();
+
+      renderChangePasswordPage();
+      await fillChangePasswordForm(user, {
+        current: 'Password123',
+        next: 'NewPassword123',
+        confirm: 'DifferentPassword123',
+      });
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Mật khẩu xác nhận không khớp.');
+      expect(fetch).toHaveBeenCalledTimes(1); // only the session-restore call at mount
+    });
+
+    it('rejects a new password equal to the current one without calling the API', async () => {
+      mockFetch(mockResponse(authenticated));
+      const user = userEvent.setup();
+
+      renderChangePasswordPage();
+      await fillChangePasswordForm(user, {
+        current: 'Password123',
+        next: 'Password123',
+        confirm: 'Password123',
+      });
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Mật khẩu mới phải khác mật khẩu hiện tại.',
+      );
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows a wrong-current-password error, stays signed in, and does not refresh-retry', async () => {
+      mockFetch(
+        mockResponse(authenticated),
+        mockResponse(
+          {
+            statusCode: 400,
+            code: 'CURRENT_PASSWORD_INVALID',
+            message: 'Mat khau hien tai khong dung',
+            path: '/auth/change-password',
+            timestamp: new Date().toISOString(),
+          },
+          400,
+        ),
+      );
+      const user = userEvent.setup();
+
+      renderChangePasswordPage();
+      await fillChangePasswordForm(user, {
+        current: 'WrongPassword123',
+        next: 'NewPassword123',
+        confirm: 'NewPassword123',
+      });
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Mật khẩu hiện tại không đúng.');
+      expect(screen.getByText('customer@example.com')).toBeInTheDocument();
+      expect(fetch).toHaveBeenCalledTimes(2); // restore + change-password, no /auth/refresh retry
+    });
+
+    it('shows a server error message without leaking backend details and stays signed in', async () => {
+      mockFetch(
+        mockResponse(authenticated),
+        mockResponse({ statusCode: 500, code: 'INTERNAL_SERVER_ERROR', message: 'boom' }, 500),
+      );
+      const user = userEvent.setup();
+
+      renderChangePasswordPage();
+      await fillChangePasswordForm(user, {
+        current: 'Password123',
+        next: 'NewPassword123',
+        confirm: 'NewPassword123',
+      });
+
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent('Không thể đổi mật khẩu. Hãy thử lại.');
+      expect(alert).not.toHaveTextContent('boom');
+      expect(screen.getByText('customer@example.com')).toBeInTheDocument();
+    });
+
+    it('sends only the two passwords, clears the auth state on success, and offers a login CTA', async () => {
+      mockFetch(mockResponse(authenticated), mockResponse(undefined, 204));
+      const user = userEvent.setup();
+
+      renderChangePasswordPage();
+      await screen.findByText('customer@example.com');
+      await fillChangePasswordForm(user, {
+        current: 'Password123',
+        next: 'NewPassword123',
+        confirm: 'NewPassword123',
+      });
+
+      expect(await screen.findByRole('status')).toHaveTextContent(
+        'Mật khẩu đã được thay đổi. Vui lòng đăng nhập lại.',
+      );
+
+      const [, changeCall] = vi.mocked(fetch).mock.calls;
+      expect(String(changeCall?.[0])).toContain('/auth/change-password');
+      expect(JSON.parse(String(changeCall?.[1]?.body))).toEqual({
+        currentPassword: 'Password123',
+        newPassword: 'NewPassword123',
+      });
+
+      // Auth state is gone: the navbar is back to the guest links and the success view stayed put
+      // (it was not bounced to /login by the "unauthenticated" redirect).
+      expect(await screen.findByRole('link', { name: 'Đăng nhập' })).toBeInTheDocument();
+      expect(screen.queryByText('customer@example.com')).not.toBeInTheDocument();
+      expect(screen.getByRole('status')).toBeInTheDocument();
+
+      await user.click(screen.getByRole('button', { name: 'Đăng nhập ngay' }));
+      expect(await screen.findByText('Trang đăng nhập')).toBeInTheDocument();
+    });
+
+    it('sends the user to the login page when the session expired and cannot be refreshed', async () => {
+      mockFetch(
+        mockResponse(authenticated),
+        mockResponse(unauthorized, 401), // change-password rejected by AuthGuard
+        mockResponse(unauthorized, 401), // the one refresh attempt also fails
+      );
+      const user = userEvent.setup();
+
+      renderChangePasswordPage();
+      await fillChangePasswordForm(user, {
+        current: 'Password123',
+        next: 'NewPassword123',
+        confirm: 'NewPassword123',
+      });
+
+      expect(await screen.findByText('Trang đăng nhập')).toBeInTheDocument();
+      expect(fetch).toHaveBeenCalledTimes(3);
+    });
+
+    it('does not keep passwords in web storage or the URL', async () => {
+      mockFetch(mockResponse(authenticated), mockResponse(undefined, 204));
+      const setItem = vi.spyOn(Storage.prototype, 'setItem');
+      const user = userEvent.setup();
+
+      renderChangePasswordPage();
+      await fillChangePasswordForm(user, {
+        current: 'Password123',
+        next: 'NewPassword123',
+        confirm: 'NewPassword123',
+      });
+      await screen.findByRole('status');
+
+      expect(setItem).not.toHaveBeenCalled();
+      expect(window.location.href).not.toContain('Password123');
+      setItem.mockRestore();
+    });
   });
 });

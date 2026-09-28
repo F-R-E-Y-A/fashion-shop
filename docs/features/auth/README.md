@@ -131,3 +131,45 @@ chỉ family hiện tại — nên không có trạng thái nửa vời (đổi 
 ngược lại). Giới hạn đã biết: access token JWT ngắn hạn đã cấp trước đó không có `jti`/session
 linkage nên vẫn còn hiệu lực tới khi hết TTL riêng của nó; cần access-token blacklist để đóng hẳn,
 việc đó nằm ngoài PH3.2.
+
+## PH3.3 — Đổi mật khẩu, nhánh `feature/ph3-change-password`
+
+Dành cho người **đang đăng nhập**, không dùng OTP.
+
+```
+POST /auth/change-password   (Bearer access token, AuthGuard + CurrentUser)
+  body { currentPassword, newPassword }   -> 204, xoa refresh cookie, KHONG cap token/session moi
+```
+
+- **Định danh chỉ lấy từ token:** `userId` là `CurrentUser.id` do `AuthGuard` gắn vào request;
+  body không có `userId`/`email`. Convention endpoint: mọi endpoint auth hiện có dùng `POST` (không
+  có `PATCH` nào cho credential), nên giữ `POST`.
+- **Trạng thái tài khoản:** `AuthGuard` truy vấn lại `UserStatus` cho từng request và chặn
+  LOCKED/DISABLED/PENDING_VERIFICATION bằng `401 UNAUTHORIZED` chung, nên endpoint này thừa hưởng
+  luôn, `changePassword()` không kiểm lại.
+- **Mật khẩu hiện tại** kiểm bằng `PasswordHasherService.verify` (không gọi bcrypt trực tiếp); sai →
+  `400 CURRENT_PASSWORD_INVALID`, không đổi hash, không revoke session. Dùng 400 chứ không 401 để
+  `authenticatedRequest()` của giao diện (tự refresh-retry khi gặp 401) không nhầm mật khẩu sai với
+  access token hết hạn.
+- **Mật khẩu mới:** dùng lại `IsStrongPassword` như register/reset (yếu → `400 BAD_REQUEST`); trùng
+  mật khẩu hiện tại → `400 NEW_PASSWORD_SAME_AS_CURRENT`. Ô xác nhận chỉ kiểm ở giao diện, không gửi
+  lên server. Không lưu lịch sử mật khẩu.
+- **Nguyên tử + chống đua:** đổi `passwordHash` và revoke **toàn bộ** refresh token còn hiệu lực
+  (mọi family, kể cả phiên trình duyệt khác) chung một transaction. Ghi hash là
+  `updateMany({ id, passwordHash: <hash đã đọc> })`: hai request đổi song song cùng mật khẩu hiện tại
+  thì chỉ một request khớp điều kiện, request còn lại `count = 0` → `CURRENT_PASSWORD_INVALID`, không
+  ghi đè kiểu last-write-wins. Không throw trong transaction; map lỗi sau khi commit (như PH3.1/3.2).
+- **Cookie:** controller xoá `refresh_token` bằng đúng `clearRefreshCookieOptions` mà `logout` dùng.
+- **Giao diện:** route `/doi-mat-khau` (link "Đổi mật khẩu" ở navbar khi đã đăng nhập). Chưa đăng nhập
+  thì trang chuyển về `/login`. Thành công: `AuthProvider.changePassword()` xoá access token và user
+  ở bộ nhớ, trang hiện "Mật khẩu đã được thay đổi. Vui lòng đăng nhập lại." kèm nút về `/login`;
+  không tự đăng nhập lại, không lưu mật khẩu vào storage/URL/navigation state.
+- **Giới hạn đã biết:** access token JWT đã cấp trước khi đổi vẫn sống tới hết TTL (mặc định 15
+  phút) nếu ai đó giữ nó ngoài trình duyệt — chưa có `jti`/blacklist. Giao diện xoá token của chính
+  nó; đóng hẳn cần access-token blacklist, để Security Hardening ([LOG#adr-012](LOG.md#adr-012)).
+- **Không migration:** không đụng `identity.prisma`.
+
+Cách test: `npm run test:http -w apps/api` (describe `change-password`, có test đua bằng
+`Promise.all` trên Postgres thật) và `npm run test -w apps/web`. Chạy tay: đăng nhập hai lần (hai
+phiên), gọi `POST /api/auth/change-password` bằng phiên A → cả hai refresh cookie đều bị `401` ở
+`/api/auth/refresh`, mật khẩu cũ `401`, mật khẩu mới `200` ở `/api/auth/login`.
