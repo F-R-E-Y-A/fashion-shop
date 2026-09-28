@@ -12,6 +12,7 @@ import {
 import { OtpPurpose, Prisma, UserStatus } from '../../generated/prisma/client.js';
 import { MailService } from '../../infra/mail/mail.service.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
+import { AuthRateLimitService } from './auth-rate-limit.service.js';
 import type {
   AuthenticatedUserResponse,
   AuthResponse,
@@ -52,13 +53,16 @@ export class AuthService {
     private readonly tokens: TokenService,
     private readonly otp: OtpService,
     private readonly mail: MailService,
+    private readonly limits: AuthRateLimitService,
   ) {}
 
   /**
    * Creates a PENDING_VERIFICATION user and emails an OTP. No session is issued here: the account
    * only becomes usable through verifyEmail() below, then a normal login().
    */
-  async register(request: RegisterRequest): Promise<RegisterResponse> {
+  async register(request: RegisterRequest, ip: string | undefined): Promise<RegisterResponse> {
+    await this.limits.enforce('REGISTER', { ip });
+
     const email = normalizeEmail(request.email);
     const existing = await this.prisma.user.findUnique({ where: { email }, select: { id: true } });
     if (existing) throw this.emailAlreadyExists();
@@ -97,14 +101,22 @@ export class AuthService {
     try {
       await this.mail.send(buildVerificationEmail({ to: email, code: issuedCode }));
     } catch {
-      this.logger.warn(`Gui email xac thuc that bai luc dang ky (email=${email})`);
+      this.logger.warn('Gui email xac thuc that bai luc dang ky');
     }
 
     return { verificationRequired: true, email };
   }
 
-  async login(request: LoginRequest): Promise<AuthenticationResult> {
+  /**
+   * Brute-force protection counts EVERY attempt before any lookup or bcrypt work (count first,
+   * check after, atomically), keyed on the hashed normalized email whether or not it exists, so an
+   * unknown email hits the same limit and gets the same 429 as a real one. A successful login clears
+   * the identity counter, which makes the effective rule "5 failed attempts per 15 minutes".
+   */
+  async login(request: LoginRequest, ip: string | undefined): Promise<AuthenticationResult> {
     const email = normalizeEmail(request.email);
+    await this.limits.enforce('LOGIN', { ip, identity: email });
+
     const user = await this.prisma.user.findUnique({
       where: { email },
       include: { userRoles: { include: { role: { select: { code: true } } } } },
@@ -120,7 +132,7 @@ export class AuthService {
 
     const authenticatedUser = this.toAuthenticatedUser(user);
     const refreshToken = this.tokens.generateRefreshToken();
-    const accessToken = await this.tokens.signAccessToken(authenticatedUser.id);
+    const accessToken = await this.tokens.signAccessToken(authenticatedUser.id, user.authVersion);
     await this.prisma.refreshToken.create({
       data: {
         userId: authenticatedUser.id,
@@ -130,6 +142,7 @@ export class AuthService {
       },
     });
 
+    await this.limits.resetIdentity('LOGIN', email);
     return { accessToken, user: authenticatedUser, refreshToken };
   }
 
@@ -143,7 +156,11 @@ export class AuthService {
    * $transaction has resolved (committed) do we inspect the outcome and raise the matching HTTP
    * error, so a rejected verification can never erase its own side effect.
    */
-  async verifyEmail(request: VerifyEmailRequest): Promise<VerifyEmailResponse> {
+  async verifyEmail(
+    request: VerifyEmailRequest,
+    ip: string | undefined,
+  ): Promise<VerifyEmailResponse> {
+    await this.limits.enforce('VERIFY_EMAIL', { ip });
     const email = normalizeEmail(request.email);
 
     const outcome = await this.prisma.$transaction(async (transaction) => {
@@ -187,8 +204,12 @@ export class AuthService {
    */
   async resendVerification(
     request: ResendVerificationRequest,
+    ip: string | undefined,
   ): Promise<ResendVerificationResponse> {
     const email = normalizeEmail(request.email);
+    // Dem theo email da chuan hoa TRUOC khi tra cuu user: email khong ton tai cung bi dem, nen 429
+    // khong phan biet duoc tai khoan co that hay khong.
+    await this.limits.enforce('RESEND_VERIFICATION', { ip, identity: email });
     const accepted: ResendVerificationResponse = { accepted: true };
 
     const user = await this.prisma.user.findUnique({
@@ -198,27 +219,19 @@ export class AuthService {
     if (!user || user.status !== UserStatus.PENDING_VERIFICATION) return accepted;
 
     const issuedCode = await this.prisma.$transaction(async (transaction) => {
-      if (
-        await this.otp.isWithinResendCooldown(transaction, {
-          email,
-          purpose: OtpPurpose.EMAIL_VERIFICATION,
-        })
-      ) {
-        return null;
-      }
-      const issued = await this.otp.issue(transaction, {
+      const issued = await this.otp.issueIfCooldownElapsed(transaction, {
         email,
         purpose: OtpPurpose.EMAIL_VERIFICATION,
         userId: user.id,
       });
-      return issued.code;
+      return issued?.code ?? null;
     });
     if (!issuedCode) return accepted;
 
     try {
       await this.mail.send(buildVerificationEmail({ to: email, code: issuedCode }));
     } catch {
-      this.logger.warn(`Gui lai email xac thuc that bai (email=${email})`);
+      this.logger.warn('Gui lai email xac thuc that bai');
     }
 
     return accepted;
@@ -232,8 +245,12 @@ export class AuthService {
    * silently accepted here, exactly like an unknown email, so this endpoint cannot be used to learn
    * whether an email exists or what state its account is in.
    */
-  async forgotPassword(request: ForgotPasswordRequest): Promise<ForgotPasswordResponse> {
+  async forgotPassword(
+    request: ForgotPasswordRequest,
+    ip: string | undefined,
+  ): Promise<ForgotPasswordResponse> {
     const email = normalizeEmail(request.email);
+    await this.limits.enforce('FORGOT_PASSWORD', { ip, identity: email });
     const accepted: ForgotPasswordResponse = { accepted: true };
 
     const user = await this.prisma.user.findUnique({
@@ -243,27 +260,19 @@ export class AuthService {
     if (!user || user.status !== UserStatus.ACTIVE) return accepted;
 
     const issuedCode = await this.prisma.$transaction(async (transaction) => {
-      if (
-        await this.otp.isWithinResendCooldown(transaction, {
-          email,
-          purpose: OtpPurpose.PASSWORD_RESET,
-        })
-      ) {
-        return null;
-      }
-      const issued = await this.otp.issue(transaction, {
+      const issued = await this.otp.issueIfCooldownElapsed(transaction, {
         email,
         purpose: OtpPurpose.PASSWORD_RESET,
         userId: user.id,
       });
-      return issued.code;
+      return issued?.code ?? null;
     });
     if (!issuedCode) return accepted;
 
     try {
       await this.mail.send(buildPasswordResetEmail({ to: email, code: issuedCode }));
     } catch {
-      this.logger.warn(`Gui email dat lai mat khau that bai (email=${email})`);
+      this.logger.warn('Gui email dat lai mat khau that bai');
     }
 
     return accepted;
@@ -277,11 +286,15 @@ export class AuthService {
    * consumption, password change, and session revocation either all commit together or none do —
    * there is no state where the password changed but the OTP is still usable, or vice versa.
    *
-   * Known limitation (documented, not fixed here): an access token issued before the reset is a
-   * short-lived JWT with no session/jti linkage, so it keeps working until its own TTL expires.
-   * Revoking it early would need an access-token blacklist, explicitly out of scope for PH3.2.
+   * The same transaction also bumps `authVersion`, so every access token issued before the reset
+   * (which carries the old `ver`) is rejected by AuthGuard immediately instead of surviving until
+   * its own TTL. There is no per-token blacklist: the version compare is enough and needs no cache.
    */
-  async resetPassword(request: ResetPasswordRequest): Promise<ResetPasswordResponse> {
+  async resetPassword(
+    request: ResetPasswordRequest,
+    ip: string | undefined,
+  ): Promise<ResetPasswordResponse> {
+    await this.limits.enforce('RESET_PASSWORD', { ip });
     const email = normalizeEmail(request.email);
 
     const outcome = await this.prisma.$transaction(async (transaction) => {
@@ -299,7 +312,10 @@ export class AuthService {
       if (result.status !== 'VERIFIED') return result;
 
       const passwordHash = await this.passwordHasher.hash(request.newPassword);
-      await transaction.user.update({ where: { id: user.id }, data: { passwordHash } });
+      await transaction.user.update({
+        where: { id: user.id },
+        data: { passwordHash, authVersion: { increment: 1 } },
+      });
       await transaction.refreshToken.updateMany({
         where: { userId: user.id, revokedAt: null },
         data: { revokedAt: new Date() },
@@ -336,6 +352,10 @@ export class AuthService {
    * discriminated outcome and mapping it to an HTTP error after commit keeps the same discipline.
    */
   async changePassword(userId: string, request: ChangePasswordRequest): Promise<void> {
+    // Dem MOI lan thu truoc khi tinh bcrypt (dem truoc, kiem sau) nen bao ve chong doan mat khau
+    // hien tai ngay ca khi nhieu request song song. Chung minh dung mat khau hien tai thi xoa bo dem.
+    await this.limits.enforce('CHANGE_PASSWORD', { identity: userId });
+
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: { passwordHash: true },
@@ -347,6 +367,7 @@ export class AuthService {
       user.passwordHash,
     );
     if (!currentMatches) throw this.currentPasswordInvalid();
+    await this.limits.resetIdentity('CHANGE_PASSWORD', userId);
 
     const sameAsCurrent = await this.passwordHasher.verify(request.newPassword, user.passwordHash);
     if (sameAsCurrent) throw this.newPasswordSameAsCurrent();
@@ -356,7 +377,7 @@ export class AuthService {
     const outcome = await this.prisma.$transaction(async (transaction) => {
       const updated = await transaction.user.updateMany({
         where: { id: userId, passwordHash: user.passwordHash },
-        data: { passwordHash: newPasswordHash },
+        data: { passwordHash: newPasswordHash, authVersion: { increment: 1 } },
       });
       if (updated.count === 0) return { status: 'STALE' } as const;
 
@@ -370,25 +391,58 @@ export class AuthService {
     if (outcome.status === 'STALE') throw this.currentPasswordInvalid();
   }
 
+  /**
+   * Rotates a refresh token and detects REPLAY: presenting a token that was already rotated.
+   *
+   * A rotated token is `revokedAt` set AND `replacedByTokenId` set; a token revoked by logout or by
+   * a password change/reset has `revokedAt` but no replacement. That is the whole distinction, so no
+   * schema change is needed. Only a genuine replay triggers the family response; unknown/garbage
+   * tokens, expired tokens, and logout/password revocations only get the same generic 401, so a
+   * random string can never revoke anyone's session.
+   *
+   * The token is CLAIMED first (conditional `revokedAt: null` update) and the replacement is created
+   * only if the claim won. Of two concurrent refreshes with the same token exactly one claims it; the
+   * other waits on the row, sees it rotated, and treats that as replay. The winner's new token is in
+   * the same family and already committed, so revoking the family makes it unusable too — the
+   * intended outcome when a token is used twice, because we cannot tell which holder is legitimate.
+   *
+   * As everywhere else, nothing throws inside the transaction for an expected outcome: the family
+   * revocation must persist while the request still fails, and a throw would roll it back.
+   */
   async refresh(refreshToken: string | undefined): Promise<AuthenticationResult> {
     if (!refreshToken) throw this.invalidRefreshToken();
 
     const tokenHash = this.tokens.hashRefreshToken(refreshToken);
     const now = new Date();
-    const replacement = await this.prisma.$transaction(async (transaction) => {
+    const outcome = await this.prisma.$transaction(async (transaction) => {
       const current = await transaction.refreshToken.findUnique({
         where: { tokenHash },
         include: {
           user: { include: { userRoles: { include: { role: { select: { code: true } } } } } },
         },
       });
-      if (
-        !current ||
-        current.revokedAt ||
-        current.expiresAt <= now ||
-        current.user.status !== UserStatus.ACTIVE
-      ) {
-        throw this.invalidRefreshToken();
+      if (!current) return { status: 'UNKNOWN' } as const;
+
+      if (current.revokedAt) {
+        if (!current.replacedByTokenId) return { status: 'REVOKED' } as const;
+        return this.revokeFamilyOnReplay(transaction, current.familyId, now);
+      }
+      if (current.expiresAt <= now) return { status: 'EXPIRED' } as const;
+      if (current.user.status !== UserStatus.ACTIVE) return { status: 'INACTIVE' } as const;
+
+      const claimed = await transaction.refreshToken.updateMany({
+        where: { id: current.id, revokedAt: null },
+        data: { revokedAt: now },
+      });
+      if (claimed.count !== 1) {
+        // Lost the claim: someone revoked it between our read and write. Only a rotation is a
+        // replay; a concurrent logout/password change just means the session is already gone.
+        const fresh = await transaction.refreshToken.findUnique({
+          where: { id: current.id },
+          select: { replacedByTokenId: true },
+        });
+        if (!fresh?.replacedByTokenId) return { status: 'REVOKED' } as const;
+        return this.revokeFamilyOnReplay(transaction, current.familyId, now);
       }
 
       const nextRefreshToken = this.tokens.generateRefreshToken();
@@ -400,16 +454,36 @@ export class AuthService {
           expiresAt: this.tokens.refreshTokenExpiresAt(now),
         },
       });
-      const revoked = await transaction.refreshToken.updateMany({
-        where: { id: current.id, revokedAt: null },
-        data: { revokedAt: now, replacedByTokenId: created.id },
+      await transaction.refreshToken.update({
+        where: { id: current.id },
+        data: { replacedByTokenId: created.id },
       });
-      if (revoked.count !== 1) throw this.invalidRefreshToken();
 
-      return { refreshToken: nextRefreshToken, user: this.toAuthenticatedUser(current.user) };
+      return {
+        status: 'ROTATED',
+        refreshToken: nextRefreshToken,
+        user: this.toAuthenticatedUser(current.user),
+        authVersion: current.user.authVersion,
+      } as const;
     });
 
-    return this.withAccessToken(replacement.user, replacement.refreshToken);
+    if (outcome.status !== 'ROTATED') throw this.invalidRefreshToken();
+    return this.withAccessToken(outcome.user, outcome.authVersion, outcome.refreshToken);
+  }
+
+  /** Revokes only the replayed token's OWN family; other sessions of the same user are untouched. */
+  private async revokeFamilyOnReplay(
+    transaction: Prisma.TransactionClient,
+    familyId: string,
+    now: Date,
+  ) {
+    await transaction.refreshToken.updateMany({
+      where: { familyId, revokedAt: null },
+      data: { revokedAt: now },
+    });
+    // familyId is a random UUID, not a credential or PII; never log the token or its hash.
+    this.logger.warn(`Refresh token da xoay bi dung lai, thu hoi ca family (familyId=${familyId})`);
+    return { status: 'REPLAY' } as const;
   }
 
   async logout(refreshToken: string | undefined): Promise<void> {
@@ -423,10 +497,11 @@ export class AuthService {
 
   private async withAccessToken(
     user: AuthenticatedUserResponse,
+    authVersion: number,
     refreshToken: string,
   ): Promise<AuthenticationResult> {
     return {
-      accessToken: await this.tokens.signAccessToken(user.id),
+      accessToken: await this.tokens.signAccessToken(user.id, authVersion),
       user,
       refreshToken,
     };

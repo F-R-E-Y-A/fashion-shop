@@ -1,6 +1,6 @@
 ---
 title: Tài khoản và xác thực — bản đồ
-updated: 2026-09-24
+updated: 2026-09-28
 status: đang làm
 owner: Tài
 ---
@@ -53,7 +53,7 @@ Giao diện: đăng ký xong điều hướng sang `/xac-thuc-email` (không t�
 OTP 6 chữ số, sinh bằng `node:crypto.randomInt` (không dùng `Math.random`). Hết hạn sau 10 phút,
 tối đa 5 lần nhập sai (`attemptCount`), sau đó phải resend. Resend có cooldown 60 giây; resend
 thành công sẽ vô hiệu hoá (consume) mọi OTP `EMAIL_VERIFICATION` chưa dùng trước đó của email đó.
-Không triển khai rate limiting toàn cục ở PH3.1 (task riêng sau).
+Rate limiting toàn cục không làm ở PH3.1; đã làm ở PH3.4 ([security.md](security.md)).
 
 ### Lưu trữ OTP: HMAC-SHA256 + pepper (`apps/api/src/modules/auth/otp.util.ts`)
 
@@ -78,11 +78,11 @@ SMTP thật: `test/helpers/create-test-app.ts` override `MailService` bằng `Fa
 
 ### An toàn
 
-Không log/response/error nào chứa OTP thô, `OTP_PEPPER`, hay mật khẩu SMTP. `resend-verification`
+Không log/response/error nào chứa OTP thô, `OTP_PEPPER`, mật khẩu SMTP, hay email người nhận (xem [security.md](security.md#nhật-ký-không-chứa-email-người-nhận)). `resend-verification`
 luôn trả cùng một phản hồi chung chung bất kể email tồn tại hay không, để không lộ thông tin tài
 khoản. Đăng ký không rollback khi gửi email thất bại: user vẫn ở PENDING_VERIFICATION và có thể
-dùng resend. Chưa làm ở PH3.1 (xem `docs/TECH_DEBT.md` nếu cần mở nợ): rate limiting toàn cục,
-revoke cả họ refresh-token khi phát hiện replay, quên/đặt lại mật khẩu, đổi mật khẩu, OAuth.
+dùng resend. Các việc PH3.1 chưa làm — rate limiting, phát hiện replay refresh token, quên/đặt lại
+mật khẩu, đổi mật khẩu — đã làm ở PH3.2–PH3.4; chỉ còn OAuth, 2FA và RBAC admin.
 
 ## PH3.2 — Quên mật khẩu / đặt lại mật khẩu, nhánh `feature/ph3-password-recovery`
 
@@ -128,9 +128,8 @@ không throw bên trong `$transaction` cho một outcome đã biết trước, c
 commit. Khi OTP đúng, cùng một transaction: consume OTP, đổi `passwordHash`, và
 `refreshToken.updateMany({userId, revokedAt: null} -> revokedAt: now)` cho **toàn bộ** family, không
 chỉ family hiện tại — nên không có trạng thái nửa vời (đổi mật khẩu nhưng OTP chưa consume, hoặc
-ngược lại). Giới hạn đã biết: access token JWT ngắn hạn đã cấp trước đó không có `jti`/session
-linkage nên vẫn còn hiệu lực tới khi hết TTL riêng của nó; cần access-token blacklist để đóng hẳn,
-việc đó nằm ngoài PH3.2.
+ngược lại). Giới hạn ở thời điểm PH3.2 (access token cũ còn sống tới hết TTL) đã được xử lý ở PH3.4:
+transaction này giờ còn tăng `authVersion`, xem [security.md](security.md#access-token-authversion).
 
 ## PH3.3 — Đổi mật khẩu, nhánh `feature/ph3-change-password`
 
@@ -164,12 +163,27 @@ POST /auth/change-password   (Bearer access token, AuthGuard + CurrentUser)
   thì trang chuyển về `/login`. Thành công: `AuthProvider.changePassword()` xoá access token và user
   ở bộ nhớ, trang hiện "Mật khẩu đã được thay đổi. Vui lòng đăng nhập lại." kèm nút về `/login`;
   không tự đăng nhập lại, không lưu mật khẩu vào storage/URL/navigation state.
-- **Giới hạn đã biết:** access token JWT đã cấp trước khi đổi vẫn sống tới hết TTL (mặc định 15
-  phút) nếu ai đó giữ nó ngoài trình duyệt — chưa có `jti`/blacklist. Giao diện xoá token của chính
-  nó; đóng hẳn cần access-token blacklist, để Security Hardening ([LOG#adr-012](LOG.md#adr-012)).
+- **Access token cũ:** ở thời điểm PH3.3 còn sống tới hết TTL; PH3.4 đã đóng bằng `authVersion`
+  (mọi access token cũ bị `AuthGuard` từ chối ngay sau khi đổi mật khẩu), xem
+  [security.md](security.md#access-token-authversion) và [LOG#adr-015](LOG.md#adr-015).
 - **Không migration:** không đụng `identity.prisma`.
 
 Cách test: `npm run test:http -w apps/api` (describe `change-password`, có test đua bằng
 `Promise.all` trên Postgres thật) và `npm run test -w apps/web`. Chạy tay: đăng nhập hai lần (hai
 phiên), gọi `POST /api/auth/change-password` bằng phiên A → cả hai refresh cookie đều bị `401` ở
 `/api/auth/refresh`, mật khẩu cũ `401`, mật khẩu mới `200` ở `/api/auth/login`.
+
+## PH3.4 — Hardening bảo mật, nhánh `feature/ph3-security-hardening`
+
+Chi tiết ở [security.md](security.md) (tách riêng để giữ mỗi file dưới 300 dòng). Tóm tắt:
+
+| Việc | Cách làm | Quyết định |
+|---|---|---|
+| Chống dò mật khẩu / spam | Giới hạn tốc độ trên **Redis** dùng chung, khoá là HMAC, có chính sách mở/chặn khi Redis chết theo từng endpoint | [ADR-013](LOG.md#adr-013) |
+| OTP phát hành nguyên tử | Khoá advisory theo transaction của **Postgres** (không dùng Redis) | [ADR-014](LOG.md#adr-014) |
+| Access token cũ sau đổi/đặt lại mật khẩu | Cột `users.auth_version` + claim `ver`, `AuthGuard` so sánh | [ADR-015](LOG.md#adr-015) |
+| Refresh token bị dùng lại | Phát hiện replay, thu hồi **cả family**; frontend refresh single-flight + khoá Web Locks | [ADR-016](LOG.md#adr-016) |
+
+Biến môi trường mới: `REDIS_URL`, `RATE_LIMIT_PEPPER` (bắt buộc), `TRUST_PROXY_HOPS` (bắt buộc ở
+staging/production). Một migration mới: `20260928120000_ph3_4_user_auth_version`. Local cần thêm
+dịch vụ `redis` trong `docker-compose.yml` (`npm run db:up`).

@@ -27,3 +27,9 @@ process.env.OTP_PEPPER ??= 'test-otp-pepper-with-at-least-thirty-two-characters'
 // bien SMTP o day chi can hop le voi env.ts, khong bao gio duoc dung that.
 process.env.SMTP_HOST ??= 'localhost';
 process.env.SMTP_FROM ??= 'no-reply@fashion-shop.test';
+// Redis that: kiem thu HTTP chay tren Redis local/CI, khong mock (dieu can chung minh la gioi han
+// hoat dong that). Khoa cua NODE_ENV=test nam rieng, xem rateLimitKeyPrefix.
+process.env.REDIS_URL ??= 'redis://localhost:6379';
+process.env.RATE_LIMIT_PEPPER ??= 'test-rate-limit-pepper-with-at-least-thirty-two-chars';
+// Tin dung 1 proxy de test gia lap cac IP khach khac nhau bang header X-Forwarded-For.
+process.env.TRUST_PROXY_HOPS ??= '1';

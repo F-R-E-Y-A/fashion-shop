@@ -9,6 +9,12 @@ import { durationToMilliseconds } from './auth-timing.js';
 
 export interface AccessTokenPayload {
   sub: string;
+  /**
+   * User.authVersion luc cap token. VANG o token cap truoc PH3.4: AuthGuard coi la 0, khop voi
+   * authVersion mac dinh 0 nen trien khai khong lam ai bi dang xuat; token cu chi mat hieu luc
+   * khi nguoi do doi/dat lai mat khau (authVersion len 1).
+   */
+  ver?: number;
   iat?: number;
   exp?: number;
 }
@@ -21,10 +27,10 @@ export class TokenService {
     private readonly config: ConfigService<Env, true>,
   ) {}
 
-  signAccessToken(userId: string): Promise<string> {
+  signAccessToken(userId: string, authVersion: number): Promise<string> {
     const expiresIn =
       durationToMilliseconds(this.config.get('JWT_ACCESS_TTL', { infer: true })) / 1_000;
-    return this.jwt.signAsync({ sub: userId }, { expiresIn });
+    return this.jwt.signAsync({ sub: userId, ver: authVersion }, { expiresIn });
   }
 
   verifyAccessToken(accessToken: string): Promise<AccessTokenPayload> {

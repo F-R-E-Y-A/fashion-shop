@@ -35,9 +35,18 @@ export class SmtpMailService extends MailService {
     try {
       await this.transporter.sendMail({ from: this.from, ...message });
     } catch (error) {
-      // Khong bao gio lo cau hinh SMTP (host, user, mat khau) ra log; chi ghi nhan that bai.
-      this.logger.error(`Gui email that bai (to=${message.to})`, (error as Error).message);
+      // Khong log nguoi nhan, noi dung loi (SMTP server hay lap lai dia chi trong thong bao loi),
+      // cau hinh SMTP hay thong tin dang nhap: chi ghi ma loi phan loai.
+      this.logger.error(`Gui email that bai (${describeMailFailure(error)})`);
       throw error;
     }
   }
+}
+
+/** Chi tra ve cac truong phan loai co hinh dang co dinh, khong bao gio chua van ban tu do. */
+function describeMailFailure(error: unknown): string {
+  const { code, responseCode } = (error ?? {}) as { code?: unknown; responseCode?: unknown };
+  const safeCode = typeof code === 'string' && /^[A-Z0-9_]{1,32}$/.test(code) ? code : 'UNKNOWN';
+  const safeResponse = Number.isInteger(responseCode) ? String(responseCode) : '-';
+  return `code=${safeCode} responseCode=${safeResponse}`;
 }
