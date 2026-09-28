@@ -1,5 +1,12 @@
 import { Route, Routes } from 'react-router-dom';
 
+import {
+  ForgotPasswordPage,
+  LoginPage,
+  RegisterPage,
+  ResetPasswordPage,
+  VerifyEmailPage,
+} from '@/features/account';
 import { CartPage } from '@/features/cart';
 import { AdminProductsPage, ProductDetailPage, ProductListPage } from '@/features/products';
 
@@ -20,6 +27,11 @@ export function AppRoutes() {
         <Route index element={<ProductListPage />} />
         <Route path="san-pham/:slug" element={<ProductDetailPage />} />
         <Route path="gio-hang" element={<CartPage />} />
+        <Route path="login" element={<LoginPage />} />
+        <Route path="register" element={<RegisterPage />} />
+        <Route path="xac-thuc-email" element={<VerifyEmailPage />} />
+        <Route path="quen-mat-khau" element={<ForgotPasswordPage />} />
+        <Route path="dat-lai-mat-khau" element={<ResetPasswordPage />} />
       </Route>
 
       <Route path="quan-tri" element={<AdminLayout />}>

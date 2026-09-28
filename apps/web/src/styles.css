@@ -76,6 +76,20 @@ h1 {
   font-weight: 600;
   text-decoration: underline;
 }
+.nav--account {
+  align-items: center;
+}
+.nav__status {
+  color: var(--muted);
+}
+.nav__logout {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+}
 
 /* --- khung quan tri --- */
 .admin {
@@ -214,6 +228,32 @@ button:disabled {
 }
 .state--error {
   color: var(--danger);
+}
+
+/* --- tai khoan --- */
+.auth-page {
+  max-width: 420px;
+}
+.auth-form {
+  display: grid;
+  gap: 1rem;
+}
+.auth-form label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.auth-form input {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font: inherit;
+}
+.auth-form__hint {
+  margin: -0.5rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
 }
 
 @media (max-width: 720px) {

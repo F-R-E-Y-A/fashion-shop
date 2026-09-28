@@ -1,0 +1,13 @@
+{
+  "runId": "pilot-20260925-30",
+  "source": "YODY",
+  "startedAt": "2026-09-25T07:24:34.940Z",
+  "finishedAt": "2026-09-25T07:27:13.563Z",
+  "discovered": 30,
+  "requested": 30,
+  "succeeded": 30,
+  "failed": 0,
+  "duplicates": 0,
+  "uniqueProducts": 30,
+  "stoppedReason": null
+}

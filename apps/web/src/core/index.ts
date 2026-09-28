@@ -7,6 +7,8 @@ export {
   apiGet,
   apiPatch,
   apiPost,
+  apiRequest,
+  type ApiRequestOptions,
   type Page,
   type QueryParams,
 } from './http.js';

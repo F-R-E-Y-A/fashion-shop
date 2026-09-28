@@ -24,18 +24,25 @@ export class ApiError extends Error {
 
 export type QueryParams = Record<string, string | number | boolean | undefined>;
 
-export async function apiGet<T>(
-  path: string,
-  params?: QueryParams,
-  headers?: Record<string, string>,
-): Promise<T> {
-  const url = new URL(`${BASE_URL}${path}`);
-  for (const [key, value] of Object.entries(params ?? {})) {
-    if (value !== undefined && value !== '') url.searchParams.set(key, String(value));
-  }
+export interface ApiRequestOptions {
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
+  body?: unknown;
+  accessToken?: string;
+  credentials?: RequestCredentials;
+  headers?: Record<string, string>;
+}
 
-  const response = await fetch(url, {
-    headers: { Accept: 'application/json', ...headers },
+export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: options.method ?? 'GET',
+    credentials: options.credentials,
+    headers: {
+      Accept: 'application/json',
+      ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...(options.accessToken ? { Authorization: `Bearer ${options.accessToken}` } : {}),
+      ...options.headers,
+    },
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
   });
 
   if (!response.ok) {
@@ -51,45 +58,31 @@ export async function apiGet<T>(
     );
   }
 
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
 
-async function apiMutate<T>(
-  method: 'POST' | 'PATCH' | 'PUT' | 'DELETE',
+export async function apiGet<T>(
   path: string,
-  body?: unknown,
+  params?: QueryParams,
   headers?: Record<string, string>,
 ): Promise<T> {
-  const response = await fetch(`${BASE_URL}${path}`, {
-    method,
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json', ...headers },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-
-  if (!response.ok) {
-    const err = (await response.json().catch(() => null)) as ApiErrorBody | null;
-    throw new ApiError(
-      err ?? {
-        statusCode: response.status,
-        code: 'UNKNOWN',
-        message: `May chu tra ve ma ${response.status}`,
-        path,
-        timestamp: new Date().toISOString(),
-      },
-    );
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params ?? {})) {
+    if (value !== undefined && value !== '') query.set(key, String(value));
   }
-
-  return (await response.json()) as T;
+  const search = query.toString();
+  return apiRequest<T>(search ? `${path}?${search}` : path, { headers });
 }
 
 export const apiPost = <T>(path: string, body?: unknown, headers?: Record<string, string>) =>
-  apiMutate<T>('POST', path, body, headers);
+  apiRequest<T>(path, { method: 'POST', body, headers });
 
 export const apiPatch = <T>(path: string, body?: unknown, headers?: Record<string, string>) =>
-  apiMutate<T>('PATCH', path, body, headers);
+  apiRequest<T>(path, { method: 'PATCH', body, headers });
 
 export const apiDel = <T>(path: string, headers?: Record<string, string>) =>
-  apiMutate<T>('DELETE', path, undefined, headers);
+  apiRequest<T>(path, { method: 'DELETE', headers });
 
 /** Hinh dang tra ve cua moi duong dan liet ke, khop Page<T> ben may chu. */
 export interface Page<T> {

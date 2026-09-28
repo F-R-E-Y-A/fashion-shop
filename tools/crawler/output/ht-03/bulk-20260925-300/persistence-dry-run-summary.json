@@ -1,0 +1,25 @@
+{
+  "recordedAt": "2026-09-25T08:47:45.782Z",
+  "mode": "dry-run",
+  "total": 314,
+  "createdRaw": 15,
+  "updatedRaw": 299,
+  "createdCandidates": 15,
+  "updatedCandidates": 299,
+  "skippedImported": 0,
+  "failed": 0,
+  "failures": [],
+  "verification": {
+    "source": "YODY",
+    "rawCount": 299,
+    "candidateCount": 299,
+    "candidateStatusCounts": {
+      "APPROVED": 88,
+      "PENDING_REVIEW": 211
+    },
+    "importedCount": 0,
+    "nonNullImportedAtCount": 0,
+    "duplicateRawIdentities": 0,
+    "duplicateCandidateRelations": 0
+  }
+}

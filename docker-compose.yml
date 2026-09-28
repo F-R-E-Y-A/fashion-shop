@@ -1,5 +1,5 @@
-# Moi truong phat trien tren may: chi MOT dich vu la co so du lieu.
-# Khong dinh nghia san Redis, Meilisearch, MinIO hay may chu thu. Phan he nao can dich vu gi thi
+# Moi truong phat trien tren may: co so du lieu va (tu PH3.1) may chu thu Mailpit cho email xac thuc.
+# Khong dinh nghia san Redis, Meilisearch, MinIO hay dich vu khac. Phan he nao can dich vu gi thi
 # them o tuan cua phan he do, trong cung pull request (docs/LOG.md#adr-004, docs/features/platform/README.md).
 # Chay ca he thong nhu tren may that: infra/compose.prod.yml.
 services:
@@ -21,6 +21,16 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  # Hop thu SMTP gia lap cho local: may chu gui OTP toi day thay vi email that.
+  # SMTP_HOST/SMTP_PORT trong .env tro vao day. Xem hop thu tai http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: fashion-shop-mailpit
+    restart: unless-stopped
+    ports:
+      - '${MAILPIT_SMTP_PORT:-1025}:1025' # SMTP: may chu API gui OTP vao day
+      - '${MAILPIT_UI_PORT:-8025}:8025' # Web UI: xem email da gui
 
 volumes:
   postgres-data:

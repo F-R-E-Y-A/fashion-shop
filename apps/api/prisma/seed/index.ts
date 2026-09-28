@@ -10,6 +10,7 @@ import { config as loadEnv } from 'dotenv';
 
 import { PrismaClient } from '../../src/generated/prisma/client.js';
 import { seedCatalog } from './catalog.seed.js';
+import { seedIdentity } from './identity.seed.js';
 
 loadEnv({ path: '../../.env' });
 
@@ -21,9 +22,9 @@ if (!connectionString) {
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 
 async function main(): Promise<void> {
-  const catalog = await seedCatalog(prisma);
+  const [catalog, identity] = await Promise.all([seedCatalog(prisma), seedIdentity(prisma)]);
   console.log(
-    `Da nap du lieu gia: ${catalog.categories} danh muc, ${catalog.products} san pham, ${catalog.productVariants} phien ban.`,
+    `Da nap du lieu gia: ${catalog.categories} danh muc, ${catalog.products} san pham, ${catalog.productVariants} phien ban, ${identity.roles} vai tro.`,
   );
 }
 

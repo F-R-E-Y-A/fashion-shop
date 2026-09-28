@@ -1,0 +1,10 @@
+{"recordedAt":"2026-09-25T06:48:40.227Z","url":"https://yody.vn/product/quan-jean-nu-dang-boy-lung-thap","status":"pending","attempts":0}
+{"recordedAt":"2026-09-25T06:48:40.228Z","url":"https://yody.vn/product/quan-short-nam-lung-thun-doi-mau","status":"pending","attempts":0}
+{"recordedAt":"2026-09-25T06:48:40.228Z","url":"https://yody.vn/product/ao-so-mi-nam-dai-tay-co-duc-om-body","status":"pending","attempts":0}
+{"recordedAt":"2026-09-25T06:48:40.228Z","url":"https://yody.vn/product/ao-polo-nam-cafe-bo-tron","status":"pending","attempts":0}
+{"recordedAt":"2026-09-25T06:48:40.228Z","url":"https://yody.vn/product/ao-so-mi-nu-khong-tay-co-tron-cach-dieu","status":"pending","attempts":0}
+{"recordedAt":"2026-09-25T06:48:40.436Z","url":"https://yody.vn/product/quan-jean-nu-dang-boy-lung-thap","sourceProductId":"4678","status":"succeeded","attempts":1,"httpStatus":200,"latencyMs":198,"payloadChecksum":"ad126d221f9e1c956ec12298544246455b479a2d30888fd947e589b256fd754a"}
+{"recordedAt":"2026-09-25T06:48:43.231Z","url":"https://yody.vn/product/quan-short-nam-lung-thun-doi-mau","sourceProductId":"4737","status":"succeeded","attempts":1,"httpStatus":200,"latencyMs":170,"payloadChecksum":"cfb9d73e7ebdc70d67b0927c46118d9ca29b9d2a68557531dbb39b86749e5fb1"}
+{"recordedAt":"2026-09-25T06:48:46.266Z","url":"https://yody.vn/product/ao-so-mi-nam-dai-tay-co-duc-om-body","sourceProductId":"4808","status":"succeeded","attempts":1,"httpStatus":200,"latencyMs":152,"payloadChecksum":"88af97933d2ad0e6f358de8d3ac9a5b8c5f12cf8744d2939868c1880d680e27a"}
+{"recordedAt":"2026-09-25T06:48:48.940Z","url":"https://yody.vn/product/ao-polo-nam-cafe-bo-tron","sourceProductId":"4817","status":"succeeded","attempts":1,"httpStatus":200,"latencyMs":205,"payloadChecksum":"ae936698c0e66818af03f10c2e560c20f5ffb8587ba43758a4ce45aea3832272"}
+{"recordedAt":"2026-09-25T06:48:51.975Z","url":"https://yody.vn/product/ao-so-mi-nu-khong-tay-co-tron-cach-dieu","sourceProductId":"4824","status":"succeeded","attempts":1,"httpStatus":200,"latencyMs":175,"payloadChecksum":"41680aa0698f6bd4cfb97e347fed6b21f872c55fdd3d9dd4cb1007e93b0e5174"}

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 
+import { useAuth } from '@/features/account';
 import { cartKeys, getCart } from '@/features/cart';
 
 /**
@@ -15,6 +16,7 @@ export function StoreLayout() {
   });
 
   const itemCount = cart?.itemCount ?? 0;
+  const { isAuthenticated, isLoading, logout, user } = useAuth();
 
   return (
     <div className="shell">
@@ -32,6 +34,23 @@ export function StoreLayout() {
             {itemCount > 0 && <span className="nav__badge">{itemCount}</span>}
           </NavLink>
         </nav>
+        <div className="nav nav--account" aria-live="polite">
+          {isLoading && <span className="nav__status">Đang khôi phục phiên…</span>}
+          {!isLoading && !isAuthenticated && (
+            <>
+              <NavLink to="/login">Đăng nhập</NavLink>
+              <NavLink to="/register">Đăng ký</NavLink>
+            </>
+          )}
+          {!isLoading && isAuthenticated && (
+            <>
+              <span className="nav__status">{user?.email}</span>
+              <button type="button" className="nav__logout" onClick={() => void logout()}>
+                Đăng xuất
+              </button>
+            </>
+          )}
+        </div>
       </header>
 
       <main className="shell__main">
