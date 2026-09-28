@@ -1,6 +1,6 @@
 ---
 title: Nền tảng — nhật ký quyết định và thay đổi
-updated: 2026-09-24
+updated: 2026-09-28
 status: đang dùng
 owner: Bảo
 ---
@@ -64,3 +64,9 @@ Kiểm chứng ghi lúc đó, tất cả bằng lệnh: `npm run check` xanh; `n
 **Loại:** cấu hình · **Phạm vi:** GitHub · **Commit:** [afffaa6](https://github.com/F-R-E-Y-A/fashion-shop/commit/afffaa6), [5ee862c](https://github.com/F-R-E-Y-A/fashion-shop/commit/5ee862c), [85a9d93](https://github.com/F-R-E-Y-A/fashion-shop/commit/85a9d93)
 
 Nhánh `main`, `develop`; chỉ bật merge commit ([ADR-005](../../LOG.md#adr-005)); nhãn `ph`, `ht`, mức độ lỗi; milestone S1 tới S11. Kho riêng tư gói Free không khoá được nhánh và không tự đọc `CODEOWNERS`, nên có workflow `pr-reviewers.yml` gán thay. Bảy lượt chạy đầu và nợ ND-11 ghi ở [github-setup.md](github-setup.md) mục 6.
+
+## 2026-09-28 · Bỏ Buildx cache khỏi gate image CI
+
+**Loại:** sửa pipeline · **Phạm vi:** `.github/workflows/ci.yml` · **PR:** [#17](https://github.com/F-R-E-Y-A/fashion-shop/pull/17).
+
+CI của PR #17 đã build xong image API nhưng bị hủy khi xuất layer lên GitHub Actions Cache ở bước `Dung image may chu`; bước web build và chạy thử image chưa kịp bắt đầu. Bỏ `cache-from`/`cache-to` ở cả hai image để gate kiểm tra việc build và chạy thật không phụ thuộc cache. Đổi lại, các lượt CI có thể build lâu hơn. Xem lại khi có số đo build ổn định hoặc cache exporter được khắc phục.

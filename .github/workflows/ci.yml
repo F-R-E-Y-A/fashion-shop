@@ -197,8 +197,6 @@ jobs:
           tags: fashion-shop-api:ci
           build-args: |
             GIT_SHA=${{ github.sha }}
-          cache-from: type=gha,scope=api
-          cache-to: type=gha,scope=api,mode=max
 
       - name: Dung image giao dien
         uses: docker/build-push-action@v6
@@ -209,8 +207,6 @@ jobs:
           tags: fashion-shop-web:ci
           build-args: |
             VITE_API_URL=/api
-          cache-from: type=gha,scope=web
-          cache-to: type=gha,scope=web,mode=max
 
       - name: Image chay len va tra 200 o /api/healthz
         # Dung thu duoc chua du: image phai chay duoc, ap duoc migration va tra loi that.
