@@ -1036,4 +1036,183 @@ describe('POST /api/auth (PH3 + PH3.1 Account, Authentication, Email Verificatio
       expectRefreshCookieCleared(response.headers);
     });
   });
+
+  describe('change-password', () => {
+    it('rejects an unauthenticated request', async () => {
+      expectUnauthorized(
+        await t.http
+          .post('/api/auth/change-password')
+          .send({ currentPassword: password, newPassword })
+          .expect(401),
+      );
+    });
+
+    it('changes the password: old password fails to log in, new password succeeds', async () => {
+      const email = 'change-ok@example.com';
+      const session = await activateAndLogin(email);
+
+      const response = await t.http
+        .post('/api/auth/change-password')
+        .set('Authorization', `Bearer ${session.accessToken}`)
+        .send({ currentPassword: password, newPassword })
+        .expect(204);
+      expect(response.text).toBe('');
+      expectRefreshCookieCleared(response.headers);
+
+      const user = await t.prisma.user.findUnique({ where: { id: session.id } });
+      expect(user?.passwordHash).not.toBe(newPassword);
+      expect(user?.passwordHash).not.toBe(password);
+
+      await t.http.post('/api/auth/login').send({ email, password }).expect(401);
+      await t.http.post('/api/auth/login').send({ email, password: newPassword }).expect(200);
+    });
+
+    it('rejects a wrong current password without changing the hash or revoking sessions', async () => {
+      const email = 'change-wrong-current@example.com';
+      const session = await activateAndLogin(email);
+
+      const response = await t.http
+        .post('/api/auth/change-password')
+        .set('Authorization', `Bearer ${session.accessToken}`)
+        .send({ currentPassword: 'WrongCurrent123', newPassword })
+        .expect(400);
+      expect(response.body).toMatchObject({ code: 'CURRENT_PASSWORD_INVALID' });
+
+      await t.http.post('/api/auth/login').send({ email, password }).expect(200);
+      expect(
+        await t.prisma.refreshToken.count({ where: { userId: session.id, revokedAt: null } }),
+      ).toBeGreaterThan(0);
+    });
+
+    it('rejects a weak new password', async () => {
+      const session = await activateAndLogin('change-weak@example.com');
+
+      const response = await t.http
+        .post('/api/auth/change-password')
+        .set('Authorization', `Bearer ${session.accessToken}`)
+        .send({ currentPassword: password, newPassword: 'weakpass' })
+        .expect(400);
+      expect(response.body).toMatchObject({ statusCode: 400, code: 'BAD_REQUEST' });
+    });
+
+    it('rejects a new password identical to the current password', async () => {
+      const email = 'change-same@example.com';
+      const session = await activateAndLogin(email);
+
+      const response = await t.http
+        .post('/api/auth/change-password')
+        .set('Authorization', `Bearer ${session.accessToken}`)
+        .send({ currentPassword: password, newPassword: password })
+        .expect(400);
+      expect(response.body).toMatchObject({ code: 'NEW_PASSWORD_SAME_AS_CURRENT' });
+
+      await t.http.post('/api/auth/login').send({ email, password }).expect(200);
+    });
+
+    it('does not issue an access token, refresh token, or cookie on success', async () => {
+      const session = await activateAndLogin('change-no-session@example.com');
+
+      const response = await t.http
+        .post('/api/auth/change-password')
+        .set('Authorization', `Bearer ${session.accessToken}`)
+        .send({ currentPassword: password, newPassword })
+        .expect(204);
+      expect(JSON.stringify(response.body)).not.toContain('accessToken');
+      const cookies = response.headers['set-cookie'];
+      expect(Array.isArray(cookies) ? cookies.join(';') : (cookies ?? '')).toContain(
+        'Expires=Thu, 01 Jan 1970',
+      );
+    });
+
+    it('revokes every refresh session across every family and clears the current cookie', async () => {
+      const email = 'change-revoke-all@example.com';
+      const session1 = await activateAndLogin(email);
+      const login2 = await t.http.post('/api/auth/login').send({ email, password }).expect(200);
+      const session2Token = expectRefreshCookie(login2.headers);
+
+      expect(
+        await t.prisma.refreshToken.count({ where: { userId: session1.id, revokedAt: null } }),
+      ).toBe(2);
+
+      const response = await t.http
+        .post('/api/auth/change-password')
+        .set('Authorization', `Bearer ${session1.accessToken}`)
+        .send({ currentPassword: password, newPassword })
+        .expect(204);
+      expectRefreshCookieCleared(response.headers);
+
+      expect(
+        await t.prisma.refreshToken.count({ where: { userId: session1.id, revokedAt: null } }),
+      ).toBe(0);
+
+      await t.http
+        .post('/api/auth/refresh')
+        .set('Cookie', `refresh_token=${session1.refreshToken}`)
+        .expect(401);
+      await t.http
+        .post('/api/auth/refresh')
+        .set('Cookie', `refresh_token=${session2Token}`)
+        .expect(401);
+    });
+
+    it.each([UserStatus.LOCKED, UserStatus.DISABLED])(
+      'rejects change-password for a %s account even with a previously valid access token',
+      async (status) => {
+        const session = await activateAndLogin(`change-${status.toLowerCase()}@example.com`);
+        await t.prisma.user.update({ where: { id: session.id }, data: { status } });
+
+        expectUnauthorized(
+          await t.http
+            .post('/api/auth/change-password')
+            .set('Authorization', `Bearer ${session.accessToken}`)
+            .send({ currentPassword: password, newPassword })
+            .expect(401),
+        );
+      },
+    );
+
+    it('rejects change-password for a PENDING_VERIFICATION account even with a validly signed access token', async () => {
+      const email = 'change-pending@example.com';
+      await registerPending(email);
+      const user = await t.prisma.user.findUnique({ where: { email } });
+      const tokens = t.app.get(TokenService);
+      const accessToken = await tokens.signAccessToken(user!.id);
+
+      expectUnauthorized(
+        await t.http
+          .post('/api/auth/change-password')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .send({ currentPassword: password, newPassword })
+          .expect(401),
+      );
+    });
+
+    it('lets only one of two concurrent same-current-password requests succeed', async () => {
+      const email = 'change-concurrent@example.com';
+      const session = await activateAndLogin(email);
+
+      const [first, second] = await Promise.all([
+        t.http
+          .post('/api/auth/change-password')
+          .set('Authorization', `Bearer ${session.accessToken}`)
+          .send({ currentPassword: password, newPassword: 'FirstNewPassword123' }),
+        t.http
+          .post('/api/auth/change-password')
+          .set('Authorization', `Bearer ${session.accessToken}`)
+          .send({ currentPassword: password, newPassword: 'SecondNewPassword123' }),
+      ]);
+
+      expect([first.status, second.status].sort()).toEqual([204, 400]);
+      const failed = first.status === 400 ? first : second;
+      expect(failed.body).toMatchObject({ code: 'CURRENT_PASSWORD_INVALID' });
+
+      const firstWorks = await t.http
+        .post('/api/auth/login')
+        .send({ email, password: 'FirstNewPassword123' });
+      const secondWorks = await t.http
+        .post('/api/auth/login')
+        .send({ email, password: 'SecondNewPassword123' });
+      expect([firstWorks.status, secondWorks.status].sort()).toEqual([200, 401]);
+    });
+  });
 });

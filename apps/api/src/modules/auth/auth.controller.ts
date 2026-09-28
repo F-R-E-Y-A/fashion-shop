@@ -37,6 +37,7 @@ import {
   VerifyEmailResponse,
 } from './dto/auth.response.js';
 import { LoginRequest, RegisterRequest } from './dto/auth-credentials.request.js';
+import { ChangePasswordRequest } from './dto/change-password.request.js';
 import { ForgotPasswordRequest } from './dto/forgot-password.request.js';
 import { ResendVerificationRequest } from './dto/resend-verification.request.js';
 import { ResetPasswordRequest } from './dto/reset-password.request.js';
@@ -145,6 +146,31 @@ export class AuthController {
   })
   async resetPassword(@Body() request: ResetPasswordRequest): Promise<ResetPasswordResponse> {
     return this.auth.resetPassword(request);
+  }
+
+  @Post('change-password')
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Doi mat khau cua chinh nguoi dang dang nhap; huy toan bo phien, xoa refresh cookie',
+  })
+  @ApiNoContentResponse({ description: 'Da doi mat khau va huy moi refresh session' })
+  @ApiUnauthorizedResponse({
+    description: 'Access token khong hop le hoac tai khoan khong duoc phep',
+  })
+  @ApiBadRequestResponse({
+    description: 'Mat khau hien tai sai, mat khau moi khong hop le, hoac trung mat khau hien tai',
+  })
+  async changePassword(
+    @CurrentUser() user: CurrentUserType,
+    @Body() request: ChangePasswordRequest,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    await this.auth.changePassword(user.id, request);
+    response.clearCookie(
+      REFRESH_TOKEN_COOKIE_NAME,
+      clearRefreshCookieOptions(this.config.get('NODE_ENV', { infer: true }) === 'production'),
+    );
   }
 
   @Post('login')

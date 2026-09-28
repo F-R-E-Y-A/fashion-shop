@@ -22,6 +22,7 @@ import type {
   VerifyEmailResponse,
 } from './dto/auth.response.js';
 import { LoginRequest, RegisterRequest } from './dto/auth-credentials.request.js';
+import { ChangePasswordRequest } from './dto/change-password.request.js';
 import { ForgotPasswordRequest } from './dto/forgot-password.request.js';
 import { ResendVerificationRequest } from './dto/resend-verification.request.js';
 import { ResetPasswordRequest } from './dto/reset-password.request.js';
@@ -318,6 +319,57 @@ export class AuthService {
     }
   }
 
+  /**
+   * Changes the password for the already-authenticated principal (userId comes from AuthGuard's
+   * verified access token, never from the request body) and revokes every refresh session the
+   * user currently holds. AuthGuard has already re-queried the user's status for this exact
+   * request and rejected LOCKED/DISABLED/PENDING_VERIFICATION with the generic 401 it always uses,
+   * so this method does not repeat that check.
+   *
+   * The password-hash write and the session revocation happen in the same transaction, and the
+   * write is a conditional `updateMany` keyed on the passwordHash this method actually read
+   * (optimistic concurrency): if another request changed the password first, this update matches
+   * zero rows and the whole change is rejected rather than silently overwriting a newer password.
+   * Nothing throws inside the transaction for that "lost the race" outcome, for the same reason
+   * verifyEmail()/resetPassword() don't: a thrown exception would roll back a persisted write that
+   * must survive, and here it is exactly the point — a stale write must NOT persist, so returning a
+   * discriminated outcome and mapping it to an HTTP error after commit keeps the same discipline.
+   */
+  async changePassword(userId: string, request: ChangePasswordRequest): Promise<void> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { passwordHash: true },
+    });
+    if (!user) throw this.currentPasswordInvalid();
+
+    const currentMatches = await this.passwordHasher.verify(
+      request.currentPassword,
+      user.passwordHash,
+    );
+    if (!currentMatches) throw this.currentPasswordInvalid();
+
+    const sameAsCurrent = await this.passwordHasher.verify(request.newPassword, user.passwordHash);
+    if (sameAsCurrent) throw this.newPasswordSameAsCurrent();
+
+    const newPasswordHash = await this.passwordHasher.hash(request.newPassword);
+
+    const outcome = await this.prisma.$transaction(async (transaction) => {
+      const updated = await transaction.user.updateMany({
+        where: { id: userId, passwordHash: user.passwordHash },
+        data: { passwordHash: newPasswordHash },
+      });
+      if (updated.count === 0) return { status: 'STALE' } as const;
+
+      await transaction.refreshToken.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      return { status: 'CHANGED' } as const;
+    });
+
+    if (outcome.status === 'STALE') throw this.currentPasswordInvalid();
+  }
+
   async refresh(refreshToken: string | undefined): Promise<AuthenticationResult> {
     if (!refreshToken) throw this.invalidRefreshToken();
 
@@ -417,6 +469,25 @@ export class AuthService {
     return new UnauthorizedException({
       error: 'UNAUTHORIZED',
       message: 'Khong duoc phep truy cap',
+    });
+  }
+
+  private currentPasswordInvalid(): BadRequestException {
+    // 400, not 401: the caller is already authenticated (AuthGuard confirmed the access token and
+    // ACTIVE status). A wrong current password is a business-rule failure on this specific
+    // mutation's input, the same category as OTP_INVALID, not an authentication/session failure —
+    // keeping it out of 401 also avoids the frontend's authenticatedRequest() treating a wrong
+    // current password as an expired-token signal and firing an unnecessary refresh+retry.
+    return new BadRequestException({
+      error: 'CURRENT_PASSWORD_INVALID',
+      message: 'Mat khau hien tai khong dung',
+    });
+  }
+
+  private newPasswordSameAsCurrent(): BadRequestException {
+    return new BadRequestException({
+      error: 'NEW_PASSWORD_SAME_AS_CURRENT',
+      message: 'Mat khau moi phai khac mat khau hien tai',
     });
   }
 
