@@ -27,6 +27,8 @@ interface AuthContextValue {
   /** Chi tao tai khoan PENDING_VERIFICATION va gui OTP; KHONG dang nhap. */
   register(credentials: Credentials): Promise<RegisterResponse>;
   logout(): Promise<void>;
+  /** Thanh cong thi xoa access token/user o bo nho: nguoi dung phai dang nhap lai. */
+  changePassword(currentPassword: string, newPassword: string): Promise<void>;
   authenticatedRequest<T>(
     path: string,
     options?: Omit<ApiRequestOptions, 'accessToken'>,
@@ -34,6 +36,20 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+const REFRESH_LOCK_NAME = 'fashion-shop:auth-refresh';
+
+/**
+ * Chay mot lan refresh voi khoa Web Locks (neu trinh duyet co): cac tab cung goc chia se MOT cookie
+ * refresh, nen hai tab refresh SONG SONG se cung gui token cu, tab thua bi backend coi la replay va
+ * thu hoi ca family (nguoi dung bi dang xuat khap noi, hay gap khi trinh duyet khoi phuc nhieu tab
+ * cung luc). Khoa xep hang cac lan refresh: tab sau chi gui request khi phan hoi cua tab truoc da dat
+ * lai cookie moi. Trinh duyet khong co Web Locks thi van duoc bao ve trong tung tab boi single-flight.
+ */
+function refreshOnce(): Promise<AuthResponse> {
+  const locks = typeof navigator === 'undefined' ? undefined : navigator.locks;
+  return locks ? locks.request(REFRESH_LOCK_NAME, () => refresh()) : refresh();
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
@@ -57,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const restoreAccessToken = useCallback(async (): Promise<string | null> => {
     if (refreshInFlight.current) return refreshInFlight.current;
 
-    refreshInFlight.current = refresh()
+    refreshInFlight.current = refreshOnce()
       .then((response) => {
         applyAuthentication(response);
         return response.accessToken;
@@ -102,16 +118,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         if (!(error instanceof ApiError) || error.body.statusCode !== 401) throw error;
 
-        const refreshedToken = await restoreAccessToken();
-        if (!refreshedToken) throw error;
+        // Backend phat hien replay refresh token (va thu hoi ca family) neu hai request cung mang
+        // token cu di refresh, nen refresh phai la single-flight va khong duoc thua:
+        //  - token hien tai khac token request nay da gui: request khac da refresh xong roi, dung lai
+        //    token do thay vi rotate them mot lan nua;
+        //  - token hien tai la null: auth da bi xoa trong luc cho (refresh cua request khac that bai,
+        //    hoac dang xuat) -> nextToken rong, chi bao loi, KHONG thu refresh them;
+        //  - con lai: chi MOT refresh chay, moi request 401 khac cung cho ket qua do.
+        const current = accessTokenRef.current;
+        const nextToken = current !== token ? current : await restoreAccessToken();
+        if (!nextToken) throw error;
         return apiRequest<T>(path, {
           ...options,
-          accessToken: refreshedToken,
+          accessToken: nextToken,
           credentials: 'include',
         });
       }
     },
     [restoreAccessToken],
+  );
+
+  const changePassword = useCallback(
+    async (currentPassword: string, newPassword: string): Promise<void> => {
+      await authenticatedRequest<void>('/auth/change-password', {
+        method: 'POST',
+        body: { currentPassword, newPassword },
+      });
+      clearAuthentication();
+    },
+    [authenticatedRequest, clearAuthentication],
   );
 
   const value: AuthContextValue = {
@@ -129,6 +164,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // The local session remains cleared even when an idempotent logout request cannot finish.
       }
     },
+    changePassword,
     authenticatedRequest,
   };
 

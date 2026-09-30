@@ -8,7 +8,7 @@ owner: Tài
 
 **Chức năng:** Bức tranh dữ liệu toàn hệ thống: sơ đồ quan hệ thực thể, quy ước, bảng nào của ai, từ điển từng bảng, ràng buộc và chỉ mục.
 
-Physical database specification chốt cho HT-02. Nguồn chân lý là ERD approved trong diagram-fashion-ecommerce/draft/database; Prisma hiện tại chỉ là mẫu.
+Tài liệu HT-02 tổng hợp thiết kế dữ liệu; lược đồ thật nằm trong `apps/api/prisma/schema/*.prisma` và migration. Bảng nào của ai ghi ở [CONTRIBUTING.md](../CONTRIBUTING.md); phần Catalog của PH-01 được giải thích trong [features/products/erd.md](../features/products/erd.md).
 
 ![Sơ đồ quan hệ thực thể HT-02](diagrams/erd-tong-the.drawio.png)
 

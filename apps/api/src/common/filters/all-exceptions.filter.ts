@@ -34,6 +34,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     let message: string | string[] = 'Loi khong xac dinh phia may chu';
     let code = HttpStatus[status] ?? 'INTERNAL_SERVER_ERROR';
+    let retryAfterSeconds: number | undefined;
 
     if (exception instanceof HttpException) {
       const payload = exception.getResponse();
@@ -45,6 +46,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
         if (typeof body.error === 'string') {
           code = body.error.toUpperCase().replace(/\s+/g, '_');
         }
+        // Chi dua len HEADER Retry-After (429/503); khong bao gio vao than phan hoi.
+        if (typeof body.retryAfterSeconds === 'number') retryAfterSeconds = body.retryAfterSeconds;
       }
     } else if (exception instanceof Error) {
       // Khong tra chi tiet loi noi bo ra ngoai, chi ghi vao nhat ky may chu.
@@ -65,6 +68,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
       this.logger.warn(`${request.method} ${request.url} -> ${status}`);
     }
 
+    if (retryAfterSeconds !== undefined)
+      response.setHeader('Retry-After', String(retryAfterSeconds));
     response.status(status).json(body);
   }
 }

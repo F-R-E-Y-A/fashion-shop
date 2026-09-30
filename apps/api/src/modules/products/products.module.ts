@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 
+import { CategoriesController } from './categories.controller.js';
+import { CategoriesService } from './categories.service.js';
 import { ProductsController } from './products.controller.js';
 import { ProductsService } from './products.service.js';
 
@@ -12,8 +14,8 @@ import { ProductsService } from './products.service.js';
  * Vi vay exports luon liet ke service, khong bao gio la controller.
  */
 @Module({
-  controllers: [ProductsController],
-  providers: [ProductsService],
+  controllers: [ProductsController, CategoriesController],
+  providers: [ProductsService, CategoriesService],
   exports: [ProductsService],
 })
 export class ProductsModule {}

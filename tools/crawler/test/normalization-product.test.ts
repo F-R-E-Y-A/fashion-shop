@@ -21,7 +21,7 @@ function sourceVariant(overrides: JsonObject = {}): JsonObject {
   };
 }
 
-function envelope(variants: JsonObject[]): RawProductEnvelope {
+function envelope(variants: JsonObject[], productOverrides: JsonObject = {}): RawProductEnvelope {
   return {
     sourceVersion: 1,
     source: 'YODY',
@@ -36,6 +36,7 @@ function envelope(variants: JsonObject[]): RawProductEnvelope {
       material: { component: 'Cotton', preserve: 'Giặt nhẹ' },
       category: { id: 124, slug: 'quan-short-nam', name: 'Quần short nam' },
       variants,
+      ...productOverrides,
     },
   };
 }
@@ -119,6 +120,64 @@ test('dedupes equivalent variants and images in deterministic source order', () 
     ['https://cdn.example/one.webp', 'https://cdn.example/two.webp'],
   );
   assert.equal(result.attributes.images[0]?.colorCode, 'yody-vag');
+});
+
+test('keeps a shared image associated with each color instead of assigning it to only one', () => {
+  const result = normalizeYodyEnvelope(
+    envelope([
+      sourceVariant({ images: [{ image_url: 'https://cdn.example/shared.webp' }] }),
+      sourceVariant({
+        id: 2,
+        sku: 'SKU-DEN-M',
+        color: { id: 2, code: 'DEN', name: 'Đen', hex: '#000' },
+        images: [{ image_url: 'https://cdn.example/shared.webp' }],
+      }),
+    ]),
+  );
+
+  assert.deepEqual(
+    result.attributes.images.map((image) => image.colorCode),
+    ['yody-vag', 'yody-den'],
+  );
+  assert.equal(result.attributes.images[0]?.url, result.attributes.images[1]?.url);
+});
+
+test('uses detailed unicorn description when the primary description is only a title and strips markup', () => {
+  const result = normalizeYodyEnvelope(
+    envelope([sourceVariant()], {
+      description: 'Sơ mi knit nhật cộc tay',
+      unicorn_description:
+        '<h2>Thông tin</h2><p>Áo được may từ chất liệu tự nhiên&nbsp;và tạo cảm giác thoải mái khi mặc. &#272;&#7865;p &amp; bền.</p><script>alert(1)</script><style>.hidden{display:none}</style><img src="https://cdn.example/ignored.jpg" /><p><a href="https://example.test">Xem thêm</a></p>',
+    }),
+  );
+
+  assert.equal(
+    result.attributes.description,
+    'Thông tin\n\nÁo được may từ chất liệu tự nhiên và tạo cảm giác thoải mái khi mặc. Đẹp & bền.\n\nXem thêm',
+  );
+  assert.equal(result.attributes.description?.includes('<'), false);
+  assert.equal(result.attributes.description?.includes('alert'), false);
+});
+
+test('recovers embedded gallery images only when the filename identifies the source color', () => {
+  const result = normalizeYodyEnvelope(
+    envelope([sourceVariant()], {
+      description:
+        '<p><img src="https://cdn.example/shirt-vag-01.jpg"><img src="https://cdn.example/shirt-den-01.jpg"></p>',
+    }),
+  );
+
+  assert.deepEqual(result.attributes.images, [
+    {
+      url: 'https://cdn.example/shirt-vag-01.jpg',
+      alt: 'Quần Short Fixture - Vàng',
+      colorCode: 'yody-vag',
+    },
+  ]);
+  assert.equal(
+    result.validation.warnings.some((warning) => warning.code === 'NO_VALID_IMAGE'),
+    false,
+  );
 });
 
 test('normalization is deterministic and preserves only relevant original values', () => {

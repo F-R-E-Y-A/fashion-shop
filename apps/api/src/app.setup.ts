@@ -15,6 +15,14 @@ export function configureApp(app: INestApplication, options: { swagger?: boolean
   // Moi duong dan bat dau bang /api de sau nay dat chung ten mien voi web ma khong dam nhau.
   app.setGlobalPrefix('api');
 
+  // req.ip (dung cho gioi han theo IP) chi doc X-Forwarded-For khi khai bao ro so proxy tin cay
+  // dung truoc API; mac dinh 0 = bo qua header do, ke tan cong khong gia mao duoc IP. Khong bao gio
+  // bat "trust proxy" toan cuc (true): khi do IP la gia tri dau tien do khach tu khai.
+  app
+    .getHttpAdapter()
+    .getInstance()
+    .set('trust proxy', config.get('TRUST_PROXY_HOPS', { infer: true }) ?? 0);
+
   // Chi cac goc web khai trong CORS_ORIGINS moi goi duoc API. Staging dien dung dia chi web cua no.
   app.enableCors({
     origin: corsOrigins(config.get('CORS_ORIGINS', { infer: true })),

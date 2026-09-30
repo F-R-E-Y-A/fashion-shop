@@ -77,6 +77,10 @@ test('normalizes source-prefixed color and accepts only valid source hex', () =>
   const invalid = normalizeYodyColor({ code: 'VAG', name: 'Vàng', hex: 'yellow' }, 'color');
   assert.equal(invalid.color?.hex, null);
   assert.equal(invalid.warning?.code, 'INVALID_HEX');
+
+  const shortHex = normalizeYodyColor({ code: 'DEN', name: 'Đen', hex: '#000' }, 'color');
+  assert.deepEqual(shortHex.color, { code: 'yody-den', name: 'Đen', hex: '#000000' });
+  assert.equal(shortHex.warning, undefined);
 });
 
 test('normalizes list/sale prices with M2 semantics', () => {

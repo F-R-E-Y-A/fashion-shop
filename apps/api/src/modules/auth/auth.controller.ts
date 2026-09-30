@@ -4,6 +4,7 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Ip,
   Post,
   Req,
   Res,
@@ -17,7 +18,9 @@ import {
   ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiServiceUnavailableResponse,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import type { Request, Response } from 'express';
@@ -37,6 +40,7 @@ import {
   VerifyEmailResponse,
 } from './dto/auth.response.js';
 import { LoginRequest, RegisterRequest } from './dto/auth-credentials.request.js';
+import { ChangePasswordRequest } from './dto/change-password.request.js';
 import { ForgotPasswordRequest } from './dto/forgot-password.request.js';
 import { ResendVerificationRequest } from './dto/resend-verification.request.js';
 import { ResetPasswordRequest } from './dto/reset-password.request.js';
@@ -97,57 +101,135 @@ export class AuthController {
   }
 
   @Post('register')
+  @ApiTooManyRequestsResponse({
+    description:
+      'Vuot gioi han toc do; xem header Retry-After (giay). Khong tiet lo tai khoan co ton tai hay khong.',
+  })
+  @ApiServiceUnavailableResponse({
+    description:
+      'Kho gioi han toc do tam thoi khong dung duoc va endpoint nay chan khi do (gui email den dia chi tuy y).',
+  })
   @ApiOperation({
     summary: 'Dang ky tai khoan, gui OTP xac thuc email. Khong cap phien dang nhap.',
   })
   @ApiCreatedResponse({ type: RegisterResponse })
   @ApiBadRequestResponse({ description: 'Email hoac mat khau khong hop le' })
   @ApiConflictResponse({ description: 'Email da duoc su dung' })
-  async register(@Body() request: RegisterRequest): Promise<RegisterResponse> {
-    return this.auth.register(request);
+  async register(
+    @Body() request: RegisterRequest,
+    @Ip() ip: string | undefined,
+  ): Promise<RegisterResponse> {
+    return this.auth.register(request, ip);
   }
 
   @Post('verify-email')
+  @ApiTooManyRequestsResponse({
+    description:
+      'Vuot gioi han toc do; xem header Retry-After (giay). Khong tiet lo tai khoan co ton tai hay khong.',
+  })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Xac thuc email bang OTP 6 chu so, chuyen tai khoan sang ACTIVE' })
   @ApiOkResponse({ type: VerifyEmailResponse })
   @ApiBadRequestResponse({
     description: 'Ma xac thuc khong dung, da het han, hoac vuot qua so lan thu',
   })
-  async verifyEmail(@Body() request: VerifyEmailRequest): Promise<VerifyEmailResponse> {
-    return this.auth.verifyEmail(request);
+  async verifyEmail(
+    @Body() request: VerifyEmailRequest,
+    @Ip() ip: string | undefined,
+  ): Promise<VerifyEmailResponse> {
+    return this.auth.verifyEmail(request, ip);
   }
 
   @Post('resend-verification')
+  @ApiTooManyRequestsResponse({
+    description:
+      'Vuot gioi han toc do; xem header Retry-After (giay). Khong tiet lo tai khoan co ton tai hay khong.',
+  })
+  @ApiServiceUnavailableResponse({
+    description:
+      'Kho gioi han toc do tam thoi khong dung duoc va endpoint nay chan khi do (gui email den dia chi tuy y).',
+  })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Gui lai OTP xac thuc email; luon tra ve phan hoi chung chung' })
   @ApiOkResponse({ type: ResendVerificationResponse })
   async resendVerification(
     @Body() request: ResendVerificationRequest,
+    @Ip() ip: string | undefined,
   ): Promise<ResendVerificationResponse> {
-    return this.auth.resendVerification(request);
+    return this.auth.resendVerification(request, ip);
   }
 
   @Post('forgot-password')
+  @ApiTooManyRequestsResponse({
+    description:
+      'Vuot gioi han toc do; xem header Retry-After (giay). Khong tiet lo tai khoan co ton tai hay khong.',
+  })
+  @ApiServiceUnavailableResponse({
+    description:
+      'Kho gioi han toc do tam thoi khong dung duoc va endpoint nay chan khi do (gui email den dia chi tuy y).',
+  })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Yeu cau OTP dat lai mat khau; luon tra ve phan hoi chung chung' })
   @ApiOkResponse({ type: ForgotPasswordResponse })
-  async forgotPassword(@Body() request: ForgotPasswordRequest): Promise<ForgotPasswordResponse> {
-    return this.auth.forgotPassword(request);
+  async forgotPassword(
+    @Body() request: ForgotPasswordRequest,
+    @Ip() ip: string | undefined,
+  ): Promise<ForgotPasswordResponse> {
+    return this.auth.forgotPassword(request, ip);
   }
 
   @Post('reset-password')
+  @ApiTooManyRequestsResponse({
+    description:
+      'Vuot gioi han toc do; xem header Retry-After (giay). Khong tiet lo tai khoan co ton tai hay khong.',
+  })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Dat lai mat khau bang OTP; khong cap phien dang nhap' })
   @ApiOkResponse({ type: ResetPasswordResponse })
   @ApiBadRequestResponse({
     description: 'Ma OTP khong dung/het han/vuot qua so lan thu, hoac mat khau moi khong hop le',
   })
-  async resetPassword(@Body() request: ResetPasswordRequest): Promise<ResetPasswordResponse> {
-    return this.auth.resetPassword(request);
+  async resetPassword(
+    @Body() request: ResetPasswordRequest,
+    @Ip() ip: string | undefined,
+  ): Promise<ResetPasswordResponse> {
+    return this.auth.resetPassword(request, ip);
+  }
+
+  @Post('change-password')
+  @ApiTooManyRequestsResponse({
+    description:
+      'Vuot gioi han toc do; xem header Retry-After (giay). Khong tiet lo tai khoan co ton tai hay khong.',
+  })
+  @UseGuards(AuthGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Doi mat khau cua chinh nguoi dang dang nhap; huy toan bo phien, xoa refresh cookie',
+  })
+  @ApiNoContentResponse({ description: 'Da doi mat khau va huy moi refresh session' })
+  @ApiUnauthorizedResponse({
+    description: 'Access token khong hop le hoac tai khoan khong duoc phep',
+  })
+  @ApiBadRequestResponse({
+    description: 'Mat khau hien tai sai, mat khau moi khong hop le, hoac trung mat khau hien tai',
+  })
+  async changePassword(
+    @CurrentUser() user: CurrentUserType,
+    @Body() request: ChangePasswordRequest,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<void> {
+    await this.auth.changePassword(user.id, request);
+    response.clearCookie(
+      REFRESH_TOKEN_COOKIE_NAME,
+      clearRefreshCookieOptions(this.config.get('NODE_ENV', { infer: true }) === 'production'),
+    );
   }
 
   @Post('login')
+  @ApiTooManyRequestsResponse({
+    description:
+      'Vuot gioi han toc do; xem header Retry-After (giay). Khong tiet lo tai khoan co ton tai hay khong.',
+  })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Dang nhap va tao phien dang nhap moi' })
   @ApiOkResponse({ type: AuthResponse })
@@ -155,9 +237,10 @@ export class AuthController {
   @ApiUnauthorizedResponse({ description: 'Email hoac mat khau khong dung' })
   async login(
     @Body() request: LoginRequest,
+    @Ip() ip: string | undefined,
     @Res({ passthrough: true }) response: Response,
   ): Promise<AuthResponse> {
-    const result = await this.auth.login(request);
+    const result = await this.auth.login(request, ip);
     this.setRefreshCookie(response, result.refreshToken);
     return { accessToken: result.accessToken, user: result.user };
   }

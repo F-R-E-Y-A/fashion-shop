@@ -70,6 +70,7 @@ describe('POST /api/auth (PH3 + PH3.1 Account, Authentication, Email Verificatio
 
   beforeEach(async () => {
     await resetDatabase(t.prisma);
+    await t.resetRateLimits();
   });
 
   afterAll(async () => {
@@ -344,6 +345,180 @@ describe('POST /api/auth (PH3 + PH3.1 Account, Authentication, Email Verificatio
       const replay = await t.http.post('/api/auth/verify-email').send({ email, code: oldCode });
       expect(replay.status).toBe(400);
       expect(replay.body).toMatchObject({ code: 'OTP_INVALID' });
+    });
+  });
+
+  describe('verify-email records emailVerifiedAt together with the activation', () => {
+    const stateOf = async (email: string) => {
+      const user = await t.prisma.user.findUnique({ where: { email } });
+      return { status: user?.status, emailVerifiedAt: user?.emailVerifiedAt };
+    };
+
+    it('leaves emailVerifiedAt null while the account is PENDING_VERIFICATION', async () => {
+      const email = 'evat-pending@example.com';
+      await registerPending(email);
+
+      expect(await stateOf(email)).toEqual({
+        status: UserStatus.PENDING_VERIFICATION,
+        emailVerifiedAt: null,
+      });
+    });
+
+    it('sets emailVerifiedAt to the verification time in the same step that activates the account', async () => {
+      const email = 'evat-success@example.com';
+      const code = await registerPending(email);
+
+      const before = Date.now();
+      await t.http.post('/api/auth/verify-email').send({ email, code }).expect(200);
+      const after = Date.now();
+
+      const state = await stateOf(email);
+      expect(state.status).toBe(UserStatus.ACTIVE);
+      expect(state.emailVerifiedAt).toBeInstanceOf(Date);
+      expect(state.emailVerifiedAt!.getTime()).toBeGreaterThanOrEqual(before);
+      expect(state.emailVerifiedAt!.getTime()).toBeLessThanOrEqual(after);
+    });
+
+    it('does not change the response shape or start a session', async () => {
+      const email = 'evat-shape@example.com';
+      const code = await registerPending(email);
+
+      const response = await t.http
+        .post('/api/auth/verify-email')
+        .send({ email, code })
+        .expect(200);
+
+      expect(response.body).toEqual({ verified: true });
+      expect(response.headers['set-cookie']).toBeUndefined();
+    });
+
+    it('keeps emailVerifiedAt null on every failed verification (wrong, exhausted, expired, wrong purpose)', async () => {
+      const email = 'evat-failed@example.com';
+      const code = await registerPending(email);
+      const pending = { status: UserStatus.PENDING_VERIFICATION, emailVerifiedAt: null };
+
+      await t.http.post('/api/auth/verify-email').send({ email, code: '000000' }).expect(400);
+      expect(await stateOf(email)).toEqual(pending);
+
+      for (let i = 0; i < 4; i++) {
+        await t.http.post('/api/auth/verify-email').send({ email, code: '000000' }).expect(400);
+      }
+      const exhausted = await t.http
+        .post('/api/auth/verify-email')
+        .send({ email, code })
+        .expect(400);
+      expect(exhausted.body).toMatchObject({ code: 'OTP_ATTEMPTS_EXCEEDED' });
+      expect(await stateOf(email)).toEqual(pending);
+
+      const expiredEmail = 'evat-expired@example.com';
+      const expiredCode = await registerPending(expiredEmail);
+      await t.prisma.otpCode.updateMany({
+        where: { email: expiredEmail },
+        data: { expiresAt: new Date(Date.now() - 1_000) },
+      });
+      const expired = await t.http
+        .post('/api/auth/verify-email')
+        .send({ email: expiredEmail, code: expiredCode })
+        .expect(400);
+      expect(expired.body).toMatchObject({ code: 'OTP_EXPIRED' });
+      expect(await stateOf(expiredEmail)).toEqual(pending);
+
+      const foreignEmail = 'evat-purpose@example.com';
+      await registerPending(foreignEmail);
+      await t.prisma.otpCode.create({
+        data: {
+          email: foreignEmail,
+          purpose: OtpPurpose.PASSWORD_RESET,
+          codeHash: hashOtpCode(
+            process.env.OTP_PEPPER!,
+            foreignEmail,
+            OtpPurpose.PASSWORD_RESET,
+            '999999',
+          ),
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      });
+      await t.http
+        .post('/api/auth/verify-email')
+        .send({ email: foreignEmail, code: '999999' })
+        .expect(400);
+      expect(await stateOf(foreignEmail)).toEqual(pending);
+    });
+
+    it('does not touch emailVerifiedAt when the account is not PENDING_VERIFICATION', async () => {
+      const email = 'evat-active@example.com';
+      await t.prisma.user.create({
+        data: {
+          email,
+          passwordHash: await t.app.get(PasswordHasherService).hash(password),
+          status: UserStatus.ACTIVE,
+        },
+      });
+      await t.prisma.otpCode.create({
+        data: {
+          email,
+          purpose: OtpPurpose.EMAIL_VERIFICATION,
+          codeHash: hashOtpCode(
+            process.env.OTP_PEPPER!,
+            email,
+            OtpPurpose.EMAIL_VERIFICATION,
+            '123456',
+          ),
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      });
+
+      await t.http.post('/api/auth/verify-email').send({ email, code: '123456' }).expect(400);
+
+      expect(await stateOf(email)).toEqual({ status: UserStatus.ACTIVE, emailVerifiedAt: null });
+    });
+
+    it('does not change the timestamp when an already-used code is replayed', async () => {
+      const email = 'evat-replay@example.com';
+      const code = await registerPending(email);
+      await t.http.post('/api/auth/verify-email').send({ email, code }).expect(200);
+      const first = (await stateOf(email)).emailVerifiedAt!;
+
+      const replay = await t.http.post('/api/auth/verify-email').send({ email, code }).expect(400);
+
+      expect(replay.body).toMatchObject({ code: 'OTP_INVALID' });
+      const state = await stateOf(email);
+      expect(state.status).toBe(UserStatus.ACTIVE);
+      expect(state.emailVerifiedAt!.getTime()).toBe(first.getTime());
+    });
+
+    it('two concurrent verifications with the same code: one succeeds and the timestamp is set once', async () => {
+      const email = 'evat-concurrent@example.com';
+      const code = await registerPending(email);
+
+      const before = Date.now();
+      const [first, second] = await Promise.all([
+        t.http.post('/api/auth/verify-email').send({ email, code }),
+        t.http.post('/api/auth/verify-email').send({ email, code }),
+      ]);
+      const after = Date.now();
+
+      expect([first.status, second.status].sort()).toEqual([200, 400]);
+      const state = await stateOf(email);
+      expect(state.status).toBe(UserStatus.ACTIVE);
+      expect(state.emailVerifiedAt!.getTime()).toBeGreaterThanOrEqual(before);
+      expect(state.emailVerifiedAt!.getTime()).toBeLessThanOrEqual(after);
+    });
+
+    it('is not rewritten by later logins or by a password change', async () => {
+      const email = 'evat-stable@example.com';
+      const session = await activateAndLogin(email);
+      const verifiedAt = (await stateOf(email)).emailVerifiedAt!;
+      expect(verifiedAt).toBeInstanceOf(Date);
+
+      await t.http.post('/api/auth/login').send({ email, password }).expect(200);
+      await t.http
+        .post('/api/auth/change-password')
+        .set('Authorization', `Bearer ${session.accessToken}`)
+        .send({ currentPassword: password, newPassword })
+        .expect(204);
+
+      expect((await stateOf(email)).emailVerifiedAt!.getTime()).toBe(verifiedAt.getTime());
     });
   });
 
@@ -870,7 +1045,7 @@ describe('POST /api/auth (PH3 + PH3.1 Account, Authentication, Email Verificatio
 
     it('rejects a validly signed token for a user that no longer exists', async () => {
       const tokens = t.app.get(TokenService);
-      const accessToken = await tokens.signAccessToken(randomUUID());
+      const accessToken = await tokens.signAccessToken(randomUUID(), 0);
 
       expectUnauthorized(
         await t.http.get('/api/auth/me').set('Authorization', `Bearer ${accessToken}`).expect(401),
@@ -923,7 +1098,8 @@ describe('POST /api/auth (PH3 + PH3.1 Account, Authentication, Email Verificatio
       expect(replacement?.tokenHash).not.toBe(replacementRawToken);
     });
 
-    it('rejects a rotated token and accepts its replacement', async () => {
+    it('treats reuse of a rotated token as replay: rejects it and revokes its whole family', async () => {
+      // PH3.4 changed this on purpose: before, the replacement kept working after a replay.
       const session = await activateAndLogin('refresh-replay@example.com');
       const firstRefresh = await t.http
         .post('/api/auth/refresh')
@@ -938,12 +1114,12 @@ describe('POST /api/auth (PH3 + PH3.1 Account, Authentication, Email Verificatio
       expectUnauthorized(replay);
       expect(replay.headers['set-cookie']).toBeUndefined();
 
-      const secondRefresh = await t.http
-        .post('/api/auth/refresh')
-        .set('Cookie', `refresh_token=${replacement}`)
-        .expect(200);
-      expectPublicAuthenticationResponse(secondRefresh.body);
-      expectRefreshCookie(secondRefresh.headers);
+      expectUnauthorized(
+        await t.http
+          .post('/api/auth/refresh')
+          .set('Cookie', `refresh_token=${replacement}`)
+          .expect(401),
+      );
     });
 
     it('rejects an expired refresh token without creating a replacement', async () => {
@@ -1034,6 +1210,185 @@ describe('POST /api/auth (PH3 + PH3.1 Account, Authentication, Email Verificatio
         .set('Cookie', `refresh_token=${session.refreshToken}`)
         .expect(204);
       expectRefreshCookieCleared(response.headers);
+    });
+  });
+
+  describe('change-password', () => {
+    it('rejects an unauthenticated request', async () => {
+      expectUnauthorized(
+        await t.http
+          .post('/api/auth/change-password')
+          .send({ currentPassword: password, newPassword })
+          .expect(401),
+      );
+    });
+
+    it('changes the password: old password fails to log in, new password succeeds', async () => {
+      const email = 'change-ok@example.com';
+      const session = await activateAndLogin(email);
+
+      const response = await t.http
+        .post('/api/auth/change-password')
+        .set('Authorization', `Bearer ${session.accessToken}`)
+        .send({ currentPassword: password, newPassword })
+        .expect(204);
+      expect(response.text).toBe('');
+      expectRefreshCookieCleared(response.headers);
+
+      const user = await t.prisma.user.findUnique({ where: { id: session.id } });
+      expect(user?.passwordHash).not.toBe(newPassword);
+      expect(user?.passwordHash).not.toBe(password);
+
+      await t.http.post('/api/auth/login').send({ email, password }).expect(401);
+      await t.http.post('/api/auth/login').send({ email, password: newPassword }).expect(200);
+    });
+
+    it('rejects a wrong current password without changing the hash or revoking sessions', async () => {
+      const email = 'change-wrong-current@example.com';
+      const session = await activateAndLogin(email);
+
+      const response = await t.http
+        .post('/api/auth/change-password')
+        .set('Authorization', `Bearer ${session.accessToken}`)
+        .send({ currentPassword: 'WrongCurrent123', newPassword })
+        .expect(400);
+      expect(response.body).toMatchObject({ code: 'CURRENT_PASSWORD_INVALID' });
+
+      await t.http.post('/api/auth/login').send({ email, password }).expect(200);
+      expect(
+        await t.prisma.refreshToken.count({ where: { userId: session.id, revokedAt: null } }),
+      ).toBeGreaterThan(0);
+    });
+
+    it('rejects a weak new password', async () => {
+      const session = await activateAndLogin('change-weak@example.com');
+
+      const response = await t.http
+        .post('/api/auth/change-password')
+        .set('Authorization', `Bearer ${session.accessToken}`)
+        .send({ currentPassword: password, newPassword: 'weakpass' })
+        .expect(400);
+      expect(response.body).toMatchObject({ statusCode: 400, code: 'BAD_REQUEST' });
+    });
+
+    it('rejects a new password identical to the current password', async () => {
+      const email = 'change-same@example.com';
+      const session = await activateAndLogin(email);
+
+      const response = await t.http
+        .post('/api/auth/change-password')
+        .set('Authorization', `Bearer ${session.accessToken}`)
+        .send({ currentPassword: password, newPassword: password })
+        .expect(400);
+      expect(response.body).toMatchObject({ code: 'NEW_PASSWORD_SAME_AS_CURRENT' });
+
+      await t.http.post('/api/auth/login').send({ email, password }).expect(200);
+    });
+
+    it('does not issue an access token, refresh token, or cookie on success', async () => {
+      const session = await activateAndLogin('change-no-session@example.com');
+
+      const response = await t.http
+        .post('/api/auth/change-password')
+        .set('Authorization', `Bearer ${session.accessToken}`)
+        .send({ currentPassword: password, newPassword })
+        .expect(204);
+      expect(JSON.stringify(response.body)).not.toContain('accessToken');
+      const cookies = response.headers['set-cookie'];
+      expect(Array.isArray(cookies) ? cookies.join(';') : (cookies ?? '')).toContain(
+        'Expires=Thu, 01 Jan 1970',
+      );
+    });
+
+    it('revokes every refresh session across every family and clears the current cookie', async () => {
+      const email = 'change-revoke-all@example.com';
+      const session1 = await activateAndLogin(email);
+      const login2 = await t.http.post('/api/auth/login').send({ email, password }).expect(200);
+      const session2Token = expectRefreshCookie(login2.headers);
+
+      expect(
+        await t.prisma.refreshToken.count({ where: { userId: session1.id, revokedAt: null } }),
+      ).toBe(2);
+
+      const response = await t.http
+        .post('/api/auth/change-password')
+        .set('Authorization', `Bearer ${session1.accessToken}`)
+        .send({ currentPassword: password, newPassword })
+        .expect(204);
+      expectRefreshCookieCleared(response.headers);
+
+      expect(
+        await t.prisma.refreshToken.count({ where: { userId: session1.id, revokedAt: null } }),
+      ).toBe(0);
+
+      await t.http
+        .post('/api/auth/refresh')
+        .set('Cookie', `refresh_token=${session1.refreshToken}`)
+        .expect(401);
+      await t.http
+        .post('/api/auth/refresh')
+        .set('Cookie', `refresh_token=${session2Token}`)
+        .expect(401);
+    });
+
+    it.each([UserStatus.LOCKED, UserStatus.DISABLED])(
+      'rejects change-password for a %s account even with a previously valid access token',
+      async (status) => {
+        const session = await activateAndLogin(`change-${status.toLowerCase()}@example.com`);
+        await t.prisma.user.update({ where: { id: session.id }, data: { status } });
+
+        expectUnauthorized(
+          await t.http
+            .post('/api/auth/change-password')
+            .set('Authorization', `Bearer ${session.accessToken}`)
+            .send({ currentPassword: password, newPassword })
+            .expect(401),
+        );
+      },
+    );
+
+    it('rejects change-password for a PENDING_VERIFICATION account even with a validly signed access token', async () => {
+      const email = 'change-pending@example.com';
+      await registerPending(email);
+      const user = await t.prisma.user.findUnique({ where: { email } });
+      const tokens = t.app.get(TokenService);
+      const accessToken = await tokens.signAccessToken(user!.id, user!.authVersion);
+
+      expectUnauthorized(
+        await t.http
+          .post('/api/auth/change-password')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .send({ currentPassword: password, newPassword })
+          .expect(401),
+      );
+    });
+
+    it('lets only one of two concurrent same-current-password requests succeed', async () => {
+      const email = 'change-concurrent@example.com';
+      const session = await activateAndLogin(email);
+
+      const [first, second] = await Promise.all([
+        t.http
+          .post('/api/auth/change-password')
+          .set('Authorization', `Bearer ${session.accessToken}`)
+          .send({ currentPassword: password, newPassword: 'FirstNewPassword123' }),
+        t.http
+          .post('/api/auth/change-password')
+          .set('Authorization', `Bearer ${session.accessToken}`)
+          .send({ currentPassword: password, newPassword: 'SecondNewPassword123' }),
+      ]);
+
+      expect([first.status, second.status].sort()).toEqual([204, 400]);
+      const failed = first.status === 400 ? first : second;
+      expect(failed.body).toMatchObject({ code: 'CURRENT_PASSWORD_INVALID' });
+
+      const firstWorks = await t.http
+        .post('/api/auth/login')
+        .send({ email, password: 'FirstNewPassword123' });
+      const secondWorks = await t.http
+        .post('/api/auth/login')
+        .send({ email, password: 'SecondNewPassword123' });
+      expect([firstWorks.status, secondWorks.status].sort()).toEqual([200, 401]);
     });
   });
 });
