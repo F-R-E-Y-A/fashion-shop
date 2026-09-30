@@ -5,6 +5,9 @@
   letter-spacing: var(--tracking-caps);
   font-size: 0.7rem;
 }
+.menu a {
+  white-space: nowrap;
+}
 .menu a:hover {
   text-decoration: underline;
   text-decoration-color: var(--accent-bright);

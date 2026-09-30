@@ -29,6 +29,8 @@
   position: relative;
   z-index: 1;
   display: grid;
+  /* Mot cot co the co lai: neu khong, o tim kiem day cot rong ra ngoai man hinh 360 px. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 20px;
   width: 100%;
   max-width: var(--container);

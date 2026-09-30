@@ -10,7 +10,7 @@
   min-height: 78px;
   padding: 0 clamp(16px, 4vw, 56px);
   display: grid;
-  grid-template-columns: minmax(180px, 1fr) auto minmax(260px, 1fr);
+  grid-template-columns: minmax(150px, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 24px;
   border-bottom: 1px solid var(--line);
@@ -50,7 +50,9 @@
 .actions {
   display: flex;
   align-items: center;
-  justify-self: end;
+  /* Chiem tron cot (khong co gian ra ngoai) de nut tim kiem co the co lai khi man hinh vua du. */
+  justify-self: stretch;
+  justify-content: flex-end;
   gap: clamp(20px, 3vw, 40px);
   min-width: 0;
 }
