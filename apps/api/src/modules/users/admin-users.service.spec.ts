@@ -1,9 +1,12 @@
-import { NotFoundException } from '@nestjs/common';
+import { ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PageQuery } from '../../common/pagination/page.query.js';
 import type { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { AdminUsersService } from './admin-users.service.js';
+
+const ADMIN_ID = '00000000-0000-4000-8000-0000000000aa';
+const TARGET_ID = '00000000-0000-4000-8000-000000000001';
 
 const row = (overrides: Record<string, unknown> = {}) => ({
   id: '00000000-0000-4000-8000-000000000001',
@@ -17,8 +20,21 @@ const row = (overrides: Record<string, unknown> = {}) => ({
 
 function makePrisma() {
   const prisma = {
-    user: { count: vi.fn(), findMany: vi.fn(), findUnique: vi.fn() },
-    $transaction: vi.fn((operations: unknown[]) => Promise.all(operations)),
+    user: {
+      count: vi.fn(),
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
+      updateMany: vi.fn(),
+    },
+    refreshToken: { updateMany: vi.fn() },
+    auditLog: { create: vi.fn() },
+    // Hai dang: mang thao tac (list) va ham giao dich tuong tac (lock/unlock) nhan chinh `prisma`.
+    $transaction: vi.fn((arg: unknown) =>
+      typeof arg === 'function'
+        ? (arg as (tx: unknown) => unknown)(prisma)
+        : Promise.all(arg as []),
+    ),
   };
   return { prisma, service: new AdminUsersService(prisma as unknown as PrismaService) };
 }
@@ -105,5 +121,93 @@ describe('AdminUsersService (UC-02.1 quan tri tai khoan, Admin.1)', () => {
     prisma.user.findUnique.mockResolvedValue(null);
 
     await expect(service.findById(row().id)).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('AdminUsersService lock/unlock (UC-02.1, Admin.2)', () => {
+  let prisma: ReturnType<typeof makePrisma>['prisma'];
+  let service: AdminUsersService;
+
+  beforeEach(() => {
+    ({ prisma, service } = makePrisma());
+  });
+
+  it('tu khoa chinh minh: 422 ngay, khong mo giao dich', async () => {
+    const attempt = service.lock(ADMIN_ID, ADMIN_ID);
+
+    await expect(attempt).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(attempt).rejects.toMatchObject({
+      response: { error: 'CANNOT_LOCK_SELF' },
+    });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('lock: chi ACTIVE -> LOCKED, tang authVersion, thu hoi refresh, ghi nhat ky khong co PII', async () => {
+    prisma.user.updateMany.mockResolvedValue({ count: 1 });
+    prisma.refreshToken.updateMany.mockResolvedValue({ count: 3 });
+    prisma.user.findUniqueOrThrow.mockResolvedValue(row({ status: 'LOCKED' }));
+
+    await expect(service.lock(ADMIN_ID, TARGET_ID)).resolves.toMatchObject({
+      id: TARGET_ID,
+      status: 'LOCKED',
+    });
+
+    expect(prisma.user.updateMany).toHaveBeenCalledWith({
+      where: { id: TARGET_ID, status: 'ACTIVE' },
+      data: { status: 'LOCKED', authVersion: { increment: 1 } },
+    });
+    expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
+      where: { userId: TARGET_ID, revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
+    });
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: {
+        actorUserId: ADMIN_ID,
+        action: 'LOCK_USER',
+        entityType: 'USER',
+        entityId: TARGET_ID,
+        metadata: { fromStatus: 'ACTIVE', toStatus: 'LOCKED', revokedSessions: 3 },
+      },
+    });
+  });
+
+  it('unlock: chi LOCKED -> ACTIVE, KHONG dong authVersion, KHONG dong refresh token', async () => {
+    prisma.user.updateMany.mockResolvedValue({ count: 1 });
+    prisma.user.findUniqueOrThrow.mockResolvedValue(row());
+
+    await service.unlock(ADMIN_ID, TARGET_ID);
+
+    expect(prisma.user.updateMany).toHaveBeenCalledWith({
+      where: { id: TARGET_ID, status: 'LOCKED' },
+      data: { status: 'ACTIVE' },
+    });
+    expect(prisma.refreshToken.updateMany).not.toHaveBeenCalled();
+    expect(prisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: 'UNLOCK_USER',
+        metadata: { fromStatus: 'LOCKED', toStatus: 'ACTIVE' },
+      }),
+    });
+  });
+
+  it('sai trang thai: 409 va khong thu hoi, khong ghi nhat ky', async () => {
+    prisma.user.updateMany.mockResolvedValue({ count: 0 });
+    prisma.user.findUnique.mockResolvedValue({ id: TARGET_ID });
+
+    await expect(service.lock(ADMIN_ID, TARGET_ID)).rejects.toMatchObject({
+      response: { error: 'USER_NOT_ACTIVE' },
+    });
+    await expect(service.unlock(ADMIN_ID, TARGET_ID)).rejects.toBeInstanceOf(ConflictException);
+    expect(prisma.refreshToken.updateMany).not.toHaveBeenCalled();
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
+  });
+
+  it('khong co tai khoan: 404 va khong ghi nhat ky', async () => {
+    prisma.user.updateMany.mockResolvedValue({ count: 0 });
+    prisma.user.findUnique.mockResolvedValue(null);
+
+    await expect(service.lock(ADMIN_ID, TARGET_ID)).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.unlock(ADMIN_ID, TARGET_ID)).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.auditLog.create).not.toHaveBeenCalled();
   });
 });

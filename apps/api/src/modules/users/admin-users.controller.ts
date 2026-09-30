@@ -1,8 +1,24 @@
-import { Controller, Get, Param, Query, UseInterceptors } from '@nestjs/common';
-import { ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+  UseInterceptors,
+} from '@nestjs/common';
+import {
+  ApiConflictResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+  ApiUnprocessableEntityResponse,
+} from '@nestjs/swagger';
 
 import { PageQuery } from '../../common/pagination/page.query.js';
-import { RequireRoles, RoleCode } from '../auth/index.js';
+import { CurrentUser, type CurrentUserType, RequireRoles, RoleCode } from '../auth/index.js';
 import { AdminUsersService } from './admin-users.service.js';
 import { AdminUserListResponse, AdminUserResponse } from './dto/admin-user.response.js';
 import { AdminUserIdParam } from './dto/admin-user-id.param.js';
@@ -33,5 +49,37 @@ export class AdminUsersController {
   @ApiNotFoundResponse({ description: 'Khong co tai khoan voi id nay' })
   findOne(@Param() { id }: AdminUserIdParam): Promise<AdminUserResponse> {
     return this.users.findById(id);
+  }
+
+  // Dong tu nghiep vu (POST .../lock) thay vi PATCH truong status, theo docs/shared/api.md.
+  @Post(':id/lock')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Khoa tai khoan ACTIVE: vo hieu moi access token va refresh token hien co',
+  })
+  @ApiOkResponse({ type: AdminUserResponse })
+  @ApiNotFoundResponse({ description: 'Khong co tai khoan voi id nay' })
+  @ApiConflictResponse({ description: 'USER_NOT_ACTIVE: tai khoan khong o trang thai ACTIVE' })
+  @ApiUnprocessableEntityResponse({ description: 'CANNOT_LOCK_SELF: tu khoa chinh minh' })
+  lock(
+    @Param() { id }: AdminUserIdParam,
+    @CurrentUser() actor: CurrentUserType,
+  ): Promise<AdminUserResponse> {
+    return this.users.lock(actor.id, id);
+  }
+
+  @Post(':id/unlock')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Mo khoa tai khoan LOCKED; khong cap phien moi, nguoi dung phai dang nhap lai',
+  })
+  @ApiOkResponse({ type: AdminUserResponse })
+  @ApiNotFoundResponse({ description: 'Khong co tai khoan voi id nay' })
+  @ApiConflictResponse({ description: 'USER_NOT_LOCKED: tai khoan khong o trang thai LOCKED' })
+  unlock(
+    @Param() { id }: AdminUserIdParam,
+    @CurrentUser() actor: CurrentUserType,
+  ): Promise<AdminUserResponse> {
+    return this.users.unlock(actor.id, id);
   }
 }

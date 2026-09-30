@@ -34,6 +34,7 @@ import { PasswordHasherService } from './password-hasher.service.js';
 import { buildPasswordResetEmail } from './password-reset-email.js';
 import { RoleCode } from './role-code.js';
 import { TokenService } from './token.service.js';
+import { lockUserForSession } from './user-session-lock.js';
 import { buildVerificationEmail } from './verification-email.js';
 
 const UNKNOWN_PASSWORD_HASH = '$2b$12$kzzzR78c851Kd4LxTJycQe/toZ7t7DbCWRLKxCDY8FpcWnrPLk48e';
@@ -132,15 +133,26 @@ export class AuthService {
 
     const authenticatedUser = this.toAuthenticatedUser(user);
     const refreshToken = this.tokens.generateRefreshToken();
-    const accessToken = await this.tokens.signAccessToken(authenticatedUser.id, user.authVersion);
-    await this.prisma.refreshToken.create({
-      data: {
-        userId: authenticatedUser.id,
-        tokenHash: this.tokens.hashRefreshToken(refreshToken),
-        familyId: randomUUID(),
-        expiresAt: this.tokens.refreshTokenExpiresAt(),
-      },
+    // Trang thai doc o tren da cu sau bcrypt (vai tram ms): kiem lai duoi khoa dong user roi moi tao
+    // phien, de admin khoa tai khoan hay doi mat khau trong luc do khong de lai refresh token song lai
+    // sau khi mo khoa (xem lockUserForSession). Lech authVersion nghia la mat khau vua doi: tu choi.
+    const sessionCreated = await this.prisma.$transaction(async (transaction) => {
+      const locked = await lockUserForSession(transaction, user.id);
+      if (locked?.status !== UserStatus.ACTIVE || locked.authVersion !== user.authVersion) {
+        return false;
+      }
+      await transaction.refreshToken.create({
+        data: {
+          userId: authenticatedUser.id,
+          tokenHash: this.tokens.hashRefreshToken(refreshToken),
+          familyId: randomUUID(),
+          expiresAt: this.tokens.refreshTokenExpiresAt(),
+        },
+      });
+      return true;
     });
+    if (!sessionCreated) throw this.invalidCredentials();
+    const accessToken = await this.tokens.signAccessToken(authenticatedUser.id, user.authVersion);
 
     await this.limits.resetIdentity('LOGIN', email);
     return { accessToken, user: authenticatedUser, refreshToken };
@@ -416,6 +428,15 @@ export class AuthService {
     const tokenHash = this.tokens.hashRefreshToken(refreshToken);
     const now = new Date();
     const outcome = await this.prisma.$transaction(async (transaction) => {
+      const owner = await transaction.refreshToken.findUnique({
+        where: { tokenHash },
+        select: { userId: true },
+      });
+      if (!owner) return { status: 'UNKNOWN' } as const;
+      // Khoa dong user TRUOC khi doc trang thai va xoay: lenh doc ben duoi thay trang thai sau cung,
+      // va neu admin khoa tai khoan song song thi token moi tao ra se bi lenh thu hoi cua ho thay.
+      await lockUserForSession(transaction, owner.userId);
+
       const current = await transaction.refreshToken.findUnique({
         where: { tokenHash },
         include: {

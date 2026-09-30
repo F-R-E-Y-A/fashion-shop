@@ -41,11 +41,13 @@ xác thực email bằng OTP (PH3.1), quên và đặt lại mật khẩu (PH3.2
 Phân quyền theo vai **phía máy chủ** có từ Admin.1 (nhánh `feature/ph3-rbac-admin-users`, chưa gộp): `RoleCode`,
 `RolesGuard`, `RequireRoles`, vai `ADMIN` nạp bằng migration, script `admin:grant` tạo quản trị viên đầu
 tiên, và hai API chỉ đọc `GET /api/admin/users`, `GET /api/admin/users/:id` (feature
-[users](../users/README.md)). Quyết định: [ADR-021](LOG.md#adr-021).
+[users](../users/README.md)). Quyết định: [ADR-021](LOG.md#adr-021). Admin.2 thêm khóa và mở khóa tài khoản;
+khóa tăng `authVersion` và thu hồi mọi refresh token, còn đăng nhập và refresh khoá dòng `users` khi tạo phiên
+([ADR-022](LOG.md#adr-022)).
 
 Chưa có, biết và cố ý: chặn `/quan-tri` **ở giao diện** (chờ pull request #15 gộp vì cùng sửa `routes.tsx`),
-vai `STAFF`, khóa và mở tài khoản, gán vai qua API ([ND-03](../../TECH_DEBT.md)). Cũng chưa có: hồ sơ cá nhân,
-địa chỉ, hồ sơ vóc dáng, OAuth, 2FA.
+vai `STAFF`, gán vai qua API ([ND-03](../../TECH_DEBT.md)). Cũng chưa có: hồ sơ cá nhân, địa chỉ, hồ sơ vóc
+dáng, OAuth, 2FA.
 
 Nền tảng ban đầu: `identity.prisma` và migration baseline đã có `users`, `roles`, `user_roles`, `refresh_tokens`.
 Phase 4 đã có refresh/logout: refresh cookie HttpOnly được rotate khi cấp access token mới, còn
@@ -227,3 +229,14 @@ Chỉ phía máy chủ. Quyết định và phương án ở [ADR-021](LOG.md#ad
 Seed không còn ghi vai: seed chạy cả trong image API, nơi không có `src/modules`, nên không import được
 `RoleCode`. Kiểm thử HTTP giữ nguyên bảng `roles` khi xoá dữ liệu (`test/helpers/db.ts`), nên chạy đúng
 đường production: vai đến từ migration.
+
+## Đợt 2, Admin.2 — Khóa tài khoản và phiên đăng nhập
+
+Khóa (`ACTIVE` → `LOCKED`) tăng `authVersion` và thu hồi mọi refresh token trong cùng giao dịch, nên access
+và refresh cũ trả 401 ngay và vẫn 401 sau khi mở khóa; mở khóa không cấp token, người dùng đăng nhập lại. API và
+nhật ký ở [features/users](../users/README.md), quyết định ở [ADR-022](LOG.md#adr-022).
+
+Thay đổi ở phân hệ này: `login` và `refresh` gọi `lockUserForSession` (`user-session-lock.ts`), khoá dòng
+`users` bằng `FOR SHARE` rồi đọc lại trạng thái trước khi tạo hay xoay refresh token. `login` giờ tạo refresh
+token trong giao dịch và trả 401 `INVALID_CREDENTIALS` nếu tài khoản vừa bị khóa hay `authVersion` vừa đổi trong
+lúc tính bcrypt. Khoá này cũng đóng cùng khe hở với đổi và đặt lại mật khẩu chạy song song với đăng nhập.

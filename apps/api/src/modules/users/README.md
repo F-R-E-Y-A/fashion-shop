@@ -1,11 +1,12 @@
 # Phân hệ `users`
 
-**Chủ sở hữu:** Tài · **Dòng việc:** PH3 đợt 2, Admin.1 · **Bảng:** đọc `users`, `user_roles`, `roles` (bảng của Tài).
+**Chủ sở hữu:** Tài · **Dòng việc:** PH3 đợt 2, Admin.1 và Admin.2 · **Bảng:** `users`, `user_roles`, `roles`, `refresh_tokens`, `audit_logs` (bảng của Tài).
 
 ## Trạng thái
 
-Chỉ có API quản trị chỉ đọc: `GET /api/admin/users` và `GET /api/admin/users/:id`, cả hai cần vai `ADMIN`
-qua `RequireRoles` của phân hệ `auth`. Mô tả nghiệp vụ và quyết định: [docs/features/users](../../../../../docs/features/users/README.md).
+API quản trị, mọi đường dẫn cần vai `ADMIN` qua `RequireRoles` của phân hệ `auth`: đọc (`GET /api/admin/users`,
+`GET /api/admin/users/:id`, Admin.1) và khóa, mở khóa (`POST /api/admin/users/:id/lock|unlock`, Admin.2; ghi
+`users`, `refresh_tokens`, `audit_logs`). Mô tả nghiệp vụ và quyết định: [docs/features/users](../../../../../docs/features/users/README.md).
 
 ## Hợp đồng công bố
 
