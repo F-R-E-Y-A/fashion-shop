@@ -1,6 +1,6 @@
 ---
 title: UC-03 Khám phá sản phẩm — đặc tả use case
-updated: 2026-09-24
+updated: 2026-09-30
 status: đề xuất, chờ Bảo duyệt
 owner: Bảo
 ---
@@ -12,7 +12,7 @@ owner: Bảo
 |---|---|
 | **Người viết đặc tả** | Phan Ngọc Duy (HT-04, 22/09); Bảo chỉnh ngày 24/09 theo [erd.md](erd.md) và [shared/api.md](../../shared/api.md) |
 | **Người sở hữu mã** | Nguyễn Ngọc Thái Bảo, module `products` |
-| **Dòng việc** | **PH-01** làm UC-03.1, UC-03.4 và phần sắp xếp của UC-03.3. UC-03.2, phần lọc của UC-03.3, UC-03.5 chưa giao |
+| **Dòng việc** | **PH-01** làm UC-03.1, UC-03.2, UC-03.4 và UC-03.3 (sắp xếp và lọc giá, màu, cỡ, đối tượng, danh mục; chưa lọc thương hiệu). UC-03.5 chưa giao |
 | **Tác nhân chính** | Khách vãng lai (Khách hàng thừa kế) |
 | **Dữ liệu** | Bảy bảng trong [erd.md](erd.md): `categories`, `brands`, `products`, `product_variants`, `product_images`, `colors`, `sizes` |
 
@@ -72,7 +72,7 @@ Là một **khách vãng lai**, tôi muốn **duyệt sản phẩm theo nhóm (�
 
 ---
 
-## UC-03.2 · Tìm kiếm sản phẩm — chưa giao
+## UC-03.2 · Tìm kiếm sản phẩm — PH-01 đợt 2
 
 ### Câu chuyện người dùng
 Là một **khách vãng lai**, tôi muốn **nhập từ khoá và thấy sản phẩm liên quan**, để **nhanh chóng tìm được thứ mình muốn mua**.
@@ -81,14 +81,14 @@ Là một **khách vãng lai**, tôi muốn **nhập từ khoá và thấy sản
 | Bước | Tác nhân làm | Hệ thống đáp |
 |---|---|---|
 | 1 | Nhập từ khoá, nhấn Enter hoặc bấm kính lúp | |
-| 2 | | Tìm trong tên, mô tả, tên thương hiệu, tên danh mục |
-| 3 | | Trả sản phẩm khớp, mỗi trang 20, xếp theo độ liên quan |
+| 2 | | Đọc câu thành danh mục, đối tượng, màu, cỡ, giá, dịp mặc rồi tìm phần chữ còn lại trong tên, danh mục, màu và mô tả ([ADR-019](LOG.md#adr-019)); chưa tìm theo thương hiệu vì 0 sản phẩm có thương hiệu |
+| 3 | | Trả sản phẩm khớp, mỗi trang 20, xếp theo độ liên quan, kèm các ý đã hiểu để khách bỏ từng ý |
 | 4 | Sửa từ khoá | Cập nhật kết quả sau 300 ms ngừng gõ |
 
 ### Luồng phụ và ngoại lệ
 | Mã | Tình huống | Hệ thống xử lý |
 |---|---|---|
-| E1 | Không có kết quả | Trả danh sách rỗng, gợi ý các danh mục gốc |
+| E1 | Không có kết quả | API nới dần truy vấn (bỏ từ khoá, dịp mặc, màu, cỡ, giá) và ghi rõ đã bỏ gì trong `relaxed`; hết ràng buộc mà vẫn rỗng thì trả rỗng. Giao diện gợi ý các danh mục gốc và câu mẫu |
 | E2 | Từ khoá dưới 2 ký tự | Trả 400 |
 | E3 | Từ khoá quá 120 ký tự | Trả 400 (giới hạn hiện có trong DTO liệt kê) |
 
@@ -96,21 +96,21 @@ Là một **khách vãng lai**, tôi muốn **nhập từ khoá và thấy sản
 | Mã | Quy tắc |
 |---|---|
 | BR1 | Không phân biệt chữ hoa, chữ thường |
-| BR2 | Bản hiện tại tìm theo tên bằng `ILIKE`; tìm cả mô tả, thương hiệu, danh mục và chịu lỗi chính tả khi làm use case này |
+| BR2 | Phạm vi tìm: tên, danh mục, màu và mô tả; chịu lỗi gõ một hai chữ với từ từ 4 ký tự; có dấu so bản có dấu, không dấu so bản không dấu. Thương hiệu để sau (0 sản phẩm có thương hiệu) |
 | BR3 | Chỉ trả sản phẩm thoả UC-03.1/BR1 |
 
 ### Đường dẫn API
-Dùng chung `GET /api/products?search=` đã có, không tạo `/api/products/search`: tránh hai đường liệt kê, và tránh chữ `search` bị hiểu thành một slug.
+Dùng chung `GET /api/products?search=`, không tạo `/api/products/search`: tránh hai đường liệt kê, và tránh chữ `search` bị hiểu thành một slug. Gợi ý cho ô tìm kiếm toàn cục: `GET /api/search/suggest?q=` (giới hạn 60 lần mỗi phút mỗi IP, `429` kèm `Retry-After`). Hình dạng phản hồi (`interpretation`, `relaxed`, `facets`) theo Swagger `/api/docs`.
 
 ### Tiêu chí chấp nhận
-- [ ] **AC1** `?search=áo` trả sản phẩm có "áo" trong tên (trong mô tả khi làm đủ BR2)
-- [ ] **AC2** `search` dưới 2 ký tự trả 400
-- [ ] **AC3** Không có kết quả trả `items: []`, `total: 0`
-- [ ] **AC4** Sản phẩm ngừng bán không xuất hiện
+- [x] **AC1** `?search=áo` trả sản phẩm liên quan — `test/catalog-search.http.spec.ts` (UC-03.2/AC1), `search/parse-query.spec.ts`, `search/catalog-engine.spec.ts`
+- [x] **AC2** `search` dưới 2 ký tự trả 400 — `test/catalog-search.http.spec.ts` (UC-03.2/AC2, E3)
+- [x] **AC3** Không có kết quả trả `items: []`, `total: 0` — `test/catalog-search.http.spec.ts` (UC-03.2/AC3)
+- [x] **AC4** Sản phẩm ngừng bán không xuất hiện — `test/catalog-search.http.spec.ts` (UC-03.2/AC4)
 
 ---
 
-## UC-03.3 · Lọc và sắp xếp sản phẩm — PH-01 làm phần sắp xếp
+## UC-03.3 · Lọc và sắp xếp sản phẩm — PH-01 đợt 2 làm lọc giá, màu, cỡ, đối tượng, danh mục
 
 > **Quan hệ UML:** `<<extend>>` UC-03.1 và UC-03.2
 
@@ -120,26 +120,26 @@ Là một **khách vãng lai**, tôi muốn **lọc theo giá, màu, cỡ, thư�
 ### Luồng chính
 | Bước | Tác nhân làm | Hệ thống đáp |
 |---|---|---|
-| 1 | Chọn bộ lọc: khoảng giá, màu, cỡ, thương hiệu (chưa giao) | |
-| 2 | Chọn sắp xếp: Mới nhất, Giá tăng dần, Giá giảm dần (PH-01); Phổ biến nhất (chưa giao) | |
+| 1 | Chọn bộ lọc: khoảng giá, màu, cỡ, đối tượng, danh mục (thương hiệu chưa giao) | |
+| 2 | Chọn sắp xếp: Liên quan nhất (khi có câu tìm), Mới nhất, Giá tăng dần, Giá giảm dần; Phổ biến nhất (chưa giao) | |
 | 3 | | Áp bộ lọc và sắp xếp lên danh sách hiện tại; giữ trên đường dẫn trang |
 
 ### Quy tắc nghiệp vụ
 | Mã | Quy tắc |
 |---|---|
 | BR1 | Lọc và sắp xếp theo giá dùng `price_from` |
-| BR2 | Lọc màu theo `colors.code`, cỡ theo `sizes.code`, thương hiệu theo `brands.slug` |
+| BR2 | Lọc màu theo **họ màu** (15 họ; xem [ADR-019](LOG.md#adr-019)), cỡ theo `sizes.code`, thương hiệu theo `brands.slug` (chưa giao) |
 | BR3 | Nhiều giá trị cùng loại là HOẶC; khác loại là VÀ |
 | BR4 | "Phổ biến nhất" xếp theo số lượng bán 30 ngày gần nhất. Số này thuộc bảng đơn hàng của Duy, nên đọc qua hàm Duy công bố, không truy vấn bảng đơn |
 
 ### Đường dẫn API
-`GET /api/products` thêm `sort=newest|price_asc|price_desc` (PH-01); khi làm lọc thêm `minPrice`, `maxPrice`, `colors`, `sizes`, `brands` (giá trị cách nhau bằng dấu phẩy).
+`GET /api/products` có `sort=relevance|newest|price_asc|price_desc`, `minPrice`, `maxPrice`, `colors`, `sizes`, `categories`, `audience` (giá trị cách nhau bằng dấu phẩy) và `facets=true` để nhận số đếm mỗi lựa chọn; `brands` chưa giao.
 
 ### Tiêu chí chấp nhận
-- [ ] **AC1** `minPrice=100000&maxPrice=500000` chỉ trả sản phẩm có giá trong khoảng — chưa giao
-- [ ] **AC2** `colors=do,xanh` trả sản phẩm có biến thể màu đỏ hoặc xanh — chưa giao
-- [ ] **AC3** `sizes=M` chỉ trả sản phẩm có cỡ M còn hàng, theo hàm đọc tồn kho của Duy — chưa giao
-- [ ] **AC4** `sort=price_asc` xếp đúng chiều tăng dần theo giá — **PH-01**
+- [x] **AC1** `minPrice=100000&maxPrice=500000` chỉ trả sản phẩm có giá trong khoảng — `test/catalog-search.http.spec.ts` (UC-03.3/AC1)
+- [x] **AC2** `colors=xam,navy` trả sản phẩm có biến thể thuộc một trong hai họ màu — `test/catalog-search.http.spec.ts` (UC-03.3/AC2); dùng **họ màu**, không phải `colors.code`
+- [ ] **AC3** `sizes=M` chỉ trả sản phẩm có cỡ M — lọc theo biến thể đang bán, **chưa xét tồn kho** (chờ hàm của Duy, [ND-13](../../TECH_DEBT.md)); bài `UC-03.3/AC3` kiểm phần đã có
+- [x] **AC4** `sort=price_asc` xếp đúng chiều tăng dần theo giá — `test/catalog-search.http.spec.ts` (UC-03.3/AC4), `test/products.http.spec.ts`
 
 ---
 
@@ -225,7 +225,7 @@ Là một **khách vãng lai**, tôi muốn **xem bảng hướng dẫn chọn c
 
 | Câu hỏi của Duy | Trả lời đề xuất | Ai chốt |
 |---|---|---|
-| Tìm kiếm dùng `tsvector` hay `ILIKE`? | `ILIKE` đang có đủ cho vài trăm sản phẩm; quyết khi làm UC-03.2 kèm số đo | Bảo |
+| Tìm kiếm dùng `tsvector` hay `ILIKE`? | Đã trả lời bằng [ADR-019](LOG.md#adr-019) (đề xuất): không dùng cả hai, lọc và xếp hạng trong API bằng luật và từ điển tiếng Việt; chuyển sang `pg_trgm` khi Catalog vượt vài nghìn sản phẩm | Bảo |
 | "Phổ biến nhất" khi chưa có đơn thì xếp theo gì? | Mới nhất | Bảo |
 | Hồ sơ vóc dáng có gợi ý cỡ ở UC-03.4 tuần này? | Không; cần hàm công bố của Tài | Tài và Bảo |
 | Có lưu "đã xem gần đây"? | Có, lưu ở trình duyệt, không cần bảng; có thể trượt sang sprint sau | Bảo |
