@@ -10,6 +10,7 @@ import type { ImportProductRow, ImportRowResult } from './import/import.types.js
 import { ImportRowError } from './import/import-row.error.js';
 import { sourceSlug } from './import/slug.js';
 import { validateRow } from './import/validate-row.js';
+import { audienceFrom } from './search/audience.js';
 import {
   storefrontProductInclude,
   storefrontProductWhere,
@@ -159,6 +160,8 @@ export class ProductsService {
       attributes:
         row.attributes === undefined ? Prisma.DbNull : (row.attributes as Prisma.InputJsonObject),
       priceFrom,
+      // Suy tu slug danh muc nguon luc nap; nap lai thi cap nhat theo nguon (3.2b, ADR-019).
+      audience: audienceFrom(row.attributes, row.name),
       isActive: row.images.length > 0,
     };
     const product = existingProductId

@@ -210,4 +210,25 @@ describe('ProductsService.importProducts — M2', () => {
     expect(images).toHaveLength(1);
     expect(images[0]?.url).toBe('https://example.test/new-0.jpg');
   });
+
+  it('PH-01 nạp dữ liệu ghi audience từ slug danh mục nguồn, nạp lại thì cập nhật theo nguồn', async () => {
+    const fromSource = (slug: string): ImportProductRow =>
+      makeRow('audience', { attributes: { originalValues: { category: { slug } } } });
+    const audienceOf = async (id: string) =>
+      (await t.prisma.product.findUnique({ where: { id } }))?.audience;
+
+    const first = (await service.importProducts([fromSource('ao-polo-nu')]))[0];
+    if (!first || first.status !== 'created') throw new Error('Dòng phải được tạo');
+    expect(await audienceOf(first.productId)).toBe('nu');
+
+    expect((await service.importProducts([fromSource('ao-polo-nam')]))[0]?.status).toBe('updated');
+    expect(await audienceOf(first.productId)).toBe('nam');
+  });
+
+  it('PH-01 dòng không có attributes và tên không nói đối tượng thì audience là null', async () => {
+    const first = (await service.importProducts([makeRow('trung-tinh')]))[0];
+    if (!first || first.status !== 'created') throw new Error('Dòng phải được tạo');
+    const product = await t.prisma.product.findUnique({ where: { id: first.productId } });
+    expect(product?.audience).toBeNull();
+  });
 });
