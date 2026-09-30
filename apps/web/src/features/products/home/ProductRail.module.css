@@ -1,0 +1,53 @@
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.round {
+  display: inline-grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 1rem;
+}
+.round:hover {
+  border-color: var(--ink);
+}
+.all {
+  padding: 10px 18px;
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  font-size: 0.86rem;
+}
+.all:hover {
+  background: var(--ink);
+  color: var(--bg);
+}
+.rail {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: clamp(190px, 22vw, 280px);
+  gap: 18px;
+  margin: 0;
+  padding: 0 0 12px;
+  overflow-x: auto;
+  list-style: none;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.rail > * {
+  scroll-snap-align: start;
+}
+.rail::-webkit-scrollbar {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rail {
+    scroll-behavior: auto;
+  }
+}

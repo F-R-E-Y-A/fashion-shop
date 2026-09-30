@@ -82,6 +82,8 @@ export type ListProductsParams = {
   featured?: boolean;
   /** Xin so dem cho bo loc. */
   facets?: boolean;
+  /** false: khong ghi cau tim vao nhat ky, danh cho the co dinh tren trang chu (khong phai khach tim). */
+  log?: boolean;
 };
 /** Trang san pham; interpretation va relaxed chi co khi co search, facets chi co khi xin. */
 export interface ProductPage extends Page<Product> {

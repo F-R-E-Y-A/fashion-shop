@@ -1,0 +1,47 @@
+.marquee {
+  overflow: hidden;
+  padding-block: 20px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg);
+}
+.track {
+  display: flex;
+  width: max-content;
+  animation: slide 46s linear infinite;
+}
+.marquee:hover .track {
+  animation-play-state: paused;
+}
+.track span {
+  display: inline-flex;
+  align-items: center;
+  gap: 52px;
+  padding-inline: 26px;
+  color: var(--ink-2);
+  font: italic var(--s3) var(--font-display);
+  white-space: nowrap;
+}
+.track span::after {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  background: var(--accent-bright);
+  transform: rotate(45deg);
+}
+@keyframes slide {
+  to {
+    transform: translateX(-50%);
+  }
+}
+/* Giam chuyen dong: dung yen, xep nhieu dong, bo ban lap. */
+@media (prefers-reduced-motion: reduce) {
+  .track {
+    width: auto;
+    flex-wrap: wrap;
+    animation: none;
+  }
+  .copy {
+    display: none !important;
+  }
+}

@@ -1,18 +1,26 @@
 import { Link, NavLink, Outlet } from 'react-router-dom';
 
+import { STORE_NAME } from '@/core';
 import { useAuth } from '@/features/account';
 import { CategoryMenu, SearchTrigger } from '@/features/products';
 
 import styles from './StoreLayout.module.css';
+import { useHeaderState } from './useHeaderState.js';
 
 export function StoreLayout() {
   const { isAuthenticated, isLoading, logout, user } = useAuth();
+  const { headerRef, isHome, overHero } = useHeaderState();
 
   return (
     <div className={styles.shell}>
-      <header className={styles.header}>
+      <header
+        ref={headerRef}
+        className={styles.header}
+        data-home={isHome}
+        data-over-hero={overHero}
+      >
         <Link className={styles.brand} to="/">
-          THỜI TRANG
+          {STORE_NAME}
         </Link>
         <div className={styles.menu}>
           <CategoryMenu />
@@ -45,7 +53,7 @@ export function StoreLayout() {
       <footer className={styles.footer}>
         <div>
           <Link className={styles.brand} to="/">
-            THỜI TRANG
+            {STORE_NAME}
           </Link>
           <p>Phong cách là tự do.</p>
         </div>

@@ -127,6 +127,13 @@ describe('CatalogSearchService.list', () => {
     expect(create).toHaveBeenCalledWith({ data: { queryText: 'polo nữ', resultCount: 1 } });
   });
 
+  it('UC-03.2 log=false thi khong ghi nhat ky nhung van tra interpretation', async () => {
+    const { service, create } = make();
+    const res = await service.list(query({ search: 'polo nữ', log: false }));
+    expect(res.interpretation).toBeDefined();
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it('UC-03.2 nhat ky luu cau da chuan hoa, cat 120 ky tu, loi ghi khong lam hong cau tra loi', async () => {
     const { service, create } = make();
     create.mockRejectedValue(new Error('DB chet'));
