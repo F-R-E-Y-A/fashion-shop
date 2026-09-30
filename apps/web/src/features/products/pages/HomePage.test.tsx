@@ -16,6 +16,9 @@ const sample = {
   brandName: 'Mộc',
   categoryName: 'Áo',
   categorySlug: 'ao-thun',
+  hoverImageUrl: null,
+  colorSwatches: [] as string[],
+  colorCount: 0,
 };
 const page = (items: unknown[]) => ({
   items,
