@@ -1,6 +1,6 @@
 ---
 title: Sổ nợ kỹ thuật
-updated: 2026-09-28
+updated: 2026-09-30
 status: đang dùng
 owner: Bảo
 ---
@@ -25,3 +25,6 @@ Thêm mục: cấp mã tăng dần, đừng xoá mục đã xong mà đổi tr�
 | ND-09 | `@scarf/scarf` bị chặn không cho chạy kịch bản cài đặt | Gói này chỉ gửi số liệu thống kê về nhà cung cấp, không ảnh hưởng chức năng | Không xử lý | Chấp nhận |
 | ND-10 | Tham số trên đường dẫn khai kiểu nguyên thuỷ (`@Param('slug') slug: string`) nên **không đi qua `ValidationPipe`**. Đo được: slug dài 500 ký tự trả 404 chứ không phải 400 | Prisma tham số hoá câu lệnh nên không có nguy cơ chèn lệnh SQL, và đây là đường dẫn chỉ đọc. Nhưng module mẫu được chép cho mọi phân hệ nên thiếu sót này sẽ được nhân lên | Đã khai bằng `ProductSlugParam` và kiểm thử HTTP slug dài ở `bee54a0` | Đã xử lý |
 | ND-11 | Không có gì chặn người mở pull request tự gộp bài của chính mình. Không có khoá nhánh thì GitHub cũng không chặn gộp khi kiểm tự động đang đỏ | Cùng nguyên nhân ND-08: kho của tổ chức ở gói Free. Luật một người khác duyệt hiện là thoả thuận, và mỗi lần gộp đều để lại dấu vết công khai nên phá luật là thấy ngay | Giải quyết cùng ND-08. Nếu chưa, cân nhắc thêm một chặng kiểm báo đỏ khi pull request chưa có ai ngoài tác giả duyệt: không chặn được nhưng làm cho vi phạm hiện rõ trong hồ sơ | Mở |
+| ND-12 | Tìm kiếm và lọc chạy **trong bộ nhớ của API** trên mọi sản phẩm hiển thị ([catalog-search.service.ts](../apps/api/src/modules/products/search/catalog-search.service.ts)), không đẩy xuống SQL. Đo 30/09 trên 87 sản phẩm: p95 80–90 ms cho `search=&facets=true`. Đường `ILIKE` cũ còn nằm ở [products.service.ts:231](../apps/api/src/modules/products/products.service.ts#L231) nhưng controller không còn dùng khi có `search` | Với vài trăm sản phẩm thì đơn giản và giải thích được hơn; đẩy xuống SQL khi chưa cần là làm sớm ([ADR-019](features/products/LOG.md#adr-019)) | Khi Catalog vượt vài nghìn sản phẩm hoặc p95 vượt 150 ms: `pg_trgm`, đẩy lọc xuống SQL, xoá nhánh `ILIKE` cũ | Mở |
+| ND-13 | Lọc cỡ (`sizes`) theo biến thể đang bán, **chưa xét tồn kho**; UC-03.3/AC3 đòi "còn hàng theo hàm tồn kho của Duy" | Chưa có hàm đọc tồn kho theo `variantId` | Khi Duy công bố hàm đọc tồn kho | Mở |
+| ND-14 | Tên phân hệ lệch giữa API, web và tài liệu: `auth` / `account` / `docs/features/auth`, `cart` / `inventory`. `AGENTS.md` luật 1 ghi "tên thư mục feature trùng tên module trong mã" | Đổi tên là chuyển thư mục của Tài và Duy; đổi giữa lúc PR của họ đang mở sinh xung đột. Bảng đối chiếu đã ghi ở [docs/README.md](README.md) mục 2 | Tái cấu trúc thư mục 01/10, chủ là Tài và Duy | Mở |

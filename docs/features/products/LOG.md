@@ -1,6 +1,6 @@
 ---
 title: Khám phá sản phẩm — nhật ký quyết định và thay đổi
-updated: 2026-09-25
+updated: 2026-09-30
 status: đang dùng
 owner: Bảo
 ---
@@ -189,7 +189,7 @@ Sản phẩm giả được chuyển sang test fixtures, runtime seed chỉ upse
 
 Backup trước khi xóa seed: `../work/backups/ph01-seed-products-2026-09-27T09-58-11.171Z.json`, SHA-256 `730B146A277B9005C6D3E52FDD55E49F5652C0D9325612D4605E6295038415C2`. Backup Catalog trước refresh cuối: `../work/backups/ph01-approved-catalog-2026-09-27T10-16-38.936Z.json`, SHA-256 `46ED88581BB685925B6E25753EAC03B6A937CE422A1B6D173562DE116D2DF365`. Backup đầu trước lần refresh đầu cũng còn nguyên: SHA-256 `04C467CFBDDBAF13E3FFBD5F1970387EAD4B5DF051CFB25770B7CCB04D3F49CE`. Các file nằm ngoài repository trong `../work/backups/`.
 
-Web chuyển lên đầu khi điều hướng mới và phục hồi vị trí khi Back; gallery có toàn bộ ảnh, nút trái/phải và phím mũi tên; lựa chọn màu chỉ hiện nếu có ảnh chung hoặc ảnh khớp màu. Header dùng grid ba vùng; hero đặt ảnh bằng object-fit contain để giữ gương mặt trong khung ([scroll manager](../../../apps/web/src/app/ScrollManager.tsx#L4), [gallery](../../../apps/web/src/features/products/pages/ProductDetailPage.tsx#L99), [header](../../../apps/web/src/app/StoreLayout.module.css#L10), [hero](../../../apps/web/src/features/products/components/HeroSection.tsx#L4)). Preview đã kiểm bằng mắt tại trang chủ, danh mục Áo và chi tiết Bambo; Bảo chưa duyệt cuối cùng.
+Web chuyển lên đầu khi điều hướng mới và phục hồi vị trí khi Back; gallery có toàn bộ ảnh, nút trái/phải và phím mũi tên; lựa chọn màu chỉ hiện nếu có ảnh chung hoặc ảnh khớp màu. Header dùng grid ba vùng; hero đặt ảnh bằng object-fit contain để giữ gương mặt trong khung ([scroll manager](../../../apps/web/src/app/ScrollManager.tsx#L4), [gallery](../../../apps/web/src/features/products/pages/ProductDetailPage.tsx#L99), [header](../../../apps/web/src/app/StoreLayout.module.css#L10), hero (`HeroSection.tsx`, đã thay bằng `home/HeroSearch.tsx` ở ADR-020)). Preview đã kiểm bằng mắt tại trang chủ, danh mục Áo và chi tiết Bambo; Bảo chưa duyệt cuối cùng.
 
 **Kiểm chứng:** `npm run check` exit 0; 5 dòng cuối: `ℹ fail 0` / `ℹ cancelled 0` / `ℹ skipped 1` / `ℹ todo 0` / `ℹ duration_ms 584.7232`. `npm run test:http` exit 0, 57/57; 5 dòng cuối: `(Use node --trace-deprecation ...)` / `Test Files 4 passed (4)` / `Tests 57 passed (57)` / `Start at 17:27:33` / `Duration 99.39s`. `npm run db:drift -w apps/api` → `No difference detected.`; `npm run build -w apps/web` exit 0 (cảnh báo bundle JS lớn hơn 500 kB); `node tools/docs/lint.mjs docs/features/products` → 4 tệp đạt; `git diff --check` exit 0.
 
@@ -226,9 +226,9 @@ Mở lại khi YODY/CDN cung cấp URL ảnh khác, DNS `cdn.nhanh.vn` khôi ph�
 
 **Loại:** thay đổi giao diện · **Phạm vi:** home category tiles, category sort · **Commit:** chưa tạo; nhánh `task/catalog-data-ux`.
 
-Bảo chỉ rõ ảnh tham chiếu: Áo là chân dung người mẫu đã duyệt ở hero, Quần là phần quần của cùng bộ trang phục, Phụ kiện là túi xách trong bối cảnh cùng chiến dịch. Ba ảnh được sinh riêng từ hero và ảnh bố cục tham chiếu, lưu PNG gốc ở `../work/assets/home/`, xuất WebP `category-{ao,quan,phu-kien}.webp` vào `apps/web/public/images/home/`. Ảnh sản phẩm trong lưới vẫn lấy từ dữ liệu crawl; chỉ ba ảnh điều hướng danh mục dùng chiến dịch tĩnh. `CategoryTiles` không còn gọi API sản phẩm để chọn ảnh đầu tiên ([CategoryTiles.tsx](../../../apps/web/src/features/products/components/CategoryTiles.tsx)).
+Bảo chỉ rõ ảnh tham chiếu: Áo là chân dung người mẫu đã duyệt ở hero, Quần là phần quần của cùng bộ trang phục, Phụ kiện là túi xách trong bối cảnh cùng chiến dịch. Ba ảnh được sinh riêng từ hero và ảnh bố cục tham chiếu, lưu PNG gốc ở `../work/assets/home/`, xuất WebP `category-{ao,quan,phu-kien}.webp` vào `apps/web/public/images/home/`. Ảnh sản phẩm trong lưới vẫn lấy từ dữ liệu crawl; chỉ ba ảnh điều hướng danh mục dùng chiến dịch tĩnh. `CategoryTiles` không còn gọi API sản phẩm để chọn ảnh đầu tiên (`CategoryTiles.tsx` (đã thay bằng `home/CategoryBento.tsx` ở ADR-020)).
 
-Bộ sắp xếp giữ `select` để dùng bàn phím và giữ URL query đang có; thêm nhãn hiển thị, khung, mũi tên và trạng thái hover/focus theo màu trang ([SortSelect.tsx](../../../apps/web/src/features/products/components/SortSelect.tsx), [Catalog.module.css](../../../apps/web/src/features/products/components/Catalog.module.css)). Preview tại `http://localhost:5174/` và `/danh-muc/phu-kien` đã được chụp và xem; Bảo cần duyệt giao diện cuối trước commit, PR và đóng Issue #6.
+Bộ sắp xếp giữ `select` để dùng bàn phím và giữ URL query đang có; thêm nhãn hiển thị, khung, mũi tên và trạng thái hover/focus theo màu trang ([SortSelect.tsx](../../../apps/web/src/features/products/components/SortSelect.tsx), `Catalog.module.css` (đã tách theo từng thành phần và xoá ở ADR-020)). Preview tại `http://localhost:5174/` và `/danh-muc/phu-kien` đã được chụp và xem; Bảo cần duyệt giao diện cuối trước commit, PR và đóng Issue #6.
 
 **Kiểm chứng:** WebP có kích thước 1000 × 1250 theo Pillow; kích thước byte lần lượt 52.080, 91.204, 95.646 (`python` mở và lưu WebP, output lưu trong phiên). `npm run test -w apps/web -- CategoryPage.test.tsx` exit 0, 2/2; `npm run check` exit 0 trên HEAD `0548ae9`, 5 dòng cuối `ℹ fail 0` / `ℹ cancelled 0` / `ℹ skipped 1` / `ℹ todo 0` / `ℹ duration_ms 588.0596`.
 
@@ -245,3 +245,108 @@ Bảo xác nhận đã duyệt giao diện. Phần làm sạch Catalog và UX đ
 **Loại:** đính chính · **Phạm vi:** ADR của Catalog.
 
 Trong khi PR #17 chờ review, các PR xác thực đã dùng ADR-010 đến ADR-017 trên `develop`. Mục Catalog từng ghi ADR-010 ở nhánh feature bị trùng; đổi anchor và tiêu đề thành ADR-018 theo dãy chung, giữ nguyên nội dung và trạng thái đề xuất. Đây là sửa mã tham chiếu để lint tài liệu nhận một ADR duy nhất, không phải quyết định mới.
+
+<a id="adr-019"></a>
+## 2026-09-30 · ADR-019 — Tìm kiếm hiểu tiếng Việt bằng luật và từ điển, lọc và xếp hạng trong API
+
+**Loại:** quyết định · **Phạm vi:** `products` (API, web), bảng `products` thêm cột `audience`, `search_configurations` · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** [1ff623b](https://github.com/F-R-E-Y-A/fashion-shop/commit/1ff623b), [3458884](https://github.com/F-R-E-Y-A/fashion-shop/commit/3458884), [e8805da](https://github.com/F-R-E-Y-A/fashion-shop/commit/e8805da), [ba72168](https://github.com/F-R-E-Y-A/fashion-shop/commit/ba72168), [6055b18](https://github.com/F-R-E-Y-A/fashion-shop/commit/6055b18) (nhánh local, chưa push)
+
+### Hiện trạng
+
+Trước đợt này ô tìm kiếm chỉ so cả câu với tên sản phẩm: `name: { contains: search, mode: 'insensitive' }` ([products.service.ts:231](../../../apps/api/src/modules/products/products.service.ts#L231)). Khách gõ thiếu dấu, thêm màu hay thêm ngân sách là không ra gì. Không có bộ lọc giá, màu, cỡ, đối tượng; đối tượng nam/nữ chỉ nằm trong chuỗi slug nguồn ở `attributes` (suy luận từ cách import, đã kiểm ở migration backfill: 22 nam, 65 nữ trên 87 sản phẩm). Catalog thật ngày 30/09: 87 sản phẩm hiển thị, 0 sản phẩm có thương hiệu.
+
+Đo ngày 30/09 trên API local: cột "Trước" là số sản phẩm có tên chứa nguyên câu (không phân biệt hoa thường, như `ILIKE`), cột "Sau" là `total` của `GET /api/products?search=`.
+
+| Khách gõ | Trước (`ILIKE` trên tên) | Sau | Cửa hàng hiểu thành |
+|---|---|---|---|
+| `ao so mi` | 0 | 23 | Áo sơ mi |
+| `polo nữ trắng dưới 100k` | 0 | 8 | Dưới 100.000 ₫ · Kiểu polo · Nữ · Màu trắng |
+| `áo mát` | 0 | 55 | Áo · Dịp: ngày hè |
+| `đồ đi biển mát mẻ` | 0 | 63 | Dịp: ngày hè |
+| `sơ mi trắng đi làm` | 0 | 10 | Áo sơ mi · Màu trắng · Dịp: công sở |
+| `quần tây nữ ống rộng` | 1 | 2 | Quần tây · Nữ · “ống rộng” |
+| `somi nữ` | 0 | 16 | Áo sơ mi · Nữ |
+
+### Phương án
+
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| **A. Luật và từ điển tiếng Việt, lọc và xếp hạng trong API (chọn)** | Hiểu có dấu và không dấu, giải thích được mỗi ý ("Đã hiểu"), chạy trong tiến trình, không thêm hạ tầng; kiểm thử được bằng bộ 47 câu mẫu | Từ điển phải nuôi; câu ngoài từ điển chỉ tìm theo chữ; lọc trong bộ nhớ không mở rộng vô hạn | Có; giữ nguyên hợp đồng API, thay bên trong |
+| B. `pg_trgm`/`tsvector`, hoặc vector `pgvector` | Xếp hạng theo độ giống, chịu lỗi gõ tốt hơn, đẩy lọc xuống SQL | Cần extension, tạo chỉ mục và đồng bộ; embedding cần mô hình; khó giải thích vì sao ra kết quả | Có, nhưng thêm hạ tầng |
+| C. Nhờ mô hình ngôn ngữ đọc ý định | Hiểu câu tự do | Chi phí và độ trễ mỗi lần gõ, kết quả không lặp lại được, cần khoá API và kiểm soát dữ liệu gửi đi | Có |
+| Không đổi | Không tốn công | Bảng trên: hầu hết câu tự nhiên ra trang trống | Có |
+
+Sáu tiêu chí (kết luận là **suy luận**, chỉ số đo nằm ở hai mục trên):
+
+| Tiêu chí | A | B | C |
+|---|---|---|---|
+| Hiểu câu tiếng Việt không dấu | ✅ có luật riêng | ❌ trigram chỉ gần đúng chữ | ✅ |
+| Giải thích được kết quả | ✅ từng ý là một chip, bỏ được | ❌ | ❌ |
+| Độ trễ mỗi lần gõ | ✅ trong tiến trình, p95 80–90 ms | ✅ | ❌ |
+| Thêm hạ tầng hoặc chi phí | ✅ không | ❌ extension, chỉ mục | ❌ khoá API, phí theo lượt |
+| Kiểm thử lặp lại được | ✅ bộ 47 câu | ✅ | ❌ |
+| Mở rộng quá vài nghìn sản phẩm | ❌ | ✅ | ✅ |
+
+**Chọn A** vì Catalog hiện 87 sản phẩm và khách cần một ô tìm kiếm hiểu được câu như nhắn tin, nhìn thấy nó hiểu gì và sửa được. Trade-off chấp nhận: lọc và xếp hạng chạy trong bộ nhớ của API trên toàn bộ sản phẩm hiển thị; khi Catalog lớn lên phải chuyển sang B.
+
+### Hành vi
+
+1. **Đọc câu theo năm bước**: giá ("dưới 100k", "từ 200 đến 500 nghìn") → cỡ ("size M", "cỡ 32" chỉ là cỡ khi không có đơn vị tiền) → cụm trong từ điển (danh mục, đối tượng, họ màu, kiểu dáng, dịp mặc), cụm dài trước → từ bỏ qua ("cho", "đi") → chữ còn lại là từ khoá tự do. Mỗi ý lưu vị trí các từ đã sinh ra nó để giao diện bỏ đúng ý đó khỏi câu.
+2. **Có dấu so bản có dấu**: gõ "mát" không khớp "mắt chim". Cụm một từ dễ nhầm khi bỏ dấu ("đỏ", "tím", "mát") đánh dấu `accentOnly`: chỉ nhận khi khách gõ có dấu. Gõ không dấu thì so bản không dấu.
+3. **Xếp hạng**: khớp đầu từ trong tên (3 điểm), trong văn bản gồm tên, danh mục, màu và mô tả đã bỏ HTML (1 điểm), gõ sai một hai chữ (0,6). Các nhóm ý là VÀ, các từ trong một nhóm là HOẶC.
+4. **Nới truy vấn** khi không có kết quả: bỏ từ khoá tự do → bỏ dịp mặc và kiểu dáng → bỏ màu → bỏ cỡ → bỏ khoảng giá, dừng ở bước đầu tiên có kết quả và ghi tên các bước vào `relaxed`. Khi không còn ràng buộc nào mà vẫn rỗng thì trả rỗng, không trả cả Catalog ([catalog-engine.ts:291-361](../../../apps/api/src/modules/products/search/catalog-engine.ts#L291)).
+5. **Tham số tường minh thắng ý trong câu** (`audience`, `minPrice`, `maxPrice`, `sort`). Số đếm mỗi nhóm bộ lọc tính trên các sản phẩm qua mọi bộ lọc trừ chính nhóm đó.
+
+### Hợp đồng
+
+- `GET /api/products` thêm `categories`, `audience`, `colors`, `sizes`, `minPrice`, `maxPrice`, `facets`, `sort=relevance`, `log`. Có `search` hay bất kỳ tham số nào ở trên thì controller chuyển sang `CatalogSearchService` ([products.controller.ts:38](../../../apps/api/src/modules/products/products.controller.ts#L38)); không thì giữ đường liệt kê cũ.
+- Phản hồi có thêm `hoverImageUrl`, `colorSwatches`, `colorCount` trên mỗi sản phẩm; khi có `search` thêm `interpretation` (chip kèm `tokens`) và `relaxed`; khi `facets=true` thêm `facets` dạng mảng.
+- `GET /api/search/suggest?q=` trả tối đa 5 sản phẩm, 3 danh mục, 4 câu gợi ý; giới hạn 60 lần mỗi phút mỗi IP, khoá Redis chỉ chứa HMAC của IP. **Khi Redis lỗi thì cho qua**: đây là API chỉ đọc, chặn cả ô tìm kiếm vì sự cố hạ tầng gây hại hơn mở cửa ([suggest-rate-limit.service.ts](../../../apps/api/src/modules/products/search/suggest-rate-limit.service.ts)). Khác cửa xác thực của Auth, nơi mở cửa có thể bị lạm dụng để gửi thư.
+- Từ điển mở rộng đọc từ `search_configurations` khoá `synonyms.v1`, nhớ tạm 60 giây; sai hình dạng hay DB lỗi thì dùng từ điển trong mã và chỉ cảnh báo một lần ([search-dictionary.service.ts](../../../apps/api/src/modules/products/search/search-dictionary.service.ts)).
+- `log=false` để các thẻ cố định trên trang chủ không ghi vào `search_query_logs`.
+
+### Lệch so với đặc tả
+
+- UC-03.3/BR2 ghi lọc màu theo `colors.code`; thực tế lọc theo **họ màu** (15 họ). Dữ liệu nguồn có hàng chục tên màu khác nhau, lọc theo mã sẽ cho hàng chục ô màu na ná nhau.
+- UC-03.3/AC3 ghi cỡ "còn hàng theo hàm đọc tồn kho của Duy"; **chưa xét tồn kho**, lọc theo biến thể đang bán. Ghi ở [TECH_DEBT ND-13](../../TECH_DEBT.md).
+- Thêm `sort=relevance`; đặc tả chỉ có ba kiểu sắp xếp.
+- Thương hiệu chưa có nhóm lọc vì 0 sản phẩm có `brand_id`.
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: bảng "Trước / Sau" ở trên đúng trên dữ liệu thật; bộ 47 câu mẫu xanh; p95 của `GET /api/products?search=&facets=true` dưới 150 ms; các bài kiểm thử HTTP xanh.
+
+Thực tế ngày 30/09: cột "Sau" đo trên API local như bảng; `node work/ph01-search/check.mjs` → `49/49 phép kiểm đúng, 87 sản phẩm`; `npm run test -w apps/api` → `Tests 221 passed (221)`; `npm run test:http` → `Tests 208 passed (208)` trước khi thêm bài `log=false`, bài mới chạy riêng `39 passed (39)`; `node work/ph01-search/bench-api.mjs http://localhost:3001 200` hai lần → `p50 54,3 ms · p95 90,3 ms` và `p50 53,4 ms · p95 80,0 ms`, đo khi bộ kiểm thử HTTP đang chạy song song nên là số cận trên. Khớp.
+
+### Điều kiện xem lại
+
+Chuyển sang B (kèm ADR mới) khi trên 15% câu tìm trong hai tuần không có kết quả theo `search_query_logs`, hoặc Catalog vượt vài nghìn sản phẩm (khi đó cũng đẩy lọc xuống SQL). Xem lại `accentOnly` khi thêm nhóm hàng mới có từ dễ nhầm dấu.
+
+<a id="adr-020"></a>
+## 2026-09-30 · ADR-020 — Token giao diện bản 1 và mỗi thành phần một tệp CSS
+
+**Loại:** quyết định · **Phạm vi:** `apps/web` (`styles.css`, `ui/Layout.module.css`, `features/products`) · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** [8d88342](https://github.com/F-R-E-Y-A/fashion-shop/commit/8d88342), [95449d3](https://github.com/F-R-E-Y-A/fashion-shop/commit/95449d3) (nhánh local, chưa push)
+
+### Hiện trạng
+
+Trước đợt này `Catalog.module.css` có 347 dòng và 50 lớp, dùng chung cho 13 tệp, trái tinh thần [ADR-009](../../LOG.md#adr-009) (kiểu riêng của feature nằm trong CSS Modules, mỗi thành phần một tệp; `wc -l` đo ngày 30/09). Khung `container` và `section` gõ tay `1200px` và `clamp(16px, 4vw, 56px)` ở nhiều nơi; hiện còn ở [StoreLayout.module.css:11](../../../apps/web/src/app/StoreLayout.module.css#L11), [StoreLayout.module.css:83](../../../apps/web/src/app/StoreLayout.module.css#L83), [ProductDetailPage.module.css:2](../../../apps/web/src/features/products/pages/ProductDetailPage.module.css#L2). Màu và chữ đã có biến trong [styles.css](../../../apps/web/src/styles.css) nhưng chưa có thang chữ, khoảng cách khung, hay đường cong chuyển động.
+
+### Phương án
+
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Giữ số gõ tay trong từng CSS | Không đổi gì | Đổi khung phải sửa từng nơi, dễ lệch | Có |
+| **B. Thêm biến vào `:root` và `ui/Layout.module.css` (chọn)** | Một nguồn cho khung, thang chữ, chuyển động; thành phần mới dùng chung `container`, `section`, `eyebrow` | Thêm 13 biến mới cần nhớ | Có |
+| C. Thêm thư viện token hay Tailwind | Nhiều tiện ích | Thêm thư viện, đổi cách viết CSS của cả nhóm | Khó |
+
+**Chọn B.** Thêm vào [styles.css:16-29](../../../apps/web/src/styles.css#L16): `--amber-glow`, `--stone`, `--on-dark-muted`, `--ink-2`, thang chữ `--s-1` đến `--s5`, `--gutter`, `--container`, `--ease`. `ui/Layout.module.css` xuất qua `@/ui` với `container`, `section`, `eyebrow`, `plainButton` (`styles.css` tô mọi `<button>` màu accent nên nút phụ phải reset). Mỗi thành phần cũ phải sửa được chuyển kiểu sang `<Tên>.module.css` riêng; thành phần bị thay thì xoá cùng lớp của nó. Trade-off chấp nhận: hai tệp của người khác (`StoreLayout`, `ProductDetailPage`) còn số gõ tay, đổi khi tái cấu trúc thư mục ngày 01/10.
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: `Catalog.module.css` nhỏ dưới 150 dòng, không lớp nào không có người dùng; không tệp `.tsx` mới trong `components/`; trang chủ đo Lighthouse trên máy: Accessibility ≥ 95, CLS < 0,1.
+
+Thực tế ngày 30/09: `Catalog.module.css` **xoá hẳn** (0 dòng), thay bằng bảy tệp CSS mỗi thành phần một tệp, tổng 259 dòng (`wc -l apps/web/src/features/products/components/*.css`); `components/` không có tệp `.tsx` mới; Lighthouse di động trên bản build: Accessibility 100, Best Practices 96, SEO 92 (đã thêm `robots.txt`); vết trace trên máy: LCP 871 ms, CLS 0,04, không giả lập mạng. Điểm Performance của Lighthouse **chưa đo** vì công cụ chỉ trả ba nhóm còn lại. Khớp.
+
+### Điều kiện xem lại
+
+Khi nhóm chốt tên và nhận diện thương hiệu (đổi màu, chữ), hoặc khi cần chế độ tối.
