@@ -22,3 +22,4 @@ export { CategoryPage } from './pages/CategoryPage.js';
 export { HomePage } from './pages/HomePage.js';
 export { ProductDetailPage } from './pages/ProductDetailPage.js';
 export { ProductListPage } from './pages/ProductListPage.js';
+export { SearchTrigger } from './search/SearchTrigger.js';

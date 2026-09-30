@@ -1,8 +1,7 @@
 import { Link, NavLink, Outlet } from 'react-router-dom';
 
 import { useAuth } from '@/features/account';
-import { CategoryMenu } from '@/features/products';
-import { SearchIcon } from '@/ui';
+import { CategoryMenu, SearchTrigger } from '@/features/products';
 
 import styles from './StoreLayout.module.css';
 
@@ -19,9 +18,7 @@ export function StoreLayout() {
           <CategoryMenu />
         </div>
         <div className={styles.actions}>
-          <Link className={styles.search} to="/san-pham" aria-label="Tìm sản phẩm">
-            <SearchIcon />
-          </Link>
+          <SearchTrigger />
           <div className={styles.account} aria-live="polite">
             {isLoading && <span className={styles.accountStatus}>Đang khôi phục phiên…</span>}
             {!isLoading && !isAuthenticated && (
