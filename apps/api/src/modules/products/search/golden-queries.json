@@ -1,0 +1,397 @@
+{
+  "_doc": "Hop dong hanh vi cua bo hieu truy van (UC-03.2). Ban sao cua work/ph01-search/golden.json, bo minTotal/maxTotal vi so do do tren du lieu crawl. expect: cac khoa can kiem (mang so sanh nhu tap hop); groups la kind:value. why: ly do cua tung cau, gom cac bay bo dau.",
+  "cases": [
+    {
+      "q": "áo sơ mi",
+      "expect": {
+        "categorySlugs": ["ao-so-mi"],
+        "groups": []
+      },
+      "why": "cum danh muc co dau"
+    },
+    {
+      "q": "ao so mi",
+      "expect": {
+        "categorySlugs": ["ao-so-mi"],
+        "groups": []
+      },
+      "why": "go khong dau van ra danh muc"
+    },
+    {
+      "q": "somi nữ",
+      "expect": {
+        "categorySlugs": ["ao-so-mi"],
+        "audience": "nu"
+      },
+      "why": "viet lien 'somi' va doi tuong"
+    },
+    {
+      "q": "polo nữ trắng dưới 100k",
+      "expect": {
+        "audience": "nu",
+        "colorFamilies": ["trang"],
+        "maxPrice": 100000,
+        "groups": ["style:polo"]
+      },
+      "why": "cau mau chinh: kieu, doi tuong, mau, tran gia"
+    },
+    {
+      "q": "polo nu trang duoi 100k",
+      "expect": {
+        "audience": "nu",
+        "colorFamilies": ["trang"],
+        "maxPrice": 100000,
+        "groups": ["style:polo"]
+      },
+      "why": "cung cau tren, khong dau"
+    },
+    {
+      "q": "áo thun nam màu đen",
+      "expect": {
+        "categorySlugs": ["ao-thun"],
+        "audience": "nam",
+        "colorFamilies": ["den"]
+      },
+      "why": "'màu đen' la mot cum"
+    },
+    {
+      "q": "quần tây nữ ống rộng",
+      "expect": {
+        "audience": "nu",
+        "groups": ["style:quan-tay", "term:ống rộng"]
+      },
+      "why": "quần tây la kieu dang, ống rộng giu nguyen cum"
+    },
+    {
+      "q": "quần jeans nam size 32",
+      "expect": {
+        "audience": "nam",
+        "sizes": ["32"],
+        "groups": ["style:jeans"]
+      },
+      "why": "co so sau tu 'size'"
+    },
+    {
+      "q": "áo khoác nam",
+      "expect": {
+        "categorySlugs": ["ao-khoac"],
+        "audience": "nam"
+      },
+      "why": "Catalog chi co 1 ao khoac nam"
+    },
+    {
+      "q": "sơ mi trắng đi làm",
+      "expect": {
+        "categorySlugs": ["ao-so-mi"],
+        "colorFamilies": ["trang"],
+        "groups": ["occasion:cong-so"]
+      },
+      "why": "dip mac mo rong thanh nhom tu"
+    },
+    {
+      "q": "đồ đi biển mát mẻ",
+      "expect": {
+        "colorFamilies": [],
+        "groups": ["occasion:mua-he"]
+      },
+      "why": "BAY: 'đồ' khong duoc hieu thanh mau đỏ; hai cum cung mot dip gop lam mot"
+    },
+    {
+      "q": "do di bien",
+      "expect": {
+        "colorFamilies": [],
+        "groups": ["occasion:mua-he"]
+      },
+      "why": "BAY: 'do' khong dau la 'đồ', khong phai 'đỏ'"
+    },
+    {
+      "q": "áo màu đỏ",
+      "expect": {
+        "categorySlugs": ["ao"],
+        "colorFamilies": ["do"]
+      },
+      "why": "đỏ co dau van la mau"
+    },
+    {
+      "q": "ao mau do",
+      "expect": {
+        "categorySlugs": ["ao"],
+        "colorFamilies": ["do"]
+      },
+      "why": "cum hai tu 'mau do' du ngu canh de hieu la mau đỏ"
+    },
+    {
+      "q": "áo mát",
+      "expect": {
+        "categorySlugs": ["ao"],
+        "groups": ["occasion:mua-he"]
+      },
+      "why": "BAY: 'mát' co dau la dip ngay he"
+    },
+    {
+      "q": "ao mat",
+      "expect": {
+        "categorySlugs": ["ao"],
+        "groups": ["free:mat"]
+      },
+      "why": "BAY: 'mat' khong dau mo ho giua mát va mắt, de lam tu tu do"
+    },
+    {
+      "q": "quần short lưng thun",
+      "expect": {
+        "categorySlugs": ["quan-short"],
+        "groups": ["term:lưng thun"]
+      },
+      "why": "BAY: 'thun' trong 'lưng thun' khong phai danh muc Ao thun"
+    },
+    {
+      "q": "áo từ 100k đến 300k",
+      "expect": {
+        "categorySlugs": ["ao"],
+        "minPrice": 100000,
+        "maxPrice": 300000
+      },
+      "why": "khoang gia 'từ ... đến ...'"
+    },
+    {
+      "q": "polo 100-300k",
+      "expect": {
+        "minPrice": 100000,
+        "maxPrice": 300000,
+        "groups": ["style:polo"]
+      },
+      "why": "khoang gia viet lien, don vi o so sau"
+    },
+    {
+      "q": "áo thun tầm 150k",
+      "expect": {
+        "categorySlugs": ["ao-thun"],
+        "minPrice": 105000,
+        "maxPrice": 195000
+      },
+      "why": "'tầm' la cong tru 30%"
+    },
+    {
+      "q": "quần trên 200 nghìn",
+      "expect": {
+        "categorySlugs": ["quan"],
+        "minPrice": 200000
+      },
+      "why": "don vi la tu rieng"
+    },
+    {
+      "q": "áo sơ mi dưới 1tr",
+      "expect": {
+        "categorySlugs": ["ao-so-mi"],
+        "maxPrice": 1000000
+      },
+      "why": "don vi 'tr' = trieu"
+    },
+    {
+      "q": "áo <200k",
+      "expect": {
+        "categorySlugs": ["ao"],
+        "maxPrice": 200000
+      },
+      "why": "dau < dinh lien so"
+    },
+    {
+      "q": "áo polo giá rẻ",
+      "expect": {
+        "groups": ["style:polo"],
+        "sort": "price_asc"
+      },
+      "why": "'giá rẻ' la y sap xep, khong phai tu khoa"
+    },
+    {
+      "q": "áo thun mới nhất",
+      "expect": {
+        "categorySlugs": ["ao-thun"],
+        "sort": "newest"
+      },
+      "why": "y sap xep moi nhat"
+    },
+    {
+      "q": "thắt lưng da bò",
+      "expect": {
+        "categorySlugs": ["that-lung"],
+        "groups": ["term:da bò"]
+      },
+      "why": "cum mo ta 'da bò'"
+    },
+    {
+      "q": "áo cổ tròn nữ",
+      "expect": {
+        "categorySlugs": ["ao"],
+        "audience": "nu",
+        "groups": ["term:cổ tròn"]
+      },
+      "why": "cum mo ta co dau"
+    },
+    {
+      "q": "ao co tron nu",
+      "expect": {
+        "categorySlugs": ["ao"],
+        "audience": "nu",
+        "groups": ["term:cổ tròn"]
+      },
+      "why": "BAY: 'co' khong dau (cỡ/cổ/có) khong bi bo, cum 'co tron' thanh 'cổ tròn'"
+    },
+    {
+      "q": "áo size M",
+      "expect": {
+        "categorySlugs": ["ao"],
+        "sizes": ["M"]
+      },
+      "why": "co sau tu 'size'"
+    },
+    {
+      "q": "áo thun XL",
+      "expect": {
+        "categorySlugs": ["ao-thun"],
+        "sizes": ["XL"]
+      },
+      "why": "co XL dung rieng"
+    },
+    {
+      "q": "quần cỡ 32",
+      "expect": {
+        "categorySlugs": ["quan"],
+        "sizes": ["32"],
+        "minPrice": null,
+        "maxPrice": null
+      },
+      "why": "BAY: 'cỡ 32' la co, khong phai gia khoang 32.000 d"
+    },
+    {
+      "q": "áo cỡ 200k",
+      "expect": {
+        "categorySlugs": ["ao"],
+        "sizes": [],
+        "minPrice": 140000,
+        "maxPrice": 260000
+      },
+      "why": "'cỡ' kem so co don vi thi la gia"
+    },
+    {
+      "q": "đồ thể thao nam",
+      "expect": {
+        "audience": "nam",
+        "groups": ["occasion:the-thao"]
+      },
+      "why": "dip the thao"
+    },
+    {
+      "q": "áo chống nắng",
+      "expect": {
+        "categorySlugs": ["ao"],
+        "audience": null,
+        "groups": ["occasion:chong-nang"]
+      },
+      "why": "BAY: 'nắng' khong phai 'nàng'"
+    },
+    {
+      "q": "ao chong nang",
+      "expect": {
+        "categorySlugs": ["ao"],
+        "audience": null,
+        "groups": ["occasion:chong-nang"]
+      },
+      "why": "BAY: khong dau 'nang' van la chong nang vi cum dai duoc xet truoc"
+    },
+    {
+      "q": "quà cho bạn trai",
+      "expect": {
+        "audience": "nam",
+        "groups": ["free:quà"]
+      },
+      "why": "tu tu do khong khop thi noi dan, van tra do nam"
+    },
+    {
+      "q": "áo sơ mi thời trang",
+      "expect": {
+        "categorySlugs": ["ao-so-mi"],
+        "colorFamilies": []
+      },
+      "why": "BAY: 'thời trang' khong phai mau trắng"
+    },
+    {
+      "q": "ao thoi trang",
+      "expect": {
+        "categorySlugs": ["ao"],
+        "colorFamilies": []
+      },
+      "why": "BAY: 'thoi trang' khong dau cung khong phai mau trang"
+    },
+    {
+      "q": "xanh navy",
+      "expect": {
+        "colorFamilies": ["navy"]
+      },
+      "why": "cum mau hai tu thang mau mot tu"
+    },
+    {
+      "q": "áo xanh lá",
+      "expect": {
+        "categorySlugs": ["ao"],
+        "colorFamilies": ["xanh-la"]
+      },
+      "why": "'xanh lá' khong bi hieu thanh xanh duong"
+    },
+    {
+      "q": "áo tím",
+      "expect": {
+        "categorySlugs": ["ao"],
+        "colorFamilies": ["tim"]
+      },
+      "why": "ho tim gom 'Tím cà', 'Tím cẩm', 'Tím nhạt'; 'Tím than' van la navy"
+    },
+    {
+      "q": "tim ao so mi",
+      "expect": {
+        "categorySlugs": ["ao-so-mi"],
+        "colorFamilies": [],
+        "groups": ["free:tim"]
+      },
+      "why": "BAY: 'tim' khong dau la 'tìm' hay 'tím' deu duoc, khong ep thanh mau; khong khop thi noi"
+    },
+    {
+      "q": "mũ",
+      "expect": {
+        "categorySlugs": ["mu"]
+      },
+      "why": "E1: danh muc co that nhung chua co san pham"
+    },
+    {
+      "q": "airy cool",
+      "expect": {
+        "groups": ["style:airycool"]
+      },
+      "why": "ten chat lieu viet tach hai tu"
+    },
+    {
+      "q": "áo sơ mi nữ tay dài công sở dưới 200k",
+      "expect": {
+        "categorySlugs": ["ao-so-mi"],
+        "audience": "nu",
+        "maxPrice": 200000,
+        "groups": ["term:tay dài", "occasion:cong-so"]
+      },
+      "why": "cau dai nhieu y"
+    },
+    {
+      "q": "aoo so mii",
+      "expect": {
+        "groups": ["free:aoo", "free:mii"]
+      },
+      "why": "go sai hai tu ngan: khong doan thanh danh muc; noi het rang buoc thi tra rong (E1), khong tra ca Catalog"
+    },
+    {
+      "q": "xyzqwv",
+      "expect": {
+        "groups": ["free:xyzqwv"]
+      },
+      "why": "UC-03.2/AC3: cau khong khop gi tra items rong, total 0"
+    }
+  ]
+}
