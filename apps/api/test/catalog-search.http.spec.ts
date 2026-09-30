@@ -129,27 +129,30 @@ describe('GET /api/products: tim kiem va loc (UC-03.2, UC-03.3)', () => {
       expect(res.body.interpretation.sort).toBe('price_asc');
     });
 
+    // Nhat ky duoc ghi khong cho, nen bai truoc co the con ban ghi dang bay: doi chung xong moi xoa,
+    // va chi doc dong co dung cau cua bai nay.
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    const loggedAs = (queryText: string) =>
+      t.prisma.searchQueryLog.findMany({ where: { queryText } });
+
     it('UC-03.2 cau tim kiem duoc ghi vao search_query_logs (chuan hoa, khong cho)', async () => {
+      await sleep(300);
       await t.prisma.searchQueryLog.deleteMany();
       await list({ search: '  Sơ Mi  ' }).expect(200);
-      let rows = await t.prisma.searchQueryLog.findMany();
+      let rows = await loggedAs('sơ mi');
       for (let i = 0; i < 20 && rows.length === 0; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        rows = await t.prisma.searchQueryLog.findMany();
+        await sleep(100);
+        rows = await loggedAs('sơ mi');
       }
       expect(rows).toHaveLength(1);
-      expect(rows[0]).toMatchObject({
-        queryText: 'sơ mi',
-        resultCount: expected((p) => p.categorySlug === 'ao-so-mi').length,
-      });
+      expect(rows[0]?.resultCount).toBe(expected((p) => p.categorySlug === 'ao-so-mi').length);
     });
 
     it('UC-03.2 log=false thi cau tim khong vao search_query_logs', async () => {
-      await t.prisma.searchQueryLog.deleteMany();
-      await list({ search: 'sơ mi', log: false }).expect(200);
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      expect(await t.prisma.searchQueryLog.count()).toBe(0);
-      await list({ search: 'sơ mi', log: 'khong' }).expect(400);
+      await list({ search: 'áo thun trắng', log: false }).expect(200);
+      await sleep(300);
+      expect(await loggedAs('áo thun trắng')).toHaveLength(0);
+      await list({ search: 'áo thun trắng', log: 'khong' }).expect(400);
     });
 
     it('UC-03.2 dip mac them trong search_configurations duoc hieu sau khi doc lai tu dien', async () => {
