@@ -11,6 +11,7 @@ import { AuthService } from './auth.service.js';
 import { AuthRateLimitService } from './auth-rate-limit.service.js';
 import { OtpService } from './otp.service.js';
 import { PasswordHasherService } from './password-hasher.service.js';
+import { RolesGuard } from './roles.guard.js';
 import { TokenService } from './token.service.js';
 
 /** Phase 1 security primitives; HTTP endpoints are added in later PH3 phases. */
@@ -32,8 +33,9 @@ import { TokenService } from './token.service.js';
     AuthService,
     OtpService,
     PasswordHasherService,
+    RolesGuard,
     TokenService,
   ],
-  exports: [AuthGuard, AuthService, PasswordHasherService, TokenService],
+  exports: [AuthGuard, AuthService, PasswordHasherService, RolesGuard, TokenService],
 })
 export class AuthModule {}

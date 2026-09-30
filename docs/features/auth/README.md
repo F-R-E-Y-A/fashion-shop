@@ -1,6 +1,6 @@
 ---
 title: Tài khoản và xác thực — bản đồ
-updated: 2026-09-28
+updated: 2026-09-30
 status: đang làm
 owner: Tài
 ---
@@ -11,7 +11,7 @@ owner: Tài
 | | |
 |---|---|
 | **Người sở hữu** | Tài · `apps/api/src/modules/auth` · `apps/web/src/features/account` · bảng trong `prisma/schema/identity.prisma` |
-| **Dòng việc** | PH-03 (Issue #8), sprint S2. Đã gộp vào `develop`: nền tảng auth #14, PH3.1 #18, PH3.2 #19, PH3.3 #20, PH3.4 #21 |
+| **Dòng việc** | PH-03 (Issue #8), sprint S2. Đã gộp vào `develop`: nền tảng auth #14, PH3.1 #18, PH3.2 #19, PH3.3 #20, PH3.4 #21. Đợt 2, S3: phân quyền theo vai, nhánh `feature/ph3-rbac-admin-users` (Admin.1, chưa gộp) |
 | **Use case** | Đặc tả của Duy đã gộp qua pull request #9 tại [uc-ph01-tai-khoan-xac-thuc.md](../../shared/uc-ph01-tai-khoan-xac-thuc.md), còn theo mã cũ `PH-01.m` (đăng ký, đăng nhập, đặt lại mật khẩu, đăng xuất, hồ sơ, địa chỉ, vóc dáng) và chưa chuyển sang `UC-NN.m` hay về `docs/features/auth/use-cases.md`. Xác thực email OTP và đổi mật khẩu (PH3.1, PH3.3) chưa có use case riêng |
 
 ## Hợp đồng công bố
@@ -25,16 +25,29 @@ CurrentUser    // decorator lay { id, email, roles }
 
 Cả hai đã có mã và đã gộp; chữ ký thật ghi ở [modules/auth/README.md](../../../apps/api/src/modules/auth/README.md) theo mẫu [products/README.md](../../../apps/api/src/modules/products/README.md).
 
-## Trạng thái hôm nay (28/09/2026)
+Admin.1 công bố thêm, cho mọi phân hệ cần chặn quyền theo vai (quản trị sản phẩm, tồn kho, đơn):
+
+```
+RequireRoles(RoleCode.ADMIN)   // gan AuthGuard roi RolesGuard; chua dang nhap 401, sai vai 403
+RoleCode                       // CUSTOMER, ADMIN; khong go chuoi vai tay
+```
+
+## Trạng thái hôm nay (30/09/2026)
 
 Xác thực đã xong và nằm trong `develop`: đăng ký, đăng nhập, `GET /auth/me`, refresh/logout (nền tảng, #14),
 xác thực email bằng OTP (PH3.1), quên và đặt lại mật khẩu (PH3.2), đổi mật khẩu (PH3.3), hardening bảo mật
 (PH3.4: giới hạn tốc độ, replay refresh token, `authVersion`). Chi tiết từng bước ở các mục dưới.
 
-Chưa có, biết và cố ý: **phân quyền theo vai trò**. `roles` chỉ là một trường của `CurrentUser`; không có
-`RolesGuard` hay `@Roles`, route web `/quan-tri` không kiểm đăng nhập hay vai trò, và API chưa có endpoint
-quản trị nào (module `products` chỉ có `GET` công khai). Ghi ở [ND-03](../../TECH_DEBT.md). Cũng chưa có: hồ
-sơ cá nhân, địa chỉ, hồ sơ vóc dáng, OAuth, 2FA.
+Phân quyền theo vai **phía máy chủ** có từ Admin.1 (nhánh `feature/ph3-rbac-admin-users`, chưa gộp): `RoleCode`,
+`RolesGuard`, `RequireRoles`, vai `ADMIN` nạp bằng migration, script `admin:grant` tạo quản trị viên đầu
+tiên, và hai API chỉ đọc `GET /api/admin/users`, `GET /api/admin/users/:id` (feature
+[users](../users/README.md)). Quyết định: [ADR-021](LOG.md#adr-021). Admin.2 thêm khóa và mở khóa tài khoản;
+khóa tăng `authVersion` và thu hồi mọi refresh token, còn đăng nhập và refresh khoá dòng `users` khi tạo phiên
+([ADR-022](LOG.md#adr-022)).
+
+Chưa có, biết và cố ý: chặn `/quan-tri` **ở giao diện** (chờ pull request #15 gộp vì cùng sửa `routes.tsx`),
+vai `STAFF`, gán vai qua API ([ND-03](../../TECH_DEBT.md)). Cũng chưa có: hồ sơ cá nhân, địa chỉ, hồ sơ vóc
+dáng, OAuth, 2FA.
 
 Nền tảng ban đầu: `identity.prisma` và migration baseline đã có `users`, `roles`, `user_roles`, `refresh_tokens`.
 Phase 4 đã có refresh/logout: refresh cookie HttpOnly được rotate khi cấp access token mới, còn
@@ -198,3 +211,32 @@ Chi tiết ở [security.md](security.md) (tách riêng để giữ mỗi file d
 Biến môi trường mới: `REDIS_URL`, `RATE_LIMIT_PEPPER` (bắt buộc), `TRUST_PROXY_HOPS` (bắt buộc ở
 staging/production). Một migration mới: `20260928120000_ph3_4_user_auth_version`. Local cần thêm
 dịch vụ `redis` trong `docker-compose.yml` (`npm run db:up`).
+
+## Đợt 2, Admin.1 — Phân quyền theo vai, nhánh `feature/ph3-rbac-admin-users`
+
+Chỉ phía máy chủ. Quyết định và phương án ở [ADR-021](LOG.md#adr-021); API quản trị tài khoản ở
+[features/users](../users/README.md).
+
+| Việc | Cách làm |
+|---|---|
+| Mã vai | `RoleCode.CUSTOMER`, `RoleCode.ADMIN` trong `role-code.ts`, nguồn duy nhất phía TypeScript. Chưa có `STAFF` |
+| Danh mục vai trong CSDL | Migration dữ liệu `20260930120000_ph3_role_catalog`: `INSERT … ON CONFLICT (code) DO NOTHING`. Production có vai ngay sau `migrate deploy`, không cần seed. `role-code.spec.ts` đối chiếu `RoleCode` với SQL |
+| Chặn quyền | `@RequireRoles(RoleCode.ADMIN)` gắn `AuthGuard` rồi `RolesGuard`. `RolesGuard` chỉ đọc `request.user.roles` (AuthGuard nạp từ CSDL mỗi request), một vai khớp là đủ, thiếu metadata hay thiếu `request.user` thì từ chối |
+| Mã lỗi | Chưa đăng nhập, token hỏng, tài khoản không `ACTIVE`: `401 UNAUTHORIZED`. Đã đăng nhập mà thiếu vai: `403 FORBIDDEN` |
+| Hiệu lực khi đổi vai | Ngay request kế tiếp, không cần đăng nhập lại: vai không nằm trong JWT |
+| Quản trị viên đầu tiên | `npm run admin:grant -w apps/api -- --email=<email>`: nâng một tài khoản đã có và đang `ACTIVE`. Không tạo user, không nhận mật khẩu, chạy lại an toàn. Staging/production: đặt `DATABASE_URL` trước lệnh |
+
+Seed không còn ghi vai: seed chạy cả trong image API, nơi không có `src/modules`, nên không import được
+`RoleCode`. Kiểm thử HTTP giữ nguyên bảng `roles` khi xoá dữ liệu (`test/helpers/db.ts`), nên chạy đúng
+đường production: vai đến từ migration.
+
+## Đợt 2, Admin.2 — Khóa tài khoản và phiên đăng nhập
+
+Khóa (`ACTIVE` → `LOCKED`) tăng `authVersion` và thu hồi mọi refresh token trong cùng giao dịch, nên access
+và refresh cũ trả 401 ngay và vẫn 401 sau khi mở khóa; mở khóa không cấp token, người dùng đăng nhập lại. API và
+nhật ký ở [features/users](../users/README.md), quyết định ở [ADR-022](LOG.md#adr-022).
+
+Thay đổi ở phân hệ này: `login` và `refresh` gọi `lockUserForSession` (`user-session-lock.ts`), khoá dòng
+`users` bằng `FOR SHARE` rồi đọc lại trạng thái trước khi tạo hay xoay refresh token. `login` giờ tạo refresh
+token trong giao dịch và trả 401 `INVALID_CREDENTIALS` nếu tài khoản vừa bị khóa hay `authVersion` vừa đổi trong
+lúc tính bcrypt. Khoá này cũng đóng cùng khe hở với đổi và đặt lại mật khẩu chạy song song với đăng nhập.

@@ -1,6 +1,6 @@
 ---
 title: Mô hình dữ liệu và từ điển dữ liệu
-updated: 2026-09-25
+updated: 2026-09-30
 status: đang dùng
 owner: Tài
 ---
@@ -74,7 +74,7 @@ Owner: TAI. Domain: Authorization. Classification: Core/JUNCTION. Purpose: role 
 
 | Table | Columns, constraints and meaning |
 |---|---|
-| roles | id uuid PK; code varchar UQ; name varchar; created_at/updated_at timestamptz required. Stable role catalog. |
+| roles | id uuid PK; code varchar UQ; name varchar; created_at/updated_at timestamptz required. Stable role catalog: `CUSTOMER`, `ADMIN`, nạp bằng migration `20260930120000_ph3_role_catalog` (không bằng seed); mã khớp `RoleCode` ([ADR-021](../features/auth/LOG.md#adr-021)). |
 | user_roles | user_id uuid PK/FK users; role_id uuid PK/FK roles; created_at timestamptz required. Composite PK prevents duplicate assignment. |
 
 Relationships: User N:M Role through user_roles. Delete: user_roles cascades from User/Role.

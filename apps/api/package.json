@@ -21,7 +21,8 @@
     "db:drift": "prisma migrate diff --from-config-datasource --to-schema prisma/schema --exit-code",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "catalog:refresh": "tsx scripts/refresh-approved-catalog.ts"
+    "catalog:refresh": "tsx scripts/refresh-approved-catalog.ts",
+    "admin:grant": "tsx scripts/grant-admin.ts"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
