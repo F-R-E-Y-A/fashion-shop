@@ -173,4 +173,17 @@ export class ListProductsQuery extends PageQuery {
   @IsBoolean()
   @IsOptional()
   facets?: boolean;
+
+  @ApiPropertyOptional({
+    type: Boolean,
+    default: true,
+    description:
+      'false thi khong ghi cau tim vao nhat ky. Danh cho cac the co dinh tren trang chu, khong phai khach tim',
+  })
+  @Transform(({ value }: { value: unknown }) =>
+    value === 'true' ? true : value === 'false' ? false : value,
+  )
+  @IsBoolean()
+  @IsOptional()
+  log?: boolean;
 }

@@ -144,6 +144,14 @@ describe('GET /api/products: tim kiem va loc (UC-03.2, UC-03.3)', () => {
       });
     });
 
+    it('UC-03.2 log=false thi cau tim khong vao search_query_logs', async () => {
+      await t.prisma.searchQueryLog.deleteMany();
+      await list({ search: 'sơ mi', log: false }).expect(200);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(await t.prisma.searchQueryLog.count()).toBe(0);
+      await list({ search: 'sơ mi', log: 'khong' }).expect(400);
+    });
+
     it('UC-03.2 dip mac them trong search_configurations duoc hieu sau khi doc lai tu dien', async () => {
       const dictionary = t.app.get(SearchDictionaryService);
       const before = await list({ search: 'đồ đi đám cưới' }).expect(200);

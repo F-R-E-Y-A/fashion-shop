@@ -141,7 +141,7 @@ export class CatalogSearchService {
     if (query.search !== undefined) {
       response.interpretation = describeIntent(result.intent);
       response.relaxed = result.relaxed;
-      this.recordQuery(query.search, result.total);
+      if (query.log !== false) this.recordQuery(query.search, result.total);
     }
     if (query.facets === true) response.facets = this.buildFacets(result, catalog);
     return response;
