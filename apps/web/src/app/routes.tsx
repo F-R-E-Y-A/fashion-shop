@@ -14,6 +14,7 @@ import {
   HomePage,
   ProductDetailPage,
   ProductListPage,
+  SearchPage,
 } from '@/features/products';
 
 import { AdminLayout } from './AdminLayout.js';
@@ -37,6 +38,7 @@ export function AppRoutes() {
         <Route element={<StoreLayout />}>
           <Route index element={<HomePage />} />
           <Route path="danh-muc/:slug" element={<CategoryPage />} />
+          <Route path="tim-kiem" element={<SearchPage />} />
           <Route path="san-pham" element={<ProductListPage />} />
           <Route path="san-pham/:slug" element={<ProductDetailPage />} />
           <Route path="login" element={<LoginPage />} />
