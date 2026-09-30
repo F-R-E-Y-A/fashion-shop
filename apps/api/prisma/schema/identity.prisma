@@ -24,6 +24,10 @@ model User {
   passwordHash    String     @map("password_hash") @db.VarChar
   status          UserStatus @default(PENDING_VERIFICATION)
   avatarUrl       String?    @map("avatar_url") @db.VarChar
+  // Ho so ca nhan (PH4). Nullable cho tai khoan cu; phone KHONG unique: nguoi cung nha dung chung so,
+  // va unique se bien PATCH /users/me thanh cong cu do so dien thoai nao da co tai khoan.
+  fullName        String?    @map("full_name") @db.VarChar
+  phone           String?    @db.VarChar
   emailVerifiedAt DateTime?  @map("email_verified_at") @db.Timestamptz(3)
   // Tang moi khi doi/dat lai mat khau; access JWT mang `ver` va AuthGuard so voi cot nay, nen moi
   // access token cu vo hieu ngay ma khong can danh sach den. Xem docs/features/auth/LOG.md (ADR-015).
@@ -175,6 +179,9 @@ model Address {
   user               User               @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   administrativeArea AdministrativeArea @relation(fields: [administrativeAreaId], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
+  // Moi truy van so dia chi loc theo user_id. Chi muc duy nhat mot-mac-dinh (partial, WHERE is_default) khong
+  // phuc vu duoc truy van lay moi dia chi cua mot nguoi.
+  @@index([userId])
   @@map("addresses")
   @@schema("public")
 }
