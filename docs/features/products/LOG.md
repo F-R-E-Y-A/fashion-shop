@@ -316,7 +316,7 @@ Sáu tiêu chí (kết luận là **suy luận**, chỉ số đo nằm ở hai m
 
 Mong đợi: bảng "Trước / Sau" ở trên đúng trên dữ liệu thật; bộ 47 câu mẫu xanh; p95 của `GET /api/products?search=&facets=true` dưới 150 ms; các bài kiểm thử HTTP xanh.
 
-Thực tế ngày 30/09: cột "Sau" đo trên API local như bảng; `node work/ph01-search/check.mjs` → `49/49 phép kiểm đúng, 87 sản phẩm`; `npm run test -w apps/api` → `Tests 221 passed (221)`; `npm run test:http` → `Tests 208 passed (208)` trước khi thêm bài `log=false`, bài mới chạy riêng `39 passed (39)`; `node work/ph01-search/bench-api.mjs http://localhost:3001 200` hai lần → `p50 54,3 ms · p95 90,3 ms` và `p50 53,4 ms · p95 80,0 ms`, đo khi bộ kiểm thử HTTP đang chạy song song nên là số cận trên. Khớp.
+Thực tế ngày 30/09: cột "Sau" đo trên API local như bảng; `node work/ph01-search/check.mjs` → `49/49 phép kiểm đúng, 87 sản phẩm`; `npm run test -w apps/api` → `Tests 221 passed (221)`; `npm run test:http` → `Test Files 7 passed (7)`, `Tests 209 passed (209)`, exit 0; `node work/ph01-search/bench-api.mjs http://localhost:3001 200` hai lần → `p50 54,3 ms · p95 90,3 ms` và `p50 53,4 ms · p95 80,0 ms`, đo khi bộ kiểm thử HTTP đang chạy song song nên là số cận trên. Khớp.
 
 ### Điều kiện xem lại
 
