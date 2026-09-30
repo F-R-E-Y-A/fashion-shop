@@ -4,6 +4,9 @@
   flex-direction: column;
 }
 .header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
   min-height: 78px;
   padding: 0 clamp(16px, 4vw, 56px);
   display: grid;
@@ -11,6 +14,29 @@
   align-items: center;
   gap: 24px;
   border-bottom: 1px solid var(--line);
+  background: rgb(248 247 245 / 0.96);
+  backdrop-filter: blur(14px);
+  transition:
+    background-color 0.35s var(--ease),
+    color 0.35s var(--ease),
+    border-color 0.35s;
+}
+/* Trang chu: hero truot len duoi header (luon, ke ca khi header da dac mau) de khong nhay bo cuc. */
+.header[data-home='true'] {
+  margin-bottom: calc(-1 * var(--header-h, 78px));
+}
+/* Dau trang chu: header trong suot, chu sang tren anh hero. */
+.header[data-over-hero='true'] {
+  background: transparent;
+  backdrop-filter: none;
+  color: var(--on-dark);
+  border-bottom-color: transparent;
+  /* Nut tim kiem can nen mo nhe de doc duoc chu tren anh hero sang mau. */
+  --trigger-bg: rgb(20 13 8 / 0.32);
+}
+.header[data-over-hero='true'] .accountStatus {
+  color: inherit;
+  opacity: 0.8;
 }
 .brand {
   font: 600 1rem var(--font-body);
@@ -67,6 +93,11 @@
 }
 .footer p {
   letter-spacing: var(--tracking-caps);
+}
+@media (prefers-reduced-motion: reduce) {
+  .header {
+    transition: none;
+  }
 }
 @media (max-width: 760px) {
   .header {

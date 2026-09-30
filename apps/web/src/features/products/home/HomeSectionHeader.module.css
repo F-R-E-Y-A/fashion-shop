@@ -1,0 +1,20 @@
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: clamp(20px, 3vw, 36px);
+}
+.eyebrow {
+  margin: 0 0 10px;
+  color: var(--accent);
+  font-size: var(--s-1);
+  letter-spacing: 0.16em;
+}
+.head h2 {
+  margin: 0;
+  font-size: var(--s4);
+  line-height: 1.12;
+  text-wrap: balance;
+}
