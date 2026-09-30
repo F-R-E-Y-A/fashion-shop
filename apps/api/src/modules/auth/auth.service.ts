@@ -32,10 +32,10 @@ import { normalizeEmail } from './email.js';
 import { OtpService } from './otp.service.js';
 import { PasswordHasherService } from './password-hasher.service.js';
 import { buildPasswordResetEmail } from './password-reset-email.js';
+import { RoleCode } from './role-code.js';
 import { TokenService } from './token.service.js';
 import { buildVerificationEmail } from './verification-email.js';
 
-const CUSTOMER_ROLE_CODE = 'CUSTOMER';
 const UNKNOWN_PASSWORD_HASH = '$2b$12$kzzzR78c851Kd4LxTJycQe/toZ7t7DbCWRLKxCDY8FpcWnrPLk48e';
 
 interface AuthenticationResult extends AuthResponse {
@@ -69,7 +69,7 @@ export class AuthService {
 
     const [passwordHash, customerRole] = await Promise.all([
       this.passwordHasher.hash(request.password),
-      this.prisma.role.findUnique({ where: { code: CUSTOMER_ROLE_CODE }, select: { id: true } }),
+      this.prisma.role.findUnique({ where: { code: RoleCode.CUSTOMER }, select: { id: true } }),
     ]);
     if (!customerRole) throw this.customerRoleMissing();
 

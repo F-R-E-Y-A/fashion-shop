@@ -1,6 +1,6 @@
 ---
 title: Sổ nợ kỹ thuật
-updated: 2026-09-28
+updated: 2026-09-30
 status: đang dùng
 owner: Bảo
 ---
@@ -16,7 +16,7 @@ Thêm mục: cấp mã tăng dần, đừng xoá mục đã xong mà đổi tr�
 |---|---|---|---|---|
 | ND-01 | 7 lỗ hổng mức cao từ thư viện cấp dưới: `multer` theo `@nestjs/platform-express`, `deepmerge-ts` và `mysql2` theo `prisma` | Không phải mã của nhóm, phải đợi bản vá của thư viện trên. `mysql2` chỉ là trình điều khiển MySQL mà dự án không dùng. CI chặn ở mức nghiêm trọng, mức cao thì ghi báo cáo | Kiểm lại mỗi sprint bằng `npm audit`; nâng bản khi có | Chấp nhận |
 | ND-02 | Kiểu dữ liệu ở giao diện gõ tay trong `features/*/api/*.api.ts`, sẽ lệch với máy chủ khi API đổi | Sinh kiểu từ OpenAPI chỉ đáng làm khi đặc tả đã ổn định; giờ đổi từng ngày | S3, khi 3 phân hệ đầu đã chốt hợp đồng | Mở |
-| ND-03 | Authentication đã triển khai (đăng nhập, `AuthGuard`, `CurrentUser`; PH3.1 đến PH3.4 đã gộp). Authorization theo vai trò (RBAC) chưa có: không có `RolesGuard` hay `@Roles`, `roles` chỉ nằm trong `CurrentUser`. Route web `/quan-tri` chưa kiểm tra vai trò (cũng chưa yêu cầu đăng nhập) | Backend hiện chỉ có API đọc công khai (`products` chỉ có `GET`), chưa có endpoint ghi dành cho quản trị cần áp vai trò. Chưa có yêu cầu cụ thể cho các thao tác quản trị ghi dữ liệu, nên RBAC được trì hoãn để không thiết kế quyền khi chưa đủ yêu cầu | Bắt buộc trước khi merge hoặc phát hành endpoint ghi quản trị đầu tiên. Kế hoạch ban đầu: S3, trong phần phân quyền của PH-03 | Mở |
+| ND-03 | Authentication đã triển khai (PH3.1 đến PH3.4 đã gộp). Authorization theo vai trò: **phía máy chủ đã có ở Admin.1** (nhánh `feature/ph3-rbac-admin-users`, chưa gộp): `RequireRoles`, `RolesGuard`, `RoleCode`, vai `ADMIN` nạp bằng migration, API quản trị đầu tiên là `GET /api/admin/users` ([ADR-021](features/auth/LOG.md#adr-021)). Còn thiếu: route web `/quan-tri` chưa kiểm đăng nhập hay vai trò; chưa có vai `STAFF` | Chặn `/quan-tri` ở giao diện phải sửa `routes.tsx` và `core/http.ts`, hai tệp pull request #15 đang sửa; làm sau khi #15 gộp để khỏi xung đột. Hôm nay trang đó chỉ đọc API công khai, còn API quản trị đã bị chặn ở máy chủ. `STAFF` chưa có phân hệ nào dùng | Giao diện: Admin.3, sau khi #15 gộp. `STAFF`: khi phân hệ nhân viên đầu tiên (tồn kho hay xử lý đơn) cần | Mở |
 | ND-04 | Chưa có nhật ký có cấu trúc và mã yêu cầu; hiện dùng logger mặc định của Nest | Chỉ cần khi có nhiều phân hệ gọi chéo nhau để lần vết | HT-05, S5 | Mở |
 | ND-05 | `AllExceptionsFilter` đọc `body.error` để đặt mã lỗi, nên mã lỗi phụ thuộc chuỗi tiếng Anh của Nest | Đủ dùng cho ba người; đổi sang lớp lỗi nghiệp vụ riêng khi có phân hệ cần mã lỗi ổn định cho giao diện | S3, khi giỏ hàng và đặt hàng cần phân biệt lỗi nghiệp vụ | Mở |
 | ND-06 | Chưa đặt ngưỡng độ phủ kiểm thử, mới chỉ xuất báo cáo | Đặt ngưỡng khi chưa có mã nghiệp vụ thì chỉ là con số vô nghĩa. Ngưỡng do Duy chốt trong `test-strategy.md` | S2, cùng HT-04 | Mở |

@@ -6,6 +6,7 @@ import { PrismaModule } from './infra/prisma/prisma.module.js';
 import { AuthModule } from './modules/auth/index.js';
 import { HealthModule } from './modules/health/index.js';
 import { ProductsModule } from './modules/products/index.js';
+import { UsersModule } from './modules/users/index.js';
 
 /**
  * Goc cua ung dung. Moi phan he moi chi them dung MOT dong vao mang imports, va import qua index.js
@@ -28,6 +29,7 @@ import { ProductsModule } from './modules/products/index.js';
     AuthModule,
     HealthModule,
     ProductsModule,
+    UsersModule,
   ],
 })
 export class AppModule {}

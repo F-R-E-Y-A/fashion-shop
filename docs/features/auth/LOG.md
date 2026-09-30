@@ -1,6 +1,6 @@
 ---
 title: Tài khoản và xác thực — nhật ký quyết định và thay đổi
-updated: 2026-09-24
+updated: 2026-09-30
 status: đang dùng
 owner: Tài
 ---
@@ -408,3 +408,63 @@ Thực tế: có test unit cho `SmtpMailService` và test HTTP cho ba luồng. K
 ### Điều kiện xem lại
 
 Khi vận hành cần đối chiếu lỗi gửi mail với một người dùng cụ thể một cách thường xuyên (chuyển sang phương án B).
+
+<a id="adr-021"></a>
+
+## 2026-09-30 · ADR-021 — Phân quyền theo vai bằng `RequireRoles` gộp `AuthGuard` và `RolesGuard`; danh mục vai nạp bằng migration, không bằng seed
+
+**Loại:** quyết định · **Phạm vi:** `apps/api/src/modules/auth` (`RoleCode`, `RolesGuard`, `RequireRoles`, `grantAdminRole`), `apps/api/src/modules/users`, bảng `roles` và `user_roles`, `prisma/seed/identity.seed.ts`, `test/helpers/db.ts` · **Trạng thái:** đề xuất · **Người quyết:** Tài · **Commit:** (điền khi thi hành)
+
+Số ADR: 018 đã được [products/LOG#adr-018](../products/LOG.md#adr-018) dùng, 019 và 020 do Issue #23 giữ
+trước, nên lấy 021.
+
+### Hiện trạng
+
+- Không có `RolesGuard`, `@Roles` hay endpoint quản trị nào; `roles` chỉ nằm trong `CurrentUser`
+  ([ND-03](../../TECH_DEBT.md)). `AuthGuard` đã đọc vai từ CSDL cho mỗi request (`auth.guard.ts:35-54`), JWT
+  chỉ mang `sub` và `ver`.
+- Bảng `roles` chỉ có `CUSTOMER`, và vai này **chỉ đến từ seed** (`identity.seed.ts`); migration không nạp
+  vai nào. Production không chạy seed (`SEED_ON_START` chỉ bật ở staging, `render.yaml`), nên trên
+  production `register()` sẽ trả `AUTH_CONFIGURATION_ERROR` vì thiếu `CUSTOMER` (suy luận từ mã, production
+  chưa triển khai).
+- Seed chạy cả trong image API (`docker-entrypoint.sh`, `SEED_ON_START`), nơi chỉ có `src/generated`, không
+  có `src/modules` (`apps/api/Dockerfile`). Seed import mã nghiệp vụ thì staging dừng lúc khởi động.
+
+### Phương án
+
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Controller tự gắn `@UseGuards(AuthGuard, RolesGuard)` và `@Roles(...)` | Quen thuộc với Nest | Quên một guard hay đảo thứ tự là thủng quyền mà không ai thấy | Có |
+| **B. Một decorator `RequireRoles` gắn cả hai guard đúng thứ tự, guard từ chối khi thiếu metadata (chọn)** | Không thể dùng sai cách; sai cấu hình thì đóng cửa | Không tách được hai guard nếu sau này cần | Có |
+| C. Kiểm vai trong service | Không cần guard | Mỗi chỗ viết lại một lần, dễ sót | Có |
+| Không làm gì | – | Endpoint quản trị đầu tiên không có chặn quyền | – |
+
+Danh mục vai:
+
+| Phương án | Được gì | Mất gì |
+|---|---|---|
+| Seed upsert vai | Đơn giản | Production không có vai; seed không import được `RoleCode` trong image |
+| **Migration dữ liệu `INSERT … ON CONFLICT (code) DO NOTHING` (chọn)** | Mọi môi trường có vai sau `migrate deploy`; chạy an toàn trên CSDL đã có `CUSTOMER` | Mã vai viết hai nơi (TypeScript và SQL) |
+| Tài khoản admin cố định trong seed | Có admin ngay | Staging công khai chạy seed: mật khẩu cố định là cửa mở |
+
+**Chọn B và migration dữ liệu.** Trade-off chấp nhận: mã vai có ở `role-code.ts` và trong SQL;
+`role-code.spec.ts` đọc mọi migration và đòi hai nơi khớp nhau. Quản trị viên đầu tiên do người vận hành
+nâng bằng `npm run admin:grant -w apps/api -- --email=<email>` từ một tài khoản đã tự đăng ký và xác thực.
+
+Hệ quả: seed thôi ghi vai; `resetDatabase()` của kiểm thử HTTP không xoá bảng `roles`, nên bài kiểm thử
+đăng ký dựa vào vai do migration nạp, đúng đường production.
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: ẩn danh gọi `/api/admin/users` nhận 401, `CUSTOMER` nhận 403, `ADMIN` nhận 200; gỡ hay cấp
+`ADMIN` trong CSDL có hiệu lực ngay request kế tiếp với cùng access token; `npm run db:drift` không lệch.
+Thực tế (30/09/2026, chưa commit): `test/admin-users.http.spec.ts` 17 bài xanh; `db:drift` "No difference
+detected"; migration áp lên CSDL dev giữ nguyên `CUSTOMER` cũ và thêm `ADMIN`. Kiểm chứng ngược: bỏ
+`RolesGuard` khỏi `RequireRoles` thì 3 bài HTTP đỏ; đảo thứ tự guard thì 11 bài HTTP và 2 bài đơn vị đỏ;
+đưa `passwordHash` vào `select` thì 1 bài đơn vị và 3 bài HTTP đỏ; cho qua khi thiếu metadata thì 2 bài
+đơn vị đỏ; thêm `STAFF` vào `RoleCode` mà không có migration thì 2 bài đơn vị đỏ.
+
+### Điều kiện xem lại
+
+Khi cần vai thứ ba (`STAFF`) hay quyền chi tiết hơn vai (theo từng thao tác), hoặc khi một phân hệ cần hai
+guard tách rời.
