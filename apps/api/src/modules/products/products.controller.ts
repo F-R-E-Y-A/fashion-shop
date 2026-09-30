@@ -7,6 +7,8 @@ import { ProductDetailResponse } from './dto/product-detail.response.js';
 import { ProductSlugParam } from './dto/product-slug.param.js';
 import { RelatedProductsQuery } from './dto/related-products.query.js';
 import { ProductsService } from './products.service.js';
+import { CatalogSearchService } from './search/catalog-search.service.js';
+import { usesSearchEngine } from './search/uses-search-engine.js';
 
 /**
  * Quy uoc duong dan chung cua du an:
@@ -20,13 +22,20 @@ import { ProductsService } from './products.service.js';
 @ApiTags('products')
 @Controller('products')
 export class ProductsController {
-  constructor(private readonly products: ProductsService) {}
+  constructor(
+    private readonly products: ProductsService,
+    private readonly catalog: CatalogSearchService,
+  ) {}
 
   @Get()
-  @ApiOperation({ summary: 'Liet ke san pham dang ban, co phan trang' })
+  @ApiOperation({
+    summary: 'Liet ke san pham dang ban, co phan trang; tim kiem, loc va so dem bo loc',
+    description:
+      'Co search, audience, categories, colors, sizes, minPrice, maxPrice, facets hoac sort=relevance thi di duong tim kiem (UC-03.2, UC-03.3); khong co thi liet ke co ban.',
+  })
   @ApiOkResponse({ type: ProductListResponse })
   list(@Query() query: ListProductsQuery): Promise<ProductListResponse> {
-    return this.products.list(query);
+    return usesSearchEngine(query) ? this.catalog.list(query) : this.products.list(query);
   }
 
   @Get(':slug/related')

@@ -120,7 +120,7 @@ describe('ProductsService (UC-03.1 catalog)', () => {
       include: { images: unknown };
       where: { images: unknown };
     };
-    expect(args.include.images).toMatchObject({ orderBy: { sortOrder: 'asc' }, take: 1 });
+    expect(args.include.images).toMatchObject({ orderBy: { sortOrder: 'asc' }, take: 2 });
     expect(args.where.images).toEqual({ some: {} });
   });
 
