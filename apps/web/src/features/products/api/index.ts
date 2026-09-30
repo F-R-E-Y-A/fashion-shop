@@ -1,4 +1,5 @@
 export {
+  type Audience,
   type CategoryCrumb,
   type CategoryDetail,
   categoryKeys,
@@ -14,6 +15,22 @@ export {
   type ProductDetail,
   type ProductImage,
   productKeys,
+  type ProductPage,
   type ProductSort,
   type ProductVariant,
 } from './products.api.js';
+export {
+  type CatalogFacets,
+  type ChipKind,
+  type FacetAudience,
+  type FacetCategory,
+  type FacetColor,
+  type FacetPrice,
+  type FacetSize,
+  type InterpretationChip,
+  type SearchInterpretation,
+  suggest,
+  type SuggestCategory,
+  type SuggestQuery,
+  type SuggestResponse,
+} from './search.api.js';

@@ -29,12 +29,15 @@ export interface ApiRequestOptions {
   body?: unknown;
   accessToken?: string;
   credentials?: RequestCredentials;
+  /** Huy yeu cau dang bay, vd goi y tim kiem khi khach go tiep. */
+  signal?: AbortSignal;
 }
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: options.method ?? 'GET',
     credentials: options.credentials,
+    signal: options.signal,
     headers: {
       Accept: 'application/json',
       ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }),
@@ -60,13 +63,17 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   return (await response.json()) as T;
 }
 
-export async function apiGet<T>(path: string, params?: QueryParams): Promise<T> {
+export async function apiGet<T>(
+  path: string,
+  params?: QueryParams,
+  signal?: AbortSignal,
+): Promise<T> {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params ?? {})) {
     if (value !== undefined && value !== '') query.set(key, String(value));
   }
   const search = query.toString();
-  return apiRequest<T>(search ? `${path}?${search}` : path);
+  return apiRequest<T>(search ? `${path}?${search}` : path, { signal });
 }
 
 /** Hinh dang tra ve cua moi duong dan liet ke, khop Page<T> ben may chu. */
