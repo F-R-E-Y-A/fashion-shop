@@ -1,0 +1,37 @@
+.form {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 780px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--ink);
+}
+.form input {
+  flex: 1;
+  min-width: 0;
+  padding-block: 6px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: var(--s2) var(--font-display);
+}
+.form input:focus-visible {
+  outline: 0;
+}
+.form button {
+  display: grid;
+  place-items: center;
+  padding: 6px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--ink);
+}
+.form:focus-within {
+  border-bottom-color: var(--accent);
+}
+.form svg {
+  width: 22px;
+  height: 22px;
+}

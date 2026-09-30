@@ -1,11 +1,3 @@
-.container {
-  max-width: 1200px;
-  margin-inline: auto;
-  padding-inline: clamp(16px, 4vw, 56px);
-}
-.section {
-  padding-block: clamp(64px, 8vw, 112px);
-}
 .eyebrow {
   font: 500 0.7rem var(--font-body);
   letter-spacing: var(--tracking-caps);
@@ -26,108 +18,6 @@
 .sectionHeader a {
   font-size: 0.7rem;
   letter-spacing: var(--tracking-caps);
-}
-.sortControl {
-  display: grid;
-  flex: 0 0 auto;
-  gap: 9px;
-  min-width: 204px;
-  cursor: pointer;
-}
-.sortCaption {
-  color: var(--muted);
-  font: 500 0.65rem var(--font-body);
-  letter-spacing: var(--tracking-caps);
-}
-.sortField {
-  position: relative;
-  display: flex;
-  align-items: center;
-  border: 1px solid rgb(30 20 12 / 0.25);
-  background: rgb(255 255 255 / 0.65);
-  transition:
-    border-color 180ms ease,
-    background-color 180ms ease,
-    box-shadow 180ms ease;
-}
-.sortField:hover {
-  border-color: var(--espresso);
-  background: #fff;
-}
-.sortField:focus-within {
-  border-color: var(--espresso);
-  box-shadow: 0 0 0 3px rgb(133 92 57 / 0.16);
-}
-.sortField select {
-  appearance: none;
-  width: 100%;
-  min-height: 49px;
-  padding: 0 47px 0 16px;
-  border: 0;
-  border-radius: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--ink);
-  font: 500 0.79rem var(--font-body);
-  cursor: pointer;
-}
-.sortField svg {
-  position: absolute;
-  right: 15px;
-  width: 18px;
-  height: 18px;
-  pointer-events: none;
-}
-.productGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 24px 20px;
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.card {
-  min-width: 0;
-}
-.cardImage {
-  aspect-ratio: 3 / 4;
-  overflow: hidden;
-  background: var(--surface);
-}
-.cardImage img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  transition: transform 400ms ease;
-}
-.missingImage {
-  width: 100%;
-  height: 100%;
-  display: grid;
-  place-items: center;
-  padding: 16px;
-  color: var(--muted);
-  font-size: 0.75rem;
-  text-align: center;
-}
-.cardName {
-  font: 500 0.75rem var(--font-body);
-  letter-spacing: var(--tracking-caps);
-  text-transform: uppercase;
-  margin: 12px 0 6px;
-}
-.card .eyebrow {
-  color: var(--muted);
-  margin: 12px 0 0;
-}
-.price {
-  margin: 0;
-  font-size: 0.85rem;
-}
-.price s {
-  color: var(--muted);
-  margin-left: 12px;
 }
 .hero {
   min-height: min(88vh, 720px);
@@ -289,22 +179,7 @@
   border-color: var(--ink);
   color: var(--on-dark);
 }
-.categoryMenu {
-  display: flex;
-  gap: clamp(16px, 2vw, 36px);
-  text-transform: uppercase;
-  letter-spacing: var(--tracking-caps);
-  font-size: 0.7rem;
-}
-.activeMenu {
-  text-decoration: underline;
-  text-decoration-color: var(--accent-bright);
-  text-underline-offset: 8px;
-}
 @media (prefers-reduced-motion: no-preference) {
-  .card:hover img {
-    transform: scale(1.04);
-  }
   .heroContent > * {
     animation: rise 0.7s both;
   }
@@ -340,8 +215,5 @@
   .sectionHeader {
     align-items: start;
     flex-direction: column;
-  }
-  .categoryMenu {
-    flex-wrap: wrap;
   }
 }

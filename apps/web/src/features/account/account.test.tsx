@@ -8,6 +8,7 @@ import { StoreLayout } from '@/app/StoreLayout';
 
 vi.mock('@/features/products', () => ({
   CategoryMenu: () => <nav data-testid="mock-category-menu" />,
+  SearchTrigger: () => <button type="button">Tìm kiếm</button>,
 }));
 
 import { AuthProvider, useAuth } from './AuthProvider.js';

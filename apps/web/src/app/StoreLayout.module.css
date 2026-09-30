@@ -26,10 +26,7 @@
   align-items: center;
   justify-self: end;
   gap: clamp(20px, 3vw, 40px);
-}
-.search {
-  display: grid;
-  place-items: center;
+  min-width: 0;
 }
 .account {
   display: flex;
