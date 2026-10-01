@@ -11,5 +11,6 @@ export {
   type ApiRequestOptions,
   type Page,
   type QueryParams,
+  setAccessTokenGetter,
 } from './http.js';
 export { queryClient } from './queryClient.js';

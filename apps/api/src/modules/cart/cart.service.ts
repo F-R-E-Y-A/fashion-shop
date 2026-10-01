@@ -178,6 +178,7 @@ export class CartService {
    * Neu ca hai co cung variantId thi cong don so luong.
    */
   async mergeCarts(guestToken: string, userId: string): Promise<CartResponse> {
+    if (!guestToken) return this.getCart(userId);
     const guestCart = await this.prisma.cart.findFirst({ where: { guestToken } });
     if (!guestCart) return this.getCart(userId);
 
