@@ -12,7 +12,7 @@ owner: Tài
 |---|---|
 | **Người sở hữu** | Tài · `apps/api/src/modules/auth` · `apps/web/src/features/account` · bảng trong `prisma/schema/identity.prisma` |
 | **Dòng việc** | PH-03 (Issue #8), sprint S2. Đã gộp vào `develop`: nền tảng auth #14, PH3.1 #18, PH3.2 #19, PH3.3 #20, PH3.4 #21. Đợt 2, S3: phân quyền theo vai, nhánh `feature/ph3-rbac-admin-users` (Admin.1, chưa gộp) |
-| **Use case** | Đặc tả của Duy đã gộp qua pull request #9 tại [uc-ph01-tai-khoan-xac-thuc.md](../../shared/uc-ph01-tai-khoan-xac-thuc.md), còn theo mã cũ `PH-01.m` (đăng ký, đăng nhập, đặt lại mật khẩu, đăng xuất, hồ sơ, địa chỉ, vóc dáng) và chưa chuyển sang `UC-NN.m` hay về `docs/features/auth/use-cases.md`. Xác thực email OTP và đổi mật khẩu (PH3.1, PH3.3) chưa có use case riêng |
+| **Use case** | UC-01.1 đến UC-01.6 trong [use-cases.md](use-cases.md) (đăng ký, xác thực OTP, đăng nhập, làm mới phiên/đăng xuất, đặt lại mật khẩu, đổi mật khẩu) |
 
 ## Hợp đồng công bố
 

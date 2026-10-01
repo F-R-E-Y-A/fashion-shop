@@ -1,19 +1,24 @@
-﻿# PH-13 · Tồn kho & Nhập hàng
+---
+title: UC-13 Tồn kho và nhập hàng — đặc tả use case
+updated: 2026-10-01
+status: đề xuất
+owner: Duy
+---
+# UC-13 · Tồn kho & Nhập hàng
 
-> Chép từ `uc-template.md`. Người viết đặc tả & người viết mã: **Phan Ngọc Duy** (sprint 2).
+**Chức năng:** Nhân viên quản lý số lượng tồn kho theo SKU, nhập hàng, xem lịch sử biến động và khách đăng ký nhận tin có hàng.
 
 | | |
 |---|---|
-| **Thuộc dòng việc** | PH-13, sprint S2 |
-| **Người viết** | Phan Ngọc Duy (HT-04) |
-| **Tác nhân chính** | Nhân viên, Khách hàng (PH-13.4) |
+| **Người viết đặc tả** | Phan Ngọc Duy (HT-04) |
+| **Tác nhân chính** | Nhân viên, Khách hàng (UC-13.4) |
 | **Tác nhân phụ** | — |
-| **Bảng CSDL** | `INVENTORIES`, `INVENTORY_MOVEMENTS`, `INVENTORY_RESERVATIONS`, `SKUS`, `PRODUCTS`, `PRODUCT_VARIANTS`, `BACK_IN_STOCK_SUBSCRIPTIONS` (nếu có), `USERS` |
-| **Trạng thái** | Đã duyệt |
+| **Bảng CSDL liên quan** | `inventories`, `inventory_movements`, `product_variants` |
+| **Trạng thái** | Đề xuất |
 
 ---
 
-## PH-13.1 · Xem tồn kho theo SKU
+## UC-13.1 · Xem tồn kho theo SKU
 
 ### Câu chuyện người dùng
 
@@ -74,7 +79,7 @@ Là một **nhân viên**, tôi muốn **xem số lượng tồn kho hiện tạ
 
 ---
 
-## PH-13.2 · Nhập hàng / Điều chỉnh tồn kho
+## UC-13.2 · Nhập hàng / Điều chỉnh tồn kho
 
 ### Câu chuyện người dùng
 
@@ -99,7 +104,7 @@ Là một **nhân viên**, tôi muốn **ghi nhận lô hàng nhập hoặc đi�
 | 3 | Bấm "Xác nhận nhập hàng" | Kiểm tra số lượng > 0 |
 | 4 | | Cập nhật `INVENTORIES.on_hand += quantity` (trong transaction) |
 | 5 | | Ghi `INVENTORY_MOVEMENTS` với `type = 'in'` |
-| 6 | | Gửi thông báo khi có hàng cho người đăng ký (PH-13.4 async) |
+| 6 | | Gửi thông báo khi có hàng cho người đăng ký (UC-13.4 async) |
 | 7 | | Trả 201 kèm tồn kho mới |
 
 ### Luồng chính — Điều chỉnh tồn kho (kiểm kê)
@@ -154,7 +159,7 @@ Là một **nhân viên**, tôi muốn **ghi nhận lô hàng nhập hoặc đi�
 
 ---
 
-## PH-13.3 · Xem lịch sử biến động tồn kho
+## UC-13.3 · Xem lịch sử biến động tồn kho
 
 ### Câu chuyện người dùng
 
@@ -206,7 +211,7 @@ Là một **nhân viên**, tôi muốn **xem toàn bộ lịch sử biến độ
 
 ---
 
-## PH-13.4 · Đặt thông báo khi có hàng trở lại
+## UC-13.4 · Đặt thông báo khi có hàng trở lại
 
 ### Câu chuyện người dùng
 
@@ -220,7 +225,7 @@ Là một **khách hàng**, tôi muốn **đăng ký nhận thông báo khi SKU 
 ### Điều kiện sau
 
 - Bản ghi đăng ký lưu trong `NOTIFICATIONS` / `BACK_IN_STOCK_SUBSCRIPTIONS` (hoặc bảng tương đương).
-- Khi nhập hàng (PH-13.2), job async gửi thông báo đến người đăng ký.
+- Khi nhập hàng (UC-13.2), job async gửi thông báo đến người đăng ký.
 
 ### Luồng chính — Đăng ký
 
@@ -232,7 +237,7 @@ Là một **khách hàng**, tôi muốn **đăng ký nhận thông báo khi SKU 
 | 4 | | Lưu đăng ký; trả 201 |
 | 5 | | Hiện thông báo "Chúng tôi sẽ báo bạn khi có hàng" |
 
-### Luồng chính — Gửi thông báo (async, kích hoạt từ PH-13.2)
+### Luồng chính — Gửi thông báo (async, kích hoạt từ UC-13.2)
 
 | Bước | Tác nhân làm | Hệ thống đáp |
 |---|---|---|
@@ -274,7 +279,7 @@ Là một **khách hàng**, tôi muốn **đăng ký nhận thông báo khi SKU 
 - [ ] POST `/notify-me` khi SKU hết hàng trả 201
 - [ ] POST lần 2 cùng SKU trả 200 (idempotent), không tạo bản ghi trùng
 - [ ] POST khi SKU còn hàng trả 422 `sku_still_in_stock`
-- [ ] Sau khi nhập hàng (PH-13.2), job gửi thông báo đến đúng người đăng ký
+- [ ] Sau khi nhập hàng (UC-13.2), job gửi thông báo đến đúng người đăng ký
 - [ ] User chưa đăng nhập trả 401
 
 ---
