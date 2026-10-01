@@ -8,7 +8,7 @@ import {
   useState,
 } from 'react';
 
-import { ApiError, apiRequest, type ApiRequestOptions } from '@/core';
+import { ApiError, apiRequest, type ApiRequestOptions, setAccessTokenGetter } from '@/core';
 
 import {
   login as loginRequest,
@@ -87,6 +87,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
     return refreshInFlight.current;
   }, [applyAuthentication, clearAuthentication]);
+
+  useEffect(() => {
+    setAccessTokenGetter(() => accessTokenRef.current);
+    return () => {
+      setAccessTokenGetter(null);
+    };
+  }, []);
 
   useEffect(() => {
     void restoreAccessToken().finally(() => setIsLoading(false));

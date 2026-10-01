@@ -32,14 +32,21 @@ export interface ApiRequestOptions {
   headers?: Record<string, string>;
 }
 
+let accessTokenGetter: (() => string | null) | null = null;
+
+export function setAccessTokenGetter(getter: (() => string | null) | null): void {
+  accessTokenGetter = getter;
+}
+
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  const token = options.accessToken ?? accessTokenGetter?.();
   const response = await fetch(`${BASE_URL}${path}`, {
     method: options.method ?? 'GET',
     credentials: options.credentials,
     headers: {
       Accept: 'application/json',
       ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      ...(options.accessToken ? { Authorization: `Bearer ${options.accessToken}` } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
