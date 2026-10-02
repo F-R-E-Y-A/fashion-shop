@@ -46,8 +46,8 @@ khóa tăng `authVersion` và thu hồi mọi refresh token, còn đăng nhập 
 ([ADR-022](LOG.md#adr-022)).
 
 Chưa có, biết và cố ý: chặn `/quan-tri` **ở giao diện** (chờ pull request #15 gộp vì cùng sửa `routes.tsx`),
-vai `STAFF`, gán vai qua API ([ND-03](../../TECH_DEBT.md)). Cũng chưa có: hồ sơ cá nhân, địa chỉ, hồ sơ vóc
-dáng, OAuth, 2FA.
+vai `STAFF`, gán vai qua API ([ND-03](../../TECH_DEBT.md)). Hồ sơ cá nhân và sổ địa chỉ nằm ở feature
+[users](../users/README.md). Cũng chưa có: hồ sơ vóc dáng, OAuth, 2FA.
 
 Nền tảng ban đầu: `identity.prisma` và migration baseline đã có `users`, `roles`, `user_roles`, `refresh_tokens`.
 Phase 4 đã có refresh/logout: refresh cookie HttpOnly được rotate khi cấp access token mới, còn

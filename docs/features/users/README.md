@@ -1,18 +1,18 @@
 ---
-title: Quản trị tài khoản — bản đồ
+title: Tài khoản người dùng — bản đồ
 updated: 2026-09-30
 status: đang làm
 owner: Tài
 ---
-# Quản trị tài khoản
+# Tài khoản người dùng
 
-**Chức năng:** Cửa vào của feature quản trị tài khoản: phạm vi Admin.1 và Admin.2, dữ liệu, API, quyền, phiên, nhật ký, kiểm thử, việc còn mở.
+**Chức năng:** Cửa vào của feature tài khoản: quản trị tài khoản (Admin.1, Admin.2) ở đây, hồ sơ và sổ địa chỉ ở [profile-address.md](profile-address.md).
 
 | | |
 |---|---|
-| **Người sở hữu** | Tài · module `apps/api/src/modules/users` · bảng `users`, `roles`, `user_roles`, `refresh_tokens`, `audit_logs` trong `prisma/schema/identity.prisma` |
-| **Dòng việc** | PH3 đợt 2 (S3): phân quyền theo vai và quản trị người dùng, nhánh `feature/ph3-rbac-admin-users`. Admin.1 (đọc, `35f09a7`), Admin.2 (khóa, mở khóa) |
-| **Use case** | PH-02.1 "Quản lý tài khoản người dùng" trong [sơ đồ use case](../../shared/diagrams/uc-tong-quan.md), theo quy ước mới là UC-02.1. Chưa có đặc tả; [use-case-index.md](../../shared/use-case-index.md) còn trống |
+| **Người sở hữu** | Tài · module `apps/api/src/modules/users` · bảng `users`, `roles`, `user_roles`, `refresh_tokens`, `audit_logs`, `addresses`, `administrative_areas` trong `prisma/schema/identity.prisma` |
+| **Dòng việc** | PH3 đợt 2 (S3): phân quyền theo vai và quản trị người dùng, đã gộp qua pull request #24 (`aee345e`). PH4: hồ sơ và sổ địa chỉ phía máy chủ, nhánh `feature/ph4-user-profile-address` |
+| **Use case** | PH-02.1 "Quản lý tài khoản người dùng" trong [sơ đồ use case](../../shared/diagrams/uc-tong-quan.md), theo quy ước mới là UC-02.1, chưa có đặc tả. Hồ sơ và địa chỉ: PH-01.5, PH-01.6 trong [uc-ph01](../../shared/uc-ph01-tai-khoan-xac-thuc.md), nay là UC-01.5, UC-01.6. [use-case-index.md](../../shared/use-case-index.md) còn trống |
 
 ## Giải quyết việc gì
 
@@ -29,6 +29,8 @@ quản trị đầu tiên của hệ thống, nơi phân quyền theo vai ([ADR-
 | `POST /api/admin/users/:id/lock`, `POST /api/admin/users/:id/unlock`, thu hồi phiên, nhật ký | Admin.2, xong |
 | Chặn `/quan-tri` ở giao diện | Chưa làm: pull request #15 đang sửa `routes.tsx`, `StoreLayout.tsx`, `core/http.ts` |
 | Gán vai, tìm kiếm, `STAFF`, màn xem nhật ký | Chưa làm |
+| Hồ sơ `GET`/`PATCH /api/users/me`, khu vực hành chính, sổ địa chỉ | PH4, xong phía máy chủ: [profile-address.md](profile-address.md) |
+| Dữ liệu tỉnh/xã thật, giao diện tài khoản | Chưa làm: [ND-12](../../TECH_DEBT.md), chờ pull request #15 |
 
 ## Dữ liệu
 
@@ -101,8 +103,9 @@ môi trường đó trước lệnh. Vai có hiệu lực ngay request kế ti�
 
 ## Trạng thái hôm nay (30/09/2026)
 
-Admin.1 đã commit (`35f09a7`). Admin.2 phía máy chủ xong, chưa commit. Chưa gộp vào `develop`. Chưa có giao
-diện.
+Admin.1 và Admin.2 đã gộp vào `develop` (pull request #24, `aee345e`). Hồ sơ, khu vực hành chính và sổ địa chỉ
+phía máy chủ xong trên nhánh `feature/ph4-user-profile-address`, chưa commit. Chưa có dữ liệu tỉnh/xã thật và
+chưa có giao diện.
 
 ## Còn mở
 
