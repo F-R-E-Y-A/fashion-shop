@@ -8,6 +8,7 @@ import {
   ResetPasswordPage,
   VerifyEmailPage,
 } from '@/features/account';
+import { CartPage } from '@/features/cart';
 import {
   AdminProductsPage,
   CategoryPage,
@@ -39,6 +40,7 @@ export function AppRoutes() {
           <Route path="danh-muc/:slug" element={<CategoryPage />} />
           <Route path="san-pham" element={<ProductListPage />} />
           <Route path="san-pham/:slug" element={<ProductDetailPage />} />
+          <Route path="gio-hang" element={<CartPage />} />
           <Route path="login" element={<LoginPage />} />
           <Route path="register" element={<RegisterPage />} />
           <Route path="xac-thuc-email" element={<VerifyEmailPage />} />

@@ -1,10 +1,42 @@
+import { QueryClientContext, useQuery } from '@tanstack/react-query';
+import { useContext } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 
 import { useAuth } from '@/features/account';
+import { cartKeys, getCart } from '@/features/cart';
 import { CategoryMenu } from '@/features/products';
 import { SearchIcon } from '@/ui';
 
 import styles from './StoreLayout.module.css';
+
+function CartBadgeWithQuery() {
+  const { data: cart } = useQuery({
+    queryKey: cartKeys.current(),
+    queryFn: getCart,
+    staleTime: 30_000,
+  });
+
+  const itemCount = cart?.itemCount ?? 0;
+
+  return (
+    <NavLink to="/gio-hang" className={styles.search} aria-label="Giỏ hàng">
+      🛒
+      {itemCount > 0 && <span style={{ marginLeft: 4, fontWeight: 700 }}>({itemCount})</span>}
+    </NavLink>
+  );
+}
+
+function CartBadge() {
+  const hasQueryClient = Boolean(useContext(QueryClientContext));
+  if (!hasQueryClient) {
+    return (
+      <NavLink to="/gio-hang" className={styles.search} aria-label="Giỏ hàng">
+        🛒
+      </NavLink>
+    );
+  }
+  return <CartBadgeWithQuery />;
+}
 
 export function StoreLayout() {
   const { isAuthenticated, isLoading, logout, user } = useAuth();
@@ -22,6 +54,7 @@ export function StoreLayout() {
           <Link className={styles.search} to="/san-pham" aria-label="Tìm sản phẩm">
             <SearchIcon />
           </Link>
+          <CartBadge />
           <div className={styles.account} aria-live="polite">
             {isLoading && <span className={styles.accountStatus}>Đang khôi phục phiên…</span>}
             {!isLoading && !isAuthenticated && (
