@@ -138,16 +138,19 @@ async function fillChangePasswordForm(
 }
 
 function renderStore() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <AuthProvider>
-      <MemoryRouter>
-        <Routes>
-          <Route element={<StoreLayout />}>
-            <Route index element={<p>Cửa hàng</p>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>
-    </AuthProvider>,
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <MemoryRouter>
+          <Routes>
+            <Route element={<StoreLayout />}>
+              <Route index element={<p>Cửa hàng</p>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </AuthProvider>
+    </QueryClientProvider>,
   );
 }
 
