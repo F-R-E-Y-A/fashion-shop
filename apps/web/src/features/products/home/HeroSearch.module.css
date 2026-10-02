@@ -41,12 +41,6 @@
 .inner > * {
   max-width: 800px;
 }
-.eyebrow {
-  margin: 0;
-  color: var(--amber-glow);
-  font-size: var(--s-1);
-  letter-spacing: 0.16em;
-}
 .title {
   margin: 0;
   font-size: var(--s5);

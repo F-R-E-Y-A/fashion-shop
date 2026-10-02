@@ -1,8 +1,6 @@
 import { type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
-import { layout } from '@/ui';
-
 import styles from './HeroSearch.module.css';
 import { HERO, HERO_HINTS, searchLink } from './home-content.js';
 
@@ -28,11 +26,10 @@ export function HeroSearch() {
         fetchPriority="high"
       />
       <div className={styles.inner}>
-        <p className={`${layout.eyebrow} ${styles.eyebrow}`}>{HERO.eyebrow}</p>
         <h1 id="hero-title" className={styles.title}>
-          <span>Cứ nói điều</span>{' '}
+          <span>Mặc đẹp,</span>{' '}
           <span>
-            bạn <em>muốn mặc.</em>
+            <em>theo cách của bạn.</em>
           </span>
         </h1>
         <p className={styles.sub}>{HERO.sub}</p>

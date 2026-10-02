@@ -69,7 +69,7 @@ describe('HomePage (UC-03.1, PH-01 dot 2)', () => {
     stubFetch();
     renderHome();
     expect(
-      screen.getByRole('heading', { level: 1, name: 'Cứ nói điều bạn muốn mặc.' }),
+      screen.getByRole('heading', { level: 1, name: 'Mặc đẹp, theo cách của bạn.' }),
     ).toBeInTheDocument();
     const hero = screen.getByRole('search');
     expect(within(hero).getByLabelText('Tìm sản phẩm bằng câu nói tự nhiên')).toBeInTheDocument();

@@ -1,8 +1,7 @@
 /** Chu co dinh cua trang chu. Chep dung tu ban mau thiet ke (design/README.md muc 6). */
 
 export const HERO = {
-  eyebrow: 'Giờ hổ phách · Thu 2026',
-  sub: 'Gõ như đang nhắn cho một người bạn hiểu thời trang. Màu, cỡ, dịp mặc và ngân sách đều được hiểu, có dấu hay không dấu.',
+  sub: 'Tìm bất cứ thứ gì, với mong muốn tự nhiên nhất của bạn',
   placeholder: 'polo nữ trắng dưới 100k',
   imageAlt: 'Người mẫu mặc sơ mi lụa kem và quần tây ống rộng đi trong nắng chiều',
   /** Kich thuoc that cua hero.webp, de trinh duyet giu cho truoc khi anh tai xong. */
