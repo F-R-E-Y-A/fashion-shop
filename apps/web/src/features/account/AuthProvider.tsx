@@ -1,3 +1,4 @@
+import { QueryClientContext } from '@tanstack/react-query';
 import {
   createContext,
   type ReactNode,
@@ -16,6 +17,7 @@ import {
   refresh,
   register as registerRequest,
 } from './api/index.js';
+import { addressKeys, profileKeys } from './api/profile-address.api.js';
 import type { AuthenticatedUser, AuthResponse, Credentials, RegisterResponse } from './types.js';
 
 interface AuthContextValue {
@@ -52,6 +54,7 @@ function refreshOnce(): Promise<AuthResponse> {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useContext(QueryClientContext);
   const [user, setUser] = useState<AuthenticatedUser | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -68,7 +71,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     accessTokenRef.current = null;
     setAccessToken(null);
     setUser(null);
-  }, []);
+    queryClient?.removeQueries({ queryKey: profileKeys.all });
+    queryClient?.removeQueries({ queryKey: addressKeys.all });
+  }, [queryClient]);
 
   const restoreAccessToken = useCallback(async (): Promise<string | null> => {
     if (refreshInFlight.current) return refreshInFlight.current;

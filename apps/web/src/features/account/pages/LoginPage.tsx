@@ -1,5 +1,5 @@
 import { type FormEvent, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { ApiError } from '@/core';
 
@@ -8,6 +8,7 @@ import { useAuth } from '../AuthProvider.js';
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +22,10 @@ export function LoginPage() {
     setIsSubmitting(true);
     try {
       await login({ email, password });
-      navigate('/');
+      const from = (location.state as { from?: unknown } | null)?.from;
+      navigate(
+        typeof from === 'string' && from.startsWith('/') && !from.startsWith('//') ? from : '/',
+      );
     } catch (submitError) {
       if (submitError instanceof ApiError && submitError.body.code === 'EMAIL_NOT_VERIFIED') {
         setUnverifiedEmail(email);

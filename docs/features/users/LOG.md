@@ -1,12 +1,12 @@
 ---
-title: Quản trị tài khoản — nhật ký quyết định và thay đổi
-updated: 2026-09-30
+title: Tài khoản người dùng — nhật ký quyết định và thay đổi
+updated: 2026-10-03
 status: đang dùng
 owner: Tài
 ---
-# Quản trị tài khoản — nhật ký (chỉ thêm vào cuối)
+# Tài khoản người dùng — nhật ký (chỉ thêm vào cuối)
 
-**Chức năng:** Quyết định và thay đổi đáng nhớ của feature quản trị tài khoản, mới nhất ở cuối.
+**Chức năng:** Quyết định và thay đổi đáng nhớ của feature tài khoản người dùng, mới nhất ở cuối.
 
 Khuôn một mục: [LOG-entry.md](../../shared/templates/LOG-entry.md). Phân quyền theo vai là hạ tầng của module
 `auth`, nên quyết định của nó nằm ở [auth/LOG#adr-021](../auth/LOG.md#adr-021).
@@ -139,3 +139,20 @@ CSDL dev của Tài; CSDL dev đó cần xử lý riêng (không ảnh hưởng 
 
 Nợ sinh ra: [ND-12](../../TECH_DEBT.md) (dữ liệu tỉnh/xã). Tài liệu đã sửa theo: `profile-address.md`,
 `README.md`, `docs/shared/data-model.md`, `docs/features/auth/README.md`, `docs/TECH_DEBT.md`.
+
+## 2026-10-03 · PH4: giao diện hồ sơ và sổ địa chỉ
+
+**Loại:** thay đổi mã · **Phạm vi:** `apps/web/src/features/account`, `apps/web/src/app` · **Commit:** (chưa commit)
+
+Thêm các trang `/tai-khoan/ho-so` và `/tai-khoan/dia-chi` dưới `RequireAuth`; đăng nhập quay về trang nội bộ
+đã yêu cầu. Giao diện hồ sơ chỉ gửi các trường đã đổi; sổ địa chỉ dùng API khu vực hành chính để chọn tỉnh và xã,
+cho tạo, sửa, xoá và đặt mặc định. Danh sách khu vực rỗng được báo rõ; địa chỉ cũ vẫn sửa được thông tin khác.
+Khi phiên bị xoá, cache riêng của hồ sơ và địa chỉ được dọn. Hợp đồng giao diện hiện tại:
+[profile-address.md](profile-address.md#giao-diện-web-hiện-tại).
+
+Chưa có dữ liệu tỉnh/xã thật ([ND-12](../../TECH_DEBT.md)). Avatar và tích hợp địa chỉ với checkout chưa nằm
+trong đợt giao diện này.
+
+Kiểm chứng trên nhánh chưa commit: `npm run typecheck -w apps/web` và `npm run test -w apps/web` đều đạt
+(71/71 bài web); `npm run check` đạt; `node tools/docs/lint.mjs docs/features/users` đạt 3/3 tệp;
+`git diff --check` đạt.

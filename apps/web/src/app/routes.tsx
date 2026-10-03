@@ -1,10 +1,14 @@
-import { Link, Route, Routes } from 'react-router-dom';
+import { Link, Navigate, Route, Routes } from 'react-router-dom';
 
 import {
+  AccountLayout,
+  AddressPage,
   ChangePasswordPage,
   ForgotPasswordPage,
   LoginPage,
+  ProfilePage,
   RegisterPage,
+  RequireAuth,
   ResetPasswordPage,
   VerifyEmailPage,
 } from '@/features/account';
@@ -47,6 +51,13 @@ export function AppRoutes() {
           <Route path="quen-mat-khau" element={<ForgotPasswordPage />} />
           <Route path="dat-lai-mat-khau" element={<ResetPasswordPage />} />
           <Route path="doi-mat-khau" element={<ChangePasswordPage />} />
+          <Route element={<RequireAuth />}>
+            <Route path="tai-khoan" element={<AccountLayout />}>
+              <Route index element={<Navigate to="ho-so" replace />} />
+              <Route path="ho-so" element={<ProfilePage />} />
+              <Route path="dia-chi" element={<AddressPage />} />
+            </Route>
+          </Route>
           <Route path="*" element={<NotFoundPage />} />
         </Route>
         <Route path="quan-tri" element={<AdminLayout />}>
