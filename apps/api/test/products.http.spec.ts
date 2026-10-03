@@ -53,9 +53,9 @@ describe('GET /api/products (UC-03.1 Khám phá sản phẩm)', () => {
   });
 
   it('UC-03.2/AC2 tim theo ten khong phan biet hoa thuong', async () => {
-    const expected = PRODUCTS.filter((p) => p.name.toLowerCase().includes('quan')).length;
+    const expected = PRODUCTS.filter((p) => p.name.toLowerCase().includes('polo')).length;
 
-    const res = await t.http.get('/api/products').query({ search: 'QUAN' }).expect(200);
+    const res = await t.http.get('/api/products').query({ search: 'POLO' }).expect(200);
 
     expect(res.body.total).toBe(expected);
   });

@@ -29,6 +29,8 @@ export interface ApiRequestOptions {
   body?: unknown;
   accessToken?: string;
   credentials?: RequestCredentials;
+  /** Huy yeu cau dang bay, vd goi y tim kiem khi khach go tiep. */
+  signal?: AbortSignal;
   headers?: Record<string, string>;
 }
 
@@ -43,6 +45,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   const response = await fetch(`${BASE_URL}${path}`, {
     method: options.method ?? 'GET',
     credentials: options.credentials,
+    signal: options.signal,
     headers: {
       Accept: 'application/json',
       ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }),
@@ -69,17 +72,23 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   return (await response.json()) as T;
 }
 
+/** Tuy chon rieng cua GET: huy yeu cau dang bay va header phu (vd x-guest-token cua gio hang). */
+export interface ApiGetOptions {
+  signal?: AbortSignal;
+  headers?: Record<string, string>;
+}
+
 export async function apiGet<T>(
   path: string,
   params?: QueryParams,
-  headers?: Record<string, string>,
+  options: ApiGetOptions = {},
 ): Promise<T> {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params ?? {})) {
     if (value !== undefined && value !== '') query.set(key, String(value));
   }
   const search = query.toString();
-  return apiRequest<T>(search ? `${path}?${search}` : path, { headers });
+  return apiRequest<T>(search ? `${path}?${search}` : path, options);
 }
 
 export const apiPost = <T>(path: string, body?: unknown, headers?: Record<string, string>) =>

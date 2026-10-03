@@ -10,22 +10,13 @@ import type { ImportProductRow, ImportRowResult } from './import/import.types.js
 import { ImportRowError } from './import/import-row.error.js';
 import { sourceSlug } from './import/slug.js';
 import { validateRow } from './import/validate-row.js';
-
-// Gia lay tu products.price_from (gia ban thap nhat, service tinh lai khi ghi bien the, ADR-007),
-// nen khong can truy van phu tim bien the re nhat cho moi dong.
-const storefrontProductInclude = {
-  category: true,
-  brand: { select: { name: true } },
-  variants: {
-    where: { isActive: true },
-    select: { listPrice: true, salePrice: true },
-  },
-  images: {
-    orderBy: { sortOrder: 'asc' },
-    take: 1,
-    select: { url: true },
-  },
-} as const;
+import { audienceFrom } from './search/audience.js';
+import {
+  storefrontProductInclude,
+  storefrontProductWhere,
+  toProductResponse,
+  visibleCategory,
+} from './storefront.js';
 
 const detailProductInclude = {
   category: { include: { parent: true } },
@@ -33,19 +24,6 @@ const detailProductInclude = {
   images: { orderBy: { sortOrder: 'asc' }, include: { color: true } },
   variants: { where: { isActive: true }, include: { color: true, size: true } },
 } as const;
-
-const visibleCategory: Prisma.CategoryWhereInput = {
-  isActive: true,
-  OR: [{ parentId: null }, { parent: { isActive: true } }],
-};
-
-function listPriceOf(
-  variants: Array<{ listPrice: Prisma.Decimal; salePrice: Prisma.Decimal | null }>,
-  priceFrom: Prisma.Decimal,
-): string | null {
-  const discounted = variants.find((variant) => variant.salePrice?.equals(priceFrom));
-  return discounted?.listPrice.toString() ?? null;
-}
 
 const cartVariantInclude = {
   color: true,
@@ -182,6 +160,8 @@ export class ProductsService {
       attributes:
         row.attributes === undefined ? Prisma.DbNull : (row.attributes as Prisma.InputJsonObject),
       priceFrom,
+      // Suy tu slug danh muc nguon luc nap; nap lai thi cap nhat theo nguon (3.2b, ADR-019).
+      audience: audienceFrom(row.attributes, row.name),
       isActive: row.images.length > 0,
     };
     const product = existingProductId
@@ -239,10 +219,7 @@ export class ProductsService {
   async list(query: ListProductsQuery): Promise<ProductListResponse> {
     const { search, categorySlug } = query;
 
-    const where: Prisma.ProductWhereInput = {
-      isActive: true,
-      variants: { some: { isActive: true } },
-      images: { some: {} },
+    const where: Prisma.ProductWhereInput = storefrontProductWhere({
       category: categorySlug
         ? {
             AND: [
@@ -253,7 +230,7 @@ export class ProductsService {
         : visibleCategory,
       ...(search ? { name: { contains: search, mode: 'insensitive' } } : {}),
       ...(query.featured ? { isFeatured: true } : {}),
-    };
+    });
     const orderBy: Prisma.ProductOrderByWithRelationInput[] =
       query.sort === 'price_asc'
         ? [{ priceFrom: 'asc' }, { id: 'asc' }]
@@ -274,7 +251,7 @@ export class ProductsService {
     ]);
 
     return toPage(
-      rows.map((row) => this.toResponse(row)),
+      rows.map((row) => toProductResponse(row)),
       total,
       query,
     );
@@ -282,13 +259,7 @@ export class ProductsService {
 
   async findBySlug(slug: string): Promise<ProductDetailResponse> {
     const row = await this.prisma.product.findFirst({
-      where: {
-        slug,
-        isActive: true,
-        category: visibleCategory,
-        variants: { some: { isActive: true } },
-        images: { some: {} },
-      },
+      where: storefrontProductWhere({ slug }),
       include: detailProductInclude,
     });
     if (!row) throw new NotFoundException(`Không tìm thấy sản phẩm: ${slug}`);
@@ -305,7 +276,7 @@ export class ProductsService {
       ).values(),
     ];
     return {
-      ...this.toResponse(row),
+      ...toProductResponse(row),
       material: row.material,
       careInstructions: row.careInstructions,
       breadcrumb: [
@@ -343,19 +314,12 @@ export class ProductsService {
     });
     if (!current) throw new NotFoundException(`Không tìm thấy sản phẩm: ${slug}`);
     const rows = await this.prisma.product.findMany({
-      where: {
-        id: { not: current.id },
-        categoryId: current.categoryId,
-        isActive: true,
-        category: visibleCategory,
-        variants: { some: { isActive: true } },
-        images: { some: {} },
-      },
+      where: storefrontProductWhere({ id: { not: current.id }, categoryId: current.categoryId }),
       include: storefrontProductInclude,
       orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
       take: limit,
     });
-    return rows.map((product) => this.toResponse(product));
+    return rows.map((product) => toProductResponse(product));
   }
 
   async getVariantForCart(variantId: string): Promise<VariantForCart | null> {
@@ -396,32 +360,6 @@ export class ProductsService {
       price: (variant.salePrice ?? variant.listPrice).toString(),
       imageUrl: image?.url ?? null,
       isActive: variant.isActive && variant.product.isActive,
-    };
-  }
-
-  private toResponse(row: {
-    id: string;
-    name: string;
-    slug: string;
-    description: string | null;
-    category: { name: string; slug: string };
-    brand: { name: string } | null;
-    variants: Array<{ listPrice: Prisma.Decimal; salePrice: Prisma.Decimal | null }>;
-    priceFrom: Prisma.Decimal;
-    images: Array<{ url: string }>;
-  }): ProductResponse {
-    return {
-      id: row.id,
-      name: row.name,
-      slug: row.slug,
-      description: row.description,
-      // Decimal -> chuoi, giao dien tu dinh dang. Khong tra Float.
-      price: row.priceFrom.toString(),
-      imageUrl: row.images[0]?.url ?? null,
-      categoryName: row.category.name,
-      categorySlug: row.category.slug,
-      brandName: row.brand?.name ?? null,
-      listPrice: listPriceOf(row.variants, row.priceFrom),
     };
   }
 }

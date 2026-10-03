@@ -1,10 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
-import { Empty, ErrorNote, Pager, SkeletonGrid } from '@/ui';
+import { Empty, ErrorNote, layout, Pager, SkeletonGrid } from '@/ui';
 
 import { listProducts, productKeys } from '../api/index.js';
-import styles from '../components/Catalog.module.css';
 import { ProductGrid } from '../components/ProductGrid.js';
 
 /**
@@ -24,7 +23,7 @@ export function ProductListPage() {
   });
 
   return (
-    <div className={`${styles.container} ${styles.section}`}>
+    <div className={`${layout.container} ${layout.section}`}>
       <h1>Sản phẩm</h1>
 
       <form

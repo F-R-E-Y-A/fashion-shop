@@ -19,7 +19,25 @@ export default defineConfig({
     port: 5174,
     strictPort: true,
   },
-  build: { sourcemap: true },
+  build: {
+    sourcemap: true,
+    // Thu vien ben thu ba vao goi rieng, React tach khoi router va query: goi chinh nho di, moi goi
+    // duoi 500 kB, va trinh duyet giu dem thu vien khi ma cua hang doi.
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: 'react',
+              test: /node_modules[/\\](react|react-dom|scheduler)[/\\]/,
+              priority: 2,
+            },
+            { name: 'vendor', test: /node_modules/, priority: 1 },
+          ],
+        },
+      },
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,

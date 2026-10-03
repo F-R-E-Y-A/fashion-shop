@@ -49,7 +49,7 @@ describe('CategoryPage (UC-03.1)', () => {
     renderCategory();
     await screen.findByRole('heading', { name: 'ÁO' });
     fireEvent.change(screen.getByLabelText('Sắp xếp'), { target: { value: 'price_asc' } });
-    expect(screen.getByTestId('location')).toHaveTextContent('page=1');
+    expect(screen.getByTestId('location')).not.toHaveTextContent('page=');
     expect(screen.getByTestId('location')).toHaveTextContent('sort=price_asc');
   });
 

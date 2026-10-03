@@ -41,7 +41,7 @@ export const cartKeys = {
 
 export const getCart = (): Promise<Cart> => {
   ensureGuestToken();
-  return apiGet<Cart>('/cart', {}, cartHeaders());
+  return apiGet<Cart>('/cart', {}, { headers: cartHeaders() });
 };
 
 export const addToCart = (variantId: string, quantity = 1): Promise<Cart> => {

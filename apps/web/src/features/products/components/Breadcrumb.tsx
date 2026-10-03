@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 
-import styles from './Catalog.module.css';
+import styles from './Breadcrumb.module.css';
 
 export function Breadcrumb({ items }: { items: Array<{ name: string; to?: string }> }) {
   return (

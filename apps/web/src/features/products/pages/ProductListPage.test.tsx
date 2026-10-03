@@ -38,6 +38,9 @@ const product = {
   imageUrl: null,
   categoryName: 'Ao',
   categorySlug: 'ao',
+  hoverImageUrl: null,
+  colorSwatches: [] as string[],
+  colorCount: 0,
 };
 
 describe('ProductListPage (PH-03 Kham pha san pham)', () => {

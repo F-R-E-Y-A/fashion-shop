@@ -1,0 +1,17 @@
+.breadcrumb {
+  color: var(--muted);
+  font-size: 0.75rem;
+  padding-block: 24px;
+}
+.breadcrumb ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.breadcrumb li + li::before {
+  content: '/';
+  margin-right: 8px;
+}

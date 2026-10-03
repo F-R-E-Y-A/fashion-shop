@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 
 import type { CategoryDetail } from '../api/index.js';
-import styles from './Catalog.module.css';
+import styles from './CategoryChips.module.css';
 
 export function CategoryChips({ root, activeSlug }: { root: CategoryDetail; activeSlug: string }) {
   const chips = [{ name: 'Tất cả', slug: root.slug }, ...root.children];

@@ -1,6 +1,6 @@
 ---
 title: Fashion-shop trong 15 phút
-updated: 2026-09-24
+updated: 2026-09-30
 status: đang dùng
 owner: Bảo
 ---
@@ -35,6 +35,17 @@ Trình duyệt ──▶ apps/web  React 19 + Vite, TanStack Query        (Verce
 ```
 
 **Một khối module hoá, không microservices**: ranh giới giữa ba người là module, không phải tiến trình ([LOG#adr-001](LOG.md#adr-001)). **Một cơ sở dữ liệu duy nhất** ([ADR-002](LOG.md#adr-002)). **Cơ chế xong sớm, dịch vụ đến đúng tuần**: chưa có Redis, hàng đợi hay Meilisearch, thêm vào tuần phân hệ cần ([ADR-004](LOG.md#adr-004), [lộ trình](features/platform/README.md)).
+
+**Ba cặp tên, cùng một ý.** Hai phía API và web khác tên thư mục, không khác kiến trúc: luật ranh giới là cùng một quy tắc `local/boundaries`, khai với `unitsDir: 'modules'` ([eslint.config.js:62](../eslint.config.js#L62)) và `unitsDir: 'features'` ([eslint.config.js:95](../eslint.config.js#L95)).
+
+| Ý | API gọi là | Web gọi là | Tài liệu gọi là |
+|---|---|---|---|
+| Một phân hệ, một người làm trọn | `modules/<x>` (từ của NestJS: `@Module`) | `features/<x>` (quy ước thư mục phổ biến của React) | `docs/features/<x>` |
+| Thứ dùng chung, không biết phân hệ | `common/` + `infra/` | `core/` + `ui/` | — |
+| Nơi duy nhất ráp phân hệ lại | `app.module.ts` | `app/` | — |
+| Cửa duy nhất để phân hệ khác gọi vào | `modules/<x>/index.ts` | `features/<x>/index.ts` | README của module |
+
+Ba phân hệ mang tên lệch nhau giữa API, web và tài liệu (`auth` / `account`, `cart` / `inventory`); ghi ở [TECH_DEBT ND-15](TECH_DEBT.md), chủ là Tài và Duy.
 
 ## 3. Một yêu cầu đi qua những gì
 
