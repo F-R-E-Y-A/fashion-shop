@@ -1,6 +1,6 @@
 ---
 title: Tài khoản và xác thực — nhật ký quyết định và thay đổi
-updated: 2026-09-24
+updated: 2026-09-30
 status: đang dùng
 owner: Tài
 ---
@@ -408,3 +408,111 @@ Thực tế: có test unit cho `SmtpMailService` và test HTTP cho ba luồng. K
 ### Điều kiện xem lại
 
 Khi vận hành cần đối chiếu lỗi gửi mail với một người dùng cụ thể một cách thường xuyên (chuyển sang phương án B).
+
+<a id="adr-021"></a>
+
+## 2026-09-30 · ADR-021 — Phân quyền theo vai bằng `RequireRoles` gộp `AuthGuard` và `RolesGuard`; danh mục vai nạp bằng migration, không bằng seed
+
+**Loại:** quyết định · **Phạm vi:** `apps/api/src/modules/auth` (`RoleCode`, `RolesGuard`, `RequireRoles`, `grantAdminRole`), `apps/api/src/modules/users`, bảng `roles` và `user_roles`, `prisma/seed/identity.seed.ts`, `test/helpers/db.ts` · **Trạng thái:** đề xuất · **Người quyết:** Tài · **Commit:** (điền khi thi hành)
+
+Số ADR: 018 đã được [products/LOG#adr-018](../products/LOG.md#adr-018) dùng, 019 và 020 do Issue #23 giữ
+trước, nên lấy 021.
+
+### Hiện trạng
+
+- Không có `RolesGuard`, `@Roles` hay endpoint quản trị nào; `roles` chỉ nằm trong `CurrentUser`
+  ([ND-03](../../TECH_DEBT.md)). `AuthGuard` đã đọc vai từ CSDL cho mỗi request (`auth.guard.ts:35-54`), JWT
+  chỉ mang `sub` và `ver`.
+- Bảng `roles` chỉ có `CUSTOMER`, và vai này **chỉ đến từ seed** (`identity.seed.ts`); migration không nạp
+  vai nào. Production không chạy seed (`SEED_ON_START` chỉ bật ở staging, `render.yaml`), nên trên
+  production `register()` sẽ trả `AUTH_CONFIGURATION_ERROR` vì thiếu `CUSTOMER` (suy luận từ mã, production
+  chưa triển khai).
+- Seed chạy cả trong image API (`docker-entrypoint.sh`, `SEED_ON_START`), nơi chỉ có `src/generated`, không
+  có `src/modules` (`apps/api/Dockerfile`). Seed import mã nghiệp vụ thì staging dừng lúc khởi động.
+
+### Phương án
+
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Controller tự gắn `@UseGuards(AuthGuard, RolesGuard)` và `@Roles(...)` | Quen thuộc với Nest | Quên một guard hay đảo thứ tự là thủng quyền mà không ai thấy | Có |
+| **B. Một decorator `RequireRoles` gắn cả hai guard đúng thứ tự, guard từ chối khi thiếu metadata (chọn)** | Không thể dùng sai cách; sai cấu hình thì đóng cửa | Không tách được hai guard nếu sau này cần | Có |
+| C. Kiểm vai trong service | Không cần guard | Mỗi chỗ viết lại một lần, dễ sót | Có |
+| Không làm gì | – | Endpoint quản trị đầu tiên không có chặn quyền | – |
+
+Danh mục vai:
+
+| Phương án | Được gì | Mất gì |
+|---|---|---|
+| Seed upsert vai | Đơn giản | Production không có vai; seed không import được `RoleCode` trong image |
+| **Migration dữ liệu `INSERT … ON CONFLICT (code) DO NOTHING` (chọn)** | Mọi môi trường có vai sau `migrate deploy`; chạy an toàn trên CSDL đã có `CUSTOMER` | Mã vai viết hai nơi (TypeScript và SQL) |
+| Tài khoản admin cố định trong seed | Có admin ngay | Staging công khai chạy seed: mật khẩu cố định là cửa mở |
+
+**Chọn B và migration dữ liệu.** Trade-off chấp nhận: mã vai có ở `role-code.ts` và trong SQL;
+`role-code.spec.ts` đọc mọi migration và đòi hai nơi khớp nhau. Quản trị viên đầu tiên do người vận hành
+nâng bằng `npm run admin:grant -w apps/api -- --email=<email>` từ một tài khoản đã tự đăng ký và xác thực.
+
+Hệ quả: seed thôi ghi vai; `resetDatabase()` của kiểm thử HTTP không xoá bảng `roles`, nên bài kiểm thử
+đăng ký dựa vào vai do migration nạp, đúng đường production.
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: ẩn danh gọi `/api/admin/users` nhận 401, `CUSTOMER` nhận 403, `ADMIN` nhận 200; gỡ hay cấp
+`ADMIN` trong CSDL có hiệu lực ngay request kế tiếp với cùng access token; `npm run db:drift` không lệch.
+Thực tế (30/09/2026, chưa commit): `test/admin-users.http.spec.ts` 17 bài xanh; `db:drift` "No difference
+detected"; migration áp lên CSDL dev giữ nguyên `CUSTOMER` cũ và thêm `ADMIN`. Kiểm chứng ngược: bỏ
+`RolesGuard` khỏi `RequireRoles` thì 3 bài HTTP đỏ; đảo thứ tự guard thì 11 bài HTTP và 2 bài đơn vị đỏ;
+đưa `passwordHash` vào `select` thì 1 bài đơn vị và 3 bài HTTP đỏ; cho qua khi thiếu metadata thì 2 bài
+đơn vị đỏ; thêm `STAFF` vào `RoleCode` mà không có migration thì 2 bài đơn vị đỏ.
+
+### Điều kiện xem lại
+
+Khi cần vai thứ ba (`STAFF`) hay quyền chi tiết hơn vai (theo từng thao tác), hoặc khi một phân hệ cần hai
+guard tách rời.
+
+<a id="adr-022"></a>
+
+## 2026-09-30 · ADR-022 — Khóa tài khoản vô hiệu phiên bằng `authVersion` và thu hồi refresh token; đăng nhập và refresh khoá dòng `users` khi tạo phiên
+
+**Loại:** quyết định · **Phạm vi:** `apps/api/src/modules/users` (khóa, mở khóa), `AuthService.login`, `AuthService.refresh`, `user-session-lock.ts` · **Trạng thái:** đề xuất · **Người quyết:** Tài · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+
+- `AuthGuard` đã từ chối tài khoản không `ACTIVE` và access token lệch `authVersion`; `refresh` từ chối token
+  đã thu hồi mà không có `replacedByTokenId` ([ADR-015](#adr-015), [ADR-016](#adr-016)). Chỉ dựa vào `status`
+  thì mở khóa sẽ làm sống lại mọi access token chưa hết hạn và mọi refresh token chưa bị thu hồi.
+- `login` đọc user, tính bcrypt (vài trăm ms), rồi tạo refresh token **ngoài giao dịch**
+  (`auth.service.ts`, trước Admin.2). `refresh` khoá dòng token cũ rồi chèn token mới trong giao dịch của nó.
+- Đo được trước khi sửa: khóa trong lúc đăng nhập đang tính bcrypt, hay đúng lúc refresh đang xoay, để lại một
+  refresh token còn hiệu lực sau khi khóa (`test/admin-users-lock.http.spec.ts`, `expected 1 to be +0`; với
+  refresh 3/3 lần). Lệnh thu hồi của khóa chạy trên snapshot đầu câu lệnh nên không thấy token chèn sau đó;
+  token đó bị chặn khi tài khoản còn khóa nhưng sống lại sau khi mở khóa.
+
+### Phương án
+
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Khóa chỉ đổi `status` | Đơn giản | Mở khóa làm sống lại mọi phiên cũ | Có |
+| B. Danh sách đen access token | Chặn từng token | Thêm kho mới, trái [ADR-015](#adr-015) | Có |
+| **C. Khóa tăng `authVersion` và thu hồi refresh token trong cùng giao dịch; `login` và `refresh` khoá dòng `users` bằng `FOR SHARE` rồi đọc lại trạng thái trước khi tạo hay xoay token (chọn)** | Phiên cũ chết và không sống lại; không migration; đóng luôn cùng lỗ hổng với đổi và đặt lại mật khẩu | Thêm một câu SQL thô và một khoá dòng mỗi lần đăng nhập hay refresh | Có |
+| D. Lưu `authVersion` lên từng refresh token | Không cần khoá | Cần migration, thêm luật so khớp ở refresh | Có |
+
+**Chọn C.** `FOR SHARE` xung đột với `UPDATE users` của khóa, đổi và đặt lại mật khẩu, nên hai bên xếp hàng:
+thao tác vô hiệu chạy trước thì bên tạo phiên đọc được `LOCKED` hay `authVersion` mới và từ chối (`login` trả
+401 `INVALID_CREDENTIALS` như tài khoản bị khóa); bên tạo phiên chạy trước thì lệnh thu hồi chạy sau và thấy
+token vừa tạo. `FOR SHARE` không xung đột với chính nó nên nhiều phiên của một người vẫn song song. Cả hai phía
+khoá dòng `users` trước dòng token nên không tạo vòng chờ. Mở khóa không giảm `authVersion` và không phục hồi
+token. Trade-off chấp nhận: thêm một lượt khoá dòng mỗi lần đăng nhập hay refresh.
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: sau khóa, access và refresh cũ trả 401, vẫn 401 sau mở khóa; đăng nhập mới thì được; hai khóa song song
+chỉ một thành công và một dòng nhật ký; không token nào còn hiệu lực sau khi khóa xong, kể cả khi đăng nhập hay
+refresh chạy song song.
+Thực tế (30/09/2026, chưa commit): `test/admin-users-lock.http.spec.ts` 15 bài, chạy 5 lượt liên tiếp đều xanh
+(mỗi bài đồng thời lặp 5 vòng); `auth-hardening.http.spec.ts` 49 bài xanh 3 lượt. Kiểm chứng ngược: bỏ bước
+kiểm lại dưới khoá trong `login` thì bài "khóa trong lúc bcrypt" đỏ; bỏ khoá trong `refresh` thì bài "khóa trong
+lúc refresh" đỏ 3/3 lần.
+
+### Điều kiện xem lại
+
+Khi đo được khoá dòng `users` làm chậm đăng nhập hay refresh ở tải thật (HT-08), thì cân nhắc phương án D.

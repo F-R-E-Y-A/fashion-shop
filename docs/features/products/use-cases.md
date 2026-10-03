@@ -138,7 +138,7 @@ Là một **khách vãng lai**, tôi muốn **lọc theo giá, màu, cỡ, thư�
 ### Tiêu chí chấp nhận
 - [x] **AC1** `minPrice=100000&maxPrice=500000` chỉ trả sản phẩm có giá trong khoảng — `test/catalog-search.http.spec.ts` (UC-03.3/AC1)
 - [x] **AC2** `colors=xam,navy` trả sản phẩm có biến thể thuộc một trong hai họ màu — `test/catalog-search.http.spec.ts` (UC-03.3/AC2); dùng **họ màu**, không phải `colors.code`
-- [ ] **AC3** `sizes=M` chỉ trả sản phẩm có cỡ M — lọc theo biến thể đang bán, **chưa xét tồn kho** (chờ hàm của Duy, [ND-13](../../TECH_DEBT.md)); bài `UC-03.3/AC3` kiểm phần đã có
+- [ ] **AC3** `sizes=M` chỉ trả sản phẩm có cỡ M — lọc theo biến thể đang bán, **chưa xét tồn kho** (chờ hàm của Duy, [ND-14](../../TECH_DEBT.md)); bài `UC-03.3/AC3` kiểm phần đã có
 - [x] **AC4** `sort=price_asc` xếp đúng chiều tăng dần theo giá — `test/catalog-search.http.spec.ts` (UC-03.3/AC4), `test/products.http.spec.ts`
 
 ---

@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
@@ -9,6 +10,11 @@ import { StoreLayout } from '@/app/StoreLayout';
 vi.mock('@/features/products', () => ({
   CategoryMenu: () => <nav data-testid="mock-category-menu" />,
   SearchTrigger: () => <button type="button">Tìm kiếm</button>,
+}));
+
+vi.mock('@/features/cart', () => ({
+  cartKeys: { all: ['cart'], current: () => ['cart', 'current'] },
+  getCart: () => Promise.resolve({ cartId: '', items: [], total: '0', itemCount: 0 }),
 }));
 
 import { AuthProvider, useAuth } from './AuthProvider.js';
@@ -104,17 +110,20 @@ function renderResetPasswordPage(initialEmail = 'customer@example.com') {
 
 /** Unlike the OTP pages, ChangePasswordPage needs AuthProvider; StoreLayout shows the auth state. */
 function renderChangePasswordPage() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
-    <AuthProvider>
-      <MemoryRouter initialEntries={['/doi-mat-khau']}>
-        <Routes>
-          <Route element={<StoreLayout />}>
-            <Route path="/doi-mat-khau" element={<ChangePasswordPage />} />
-            <Route path="/login" element={<p>Trang đăng nhập</p>} />
-          </Route>
-        </Routes>
-      </MemoryRouter>
-    </AuthProvider>,
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <MemoryRouter initialEntries={['/doi-mat-khau']}>
+          <Routes>
+            <Route element={<StoreLayout />}>
+              <Route path="/doi-mat-khau" element={<ChangePasswordPage />} />
+              <Route path="/login" element={<p>Trang đăng nhập</p>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </AuthProvider>
+    </QueryClientProvider>,
   );
 }
 

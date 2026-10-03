@@ -2,12 +2,17 @@
 export { pageTitle, STORE_NAME } from './brand.js';
 export { formatDateTime, formatPrice } from './format.js';
 export {
+  apiDel,
   ApiError,
   type ApiErrorBody,
   apiGet,
+  type ApiGetOptions,
+  apiPatch,
+  apiPost,
   apiRequest,
   type ApiRequestOptions,
   type Page,
   type QueryParams,
+  setAccessTokenGetter,
 } from './http.js';
 export { queryClient } from './queryClient.js';

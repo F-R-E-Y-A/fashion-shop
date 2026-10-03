@@ -1,6 +1,6 @@
 ---
 title: Mô hình dữ liệu và từ điển dữ liệu
-updated: 2026-09-25
+updated: 2026-09-30
 status: đang dùng
 owner: Tài
 ---
@@ -65,6 +65,7 @@ Owner: TAI. Domain: Identity. Classification: Core. Purpose: account and authent
 |---|---|---|---|---|---|
 | id; email; password_hash; status | uuid; varchar; varchar; user_status | Yes | PK; UQ; —; — | UUID; —; —; PENDING_VERIFICATION | Identifier; login email; password hash; lifecycle |
 | avatar_url; email_verified_at | varchar; timestamptz | No | — | NULL | Avatar; verification event |
+| full_name; phone | varchar; varchar | No | — (phone không UQ) | NULL | Hồ sơ cá nhân, sửa qua `PATCH /api/users/me`; migration `20260930233000_ph4_user_profile_address` ([ADR-023](../features/users/LOG.md#adr-023)) |
 | created_at; updated_at | timestamptz | Yes | — | CURRENT_TIMESTAMP | Audit timestamps |
 
 Relationships: User N:M Role through user_roles; 1:N addresses/refresh tokens/reviews. Indexes: UQ(email). Lifecycle: access tokens are never persisted.
@@ -74,7 +75,7 @@ Owner: TAI. Domain: Authorization. Classification: Core/JUNCTION. Purpose: role 
 
 | Table | Columns, constraints and meaning |
 |---|---|
-| roles | id uuid PK; code varchar UQ; name varchar; created_at/updated_at timestamptz required. Stable role catalog. |
+| roles | id uuid PK; code varchar UQ; name varchar; created_at/updated_at timestamptz required. Stable role catalog: `CUSTOMER`, `ADMIN`, nạp bằng migration `20260930120000_ph3_role_catalog` (không bằng seed); mã khớp `RoleCode` ([ADR-021](../features/auth/LOG.md#adr-021)). |
 | user_roles | user_id uuid PK/FK users; role_id uuid PK/FK roles; created_at timestamptz required. Composite PK prevents duplicate assignment. |
 
 Relationships: User N:M Role through user_roles. Delete: user_roles cascades from User/Role.
@@ -96,7 +97,7 @@ Owner: TAI. Domain: Address/Shipping. Classification: areas/zones/mapping DESIGN
 | Table | Columns, constraints and meaning |
 |---|---|
 | administrative_areas | id PK; code UQ; name; level administrative_area_level; parent_id nullable self FK; is_active default true; timestamps required. Province to Commune only. |
-| addresses | id PK; user_id FK; recipient_name; phone; administrative_area_id FK; detail_address; postal_code nullable; is_default default false; timestamps required. Area is Commune. |
+| addresses | id PK; user_id FK; recipient_name; phone; administrative_area_id FK; detail_address; postal_code nullable; is_default default false; timestamps required. Area is Commune (active, under an active Province), checked by the users service. Invariant: a user with at least one address has exactly one default ([ADR-023](../features/users/LOG.md#adr-023)). Orders keep `shipping_address_snapshot`, never an FK to addresses. Index `addresses_user_id_idx` (user_id). |
 | shipping_zones | id PK; code UQ; name; is_active default true; timestamps required. |
 | shipping_zone_areas | shipping_zone_id plus administrative_area_id composite PK/FK; area additionally UQ; created_at required. |
 | shipping_rates | id PK; shipping_zone_id FK; min/max weight grams nullable; fee decimal(12,2); is_active default true; timestamps required. |

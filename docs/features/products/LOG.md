@@ -308,7 +308,7 @@ Sáu tiêu chí (kết luận là **suy luận**, chỉ số đo nằm ở hai m
 ### Lệch so với đặc tả
 
 - UC-03.3/BR2 ghi lọc màu theo `colors.code`; thực tế lọc theo **họ màu** (15 họ). Dữ liệu nguồn có hàng chục tên màu khác nhau, lọc theo mã sẽ cho hàng chục ô màu na ná nhau.
-- UC-03.3/AC3 ghi cỡ "còn hàng theo hàm đọc tồn kho của Duy"; **chưa xét tồn kho**, lọc theo biến thể đang bán. Ghi ở [TECH_DEBT ND-13](../../TECH_DEBT.md).
+- UC-03.3/AC3 ghi cỡ "còn hàng theo hàm đọc tồn kho của Duy"; **chưa xét tồn kho**, lọc theo biến thể đang bán. Ghi ở [TECH_DEBT ND-14](../../TECH_DEBT.md).
 - Thêm `sort=relevance`; đặc tả chỉ có ba kiểu sắp xếp.
 - Thương hiệu chưa có nhóm lọc vì 0 sản phẩm có `brand_id`.
 

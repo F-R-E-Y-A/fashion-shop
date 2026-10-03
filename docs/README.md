@@ -45,7 +45,7 @@ Trình duyệt ──▶ apps/web  React 19 + Vite, TanStack Query        (Verce
 | Nơi duy nhất ráp phân hệ lại | `app.module.ts` | `app/` | — |
 | Cửa duy nhất để phân hệ khác gọi vào | `modules/<x>/index.ts` | `features/<x>/index.ts` | README của module |
 
-Ba phân hệ mang tên lệch nhau giữa API, web và tài liệu (`auth` / `account`, `cart` / `inventory`); ghi ở [TECH_DEBT ND-14](TECH_DEBT.md), chủ là Tài và Duy.
+Ba phân hệ mang tên lệch nhau giữa API, web và tài liệu (`auth` / `account`, `cart` / `inventory`); ghi ở [TECH_DEBT ND-15](TECH_DEBT.md), chủ là Tài và Duy.
 
 ## 3. Một yêu cầu đi qua những gì
 

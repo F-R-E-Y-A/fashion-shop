@@ -21,7 +21,8 @@
     "db:drift": "prisma migrate diff --from-config-datasource --to-schema prisma/schema --exit-code",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "catalog:refresh": "tsx scripts/refresh-approved-catalog.ts"
+    "catalog:refresh": "tsx scripts/refresh-approved-catalog.ts",
+    "admin:grant": "tsx scripts/grant-admin.ts"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
@@ -35,6 +36,7 @@
     "bcrypt": "^6.0.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "decimal.js": "^10.6.0",
     "dotenv": "^17.4.2",
     "ioredis": "^6.0.0",
     "nodemailer": "^7.0.13",

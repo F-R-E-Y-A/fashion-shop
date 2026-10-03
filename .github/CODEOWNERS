@@ -73,6 +73,7 @@
 /apps/web/src/features/reviews/**       @KickHuynh
 /apps/web/src/features/returns/**       @KickHuynh
 /docs/features/auth/**                  @KickHuynh
+/docs/features/users/**                 @KickHuynh
 /docs/shared/data-model.md              @KickHuynh
 
 # --- Migration: ai cung tao duoc, nhung Tai giu so do tong nen duyet cung ---

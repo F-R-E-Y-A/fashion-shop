@@ -92,4 +92,4 @@ export interface SuggestResponse {
 
 /** Goi y cho o tim kiem toan cuc. `signal` huy yeu cau cu khi khach go tiep. */
 export const suggest = (q: string, signal?: AbortSignal): Promise<SuggestResponse> =>
-  apiGet<SuggestResponse>('/search/suggest', { q }, signal);
+  apiGet<SuggestResponse>('/search/suggest', { q }, { signal });
