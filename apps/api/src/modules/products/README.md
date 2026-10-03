@@ -90,3 +90,39 @@ Luật của `importProducts`, theo mô hình M2 ([erd.md](../../../../../docs/f
 | 6 | **Mỗi dòng một giao dịch**; dòng lỗi không kéo dòng khác. Hàm không ghi bảng `staging` | Tài đánh dấu `IMPORTED` cho dòng `created`, `updated` trong giao dịch của mình. Nếu chết giữa hai bước thì chạy lại: luật 1 làm lần sau thành cập nhật, không sinh bản trùng |
 
 Đổi chữ ký một hàm đã công bố thì báo ở buổi chốt Thứ Tư và ghi một mục vào `docs/features/products/LOG.md`.
+
+## Tìm kiếm, lọc và gợi ý (PH-01 đợt 2)
+
+Thư mục `search/` chứa toàn bộ phần tìm kiếm. **`CatalogSearchService` và mọi thứ trong `search/` không phải hợp đồng công bố**: `index.ts` không xuất chúng, phân hệ khác không được gọi. Lý do và số đo: [ADR-019](../../../../../docs/features/products/LOG.md#adr-019).
+
+| Tệp | Vai trò |
+|---|---|
+| `normalize-vi.ts`, `color-family.ts`, `price-buckets.ts`, `dictionary.ts`, `parse-query.ts`, `catalog-engine.ts`, `audience.ts` | Hàm thuần: đọc câu, họ màu, mốc giá, từ điển, lọc và xếp hạng. Mỗi tệp có `.spec.ts`; `golden-queries.json` là 47 câu mẫu |
+| `uses-search-engine.ts` | Hàm thuần: query có tham số nào cần đường tìm kiếm không |
+| `catalog-search.service.ts` | Nạp sản phẩm hiển thị, chạy bộ máy, dựng `interpretation`, `relaxed`, `facets`; ghi `search_query_logs` không chờ |
+| `search-dictionary.service.ts` | Đọc từ điển mở rộng từ `search_configurations`, nhớ tạm 60 giây |
+| `suggest-rate-limit.service.ts` | 60 lần mỗi phút mỗi IP; Redis lỗi thì cho qua |
+| `search.controller.ts` | `GET /api/search/suggest` |
+
+`GET /api/products` chọn đường theo `usesSearchEngine(query)` ([products.controller.ts:38](products.controller.ts#L38)): có `search` hoặc một tham số lọc thì đi qua `CatalogSearchService`, không thì giữ đường liệt kê cũ của `ProductsService`.
+
+### Từ điển mở rộng `synonyms.v1`
+
+Thêm dịp mặc mà không sửa mã: chèn một dòng vào `search_configurations` với `configuration_key = 'synonyms.v1'`. Từ điển đọc lại sau tối đa 60 giây (hoặc `SearchDictionaryService.invalidate()` trong kiểm thử). JSON sai hình dạng thì dùng từ điển trong mã và cảnh báo một lần.
+
+```json
+{
+  "occasions": [
+    {
+      "value": "dam-cuoi",
+      "label": "Dịp: đám cưới",
+      "triggers": ["đám cưới", "dam cuoi"],
+      "terms": ["lụa", "linen"]
+    }
+  ]
+}
+```
+
+- `triggers`: cụm khách gõ (có dấu hay không dấu) để nhận ra dịp; `label` hiện trong chip "Đã hiểu".
+- `terms`: các từ cần thấy trong tên, danh mục, màu hoặc mô tả sản phẩm; một dịp là HOẶC giữa các `terms`.
+- Kiểm thử: [catalog-search.http.spec.ts](../../../test/catalog-search.http.spec.ts) bài "dip mac them trong search_configurations".

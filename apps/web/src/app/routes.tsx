@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { Link, Route, Routes } from 'react-router-dom';
 
 import {
@@ -15,7 +16,9 @@ import {
   HomePage,
   ProductDetailPage,
   ProductListPage,
+  SearchPage,
 } from '@/features/products';
+import { Loading } from '@/ui';
 
 import { AdminLayout } from './AdminLayout.js';
 import { ScrollManager } from './ScrollManager.js';
@@ -34,25 +37,28 @@ export function AppRoutes() {
   return (
     <>
       <ScrollManager />
-      <Routes>
-        <Route element={<StoreLayout />}>
-          <Route index element={<HomePage />} />
-          <Route path="danh-muc/:slug" element={<CategoryPage />} />
-          <Route path="san-pham" element={<ProductListPage />} />
-          <Route path="san-pham/:slug" element={<ProductDetailPage />} />
-          <Route path="gio-hang" element={<CartPage />} />
-          <Route path="login" element={<LoginPage />} />
-          <Route path="register" element={<RegisterPage />} />
-          <Route path="xac-thuc-email" element={<VerifyEmailPage />} />
-          <Route path="quen-mat-khau" element={<ForgotPasswordPage />} />
-          <Route path="dat-lai-mat-khau" element={<ResetPasswordPage />} />
-          <Route path="doi-mat-khau" element={<ChangePasswordPage />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Route>
-        <Route path="quan-tri" element={<AdminLayout />}>
-          <Route index element={<AdminProductsPage />} />
-        </Route>
-      </Routes>
+      <Suspense fallback={<Loading />}>
+        <Routes>
+          <Route element={<StoreLayout />}>
+            <Route index element={<HomePage />} />
+            <Route path="danh-muc/:slug" element={<CategoryPage />} />
+            <Route path="tim-kiem" element={<SearchPage />} />
+            <Route path="san-pham" element={<ProductListPage />} />
+            <Route path="san-pham/:slug" element={<ProductDetailPage />} />
+            <Route path="gio-hang" element={<CartPage />} />
+            <Route path="login" element={<LoginPage />} />
+            <Route path="register" element={<RegisterPage />} />
+            <Route path="xac-thuc-email" element={<VerifyEmailPage />} />
+            <Route path="quen-mat-khau" element={<ForgotPasswordPage />} />
+            <Route path="dat-lai-mat-khau" element={<ResetPasswordPage />} />
+            <Route path="doi-mat-khau" element={<ChangePasswordPage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Route>
+          <Route path="quan-tri" element={<AdminLayout />}>
+            <Route index element={<AdminProductsPage />} />
+          </Route>
+        </Routes>
+      </Suspense>
     </>
   );
 }

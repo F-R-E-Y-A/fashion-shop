@@ -1,0 +1,233 @@
+.panel {
+  position: sticky;
+  top: calc(var(--header-h, 78px) + 16px);
+  display: grid;
+  gap: 24px;
+  max-height: calc(100vh - var(--header-h, 78px) - 40px);
+  overflow: auto;
+  padding-right: 6px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+.head,
+.foot {
+  display: none;
+}
+.group {
+  display: grid;
+  gap: 10px;
+}
+.group h3 {
+  margin: 0;
+  color: var(--ink-2);
+  font: 600 0.72rem var(--font-body);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+.note {
+  margin: 0 0 4px;
+  color: var(--accent);
+  font-size: 0.76rem;
+}
+
+/* Moi <button> trong bo loc phai reset: styles.css to mau accent len moi <button>. */
+.button {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.count {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.segment {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  overflow: hidden;
+  border: 1px solid var(--ink-2);
+  border-radius: 999px;
+}
+.segment .button {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 6px;
+  padding: 8px;
+  font-size: var(--s-1);
+  text-align: center;
+}
+.segment .button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--bg);
+}
+.segment .button[aria-pressed='true'] .count {
+  color: var(--on-dark-muted);
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 5px 0;
+  font-size: var(--s-1);
+}
+.option::before {
+  content: '';
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--ink-2);
+  border-radius: 2px;
+  background: var(--bg);
+}
+.option.radio::before {
+  border-radius: 50%;
+}
+.option[aria-pressed='true']::before {
+  background: var(--ink);
+  box-shadow: inset 0 0 0 3px var(--bg);
+}
+.label {
+  flex: 1;
+}
+.child {
+  padding-left: 22px;
+}
+
+.swatchGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(66px, 1fr));
+  gap: 6px;
+}
+.swatch {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  padding: 4px 2px;
+  border-radius: 2px;
+  font-size: 0.72rem;
+  text-align: center;
+}
+.swatch i {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgb(30 20 12 / 0.22);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.swatch[aria-pressed='true'] i {
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 3.5px var(--ink);
+}
+
+.sizeGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.size {
+  display: grid;
+  justify-items: center;
+  min-width: 50px;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--bg);
+  font-size: var(--s-1);
+  text-align: center;
+}
+.size .count {
+  font-size: 0.64rem;
+}
+.size[aria-pressed='true'] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--bg);
+}
+.size[aria-pressed='true'] .count {
+  color: var(--on-dark-muted);
+}
+
+@media (max-width: 860px) {
+  .panel {
+    position: fixed;
+    inset: 0;
+    z-index: 95;
+    display: none;
+    align-content: start;
+    max-height: none;
+    padding: 0 var(--gutter);
+    background: var(--bg);
+  }
+  .panel.open {
+    display: grid;
+  }
+  .head {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-inline: calc(-1 * var(--gutter));
+    padding: 14px var(--gutter);
+    border-bottom: 1px solid var(--line);
+    background: var(--bg);
+  }
+  .head h2 {
+    margin: 0;
+    font: 500 0.9rem var(--font-body);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+  }
+  .close {
+    padding: 8px;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    color: var(--ink);
+    font-size: 1.2rem;
+    line-height: 1;
+  }
+  .foot {
+    position: sticky;
+    bottom: 0;
+    z-index: 1;
+    display: flex;
+    gap: 12px;
+    margin-inline: calc(-1 * var(--gutter));
+    padding: 12px var(--gutter) calc(12px + env(safe-area-inset-bottom, 0px));
+    border-top: 1px solid var(--line);
+    background: var(--bg);
+  }
+  .clear {
+    flex: none;
+    padding: 0 18px;
+    border: 1px solid rgb(30 20 12 / 0.25);
+    border-radius: 2px;
+    background: none;
+    color: var(--ink);
+    font-size: 0.86rem;
+  }
+  .apply {
+    flex: 1;
+    min-height: 49px;
+    border: 0;
+    border-radius: 2px;
+    background: var(--ink);
+    color: var(--on-dark);
+    font: 500 0.79rem var(--font-body);
+    letter-spacing: var(--tracking-caps);
+    text-transform: uppercase;
+  }
+}

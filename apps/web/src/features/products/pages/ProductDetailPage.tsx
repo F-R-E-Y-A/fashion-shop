@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { type CSSProperties, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
-import { ApiError, formatPrice } from '@/core';
+import { ApiError, formatPrice, pageTitle } from '@/core';
 import { ErrorNote, SkeletonDetail } from '@/ui';
 
 import { getProductDetail, getRelatedProducts, productKeys } from '../api/index.js';
@@ -90,6 +90,7 @@ export function ProductDetailPage() {
   ];
   return (
     <div className={styles.container}>
+      <title>{pageTitle(data.name)}</title>
       <Breadcrumb items={breadcrumb} />
       <article className={styles.detail}>
         <div className={styles.gallery}>

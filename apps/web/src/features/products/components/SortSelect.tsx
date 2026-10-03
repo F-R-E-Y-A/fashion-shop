@@ -1,24 +1,28 @@
 import type { ProductSort } from '../api/index.js';
-import styles from './Catalog.module.css';
+import styles from './SortSelect.module.css';
 
 export function SortSelect({
   value,
   onChange,
+  withRelevance = false,
 }: {
   value: ProductSort;
   onChange: (value: ProductSort) => void;
+  /** Them "Liên quan nhất"; chi co nghia khi dang co cau tim. */
+  withRelevance?: boolean;
 }) {
   return (
-    <div className={styles.sortControl}>
-      <span className={styles.sortCaption} aria-hidden="true">
+    <div className={styles.control}>
+      <span className={styles.caption} aria-hidden="true">
         SẮP XẾP THEO
       </span>
-      <span className={styles.sortField}>
+      <span className={styles.field}>
         <select
           aria-label="Sắp xếp"
           value={value}
           onChange={(event) => onChange(event.target.value as ProductSort)}
         >
+          {withRelevance && <option value="relevance">Liên quan nhất</option>}
           <option value="newest">Mới nhất</option>
           <option value="price_asc">Giá tăng dần</option>
           <option value="price_desc">Giá giảm dần</option>

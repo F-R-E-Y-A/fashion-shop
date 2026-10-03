@@ -1,60 +1,61 @@
-import { QueryClientContext, useQuery } from '@tanstack/react-query';
-import { useContext } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 
+import { STORE_NAME } from '@/core';
 import { useAuth } from '@/features/account';
 import { cartKeys, getCart } from '@/features/cart';
-import { CategoryMenu } from '@/features/products';
-import { SearchIcon } from '@/ui';
+import { CategoryMenu, SearchTrigger } from '@/features/products';
 
 import styles from './StoreLayout.module.css';
+import { useHeaderState } from './useHeaderState.js';
 
-function CartBadgeWithQuery() {
-  const { data: cart } = useQuery({
-    queryKey: cartKeys.current(),
-    queryFn: getCart,
-    staleTime: 30_000,
-  });
-
-  const itemCount = cart?.itemCount ?? 0;
+/** Cua gio hang tren khung: so mon doc tu cache dung chung voi trang /gio-hang. */
+function CartLink() {
+  const { data: cart } = useQuery({ queryKey: cartKeys.current(), queryFn: getCart });
+  const count = cart?.itemCount ?? 0;
 
   return (
-    <NavLink to="/gio-hang" className={styles.search} aria-label="Giỏ hàng">
-      🛒
-      {itemCount > 0 && <span style={{ marginLeft: 4, fontWeight: 700 }}>({itemCount})</span>}
+    <NavLink
+      to="/gio-hang"
+      className={styles.cart}
+      aria-label={count > 0 ? `Giỏ hàng, ${count} món` : 'Giỏ hàng'}
+    >
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        aria-hidden="true"
+      >
+        <path d="M6.2 7.5h11.6l-1.2 11.7a1.7 1.7 0 0 1-1.7 1.5H9.1a1.7 1.7 0 0 1-1.7-1.5L6.2 7.5Z" />
+        <path d="M9 9.5V6a3 3 0 0 1 6 0v3.5" />
+      </svg>
+      {count > 0 && <span className={styles.cartCount}>{count}</span>}
     </NavLink>
   );
 }
 
-function CartBadge() {
-  const hasQueryClient = Boolean(useContext(QueryClientContext));
-  if (!hasQueryClient) {
-    return (
-      <NavLink to="/gio-hang" className={styles.search} aria-label="Giỏ hàng">
-        🛒
-      </NavLink>
-    );
-  }
-  return <CartBadgeWithQuery />;
-}
-
 export function StoreLayout() {
   const { isAuthenticated, isLoading, logout, user } = useAuth();
+  const { headerRef, isHome, overHero } = useHeaderState();
 
   return (
     <div className={styles.shell}>
-      <header className={styles.header}>
+      <header
+        ref={headerRef}
+        className={styles.header}
+        data-home={isHome}
+        data-over-hero={overHero}
+      >
         <Link className={styles.brand} to="/">
-          THỜI TRANG
+          {STORE_NAME}
         </Link>
         <div className={styles.menu}>
           <CategoryMenu />
         </div>
         <div className={styles.actions}>
-          <Link className={styles.search} to="/san-pham" aria-label="Tìm sản phẩm">
-            <SearchIcon />
-          </Link>
-          <CartBadge />
+          <SearchTrigger />
+          <CartLink />
           <div className={styles.account} aria-live="polite">
             {isLoading && <span className={styles.accountStatus}>Đang khôi phục phiên…</span>}
             {!isLoading && !isAuthenticated && (
@@ -81,7 +82,7 @@ export function StoreLayout() {
       <footer className={styles.footer}>
         <div>
           <Link className={styles.brand} to="/">
-            THỜI TRANG
+            {STORE_NAME}
           </Link>
           <p>Phong cách là tự do.</p>
         </div>

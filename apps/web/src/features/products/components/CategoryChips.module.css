@@ -1,0 +1,16 @@
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 24px 0 32px;
+}
+.chips a {
+  padding: 10px 18px;
+  border: 1px solid var(--line);
+  font-size: 0.75rem;
+}
+.chips a[aria-current='page'] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--on-dark);
+}

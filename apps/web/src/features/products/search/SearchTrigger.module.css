@@ -1,0 +1,54 @@
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  max-width: 290px;
+  padding: 7px 12px 7px 14px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  background: var(--trigger-bg, transparent);
+  color: inherit;
+  font-size: 0.84rem;
+  cursor: pointer;
+}
+.trigger svg {
+  flex: none;
+}
+.hint {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: opacity 300ms;
+}
+.fading {
+  opacity: 0;
+}
+.trigger kbd {
+  flex: none;
+  padding: 0 0.4em;
+  border: 1px solid currentColor;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  font:
+    0.78em ui-monospace,
+    Menlo,
+    Consolas,
+    monospace;
+  opacity: 0.8;
+}
+@media (max-width: 860px) {
+  .hint,
+  .trigger kbd {
+    display: none;
+  }
+  .trigger {
+    padding: 8px;
+    border: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hint {
+    transition: none;
+  }
+}

@@ -1,0 +1,35 @@
+.empty {
+  display: grid;
+  gap: 14px;
+  max-width: 62ch;
+  padding-block: 28px;
+}
+.empty h2 {
+  margin: 0;
+  font-size: var(--s3);
+}
+.empty p {
+  margin: 0;
+  color: var(--muted);
+}
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+.pill {
+  padding: 10px 18px;
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  font-size: 0.86rem;
+}
+.pill:hover {
+  background: var(--ink);
+  color: var(--bg);
+}
+.link {
+  color: var(--accent);
+  font-size: var(--s-1);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}

@@ -1,37 +1,37 @@
 import { useQuery } from '@tanstack/react-query';
 
-import { Empty, ErrorNote, SkeletonGrid } from '@/ui';
+import { pageTitle } from '@/core';
+import { ErrorNote, layout, SkeletonGrid } from '@/ui';
 
 import { listProducts, type ListProductsParams, productKeys } from '../api/index.js';
-import { CampaignBand } from '../components/CampaignBand.js';
-import styles from '../components/Catalog.module.css';
-import { CategoryTiles } from '../components/CategoryTiles.js';
-import { HeroSection } from '../components/HeroSection.js';
 import { ProductGrid } from '../components/ProductGrid.js';
-import { SectionHeader } from '../components/SectionHeader.js';
+import { AudienceDuo } from '../home/AudienceDuo.js';
+import { CategoryBento } from '../home/CategoryBento.js';
+import { CategoryMarquee } from '../home/CategoryMarquee.js';
+import { HeroSearch } from '../home/HeroSearch.js';
+import { HomeSectionHeader } from '../home/HomeSectionHeader.js';
+import { MaterialStory } from '../home/MaterialStory.js';
+import { OccasionTiles } from '../home/OccasionTiles.js';
+import { ProductRail } from '../home/ProductRail.js';
 
-function HomeRow({
-  title,
-  params,
-  hideWhenEmpty = false,
-}: {
-  title: string;
-  params: ListProductsParams;
-  hideWhenEmpty?: boolean;
-}) {
+const FEATURED: ListProductsParams = { featured: true, pageSize: 8 };
+const DESCRIPTION =
+  'Thời trang cho người muốn mặc chất riêng. Gõ điều bạn muốn mặc, cửa hàng hiểu màu, cỡ, dịp mặc và ngân sách.';
+
+/** Khoi "Noi bat": an ca khoi khi chua co san pham nao duoc chon. */
+function FeaturedGrid() {
   const query = useQuery({
-    queryKey: productKeys.list(params),
-    queryFn: () => listProducts(params),
+    queryKey: productKeys.list(FEATURED),
+    queryFn: () => listProducts(FEATURED),
   });
-  if (hideWhenEmpty && query.data && query.data.items.length === 0) return null;
+  if (query.data && query.data.items.length === 0) return null;
   return (
-    <section className={`${styles.container} ${styles.section}`}>
-      <SectionHeader title={title} to="/san-pham" />
+    <section className={`${layout.container} ${layout.section}`} aria-labelledby="home-feat-title">
+      <HomeSectionHeader eyebrow="Được chọn" title="Nổi bật" titleId="home-feat-title" />
       {query.isPending && <SkeletonGrid count={4} />}
       {query.isError && (
-        <ErrorNote label="Không tải được trang chủ." onRetry={() => void query.refetch()} />
+        <ErrorNote label="Không tải được mục nổi bật." onRetry={() => void query.refetch()} />
       )}
-      {query.data?.items.length === 0 && <Empty label="Chưa có sản phẩm để khám phá." />}
       {query.data && query.data.items.length > 0 && <ProductGrid products={query.data.items} />}
     </section>
   );
@@ -40,13 +40,16 @@ function HomeRow({
 export function HomePage() {
   return (
     <>
-      <HeroSection />
-      <HomeRow title="HÀNG MỚI VỀ" params={{ sort: 'newest', pageSize: 4 }} />
-      <div className={styles.container}>
-        <CategoryTiles />
-      </div>
-      <HomeRow title="NỔI BẬT" params={{ featured: true, pageSize: 4 }} hideWhenEmpty />
-      <CampaignBand />
+      <title>{pageTitle()}</title>
+      <meta name="description" content={DESCRIPTION} />
+      <HeroSearch />
+      <CategoryMarquee />
+      <CategoryBento />
+      <ProductRail />
+      <OccasionTiles />
+      <AudienceDuo />
+      <MaterialStory />
+      <FeaturedGrid />
     </>
   );
 }
