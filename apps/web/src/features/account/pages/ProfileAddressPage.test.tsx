@@ -23,6 +23,7 @@ import { ProfilePage } from './ProfilePage.js';
 
 vi.mock('@/features/products', () => ({
   CategoryMenu: () => <nav data-testid="mock-category-menu" />,
+  SearchTrigger: () => <button type="button" aria-label="Tìm kiếm" />,
 }));
 
 const user = { id: 'user-1', email: 'customer@example.com', roles: ['CUSTOMER'] };
@@ -187,16 +188,19 @@ afterEach(() => {
 describe('UC-01.5 Hồ sơ cá nhân trên web', () => {
   it('hiện lối vào hồ sơ và sổ địa chỉ trên header sau đăng nhập', async () => {
     mockApi();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
-      <AuthProvider>
-        <MemoryRouter>
-          <Routes>
-            <Route element={<StoreLayout />}>
-              <Route index element={<p>Cửa hàng</p>} />
-            </Route>
-          </Routes>
-        </MemoryRouter>
-      </AuthProvider>,
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <MemoryRouter>
+            <Routes>
+              <Route element={<StoreLayout />}>
+                <Route index element={<p>Cửa hàng</p>} />
+              </Route>
+            </Routes>
+          </MemoryRouter>
+        </AuthProvider>
+      </QueryClientProvider>,
     );
 
     expect(await screen.findByRole('link', { name: 'Hồ sơ cá nhân' })).toHaveAttribute(
