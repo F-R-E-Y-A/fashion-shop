@@ -1,6 +1,6 @@
 ---
 title: Tài khoản người dùng — bản đồ
-updated: 2026-10-03
+updated: 2026-10-04
 status: đang làm
 owner: Tài
 ---
@@ -31,7 +31,7 @@ quản trị đầu tiên của hệ thống, nơi phân quyền theo vai ([ADR-
 | Gán vai, tìm kiếm, `STAFF`, màn xem nhật ký | Chưa làm |
 | Hồ sơ `GET`/`PATCH /api/users/me`, khu vực hành chính, sổ địa chỉ | PH4, xong phía máy chủ: [profile-address.md](profile-address.md) |
 | Giao diện `/tai-khoan`, hồ sơ và sổ địa chỉ | Đã triển khai trên nhánh giao diện: [profile-address.md](profile-address.md#giao-diện-web-hiện-tại) |
-| Dữ liệu tỉnh/xã thật | Chưa có nguồn xác minh: [ND-12](../../TECH_DEBT.md) |
+| Dữ liệu tỉnh/xã thật: 34 tỉnh, 3321 xã theo Quyết định 19/2025/QĐ-TTg | Đã có tệp, seed và `areas:import`, chưa commit: [profile-address.md](profile-address.md#dữ-liệu-tỉnhxã), [ADR-024](LOG.md#adr-024) |
 
 ## Dữ liệu
 
@@ -102,11 +102,12 @@ môi trường đó trước lệnh. Vai có hiệu lực ngay request kế ti�
 | Chuyển trạng thái có điều kiện, không thu hồi hay ghi nhật ký khi thất bại | `apps/api/src/modules/users/admin-users.service.spec.ts` |
 | `RolesGuard`, `RequireRoles`, `RoleCode` | `apps/api/src/modules/auth/*.spec.ts` |
 
-## Trạng thái hôm nay (03/10/2026)
+## Trạng thái hôm nay (04/10/2026)
 
 Admin.1 và Admin.2 đã gộp vào `develop` (pull request #24, `aee345e`). API hồ sơ, khu vực hành chính và sổ địa
-chỉ đã có; giao diện hồ sơ và địa chỉ đang được triển khai trên `feature/ph4-profile-address-web`. Chưa có dữ
-liệu tỉnh/xã thật ([ND-12](../../TECH_DEBT.md)); avatar và tích hợp checkout ngoài phạm vi giao diện này.
+chỉ đã có; giao diện hồ sơ và địa chỉ đang được triển khai trên `feature/ph4-profile-address-web`. Dữ liệu
+tỉnh/xã thật (34 tỉnh, 3321 xã) đã nạp vào CSDL dev, chưa nạp staging hay production; avatar và tích hợp checkout
+ngoài phạm vi giao diện này.
 
 ## Còn mở
 
