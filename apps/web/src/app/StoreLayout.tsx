@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 
-import { STORE_NAME } from '@/core';
+import { STORE_NAME, STORE_TAGLINE } from '@/core';
 import { useAuth } from '@/features/account';
 import { cartKeys, getCart } from '@/features/cart';
 import { CategoryMenu, SearchTrigger } from '@/features/products';
@@ -84,7 +84,7 @@ export function StoreLayout() {
           <Link className={styles.brand} to="/">
             {STORE_NAME}
           </Link>
-          <p>Phong cách là tự do.</p>
+          <p>{STORE_TAGLINE}</p>
         </div>
         <div>
           <p>DANH MỤC</p>

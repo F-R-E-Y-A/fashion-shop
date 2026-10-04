@@ -1,6 +1,9 @@
 .menu {
   display: flex;
+  /* Xuong dong khi cot chua khong con cho: menu dai hon khung la xuong hang, khong day lan header. */
+  flex-wrap: wrap;
   gap: clamp(16px, 2vw, 36px);
+  row-gap: 6px;
   text-transform: uppercase;
   letter-spacing: var(--tracking-caps);
   font-size: 0.7rem;
@@ -17,9 +20,4 @@
   text-decoration: underline;
   text-decoration-color: var(--accent-bright);
   text-underline-offset: 8px;
-}
-@media (max-width: 760px) {
-  .menu {
-    flex-wrap: wrap;
-  }
 }

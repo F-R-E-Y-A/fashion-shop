@@ -37,7 +37,9 @@
     monospace;
   opacity: 0.8;
 }
-@media (max-width: 860px) {
+/* Tu 1280px tro xuong chi con bieu tuong kinh lup: nut co hint rat rong (~244px), de nguyen
+   se ep nhom tai khoan ben phai xuong nhieu hang o man hinh laptop. */
+@media (max-width: 1280px) {
   .hint,
   .trigger kbd {
     display: none;
