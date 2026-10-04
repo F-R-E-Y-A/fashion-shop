@@ -156,3 +156,67 @@ trong đợt giao diện này.
 Kiểm chứng trên nhánh chưa commit: `npm run typecheck -w apps/web` và `npm run test -w apps/web` đều đạt
 (71/71 bài web); `npm run check` đạt; `node tools/docs/lint.mjs docs/features/users` đạt 3/3 tệp;
 `git diff --check` đạt.
+
+<a id="adr-024"></a>
+
+## 2026-10-04 · ADR-024 — Danh mục tỉnh/xã lấy từ Quyết định 19/2025/QĐ-TTg, lưu thành tệp JSON có nguồn và nạp bằng seed hoặc `areas:import`, không bằng migration
+
+**Loại:** quyết định · **Phạm vi:** `apps/api/prisma/data`, `apps/api/prisma/seed/administrative-areas.seed.ts`, bảng `administrative_areas` · **Trạng thái:** đề xuất · **Người quyết:** Tài · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+
+- Bảng `administrative_areas` rỗng ở dev (`select count(*)`, 04/10/2026), [ND-12](../../TECH_DEBT.md) ghi "nạp
+  bằng migration dữ liệu". Lược đồ hai bậc đã đủ: `code` unique, `level`, `parent_id` tự tham chiếu
+  ([identity.prisma:148](../../../apps/api/prisma/schema/identity.prisma#L148)); không cần đổi lược đồ.
+- Nguồn chính thức duy nhất tìm được là PDF ký số của Quyết định 19/2025/QĐ-TTg trên chinhphu.vn: 143 trang ảnh
+  quét, không có lớp chữ. Không có bản máy đọc được từ cơ quan ban hành để đối chiếu.
+- Production không chạy seed; staging chạy seed khi `SEED_ON_START`; image API chỉ có `apps/api/prisma` và
+  `src/generated` ([Dockerfile:44](../../../apps/api/Dockerfile#L44)).
+
+### Phương án
+
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Migration dữ liệu (3355 câu `INSERT`) | Mọi môi trường có dữ liệu khi `migrate deploy` | Sửa một tên sai phải thêm migration mới; migration đã áp không chạy lại; `resetDatabase` của kiểm thử xoá bảng rồi không nạp lại | Khó |
+| **B. Tệp JSON có `source` + seed upsert theo mã + lệnh `areas:import` (chọn)** | Sửa tên chỉ cần sửa tệp rồi chạy lại; kiểm thử tự quyết khi nào cần dữ liệu thật; dừng khi xung đột thay vì ghi đè | Production phải chạy một lệnh tay | Có: dòng chỉ thêm hoặc đổi tên, không xoá |
+| Tải dữ liệu từ kho GitHub hay trang web lúc chạy | Không phải chép | Không phải nguồn chính thức; phụ thuộc mạng lúc chạy | Có |
+
+**Chọn B** vì tên đơn vị chép từ ảnh quét có thể còn lỗi cần sửa sau, và upsert theo mã sửa được mà không đổi `id`
+mà `addresses` đang trỏ tới. Trade-off chấp nhận: production cần chạy `npm run areas:import -w apps/api` một lần
+(và sau mỗi lần sửa tệp).
+
+Cách chép: OCR hai lượt bằng Apple Vision, ghép theo mã, rồi soát tay từng dòng với ảnh gốc của cả 143 trang;
+124 tên được sửa sau khi soát ảnh (phần lớn là dấu), hai dòng OCR bỏ sót được thêm tay (03892, 23497). Chữ "Ia" đầu tên xã ở Gia Lai,
+Đắk Lắk in giống "la" nên ghi là "Ia" (28 dòng). Không dùng dữ liệu tỉnh/xã trước 01/07/2025.
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: tệp có 34 tỉnh, 3321 xã, mã không trùng, mọi xã có tỉnh cha, số xã/phường/đặc khu từng tỉnh khớp dòng
+tổng trong Phụ lục II; nạp lại lần hai không đổi dòng nào.
+Thực tế: 04/10/2026 · `test/administrative-areas-dataset.http.spec.ts` 7/7; dev: lần đầu thêm 3355, lần hai giữ
+nguyên 3355; tổng theo loại 2621 xã, 687 phường, 13 đặc khu · khớp.
+
+### Điều kiện xem lại
+
+Có văn bản sửa đổi Quyết định 19/2025/QĐ-TTg hoặc nghị quyết sắp xếp mới; cơ quan nhà nước công bố bản máy đọc
+được để đối chiếu; cần ngừng một mã (xử lý bằng `is_active`, không xoá).
+
+## 2026-10-04 · Nạp danh mục 34 tỉnh, 3321 xã
+
+**Loại:** dữ liệu · **Phạm vi:** `apps/api/prisma`, `apps/api/scripts`, `apps/api/test` · **Commit:** (chưa commit)
+
+Thêm tệp `prisma/data/vietnam-administrative-areas-2025.json`, hàm `seedAdministrativeAreas` (gọi trong
+`db:seed`) và lệnh `npm run areas:import -w apps/api` theo [ADR-024](#adr-024). Không đổi lược đồ hay migration.
+CSDL kiểm thử thiếu hai migration của develop (`ph2_cart`, `ph01_search_audience`), đã áp bằng
+`npm run db:test:prepare`; CSDL dev chỉ được ghi bảng `administrative_areas` bằng `areas:import`.
+
+| Chỉ số (đo bằng lệnh nào) | Trước | Sau |
+|---|---|---|
+| Dòng `administrative_areas` ở dev (`select level, count(*) … group by level`) | 0 | 34 tỉnh, 3321 xã |
+| Bài HTTP API (`npm run test:http -w apps/api`) | 281 | 288 |
+| Bài đơn vị API (`npm run test -w apps/api`) | 259 | 259 |
+
+Bằng chứng: `GET /api/administrative-areas` trên API dev trả 34 tỉnh; gọi `?parentId=` cho cả 34 tỉnh được tổng
+3321 xã; Hà Nội 126, TP Hồ Chí Minh 168, Đà Nẵng 94, Đồng Tháp 102, An Giang 102. Nợ: [ND-12](../../TECH_DEBT.md)
+chuyển sang đã xử lý trên nhánh. Tài liệu đã sửa theo: `profile-address.md`, `README.md`,
+`docs/shared/data-model.md`, `docs/TECH_DEBT.md`.

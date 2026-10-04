@@ -1,6 +1,6 @@
 ---
 title: Mô hình dữ liệu và từ điển dữ liệu
-updated: 2026-09-30
+updated: 2026-10-04
 status: đang dùng
 owner: Tài
 ---
@@ -96,7 +96,7 @@ Owner: TAI. Domain: Address/Shipping. Classification: areas/zones/mapping DESIGN
 
 | Table | Columns, constraints and meaning |
 |---|---|
-| administrative_areas | id PK; code UQ; name; level administrative_area_level; parent_id nullable self FK; is_active default true; timestamps required. Province to Commune only. |
+| administrative_areas | id PK; code UQ; name; level administrative_area_level; parent_id nullable self FK; is_active default true; timestamps required. Province to Commune only. Data: 34 provinces and 3321 communes from Decision 19/2025/QĐ-TTg, code kept as the official string (`01`, `00070`), loaded by seed or `areas:import` ([ADR-024](../features/users/LOG.md#adr-024)). |
 | addresses | id PK; user_id FK; recipient_name; phone; administrative_area_id FK; detail_address; postal_code nullable; is_default default false; timestamps required. Area is Commune (active, under an active Province), checked by the users service. Invariant: a user with at least one address has exactly one default ([ADR-023](../features/users/LOG.md#adr-023)). Orders keep `shipping_address_snapshot`, never an FK to addresses. Index `addresses_user_id_idx` (user_id). |
 | shipping_zones | id PK; code UQ; name; is_active default true; timestamps required. |
 | shipping_zone_areas | shipping_zone_id plus administrative_area_id composite PK/FK; area additionally UQ; created_at required. |
