@@ -60,8 +60,8 @@
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: clamp(12px, 1.5vw, 24px);
-  white-space: nowrap;
 }
 .cart {
   position: relative;
@@ -130,20 +130,27 @@
 }
 @media (max-width: 760px) {
   .header {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
     row-gap: 14px;
     padding-block: 14px;
   }
+  .brand {
+    grid-column: 1;
+    grid-row: 1;
+  }
   .menu {
-    grid-column: 1 / -1;
-    grid-row: 2;
+    grid-column: 1;
+    grid-row: 3;
   }
   .actions {
-    grid-column: 2;
-    grid-row: 1;
+    grid-column: 1;
+    grid-row: 2;
+    justify-self: stretch;
+    justify-content: flex-end;
     gap: 12px;
   }
   .account {
+    min-width: 0;
     gap: 10px;
   }
   .accountStatus {

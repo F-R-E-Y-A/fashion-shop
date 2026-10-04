@@ -1,11 +1,15 @@
 import { Suspense } from 'react';
-import { Link, Route, Routes } from 'react-router-dom';
+import { Link, Navigate, Route, Routes } from 'react-router-dom';
 
 import {
+  AccountLayout,
+  AddressPage,
   ChangePasswordPage,
   ForgotPasswordPage,
   LoginPage,
+  ProfilePage,
   RegisterPage,
+  RequireAuth,
   ResetPasswordPage,
   VerifyEmailPage,
 } from '@/features/account';
@@ -37,23 +41,37 @@ export function AppRoutes() {
   return (
     <>
       <ScrollManager />
+
       <Suspense fallback={<Loading />}>
         <Routes>
           <Route element={<StoreLayout />}>
             <Route index element={<HomePage />} />
+
             <Route path="danh-muc/:slug" element={<CategoryPage />} />
             <Route path="tim-kiem" element={<SearchPage />} />
             <Route path="san-pham" element={<ProductListPage />} />
             <Route path="san-pham/:slug" element={<ProductDetailPage />} />
+
             <Route path="gio-hang" element={<CartPage />} />
+
             <Route path="login" element={<LoginPage />} />
             <Route path="register" element={<RegisterPage />} />
             <Route path="xac-thuc-email" element={<VerifyEmailPage />} />
             <Route path="quen-mat-khau" element={<ForgotPasswordPage />} />
             <Route path="dat-lai-mat-khau" element={<ResetPasswordPage />} />
             <Route path="doi-mat-khau" element={<ChangePasswordPage />} />
+
+            <Route element={<RequireAuth />}>
+              <Route path="tai-khoan" element={<AccountLayout />}>
+                <Route index element={<Navigate to="ho-so" replace />} />
+                <Route path="ho-so" element={<ProfilePage />} />
+                <Route path="dia-chi" element={<AddressPage />} />
+              </Route>
+            </Route>
+
             <Route path="*" element={<NotFoundPage />} />
           </Route>
+
           <Route path="quan-tri" element={<AdminLayout />}>
             <Route index element={<AdminProductsPage />} />
           </Route>

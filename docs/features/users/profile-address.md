@@ -1,6 +1,6 @@
 ---
 title: Hồ sơ cá nhân và sổ địa chỉ
-updated: 2026-09-30
+updated: 2026-10-03
 status: đang làm
 owner: Tài
 ---
@@ -86,6 +86,33 @@ Mọi thao tác ghi sổ địa chỉ của một người chạy trong giao d�
 `addresses_one_default_per_user_uq` vẫn là chốt chặn cuối ở CSDL, nhưng mã không dựa vào nó để bắt lỗi. Không
 dùng mutex trong bộ nhớ tiến trình.
 
+## Giao diện web hiện tại
+
+- `/tai-khoan` chuyển tới `/tai-khoan/ho-so`; `/tai-khoan/ho-so` hiển thị hồ sơ và
+  `/tai-khoan/dia-chi` hiển thị sổ địa chỉ ([routes.tsx:54](../../../apps/web/src/app/routes.tsx#L54)).
+- `RequireAuth` đợi khôi phục phiên, rồi chuyển khách chưa đăng nhập tới `/login` và lưu đường dẫn cùng query
+  trong `state.from` ([RequireAuth.tsx:9](../../../apps/web/src/features/account/RequireAuth.tsx#L9)). Đăng nhập
+  thành công quay về đường dẫn nội bộ đó; thiếu `state.from` hoặc giá trị không hợp lệ như `//evil.example` thì
+  về `/` ([LoginPage.tsx:24](../../../apps/web/src/features/account/pages/LoginPage.tsx#L24)).
+- Trang hồ sơ đọc `GET /api/users/me`, cho xem email chỉ đọc và sửa họ tên, số điện thoại. Khi lưu, chỉ gửi
+  những trường thực sự thay đổi qua `PATCH /api/users/me`
+  ([ProfilePage.tsx:15](../../../apps/web/src/features/account/pages/ProfilePage.tsx#L15),
+  [ProfilePage.tsx:67](../../../apps/web/src/features/account/pages/ProfilePage.tsx#L67)). **Avatar chưa được
+  triển khai** trên giao diện này.
+- Trang địa chỉ đọc danh sách, tạo, sửa, xoá sau xác nhận và đặt một địa chỉ làm mặc định. Sau thao tác xoá hoặc
+  đặt mặc định, danh sách được làm mới cả khi yêu cầu thành công lẫn thất bại; xoá địa chỉ đang sửa sẽ đóng form
+  ([AddressPage.tsx:29](../../../apps/web/src/features/account/pages/AddressPage.tsx#L29),
+  [AddressPage.tsx:55](../../../apps/web/src/features/account/pages/AddressPage.tsx#L55)).
+- Form gọi `GET /api/administrative-areas` để lấy tỉnh và `GET /api/administrative-areas?parentId=<id tỉnh>`
+  để lấy xã; đổi tỉnh sẽ bỏ lựa chọn xã cũ. Khi API trả danh sách tỉnh rỗng, giao diện báo rõ và không cho tạo
+  địa chỉ; địa chỉ đã lưu vẫn có thể sửa các trường khác mà không gửi lại `administrativeAreaId`
+  ([AddressForm.tsx:32](../../../apps/web/src/features/account/components/AddressForm.tsx#L32),
+  [AddressForm.tsx:104](../../../apps/web/src/features/account/components/AddressForm.tsx#L104),
+  [AddressPage.tsx:38](../../../apps/web/src/features/account/pages/AddressPage.tsx#L38)).
+- Khi xoá phiên đăng nhập, React Query bỏ riêng cache `profile` và `addresses`; dữ liệu khu vực hành chính là
+  tham chiếu công khai nên vẫn được giữ
+  ([AuthProvider.tsx:70](../../../apps/web/src/features/account/AuthProvider.tsx#L70)).
+
 ## Ranh giới với đặt hàng
 
 Sổ địa chỉ là **dữ liệu nguồn** cho bước đặt hàng. Đơn hàng không có khoá ngoại tới `addresses`: `orders`
@@ -109,4 +136,5 @@ chỉ sau khi đặt không đổi đơn cũ. Checkout sẽ cần một hàm đ�
 - Số điện thoại chỉ nhận dạng `0xxxxxxxxx`; chưa nhận `+84` hay dấu cách. Giao diện nên chuẩn hoá trước khi gửi.
 - Chưa có trần số địa chỉ mỗi người. `addresses.user_id` có chỉ mục thường `addresses_user_id_idx`;
   `administrative_areas.parent_id` chưa có chỉ mục: bảng tham chiếu, hiện rỗng, thêm khi nạp dữ liệu ([ND-12](../../TECH_DEBT.md)).
-- Chưa có giao diện: chờ pull request #15 gộp (`core/http.ts` chưa có `PATCH`, `DELETE`).
+- Tích hợp địa chỉ đã lưu vào bước checkout nằm ngoài phạm vi giao diện hiện tại; ranh giới dữ liệu đơn hàng ở
+  mục trên.
