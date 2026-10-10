@@ -16,7 +16,7 @@ import { ProductRail } from '../home/ProductRail.js';
 
 const FEATURED: ListProductsParams = { featured: true, pageSize: 8 };
 const DESCRIPTION =
-  'Thời trang cho người muốn mặc chất riêng. Gõ điều bạn muốn mặc, cửa hàng hiểu màu, cỡ, dịp mặc và ngân sách.';
+  'F.R.E.Y.A. — Kiêu hãnh qua sự hiện diện. Khám phá thời trang nam và nữ, tìm trang phục phù hợp với gu và dịp mặc của bạn.';
 
 /** Khoi "Noi bat": an ca khoi khi chua co san pham nao duoc chon. */
 function FeaturedGrid() {

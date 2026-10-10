@@ -27,9 +27,9 @@ export function HeroSearch() {
       />
       <div className={styles.inner}>
         <h1 id="hero-title" className={styles.title}>
-          <span>Mặc đẹp,</span>{' '}
+          <span>Kiêu hãnh</span>{' '}
           <span>
-            <em>theo cách của bạn.</em>
+            <em>qua sự hiện diện.</em>
           </span>
         </h1>
         <p className={styles.sub}>{HERO.sub}</p>

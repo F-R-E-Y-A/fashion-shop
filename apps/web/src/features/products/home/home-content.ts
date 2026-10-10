@@ -1,7 +1,7 @@
 /** Chu co dinh cua trang chu. Chep dung tu ban mau thiet ke (design/README.md muc 6). */
 
 export const HERO = {
-  sub: 'Tìm bất cứ thứ gì, với mong muốn tự nhiên nhất của bạn',
+  sub: 'Thời trang cho nam và nữ, dành cho những lần xuất hiện mang dấu ấn riêng.',
   placeholder: 'polo nữ trắng dưới 100k',
   imageAlt: 'Người mẫu mặc sơ mi lụa kem và quần tây ống rộng đi trong nắng chiều',
   /** Kich thuoc that cua hero.webp, de trinh duyet giu cho truoc khi anh tai xong. */

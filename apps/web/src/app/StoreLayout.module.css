@@ -42,10 +42,19 @@
   opacity: 0.8;
 }
 .brand {
-  font: 600 1rem var(--font-body);
-  letter-spacing: 0.3em;
-  white-space: nowrap;
   justify-self: start;
+  /* Symbol + wordmark nam ngang, can giua theo chieu doc. */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* Hai asset CUNG chieu cao de can giua doc; chieu rong tu theo ti le viewBox da cat
+   (wordmark 32 px cao ~ 186 px rong, dung khung 144-200 px cua BRAND_GUIDE). */
+.brandSymbol,
+.wordmark {
+  display: block;
+  height: 32px;
+  width: auto;
 }
 .menu {
   justify-self: center;
@@ -132,6 +141,26 @@
 .footer p {
   letter-spacing: var(--tracking-caps);
 }
+/* Cum nhan dien footer: logo day du + khau hieu cung can giua theo mot truc cua wrapper;
+   wrapper la khoi con cua cot nen tu can trai, khong can margin am hay dich symbol. */
+.footerBrand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+/* Logo day du o footer: rong 180-240 px theo BRAND_GUIDE. */
+.footerLogo {
+  display: block;
+  width: clamp(180px, 16vw, 240px);
+  height: auto;
+}
+/* Khau hieu la cau tieng Viet co dau: sentence case, khong tracking-caps nhu nhan DANH MUC. */
+.footer .slogan {
+  letter-spacing: normal;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
 @media (prefers-reduced-motion: reduce) {
   .header {
     transition: none;
@@ -143,6 +172,14 @@
     grid-template-columns: auto minmax(0, 1fr);
     row-gap: 14px;
     padding-block: 14px;
+  }
+  .brand {
+    gap: 8px;
+  }
+  /* Thu nho cum symbol + wordmark de danh cho actions o man hinh hep. */
+  .brandSymbol,
+  .wordmark {
+    height: 26px;
   }
   .menu {
     grid-column: 1 / -1;
