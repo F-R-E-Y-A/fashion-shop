@@ -46,9 +46,10 @@ Không dùng nữa: `UC-NN` của bản nháp 13/09, `R1`–`R5` của lộ trì
 Những chỗ biết là chưa theo luật, sửa khi có người chạm tới:
 
 - Hai tệp vượt 300 dòng: [shared/code-tour.md](docs/shared/code-tour.md), [features/platform/github-setup.md](docs/features/platform/github-setup.md).
-- Pull request #9 của Duy đã gộp (`513db5f`) nhưng còn theo mã cũ `PH-NN.m` và thiếu frontmatter: `shared/diagrams/uc-tong-quan.md`, `shared/uc-ph01-tai-khoan-xac-thuc.md`, `shared/uc-ph13-ton-kho.md`. `shared/use-case-index.md` vẫn là khuôn trống. Đặc tả UC-03 duy nhất là [features/products/use-cases.md](docs/features/products/use-cases.md).
-- Tên bài kiểm thử của module mẫu `products` còn dạng `PH-03`/`AC-1` (mã cũ); PH-01 viết lại theo `UC-NN.m/ACk`.
-- Tiêu đề Issue #6, #7, #8 còn `PH1`–`PH3` và phạm vi cũ; đổi theo báo cáo tuần.
+- Pull request #9 của Duy đã gộp (`513db5f`) nhưng còn mã cũ và lỗi frontmatter/link ở `shared/diagrams/uc-tong-quan.md`, `shared/uc-ph01-tai-khoan-xac-thuc.md`, `shared/uc-ph13-ton-kho.md`. `shared/use-case-index.md` vẫn là khuôn; bản chuẩn hoá ở [PR #26](https://github.com/F-R-E-Y-A/fashion-shop/pull/26), còn mở ngày 04/10. `node tools/docs/lint.mjs docs AGENTS.md` ngày 04/10 báo 8 lỗi ở các tệp này; không coi lint toàn kho đã xanh.
+- Quét `rg -n 'PH-03|AC-1' apps/api/src/modules/products -g '*.spec.ts'` ngày 04/10 không thấy mã test cũ này; không giữ mô tả module mẫu từ S1 như trạng thái hiện tại.
+- `PH1`–`PH3` trên Issue và `PH-01`–`PH-03` là cùng các dòng việc. Không đổi tên Issue hoặc phạm vi remote chỉ để sửa cách viết.
+- PH-01 đợt 2 có ngoại lệ trailer AI do Bảo dặn ngày 29/09; xem [shared/git.md](docs/shared/git.md). Agent không suy ra "không dùng AI" từ trailer vắng mặt; vẫn kê khai nhật ký AI.
 
 ## Kiểm
 

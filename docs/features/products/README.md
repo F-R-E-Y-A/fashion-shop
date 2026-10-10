@@ -1,6 +1,6 @@
 ---
 title: Khám phá sản phẩm — bản đồ và kế hoạch PH-01
-updated: 2026-09-30
+updated: 2026-10-04
 status: đang làm
 owner: Bảo
 ---
@@ -11,7 +11,7 @@ owner: Bảo
 | | |
 |---|---|
 | **Người sở hữu** | Bảo · `apps/api/src/modules/products` · `apps/web/src/features/products` · bảng trong `prisma/schema/catalog.prisma` |
-| **Dòng việc** | PH-01 (Issue #6, nhánh `feature/ph-01-product-catalog`), S2 21/09 – 27/09; đợt 2 (tìm kiếm, lọc, trang chủ) nhánh `feature/ph-01-search-discovery`, hạn 01/10 |
+| **Dòng việc** | PH-01 nền: PR #17 đã gộp, Issue #6 đóng. Đợt 2 tìm kiếm/lọc/trang chủ: [PR #28](https://github.com/F-R-E-Y-A/fashion-shop/pull/28) đã gộp 03/10, [Issue #23](https://github.com/F-R-E-Y-A/fashion-shop/issues/23) đóng. Sửa header: [PR #31](https://github.com/F-R-E-Y-A/fashion-shop/pull/31) còn mở 04/10 |
 | **Use case** | UC-03.1 duyệt danh mục, UC-03.2 tìm kiếm, UC-03.3 lọc và sắp xếp, UC-03.4 xem chi tiết, trong [use-cases.md](use-cases.md) |
 | **Dữ liệu** | [erd.md](erd.md): sơ đồ và từ điển bảy bảng |
 | **Quyết định** | [ADR-007](LOG.md#adr-007) mô hình dữ liệu **đã chốt** (M2, cài ở PR #11) · [ADR-008](LOG.md#adr-008) hình dạng API · [ADR-009](../../LOG.md#adr-009) CSS Modules — hai ADR sau đang **đề xuất** · [ADR-019](LOG.md#adr-019) tìm kiếm hiểu tiếng Việt · [ADR-020](LOG.md#adr-020) token giao diện bản 1 — cả hai **đề xuất** |
@@ -22,11 +22,13 @@ Khách vào trang chủ, bấm một danh mục, mở một sản phẩm, chọn
 
 ## Việc cần chốt và phối hợp
 
-1. **Duyệt [use-cases.md](use-cases.md), chốt ADR-008 trước khi mở rộng API**: Bảo xác nhận phương án A hoặc B rồi đổi dòng `Trạng thái` trong [LOG](LOG.md#adr-008). ADR-007 đã chốt; lược đồ M2 trong [erd.md](erd.md) đã có ở nhánh này.
+1. **Trạng thái quyết định**: ADR-007 đã chốt; ADR-008, ADR-019 và ADR-020 giữ đúng dòng `Trạng thái` trong [LOG](LOG.md). Việc mã đã gộp không thay cho Bảo chốt ADR.
 2. **Nền đã đồng bộ**: PR #11 (schema M2) và PR #13 (crawler/staging) đã vào `develop`; nhánh PH-01 nhận cả hai ở merge commit `38eaac2`. PR #13 chưa đưa dữ liệu thật vào Catalog.
-3. **Công bố hợp đồng cho Duy**: `getVariantForCart(s)` đã cài và chữ ký ở [README của module](../../../apps/api/src/modules/products/README.md) mục Hợp đồng công bố. Còn dán vào Issue #7 để Duy dùng đúng hình dạng.
+3. **Hợp đồng với Duy**: `getVariantForCart(s)` đã cài, chữ ký ở [README module](../../../apps/api/src/modules/products/README.md). Giỏ hàng đã tích hợp qua PR #15; không còn chờ giỏ để ghép PH-01. Tồn kho vẫn là phần riêng, xem [ND-14](../../TECH_DEBT.md).
 
 ## Phạm vi S2
+
+Bảng dưới giữ kế hoạch của S2; trạng thái tích hợp hiện tại ở mục **Trạng thái hôm nay**. Dữ liệu demo đã chuyển sang test fixtures, seed hiện không tạo sản phẩm.
 
 | Hạng mục | Use case, tiêu chí | Mức |
 |---|---|---|
@@ -48,7 +50,7 @@ Khách vào trang chủ, bấm một danh mục, mở một sản phẩm, chọn
 
 Sơ đồ, từng cột, ràng buộc và chỉ mục ở [erd.md](erd.md); lý do ở [ADR-007](LOG.md#adr-007). Tóm tắt: **biến thể là đơn vị bán**, mỗi biến thể một màu, một cỡ, một mã hàng, một giá; màu, cỡ, thương hiệu là bảng tra cứu; ảnh gắn với sản phẩm, có thể gắn với một màu; `products.price_from` giữ giá thấp nhất để sắp xếp theo giá. Giỏ hàng và tồn kho của Duy trỏ khoá ngoại vào `product_variants.id`.
 
-Dữ liệu giả trong `prisma/seed/catalog.seed.ts`: danh mục cha Áo, Quần, Phụ kiện và bảy danh mục con; sáu màu (có `mac-dinh`), mười cỡ có `sort_order` (có `FREE`), ba thương hiệu; 20 sản phẩm. Ảnh dùng địa chỉ mẫu cố định theo `slug` và màu, vì kho ảnh chưa có ([platform/README](../platform/README.md) lộ trình). Bài kiểm thử import hằng số từ tệp seed, không gõ lại số.
+`prisma/seed/catalog.seed.ts:51` chỉ upsert danh mục, thương hiệu, màu và cỡ; sản phẩm giả dành cho kiểm thử nằm trong `apps/api/test/fixtures/catalog-products.ts` và `apps/web/src/features/products/test-support/catalog-fixtures.ts`. Dữ liệu thật đi qua staging và `importProducts`, theo mục bên dưới. Không coi `npm run setup` là bước nạp sản phẩm.
 
 ## API
 
@@ -161,9 +163,13 @@ Tên bài theo `UC-NN.m/ACk` ([testing.md](../../shared/testing.md)). Kiểm th�
 | `importProducts` chạy hai lần không sinh bản trùng | `test/products-import.http.spec.ts` | — |
 | Ba trạng thái ở trang chủ, trang danh mục, trang chi tiết | `features/products/pages/*.test.tsx` | — |
 
-## Trạng thái hôm nay (30/09/2026)
+## Trạng thái hôm nay (04/10/2026)
 
-**Đợt 2 — tìm kiếm, bộ lọc, trang chủ** (nhánh `feature/ph-01-search-discovery`, các commit local, chưa push): máy chủ tìm kiếm hiểu câu tiếng Việt và lọc có số đếm, gợi ý có giới hạn tần suất, ô tìm kiếm toàn cục, trang `/tim-kiem`, bộ lọc dùng chung cho danh mục, trang chủ Giờ Hổ Phách. Số đo ngày 30/09: `npm run check` exit 0 (API unit 221 bài, web 136 bài); `npm run test:http` 209 bài xanh (7 file); `npm run db:drift -w apps/api` → `No difference detected.`; `npm run build -w apps/web` không còn cảnh báo chunk trên 500 kB (chunk lớn nhất 431 kB); `GET /api/products?search=&facets=true` p95 80–90 ms trên 87 sản phẩm; Lighthouse di động trên bản build: Accessibility 100, Best Practices 96, SEO 92, LCP 871 ms, CLS 0,04 (điểm Performance chưa đo). ADR-019 và ADR-020 đang **đề xuất**.
+**Đợt 2 đã vào `develop`** qua PR #28 tại `ee46445` ngày 03/10; Issue #23 đã đóng. Đã có tìm kiếm hiểu câu tiếng Việt bằng luật/từ điển, facets, gợi ý, trang `/tim-kiem`, bộ lọc chung và trang chủ mới (`apps/api/src/modules/products/search/catalog-search.service.ts:130`, `apps/web/src/app/routes.tsx:43`). Đây là query understanding theo luật; chưa cài embedding hoặc LLM runtime.
+
+**Kiểm chứng 04/10:** `npm.cmd run check` exit 0 tại `33f323c` (nhánh sửa header): API 259 pass, web 136 pass, crawler 50 pass/1 skip. Năm dòng stdout cuối: `ℹ fail 0` / `ℹ cancelled 0` / `ℹ skipped 1` / `ℹ todo 0` / `ℹ duration_ms 592.0993`. CI PR #28 trên `1809122` có 281 HTTP test pass trong 13 file; `gh pr checks 28 --json name,state,link` trả sáu gate `SUCCESS`. Không cộng các số này thành số test riêng của Bảo.
+
+**Còn mở:** PR #31 sửa header ở màn hẹp, hero và chữ thương hiệu; mã nằm ở `bugfix/header-brand-text@33f323c`, CI thành công nhưng chưa gộp ngày 04/10. Bộ nhận diện F.R.E.Y.A. đã được bàn giao ở workspace `work/branding/freya-brand-kit-v1/`. Cuối phiên 04/10 đã thấy asset trong `apps/web/public/images/brand/freya/` và thương hiệu/slogan mới tại `core/brand.ts:2`, `:5`, nối vào `StoreLayout.tsx:60`, `:108`; đây là thay đổi local chưa commit, cần nghiệm thu riêng. Kết quả check nêu trên được chạy trước các thay đổi nhận diện này. ADR-019 và ADR-020 vẫn **đề xuất**. Số đo hiệu năng/Lighthouse ngày 30/09 là mốc lịch sử, chưa đo lại ở commit hiện tại.
 
 ### Trạng thái 27/09/2026
 

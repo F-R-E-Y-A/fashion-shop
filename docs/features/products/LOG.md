@@ -350,3 +350,15 @@ Thực tế ngày 30/09: `Catalog.module.css` **xoá hẳn** (0 dòng), thay b�
 ### Điều kiện xem lại
 
 Khi nhóm chốt tên và nhận diện thương hiệu (đổi màu, chữ), hoặc khi cần chế độ tối.
+
+## 2026-10-04 · Đối chiếu trạng thái tích hợp cho báo cáo tuần 3
+
+PR #28 đã gộp ngày 03/10 vào `develop@ee46445`; Issue #23 đã đóng. `gh pr list --state all --json number,state,mergedAt,mergeCommit` và `gh issue view 23 --json state,closedAt` xác nhận ngày 04/10. Mục ADR-019/020 ngày 30/09 ghi “local, chưa push” là mốc lịch sử, không phải trạng thái hôm nay; không đổi dòng Trạng thái ADR.
+
+`npm.cmd run check` tại `33f323c` ngày 04/10 exit 0: API 259 pass, web 136 pass, crawler 50 pass/1 skip; năm dòng stdout cuối: `ℹ fail 0` / `ℹ cancelled 0` / `ℹ skipped 1` / `ℹ todo 0` / `ℹ duration_ms 592.0993`. CI PR #28 tại `1809122` thành công sáu gate, HTTP 281 pass; lệnh và output ở kho hồ sơ `minh-chung/2026-W40-doi-chieu.md` (chưa push ở thời điểm viết).
+
+PR #31 (`33f323c`) sửa header/hero/chữ có CI SUCCESS, còn OPEN. Bộ FREYA mới là gói bàn giao trong workspace, `apps/web/src/core/brand.ts:2` còn THỜI TRANG. README được sửa theo trạng thái này; không coi asset bàn giao là đã tích hợp.
+
+### Bổ sung cuối phiên 04/10 — working tree nhận diện thay đổi
+
+Sau mốc check baseline, đọc lại `core/brand.ts:2`, `:5` thấy F.R.E.Y.A. và slogan mới; `StoreLayout.tsx:18`, `:108` đã tham chiếu PNG trong resource. HEAD vẫn `33f323c`, các thay đổi web này chưa commit. Câu THỜI TRANG ở mục trên là trạng thái lúc đọc đầu phiên; không dùng kết quả check trước đó để xác nhận bản tích hợp nhận diện mới. Phiên tổng hợp chỉ cập nhật báo cáo, không sửa hoặc revert source web phát sinh.

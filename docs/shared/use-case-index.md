@@ -1,14 +1,14 @@
 ---
 title: Danh mục use case
-updated: 2026-09-25
-status: khuôn, chờ nội dung từ pull request #9
+updated: 2026-10-04
+status: khuôn, chờ chuẩn hoá từ pull request #26
 owner: Duy
 ---
 # Danh mục use case
 
 **Chức năng:** Mỗi use case của hệ thống một dòng: mã, tác nhân, mức ưu tiên, đang thuộc dòng việc nào, đặc tả đã viết chưa.
 
-> **Duy điền tệp này trong HT-04; bản đầy đủ 49 use case đang ở pull request #9.** Bảo dựng sẵn khuôn, không điền nội dung.
+> **Duy điền tệp này trong HT-04.** PR #9 đã gộp ngày 26/09 nhưng danh mục local vẫn là khuôn. Bản chuẩn hoá đang ở [PR #26](https://github.com/F-R-E-Y-A/fashion-shop/pull/26), còn mở khi đối chiếu GitHub ngày 04/10; chưa coi nội dung của PR là bản đã tích hợp.
 >
 > Mỗi use case một dòng. Ba use case khởi động là giỏ hàng, tài khoản và danh mục sản phẩm
 > thì viết đặc tả đầy đủ ngay trong tuần 1, vì tuần 2 đã bắt đầu code tới.

@@ -1,6 +1,6 @@
 ---
 title: Hồ sơ cá nhân và sổ địa chỉ
-updated: 2026-09-30
+updated: 2026-10-04
 status: đang làm
 owner: Tài
 ---
@@ -109,4 +109,4 @@ chỉ sau khi đặt không đổi đơn cũ. Checkout sẽ cần một hàm đ�
 - Số điện thoại chỉ nhận dạng `0xxxxxxxxx`; chưa nhận `+84` hay dấu cách. Giao diện nên chuẩn hoá trước khi gửi.
 - Chưa có trần số địa chỉ mỗi người. `addresses.user_id` có chỉ mục thường `addresses_user_id_idx`;
   `administrative_areas.parent_id` chưa có chỉ mục: bảng tham chiếu, hiện rỗng, thêm khi nạp dữ liệu ([ND-12](../../TECH_DEBT.md)).
-- Chưa có giao diện: chờ pull request #15 gộp (`core/http.ts` chưa có `PATCH`, `DELETE`).
+- Giao diện đang ở [PR #29](https://github.com/F-R-E-Y-A/fashion-shop/pull/29), chưa gộp ngày 04/10. PR #15 đã gộp; `core/http.ts:97` và `:100` đã có `apiPatch`, `apiDel`.
