@@ -1,6 +1,6 @@
 ---
 title: Môi trường thử — dựng và vận hành
-updated: 2026-09-24
+updated: 2026-10-03
 status: đang dùng
 owner: Bảo
 ---
@@ -19,7 +19,7 @@ Máy chủ chạy **Render**, giao diện chạy **Vercel**. Đây là lựa ch�
 
 ## Ai bấm gì
 
-Triển khai **không tự chạy khi đẩy mã**. Thứ tự là: gộp vào `develop` → CI chạy sáu chặng → CI xanh thì `cd-staging.yml` tự chạy → gọi Render dựng → đợi `/api/healthz` trả đúng mã commit vừa gộp → gọi thử một đường dẫn thật.
+Triển khai **tự chạy sau khi gộp vào `develop` và CI xanh**: CI chạy sáu chặng → `cd-staging.yml` gọi Render Deploy Hook → đợi `/api/healthz` trả đúng mã commit vừa gộp → gọi thử một đường dẫn thật. Render để `autoDeployTrigger: off` để không dựng hai lần cho cùng commit. Vercel theo dõi `develop` trực tiếp và tự dựng giao diện mỗi khi nhánh có commit mới.
 
 Làm vậy để lịch sử triển khai và thời gian từ commit tới khi lên môi trường thử đều nằm trong GitHub Actions, đúng thứ rubric TC2.6 đòi. Nếu để Render tự dựng khi thấy commit mới thì mã chưa qua kiểm cũng lên, và không có số liệu nào để nộp.
 
@@ -28,18 +28,18 @@ Làm vậy để lịch sử triển khai và thời gian từ commit tới khi 
 ### 1. Render, cho máy chủ
 
 1. Đăng nhập Render bằng tài khoản GitHub, cho phép đọc tổ chức `F-R-E-Y-A`.
-2. **New → Blueprint**, chọn kho `fashion-shop`. Render đọc `render.yaml` ở gốc và tạo hai thứ: dịch vụ web `fashion-shop-api` và cơ sở dữ liệu `fashion-shop-db`.
-3. Render hỏi giá trị cho `CORS_ORIGINS` vì nó được đánh dấu `sync: false`. Chưa có địa chỉ Vercel thì điền tạm `http://localhost:5174`, xong bước 2 thì quay lại sửa.
+2. **New → Blueprint**, chọn kho `fashion-shop`, nhánh `develop`. Render đọc `render.yaml` ở gốc và tạo API, PostgreSQL và Key Value dùng cho Redis. Blueprint phải được tạo từ commit đã có đầy đủ biến môi trường; chưa được đẩy lên GitHub thì dashboard vẫn đọc bản cũ.
+3. Render hỏi `CORS_ORIGINS`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM` vì được đánh dấu `sync: false`. Điền CORS tạm `http://localhost:5174` nếu chưa có Vercel URL. SMTP phải là dịch vụ thực sự dùng được trên cổng ngoài `25`, `465`, `587` (Render Free chặn ba cổng này). Nếu SMTP cần xác thực, thêm `SMTP_USER` và `SMTP_PASS` trong Environment của Render; tuyệt đối không ghi mật khẩu vào repo. Với Blueprint đã tạo từ trước, các biến `sync: false` mới phải thêm thủ công trong dashboard.
 4. Vào **Settings → Deploy Hook**, sao chép địa chỉ.
 
-Biến `DATABASE_URL` do Render tự nối từ cơ sở dữ liệu, không phải điền tay.
+`DATABASE_URL` và `REDIS_URL` do Blueprint tự nối; ba secret `JWT_ACCESS_SECRET`, `OTP_PEPPER`, `RATE_LIMIT_PEPPER` được Render tạo. `TRUST_PROXY_HOPS=1` theo cấu hình một reverse proxy. Kiểm tra tất cả trong Environment trước khi deploy, không sao chép giá trị bí mật ra tài liệu.
 
 ### 2. Vercel, cho giao diện
 
 1. Đăng nhập Vercel bằng GitHub, **Add New → Project**, chọn kho `fashion-shop`.
 2. **Root Directory** đặt là `apps/web`. Vercel đọc `apps/web/vercel.json` cho lệnh cài và lệnh dựng, vì hai lệnh đó phải chạy từ gốc kho mã do dùng npm workspaces.
 3. **Environment Variables**: thêm `VITE_API_URL` bằng `<địa chỉ Render>/api`. Biến `VITE_*` được nhúng vào mã **lúc dựng**, nên đổi địa chỉ máy chủ thì phải dựng lại, không sửa biến rồi khởi động lại là xong.
-4. **Settings → Git**, đặt nhánh sản xuất là `develop`.
+4. **Settings → Environments → Production → Branch Tracking**, đặt nhánh sản xuất là `develop`. Đây là thiết lập trong Vercel dashboard, `vercel.json` không đặt được nhánh này.
 5. Quay lại Render sửa `CORS_ORIGINS` thành địa chỉ Vercel vừa có. Quên bước này thì trang tải được nhưng không gọi được API, và lỗi hiện trong bảng điều khiển trình duyệt chứ không hiện trên trang.
 
 ### 3. Khai báo trong GitHub
@@ -53,6 +53,19 @@ Trong kho, **Settings → Secrets and variables → Actions**:
 | Variable | `STAGING_WEB_URL` | địa chỉ Vercel |
 
 Địa chỉ hook là một **bí mật**: ai có nó thì kích hoạt được triển khai. Đừng dán vào chat nhóm hay vào tài liệu.
+
+## Dữ liệu và backup
+
+Prisma migration trong `apps/api/docker-entrypoint.sh` chỉ tạo và cập nhật cấu trúc DB. `SEED_ON_START=true` chỉ upsert danh mục và bảng tra cứu, **không nạp sản phẩm đã crawl trên máy local**. Muốn staging hiển thị sản phẩm, phải nhập dữ liệu riêng sau khi có DB và kiểm tra quyền sử dụng ảnh; không trỏ staging vào DB local.
+
+Blueprint hiện khai báo PostgreSQL **Free**. Render Free không có backup/PITR và DB hết hạn sau 30 ngày; vì vậy không dùng nó để giữ dữ liệu quan trọng hoặc coi là môi trường liên tục dài hạn. Quyết định gói DB và nơi lưu bản sao ngoài Render phải chốt trước khi nạp dữ liệu không thể tạo lại.
+
+| Phương án | Cách bảo vệ và khôi phục | Điểm cần lưu ý |
+|---|---|---|
+| DB trả phí trên Render | Render tự sao lưu liên tục với PITR: workspace Hobby khôi phục trong 3 ngày, Pro trở lên 7 ngày. Thử khôi phục sang DB mới trước khi chuyển `DATABASE_URL`. Xuất thêm `pg_dump` ra nơi lưu ngoài Render để giữ lâu. | Có phí; PITR ngắn hạn và không thay thế bản sao lưu ngoài nhà cung cấp. |
+| DB Free cho demo tạm | Chạy `pg_dump -Fc` định kỳ từ máy/runner bên ngoài bằng external DB URL, lưu file mã hóa ở nơi khác, giữ bản theo chính sách và thử `pg_restore` vào DB trống. | Phải tự vận hành lịch chạy, lưu trữ và cảnh báo; không có PITR, có thể mất dữ liệu từ lần dump gần nhất; DB vẫn hết hạn. |
+
+Không đưa database URL hoặc file dump vào Git. Trước migration có rủi ro và trước nhập dữ liệu lớn, tạo backup và thử đọc bằng `pg_restore -l`; định kỳ thử phục hồi vào DB tách biệt. Mục HT-08 trong kế hoạch nhóm mới là việc xây lịch backup, script restore và diễn tập, chưa phải bằng chứng rằng staging đã có backup.
 
 ## Xem log và sửa khi hỏng
 

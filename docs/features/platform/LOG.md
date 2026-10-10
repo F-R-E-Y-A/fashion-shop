@@ -70,3 +70,11 @@ Nhánh `main`, `develop`; chỉ bật merge commit ([ADR-005](../../LOG.md#adr-0
 **Loại:** sửa pipeline · **Phạm vi:** `.github/workflows/ci.yml` · **PR:** [#17](https://github.com/F-R-E-Y-A/fashion-shop/pull/17).
 
 CI của PR #17 đã build xong image API nhưng bị hủy khi xuất layer lên GitHub Actions Cache ở bước `Dung image may chu`; bước web build và chạy thử image chưa kịp bắt đầu. Bỏ `cache-from`/`cache-to` ở cả hai image để gate kiểm tra việc build và chạy thật không phụ thuộc cache. Đổi lại, các lượt CI có thể build lâu hơn. Xem lại khi có số đo build ổn định hoặc cache exporter được khắc phục.
+
+## 2026-10-04 · Đối chiếu runtime local và deploy staging
+
+Compose đã có Mailpit và Redis (`docker-compose.yml:28`, `:40`); README cũ nói chưa có Redis/Compose chỉ PostgreSQL đã được sửa. Seed Catalog chỉ nạp bảng tra cứu (`apps/api/prisma/seed/catalog.seed.ts:51`), không hứa máy mới có product mẫu.
+
+`gh run view 37128704142 -R F-R-E-Y-A/fashion-shop --log-failed` đọc ngày 04/10 trả `Chua dat RENDER_DEPLOY_HOOK_URL`. CI thành công không đồng nghĩa CD đã deploy thành công. Blueprint, entrypoint và staging.md có thay đổi local từ phiên trước, chưa commit/push; phiên tổng hợp giữ nguyên chúng. Backup local ghi trong SESSION ngày 03/10 chưa chứng minh restore hoặc backup cloud.
+
+Code-tour sửa hướng dẫn pool thành cấu hình `max` của pg.Pool theo adapter đang cài và tài liệu node-postgres; không thay pool runtime. Các log cũ giữ là lịch sử, không sửa hồi tố trạng thái quyết định.
