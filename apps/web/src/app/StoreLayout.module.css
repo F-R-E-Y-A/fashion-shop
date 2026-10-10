@@ -79,7 +79,6 @@
   justify-content: flex-end;
   row-gap: 6px;
   gap: clamp(12px, 1.5vw, 24px);
-  white-space: nowrap;
 }
 .cart {
   position: relative;
@@ -191,6 +190,7 @@
     gap: 12px;
   }
   .account {
+    min-width: 0;
     gap: 10px;
   }
   .accountStatus {

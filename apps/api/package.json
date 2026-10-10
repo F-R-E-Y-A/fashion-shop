@@ -22,7 +22,8 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "catalog:refresh": "tsx scripts/refresh-approved-catalog.ts",
-    "admin:grant": "tsx scripts/grant-admin.ts"
+    "admin:grant": "tsx scripts/grant-admin.ts",
+    "areas:import": "tsx scripts/import-administrative-areas.ts"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

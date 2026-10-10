@@ -11,7 +11,7 @@ owner: Tài
 | | |
 |---|---|
 | **Người sở hữu** | Tài · module `apps/api/src/modules/users` · bảng `users`, `roles`, `user_roles`, `refresh_tokens`, `audit_logs`, `addresses`, `administrative_areas` trong `prisma/schema/identity.prisma` |
-| **Dòng việc** | PH3 đợt 2 (S3): phân quyền và quản trị người dùng, đã gộp qua [PR #24](https://github.com/F-R-E-Y-A/fashion-shop/pull/24) (`aee345e`). PH4: hồ sơ và sổ địa chỉ phía máy chủ đã gộp qua [PR #25](https://github.com/F-R-E-Y-A/fashion-shop/pull/25) (`8e390c9`); giao diện ở [PR #29](https://github.com/F-R-E-Y-A/fashion-shop/pull/29), còn mở ngày 04/10 |
+| **Dòng việc** | PH3 đợt 2 (S3): phân quyền và quản trị người dùng, đã gộp qua [PR #24](https://github.com/F-R-E-Y-A/fashion-shop/pull/24) (`aee345e`). PH4: hồ sơ và sổ địa chỉ phía máy chủ đã gộp qua [PR #25](https://github.com/F-R-E-Y-A/fashion-shop/pull/25) (`8e390c9`); giao diện đã gộp qua [PR #29](https://github.com/F-R-E-Y-A/fashion-shop/pull/29) và [PR #32](https://github.com/F-R-E-Y-A/fashion-shop/pull/32) |
 | **Use case** | PH-02.1 "Quản lý tài khoản người dùng" trong [sơ đồ use case](../../shared/diagrams/uc-tong-quan.md), theo quy ước mới là UC-02.1, chưa có đặc tả. Hồ sơ và địa chỉ: PH-01.5, PH-01.6 trong [uc-ph01](../../shared/uc-ph01-tai-khoan-xac-thuc.md), nay là UC-01.5, UC-01.6. [use-case-index.md](../../shared/use-case-index.md) còn trống |
 
 ## Giải quyết việc gì
@@ -30,7 +30,8 @@ quản trị đầu tiên của hệ thống, nơi phân quyền theo vai ([ADR-
 | Chặn `/quan-tri` ở giao diện | Chưa làm: route hiện chỉ dựng `AdminLayout` (`apps/web/src/app/routes.tsx:57`); PR #15 đã gộp |
 | Gán vai, tìm kiếm, `STAFF`, màn xem nhật ký | Chưa làm |
 | Hồ sơ `GET`/`PATCH /api/users/me`, khu vực hành chính, sổ địa chỉ | PH4, xong phía máy chủ: [profile-address.md](profile-address.md) |
-| Dữ liệu tỉnh/xã thật, giao diện tài khoản | Nguồn dữ liệu thật còn mở ở [ND-12](../../TECH_DEBT.md); giao diện đang chờ PR #29 gộp |
+| Giao diện `/tai-khoan`, hồ sơ và sổ địa chỉ | Đã gộp vào develop qua PR #29 và PR #32: [profile-address.md](profile-address.md#giao-diện-web-hiện-tại) |
+| Dữ liệu tỉnh/xã thật: 34 tỉnh, 3321 xã theo Quyết định 19/2025/QĐ-TTg | Đã có tệp, seed và `areas:import` trong develop: [profile-address.md](profile-address.md#dữ-liệu-tỉnhxã), [ADR-024](LOG.md#adr-024); còn chạy nạp trên staging/production ([ND-12](../../TECH_DEBT.md)) |
 
 ## Dữ liệu
 
@@ -101,11 +102,12 @@ môi trường đó trước lệnh. Vai có hiệu lực ngay request kế ti�
 | Chuyển trạng thái có điều kiện, không thu hồi hay ghi nhật ký khi thất bại | `apps/api/src/modules/users/admin-users.service.spec.ts` |
 | `RolesGuard`, `RequireRoles`, `RoleCode` | `apps/api/src/modules/auth/*.spec.ts` |
 
-## Trạng thái hôm nay (30/09/2026)
+## Trạng thái hôm nay (04/10/2026)
 
-Admin.1 và Admin.2 đã gộp vào `develop` (pull request #24, `aee345e`). Hồ sơ, khu vực hành chính và sổ địa chỉ
-phía máy chủ xong trên nhánh `feature/ph4-user-profile-address`, chưa commit. Chưa có dữ liệu tỉnh/xã thật và
-chưa có giao diện.
+Admin.1 và Admin.2 đã gộp vào `develop` (pull request #24, `aee345e`). API hồ sơ, khu vực hành chính và sổ địa
+chỉ đã có; giao diện hồ sơ và địa chỉ đang được triển khai trên `feature/ph4-profile-address-web`. Dữ liệu
+tỉnh/xã thật (34 tỉnh, 3321 xã) đã nạp vào CSDL dev, chưa nạp staging hay production; avatar và tích hợp checkout
+ngoài phạm vi giao diện này.
 
 ## Còn mở
 

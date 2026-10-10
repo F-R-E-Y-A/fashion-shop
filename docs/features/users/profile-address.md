@@ -45,9 +45,38 @@ Mô hình hai bậc Tỉnh → Xã, không có bậc huyện. `GET /api/administ
 ngừng thì trả `[]`; `parentId` sai dạng UUID thì `400`. Danh sách có giới hạn tự nhiên nên trả mảng, không
 phân trang, theo tiền lệ cây danh mục của `products`.
 
-**Dữ liệu tỉnh/xã chưa có** trong cơ sở dữ liệu nào ([ND-12](../../TECH_DEBT.md)): chưa tìm được nguồn đã xác
-minh, và không nạp dữ liệu tự bịa hay dữ liệu lỗi thời. Kiểm thử dùng khu vực giả ghi rõ "Kiem Thu"
-(`apps/api/test/fixtures/administrative-areas.ts`), không nằm trong seed.
+### Dữ liệu tỉnh/xã
+
+Nguồn: [Quyết định 19/2025/QĐ-TTg](https://chinhphu.vn/?classid=1&docid=214409&pageid=27160&typegroupid=5)
+của Thủ tướng Chính phủ, ban hành 30/06/2025, hiệu lực 01/07/2025: Phụ lục I (cấp tỉnh), Phụ lục II (cấp xã).
+Bản PDF ký số là ảnh quét; dữ liệu chép bằng OCR rồi soát tay từng dòng với ảnh của cả 143 trang. Đường dẫn PDF,
+SHA-256 và cách chép nằm trong trường `source` của
+[vietnam-administrative-areas-2025.json](../../../apps/api/prisma/data/vietnam-administrative-areas-2025.json).
+
+| | Số lượng |
+|---|---|
+| Tỉnh, thành phố (`PROVINCE`, mã 2 chữ số) | 34 |
+| Đơn vị cấp xã (`COMMUNE`, mã 5 chữ số): 2621 xã, 687 phường, 13 đặc khu | 3321 |
+| Tổng | 3355 |
+
+Xã, phường và đặc khu đều là `COMMUNE`, `parentId` là tỉnh; không có bậc huyện. Mã giữ nguyên chuỗi của Quyết
+định, kể cả số 0 đầu (`01`, `00070`). Số xã, phường, đặc khu của từng tỉnh khớp dòng tổng của tỉnh đó trong
+Phụ lục II; tệp ghi lại các số này và kiểm thử đối chiếu.
+
+Nạp ([administrative-areas.seed.ts](../../../apps/api/prisma/seed/administrative-areas.seed.ts),
+[ADR-024](LOG.md#adr-024)):
+
+- Dev và staging: `npm run db:seed` (staging chạy seed khi `SEED_ON_START`).
+- Production và mọi nơi không chạy seed: `npm run areas:import -w apps/api`, đặt `DATABASE_URL` của môi trường đó
+  trước lệnh. Lệnh này chỉ nạp khu vực hành chính.
+
+Cả hai upsert theo `code` trong một giao dịch và chạy lại an toàn. Mã chưa có thì thêm; mã đã có thì chỉ sửa
+`name` khi khác, giữ `id` nên địa chỉ đang trỏ tới vẫn đúng, và không đụng `isActive`, nên xã đã bị ngừng giao
+thì nạp lại cũng không mở lại. Mã đã có nhưng khác bậc hay khác tỉnh cha thì dừng, báo từng mã và không ghi gì.
+Không xoá, không truncate: dòng không có trong tệp được giữ nguyên.
+
+Kiểm thử HTTP của sổ địa chỉ vẫn dùng khu vực giả "Kiem Thu" (`apps/api/test/fixtures/administrative-areas.ts`)
+vì cần cả khu vực đã ngừng; `resetDatabase` không nạp dữ liệu thật.
 
 ## Sổ địa chỉ
 
@@ -86,6 +115,33 @@ Mọi thao tác ghi sổ địa chỉ của một người chạy trong giao d�
 `addresses_one_default_per_user_uq` vẫn là chốt chặn cuối ở CSDL, nhưng mã không dựa vào nó để bắt lỗi. Không
 dùng mutex trong bộ nhớ tiến trình.
 
+## Giao diện web hiện tại
+
+- `/tai-khoan` chuyển tới `/tai-khoan/ho-so`; `/tai-khoan/ho-so` hiển thị hồ sơ và
+  `/tai-khoan/dia-chi` hiển thị sổ địa chỉ ([routes.tsx:54](../../../apps/web/src/app/routes.tsx#L54)).
+- `RequireAuth` đợi khôi phục phiên, rồi chuyển khách chưa đăng nhập tới `/login` và lưu đường dẫn cùng query
+  trong `state.from` ([RequireAuth.tsx:9](../../../apps/web/src/features/account/RequireAuth.tsx#L9)). Đăng nhập
+  thành công quay về đường dẫn nội bộ đó; thiếu `state.from` hoặc giá trị không hợp lệ như `//evil.example` thì
+  về `/` ([LoginPage.tsx:24](../../../apps/web/src/features/account/pages/LoginPage.tsx#L24)).
+- Trang hồ sơ đọc `GET /api/users/me`, cho xem email chỉ đọc và sửa họ tên, số điện thoại. Khi lưu, chỉ gửi
+  những trường thực sự thay đổi qua `PATCH /api/users/me`
+  ([ProfilePage.tsx:15](../../../apps/web/src/features/account/pages/ProfilePage.tsx#L15),
+  [ProfilePage.tsx:67](../../../apps/web/src/features/account/pages/ProfilePage.tsx#L67)). **Avatar chưa được
+  triển khai** trên giao diện này.
+- Trang địa chỉ đọc danh sách, tạo, sửa, xoá sau xác nhận và đặt một địa chỉ làm mặc định. Sau thao tác xoá hoặc
+  đặt mặc định, danh sách được làm mới cả khi yêu cầu thành công lẫn thất bại; xoá địa chỉ đang sửa sẽ đóng form
+  ([AddressPage.tsx:29](../../../apps/web/src/features/account/pages/AddressPage.tsx#L29),
+  [AddressPage.tsx:55](../../../apps/web/src/features/account/pages/AddressPage.tsx#L55)).
+- Form gọi `GET /api/administrative-areas` để lấy tỉnh và `GET /api/administrative-areas?parentId=<id tỉnh>`
+  để lấy xã; đổi tỉnh sẽ bỏ lựa chọn xã cũ. Khi API trả danh sách tỉnh rỗng, giao diện báo rõ và không cho tạo
+  địa chỉ; địa chỉ đã lưu vẫn có thể sửa các trường khác mà không gửi lại `administrativeAreaId`
+  ([AddressForm.tsx:32](../../../apps/web/src/features/account/components/AddressForm.tsx#L32),
+  [AddressForm.tsx:104](../../../apps/web/src/features/account/components/AddressForm.tsx#L104),
+  [AddressPage.tsx:38](../../../apps/web/src/features/account/pages/AddressPage.tsx#L38)).
+- Khi xoá phiên đăng nhập, React Query bỏ riêng cache `profile` và `addresses`; dữ liệu khu vực hành chính là
+  tham chiếu công khai nên vẫn được giữ
+  ([AuthProvider.tsx:70](../../../apps/web/src/features/account/AuthProvider.tsx#L70)).
+
 ## Ranh giới với đặt hàng
 
 Sổ địa chỉ là **dữ liệu nguồn** cho bước đặt hàng. Đơn hàng không có khoá ngoại tới `addresses`: `orders`
@@ -101,12 +157,16 @@ chỉ sau khi đặt không đổi đơn cũ. Checkout sẽ cần một hàm đ�
 | Khu vực hành chính, tạo, liệt kê, sửa, xoá, mặc định, 422, IDOR 404, 400 | `apps/api/test/user-addresses.http.spec.ts` |
 | Đồng thời, mỗi bài lặp 5 vòng: hai lần đặt mặc định, tạo mặc định cùng đặt mặc định, hai địa chỉ đầu tiên, xoá mặc định cùng đặt mặc định, xoá hết | `apps/api/test/user-addresses-concurrency.http.spec.ts` |
 | Luật trường, khoá trước khi đọc, lọc theo `userId` | `apps/api/src/modules/users/dto/contact-fields.spec.ts`, `addresses.service.spec.ts` |
+| Tệp tỉnh/xã: số lượng, mã, tỉnh cha, số theo loại, mẫu đối chiếu PDF; nạp lần đầu, nạp lại không đổi gì, giữ địa chỉ và dòng ngoài tệp, dừng khi xung đột, API trả dữ liệu thật | `apps/api/test/administrative-areas-dataset.http.spec.ts` |
 
 ## Còn mở
 
-- Dữ liệu tỉnh/xã: chưa có nguồn đã xác minh ([ND-12](../../TECH_DEBT.md)). Chưa có nó thì không tạo được địa
-  chỉ ở môi trường dev, staging hay production.
+- Production chưa chạy `areas:import`; staging có dữ liệu ở lần seed kế tiếp.
+- `GET /api/administrative-areas` xếp theo collation của CSDL, đang so theo byte: "Thành phố Huế" đứng trước
+  "Thành phố Hà Nội", "Phường An Hội Tây" trước "Phường An Hội Đông" (gọi API dev, 04/10/2026). Danh sách
+  vẫn đủ và đúng, chỉ thứ tự chưa theo tiếng Việt.
 - Số điện thoại chỉ nhận dạng `0xxxxxxxxx`; chưa nhận `+84` hay dấu cách. Giao diện nên chuẩn hoá trước khi gửi.
 - Chưa có trần số địa chỉ mỗi người. `addresses.user_id` có chỉ mục thường `addresses_user_id_idx`;
-  `administrative_areas.parent_id` chưa có chỉ mục: bảng tham chiếu, hiện rỗng, thêm khi nạp dữ liệu ([ND-12](../../TECH_DEBT.md)).
-- Giao diện đang ở [PR #29](https://github.com/F-R-E-Y-A/fashion-shop/pull/29), chưa gộp ngày 04/10. PR #15 đã gộp; `core/http.ts:97` và `:100` đã có `apiPatch`, `apiDel`.
+  `administrative_areas.parent_id` chưa có chỉ mục; bảng có 3355 dòng, thêm bằng migration riêng khi cần.
+- Tích hợp địa chỉ đã lưu vào bước checkout nằm ngoài phạm vi giao diện hiện tại; ranh giới dữ liệu đơn hàng ở
+  mục trên.
