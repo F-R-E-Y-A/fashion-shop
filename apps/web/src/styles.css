@@ -259,9 +259,20 @@ button:disabled {
   color: var(--danger);
 }
 
-/* --- tai khoan --- */
+/* --- tai khoan: form xac thuc nam trong AuthLayout, chi can chu da, khoang cach nhe --- */
 .auth-page {
   max-width: 420px;
+}
+.auth-page > h1 {
+  margin: 0 0 0.35rem;
+  font-size: var(--s2);
+}
+/* Cau chuyen dan phia duoi tieu de: nho, mau mo, khong dan lai y cua tieu de. */
+.auth-page > p {
+  margin: 0 0 1.1rem;
+  color: var(--muted);
+  font-size: var(--s-1);
+  line-height: 1.55;
 }
 .auth-form {
   display: grid;
@@ -269,20 +280,65 @@ button:disabled {
 }
 .auth-form label {
   display: grid;
-  gap: 0.35rem;
-  font-size: 0.9rem;
+  gap: 0.4rem;
+  font-size: 0.82rem;
   font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-2);
 }
 .auth-form input {
-  padding: 0.5rem 0.75rem;
+  padding: 0.72rem 0.85rem;
   border: 1px solid var(--line);
   border-radius: var(--radius);
+  background: var(--surface);
   font: inherit;
+  transition:
+    border-color 0.2s var(--ease),
+    background-color 0.2s var(--ease);
+}
+.auth-form input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: #fff;
+}
+/* Nut submit cua form xac thuc: nhu nut chinh cua cua hang, nhan amber. */
+.auth-form button[type='submit'] {
+  margin-top: 0.35rem;
+  padding: 0.85rem 1.25rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--espresso);
+  color: var(--on-dark);
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background-color 0.2s var(--ease);
+}
+.auth-form button[type='submit']:hover:not(:disabled) {
+  background: var(--accent);
+}
+.auth-form button[type='submit']:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+/* O ma OTP: to hon, so cach rong nhu sau o rieng tung chu so (van la mot input de
+   ba chu pham/dan nguyen chuoi van chay binh thuong). */
+.auth-form input[data-otp='true'] {
+  padding: 0.85rem 0.6rem;
+  font-size: 1.45rem;
+  letter-spacing: 0.9em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
 }
 .auth-form__hint {
   margin: -0.5rem 0 0;
   color: var(--muted);
   font-size: 0.85rem;
+}
+/* Link phu (quen mat khau, dang ky) o day mot cho, khong phan tan. */
+.auth-page > p:has(a) {
+  margin: 1.25rem 0 0;
 }
 
 @media (max-width: 720px) {

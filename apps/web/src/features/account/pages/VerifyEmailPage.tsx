@@ -97,6 +97,8 @@ export function VerifyEmailPage() {
             inputMode="numeric"
             pattern="\d{6}"
             maxLength={6}
+            data-otp="true"
+            placeholder="••••••"
             value={code}
             onChange={(event) => setCode(event.target.value.replace(/\D/g, ''))}
             autoComplete="one-time-code"
