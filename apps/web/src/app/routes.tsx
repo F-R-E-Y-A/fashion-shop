@@ -55,15 +55,6 @@ export function AppRoutes() {
 
             <Route path="gio-hang" element={<CartPage />} />
 
-            {/* Trang xac thuc dung khung rieng (AuthLayout), khong keo menu/footer cua hang theo. */}
-            <Route element={<AuthLayout />}>
-              <Route path="login" element={<LoginPage />} />
-              <Route path="register" element={<RegisterPage />} />
-              <Route path="xac-thuc-email" element={<VerifyEmailPage />} />
-              <Route path="quen-mat-khau" element={<ForgotPasswordPage />} />
-              <Route path="dat-lai-mat-khau" element={<ResetPasswordPage />} />
-            </Route>
-
             <Route element={<RequireAuth />}>
               <Route path="tai-khoan" element={<AccountLayout />}>
                 <Route index element={<Navigate to="ho-so" replace />} />
@@ -80,6 +71,16 @@ export function AppRoutes() {
             />
 
             <Route path="*" element={<NotFoundPage />} />
+          </Route>
+
+          {/* Trang xac thuc dung khung rieng NGANG HANG StoreLayout: full man hinh,
+              khong keo header/menu/footer cua hang theo (chi co link thuong hieu ve trang chu). */}
+          <Route element={<AuthLayout />}>
+            <Route path="login" element={<LoginPage />} />
+            <Route path="register" element={<RegisterPage />} />
+            <Route path="xac-thuc-email" element={<VerifyEmailPage />} />
+            <Route path="quen-mat-khau" element={<ForgotPasswordPage />} />
+            <Route path="dat-lai-mat-khau" element={<ResetPasswordPage />} />
           </Route>
 
           <Route path="quan-tri" element={<AdminLayout />}>
