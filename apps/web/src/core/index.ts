@@ -1,5 +1,5 @@
 /** CUA DUY NHAT cua core. Tang dung chung: khong biet nghiep vu, khong biet feature nao. */
-export { pageTitle, STORE_NAME } from './brand.js';
+export { pageTitle, STORE_NAME, STORE_TAGLINE } from './brand.js';
 export { formatDateTime, formatPrice } from './format.js';
 export {
   apiDel,

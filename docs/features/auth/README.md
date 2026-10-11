@@ -1,6 +1,6 @@
 ---
 title: Tài khoản và xác thực — bản đồ
-updated: 2026-09-30
+updated: 2026-10-04
 status: đang làm
 owner: Tài
 ---
@@ -11,7 +11,7 @@ owner: Tài
 | | |
 |---|---|
 | **Người sở hữu** | Tài · `apps/api/src/modules/auth` · `apps/web/src/features/account` · bảng trong `prisma/schema/identity.prisma` |
-| **Dòng việc** | PH-03 (Issue #8), sprint S2. Đã gộp vào `develop`: nền tảng auth #14, PH3.1 #18, PH3.2 #19, PH3.3 #20, PH3.4 #21. Đợt 2, S3: phân quyền theo vai, nhánh `feature/ph3-rbac-admin-users` (Admin.1, chưa gộp) |
+| **Dòng việc** | PH-03 (Issue #8), sprint S2. Đã gộp vào `develop`: nền tảng auth #14, PH3.1 #18, PH3.2 #19, PH3.3 #20, PH3.4 #21. Đợt 2, S3: phân quyền và quản trị người dùng đã gộp qua [PR #24](https://github.com/F-R-E-Y-A/fashion-shop/pull/24) (`aee345e`) |
 | **Use case** | Đặc tả của Duy đã gộp qua pull request #9 tại [uc-ph01-tai-khoan-xac-thuc.md](../../shared/uc-ph01-tai-khoan-xac-thuc.md), còn theo mã cũ `PH-01.m` (đăng ký, đăng nhập, đặt lại mật khẩu, đăng xuất, hồ sơ, địa chỉ, vóc dáng) và chưa chuyển sang `UC-NN.m` hay về `docs/features/auth/use-cases.md`. Xác thực email OTP và đổi mật khẩu (PH3.1, PH3.3) chưa có use case riêng |
 
 ## Hợp đồng công bố
@@ -32,20 +32,20 @@ RequireRoles(RoleCode.ADMIN)   // gan AuthGuard roi RolesGuard; chua dang nhap 4
 RoleCode                       // CUSTOMER, ADMIN; khong go chuoi vai tay
 ```
 
-## Trạng thái hôm nay (30/09/2026)
+## Trạng thái hôm nay (04/10/2026)
 
 Xác thực đã xong và nằm trong `develop`: đăng ký, đăng nhập, `GET /auth/me`, refresh/logout (nền tảng, #14),
 xác thực email bằng OTP (PH3.1), quên và đặt lại mật khẩu (PH3.2), đổi mật khẩu (PH3.3), hardening bảo mật
 (PH3.4: giới hạn tốc độ, replay refresh token, `authVersion`). Chi tiết từng bước ở các mục dưới.
 
-Phân quyền theo vai **phía máy chủ** có từ Admin.1 (nhánh `feature/ph3-rbac-admin-users`, chưa gộp): `RoleCode`,
+Phân quyền theo vai **phía máy chủ** đã gộp qua PR #24 ngày 30/09: `RoleCode`,
 `RolesGuard`, `RequireRoles`, vai `ADMIN` nạp bằng migration, script `admin:grant` tạo quản trị viên đầu
 tiên, và hai API chỉ đọc `GET /api/admin/users`, `GET /api/admin/users/:id` (feature
 [users](../users/README.md)). Quyết định: [ADR-021](LOG.md#adr-021). Admin.2 thêm khóa và mở khóa tài khoản;
 khóa tăng `authVersion` và thu hồi mọi refresh token, còn đăng nhập và refresh khoá dòng `users` khi tạo phiên
 ([ADR-022](LOG.md#adr-022)).
 
-Chưa có, biết và cố ý: chặn `/quan-tri` **ở giao diện** (chờ pull request #15 gộp vì cùng sửa `routes.tsx`),
+Chưa có, biết và cố ý: chặn `/quan-tri` **ở giao diện** (`apps/web/src/app/routes.tsx:57`; PR #15 đã gộp),
 vai `STAFF`, gán vai qua API ([ND-03](../../TECH_DEBT.md)). Hồ sơ cá nhân và sổ địa chỉ nằm ở feature
 [users](../users/README.md). Cũng chưa có: hồ sơ vóc dáng, OAuth, 2FA.
 

@@ -5,11 +5,10 @@ set -e
 echo "[entrypoint] prisma migrate deploy ..."
 npx prisma migrate deploy
 
-# Nap du lieu gia khi duoc yeu cau. Dung cho MOI TRUONG THU: co so du lieu moi tao thi trong rong,
-# ma buoi trinh bay can co hang de xem. Seed dung upsert voi ma dinh danh co dinh nen chay lai
-# bao nhieu lan cung ra cung mot bo du lieu. KHONG bat bien nay tren moi truong that.
+# Seed tuy chon chi upsert danh muc va bang tra cuu; san pham phai import rieng.
+# Khong bat seed lap lai tren moi truong production.
 if [ "${SEED_ON_START:-false}" = "true" ]; then
-  echo "[entrypoint] SEED_ON_START=true, nap du lieu gia ..."
+  echo "[entrypoint] SEED_ON_START=true, nap danh muc va bang tra cuu ..."
   npx prisma db seed
 fi
 

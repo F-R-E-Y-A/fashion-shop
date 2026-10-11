@@ -1,6 +1,6 @@
 ---
 title: Fashion-shop trong 15 phút
-updated: 2026-09-30
+updated: 2026-10-04
 status: đang dùng
 owner: Bảo
 ---
@@ -34,7 +34,7 @@ Trình duyệt ──▶ apps/web  React 19 + Vite, TanStack Query        (Verce
                 PostgreSQL 17
 ```
 
-**Một khối module hoá, không microservices**: ranh giới giữa ba người là module, không phải tiến trình ([LOG#adr-001](LOG.md#adr-001)). **Một cơ sở dữ liệu duy nhất** ([ADR-002](LOG.md#adr-002)). **Cơ chế xong sớm, dịch vụ đến đúng tuần**: chưa có Redis, hàng đợi hay Meilisearch, thêm vào tuần phân hệ cần ([ADR-004](LOG.md#adr-004), [lộ trình](features/platform/README.md)).
+**Một khối module hoá, không microservices**: ranh giới giữa ba người là module, không phải tiến trình ([LOG#adr-001](LOG.md#adr-001)). **Một cơ sở dữ liệu duy nhất** ([ADR-002](LOG.md#adr-002)). **Cơ chế xong sớm, dịch vụ đến đúng tuần**: Redis đã dùng cho rate limit, Mailpit nhận email local (`docker-compose.yml:28`, `:40`). Chưa thêm hàng đợi hoặc Meilisearch; tìm kiếm hiện dùng luật và từ điển trong API ([ADR-019](features/products/LOG.md#adr-019)).
 
 **Ba cặp tên, cùng một ý.** Hai phía API và web khác tên thư mục, không khác kiến trúc: luật ranh giới là cùng một quy tắc `local/boundaries`, khai với `unitsDir: 'modules'` ([eslint.config.js:62](../eslint.config.js#L62)) và `unitsDir: 'features'` ([eslint.config.js:95](../eslint.config.js#L95)).
 
@@ -45,7 +45,7 @@ Trình duyệt ──▶ apps/web  React 19 + Vite, TanStack Query        (Verce
 | Nơi duy nhất ráp phân hệ lại | `app.module.ts` | `app/` | — |
 | Cửa duy nhất để phân hệ khác gọi vào | `modules/<x>/index.ts` | `features/<x>/index.ts` | README của module |
 
-Ba phân hệ mang tên lệch nhau giữa API, web và tài liệu (`auth` / `account`, `cart` / `inventory`); ghi ở [TECH_DEBT ND-15](TECH_DEBT.md), chủ là Tài và Duy.
+Tên `auth` / `account` còn lệch giữa API và web ([TECH_DEBT ND-15](TECH_DEBT.md)). Giỏ hàng là `cart`, tách biệt với tồn kho `inventory`; bản đồ tài liệu: [cart](features/cart/README.md), [inventory](features/inventory/README.md), [users](features/users/README.md).
 
 ## 3. Một yêu cầu đi qua những gì
 
@@ -120,11 +120,11 @@ Chạy cả cụm trên máy như môi trường thật: `npm run prod:up`, mở
 
 | Lệnh | Việc |
 |---|---|
-| `npm run setup` | Lần đầu: cài gói, bật Postgres, migration, dữ liệu giả, cơ sở dữ liệu kiểm thử |
+| `npm run setup` | Lần đầu: cài gói, bật dịch vụ local, migration, bảng tra cứu, cơ sở dữ liệu kiểm thử; nạp sản phẩm thật theo README products |
 | `npm run dev:api` · `npm run dev:web` | `http://localhost:3001/api` (Swagger ở `/api/docs`) · `http://localhost:5174` |
 | `npm run check` | Lint, ranh giới, định dạng, kiểu, kiểm thử đơn vị: **trước mỗi pull request** |
 | `npm run test:http` | Kiểm thử HTTP trên cơ sở dữ liệu kiểm thử riêng, bị xoá sạch mỗi lần |
-| `npm run db:migrate` · `npm run db:seed` · `npm run db:studio` | Migration sau khi sửa `.prisma` · nạp lại dữ liệu giả · xem bảng |
+| `npm run db:migrate` · `npm run db:seed` · `npm run db:studio` | Migration sau khi sửa `.prisma` · nạp lại danh mục/bảng tra cứu · xem bảng |
 | `npm run docs:lint` | Kiểm luật tài liệu: frontmatter, link gãy, neo ADR |
 
 ## 9. Sáu chỗ hay hiểu nhầm
@@ -143,7 +143,7 @@ Chạy cả cụm trên máy như môi trường thật: `npm run prod:up`, mở
 | Câu hỏi | Mở |
 |---|---|
 | Luật viết tài liệu, hệ mã `PH-NN`, `UC-NN.m`, `ADR`, `ND` | [AGENTS.md](../AGENTS.md) |
-| Feature này làm gì, tới đâu, API mới nào | `features/<module>/README.md`: [products](features/products/README.md) · [auth](features/auth/README.md) · [inventory](features/inventory/README.md) · [platform](features/platform/README.md) |
+| Feature này làm gì, tới đâu, API mới nào | `features/<module>/README.md`: [products](features/products/README.md) · [auth](features/auth/README.md) · [cart](features/cart/README.md) · [users](features/users/README.md) · [inventory](features/inventory/README.md) · [platform](features/platform/README.md) |
 | Nghiệp vụ đúng là gì, tiêu chí chấp nhận | `features/<module>/use-cases.md`; danh mục ở [shared/use-case-index.md](shared/use-case-index.md) |
 | Vì sao làm vậy | [LOG.md](LOG.md) (toàn hệ thống) và `features/<module>/LOG.md` |
 | Đường dẫn API nhận gì, trả gì | Swagger `/api/docs`; quy ước ở [shared/api.md](shared/api.md) |

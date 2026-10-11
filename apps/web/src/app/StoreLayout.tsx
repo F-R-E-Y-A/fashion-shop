@@ -1,13 +1,29 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 
-import { STORE_NAME } from '@/core';
+import { STORE_NAME, STORE_TAGLINE } from '@/core';
 import { useAuth } from '@/features/account';
 import { cartKeys, getCart } from '@/features/cart';
 import { CategoryMenu, SearchTrigger } from '@/features/products';
 
 import styles from './StoreLayout.module.css';
 import { useHeaderState } from './useHeaderState.js';
+
+/**
+ * Nhan dien F.R.E.Y.A. dang raster PNG (work/branding/freya-brand-kit-v1). Canvas co margin lon
+ * nen hien qua SVG viewBox dung vung co mau cua tung ban (asset-manifest.json: rasterLogoViewBox),
+ * khong keo gian ti le. Header dung symbol + wordmark nam ngang, CUNG variant theo overHero:
+ * ivory cho header trong suot tren hero, espresso cho header dac mau nen sang.
+ */
+const WORDMARK = {
+  espresso: { src: '/images/brand/freya/wordmark-espresso.png', viewBox: '57 178 2031 349' },
+  ivory: { src: '/images/brand/freya/wordmark-ivory.png', viewBox: '58 177 2031 351' },
+} as const;
+
+const SYMBOL = {
+  espresso: { src: '/images/brand/freya/symbol-espresso.png', viewBox: '212 129 879 995' },
+  ivory: { src: '/images/brand/freya/symbol-ivory.png', viewBox: '212 129 878 994' },
+} as const;
 
 /** Cua gio hang tren khung: so mon doc tu cache dung chung voi trang /gio-hang. */
 function CartLink() {
@@ -47,8 +63,23 @@ export function StoreLayout() {
         data-home={isHome}
         data-over-hero={overHero}
       >
-        <Link className={styles.brand} to="/">
-          {STORE_NAME}
+        <Link className={styles.brand} to="/" aria-label={`${STORE_NAME} — Trang chủ`}>
+          <svg
+            className={styles.brandSymbol}
+            viewBox={SYMBOL[overHero ? 'ivory' : 'espresso'].viewBox}
+            aria-hidden="true"
+            focusable="false"
+          >
+            <image href={SYMBOL[overHero ? 'ivory' : 'espresso'].src} width={1254} height={1254} />
+          </svg>
+          <svg
+            className={styles.wordmark}
+            viewBox={WORDMARK[overHero ? 'ivory' : 'espresso'].viewBox}
+            aria-hidden="true"
+            focusable="false"
+          >
+            <image href={WORDMARK[overHero ? 'ivory' : 'espresso'].src} width={2172} height={724} />
+          </svg>
         </Link>
         <div className={styles.menu}>
           <CategoryMenu />
@@ -69,7 +100,7 @@ export function StoreLayout() {
                 <span className={styles.accountStatus}>{user?.email}</span>
                 <NavLink to="/tai-khoan/ho-so">Hồ sơ cá nhân</NavLink>
                 <NavLink to="/tai-khoan/dia-chi">Sổ địa chỉ</NavLink>
-                <NavLink to="/doi-mat-khau">Đổi mật khẩu</NavLink>
+                <NavLink to="/tai-khoan/doi-mat-khau">Đổi mật khẩu</NavLink>
                 <button type="button" className={styles.logout} onClick={() => void logout()}>
                   Đăng xuất
                 </button>
@@ -83,17 +114,26 @@ export function StoreLayout() {
       </main>
       <footer className={styles.footer}>
         <div>
-          <Link className={styles.brand} to="/">
-            {STORE_NAME}
-          </Link>
-          <p>Phong cách là tự do.</p>
+          {/* Cum nhan dien gom logo day du ban sang (SVG viewBox cat theo manifest) va khau hieu text,
+              cung can giua theo mot truc cua wrapper; wrapper can trai trong cot footer. */}
+          <div className={styles.footerBrand}>
+            <svg
+              className={styles.footerLogo}
+              viewBox="152 103 1047 937"
+              role="img"
+              aria-label={STORE_NAME}
+            >
+              <image href="/images/brand/freya/logo-stacked-ivory.png" width={1360} height={1157} />
+            </svg>
+            <p className={styles.slogan}>{STORE_TAGLINE}</p>
+          </div>
         </div>
         <div>
           <p>DANH MỤC</p>
           <CategoryMenu />
         </div>
         <small>
-          © {new Date().getFullYear()} Thời Trang · <Link to="/quan-tri">Quản trị</Link>
+          © {new Date().getFullYear()} {STORE_NAME} · <Link to="/quan-tri">Quản trị</Link>
         </small>
       </footer>
     </div>

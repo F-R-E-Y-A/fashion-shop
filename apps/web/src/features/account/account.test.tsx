@@ -509,9 +509,10 @@ describe('Account authentication (PH3)', () => {
       expect(await screen.findByLabelText('Mật khẩu hiện tại')).toBeInTheDocument();
       expect(screen.getByLabelText('Mật khẩu mới')).toBeInTheDocument();
       expect(screen.getByLabelText('Xác nhận mật khẩu mới')).toBeInTheDocument();
+      // Doi mat khau gio la tab trong tai khoan (PH-03 AuthLayout), khong con trang roi /doi-mat-khau.
       expect(screen.getByRole('link', { name: 'Đổi mật khẩu' })).toHaveAttribute(
         'href',
-        '/doi-mat-khau',
+        '/tai-khoan/doi-mat-khau',
       );
     });
 

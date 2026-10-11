@@ -44,7 +44,10 @@
 .title {
   margin: 0;
   font-size: var(--s5);
-  line-height: 1.02;
+  /* Dong mot dam hon dong hai de co do tuong phan; chu nghieng dong hai la italic THAT cua
+     Playfair Display (truc ital nap trong index.html), khong con gia nghieng cua trinh duyet. */
+  font-weight: 500;
+  line-height: 1.04;
   text-wrap: balance;
 }
 .title span {
@@ -56,6 +59,8 @@
 }
 .title em {
   color: var(--amber-glow);
+  font-style: italic;
+  font-weight: 400;
 }
 .sub {
   margin: 0;

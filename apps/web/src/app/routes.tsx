@@ -25,6 +25,7 @@ import {
 import { Loading } from '@/ui';
 
 import { AdminLayout } from './AdminLayout.js';
+import { AuthLayout } from './AuthLayout.js';
 import { ScrollManager } from './ScrollManager.js';
 import { StoreLayout } from './StoreLayout.js';
 
@@ -54,22 +55,32 @@ export function AppRoutes() {
 
             <Route path="gio-hang" element={<CartPage />} />
 
-            <Route path="login" element={<LoginPage />} />
-            <Route path="register" element={<RegisterPage />} />
-            <Route path="xac-thuc-email" element={<VerifyEmailPage />} />
-            <Route path="quen-mat-khau" element={<ForgotPasswordPage />} />
-            <Route path="dat-lai-mat-khau" element={<ResetPasswordPage />} />
-            <Route path="doi-mat-khau" element={<ChangePasswordPage />} />
-
             <Route element={<RequireAuth />}>
               <Route path="tai-khoan" element={<AccountLayout />}>
                 <Route index element={<Navigate to="ho-so" replace />} />
                 <Route path="ho-so" element={<ProfilePage />} />
                 <Route path="dia-chi" element={<AddressPage />} />
+                <Route path="doi-mat-khau" element={<ChangePasswordPage />} />
               </Route>
             </Route>
 
+            {/* Duong cu doi-mat-khau tung la trang roi; gio la tab trong tai khoan. */}
+            <Route
+              path="doi-mat-khau"
+              element={<Navigate to="/tai-khoan/doi-mat-khau" replace />}
+            />
+
             <Route path="*" element={<NotFoundPage />} />
+          </Route>
+
+          {/* Trang xac thuc dung khung rieng NGANG HANG StoreLayout: full man hinh,
+              khong keo header/menu/footer cua hang theo (chi co link thuong hieu ve trang chu). */}
+          <Route element={<AuthLayout />}>
+            <Route path="login" element={<LoginPage />} />
+            <Route path="register" element={<RegisterPage />} />
+            <Route path="xac-thuc-email" element={<VerifyEmailPage />} />
+            <Route path="quen-mat-khau" element={<ForgotPasswordPage />} />
+            <Route path="dat-lai-mat-khau" element={<ResetPasswordPage />} />
           </Route>
 
           <Route path="quan-tri" element={<AdminLayout />}>

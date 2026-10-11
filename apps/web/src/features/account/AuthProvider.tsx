@@ -10,6 +10,7 @@ import {
 } from 'react';
 
 import { ApiError, apiRequest, type ApiRequestOptions, setAccessTokenGetter } from '@/core';
+import { cartKeys, mergeCart } from '@/features/cart';
 
 import {
   login as loginRequest,
@@ -103,6 +104,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void restoreAccessToken().finally(() => setIsLoading(false));
   }, [restoreAccessToken]);
+
+  // Gop gio hang khach vang lai vao gio cua tai khoan ngay khi xac thuc thanh cong (dang nhap,
+  // xac thuc email, hoac khoi phuc phien). Chay dung mot lan moi phien dang nhap: sau khi gop,
+  // guestToken o localStorage bi xoa nen lan sau khong con gi de gop. Gop that bai thi giu
+  // nguyen guestToken — mon do van con o gio rieng, khong mat du lieu.
+  const mergedForUserId = useRef<string | null>(null);
+  useEffect(() => {
+    const userId = user?.id;
+    if (!userId || mergedForUserId.current === userId) return;
+    mergedForUserId.current = userId;
+
+    const guestToken = localStorage.getItem('guestToken');
+    if (!guestToken) return;
+
+    void mergeCart(guestToken)
+      .then(() => {
+        localStorage.removeItem('guestToken');
+        void queryClient?.invalidateQueries({ queryKey: cartKeys.all });
+      })
+      .catch(() => {
+        mergedForUserId.current = null;
+      });
+  }, [user?.id, queryClient]);
 
   const authenticate = useCallback(
     async (

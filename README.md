@@ -23,7 +23,7 @@ git clone https://github.com/F-R-E-Y-A/fashion-shop.git
 cd fashion-shop
 
 cp .env.example .env      # Windows PowerShell: Copy-Item .env.example .env
-npm run setup             # cài gói, bật Postgres, tạo bảng, nạp dữ liệu giả, tạo CSDL kiểm thử
+npm run setup             # cài gói, bật dịch vụ local, tạo bảng và bảng tra cứu, tạo CSDL kiểm thử
 ```
 
 Nếu npm hỏi về kịch bản cài đặt thì đồng ý: `prisma`, `esbuild` và `@swc/core` cần chạy kịch bản của chúng. Danh sách đã được ghi sẵn trong `package.json`.
@@ -35,7 +35,7 @@ npm run dev:api           # http://localhost:3001/api
 npm run dev:web           # http://localhost:5174
 ```
 
-Mở `http://localhost:5174` phải thấy 10 sản phẩm mẫu. Nếu thấy, máy bạn đã sẵn sàng viết mã.
+Mở `http://localhost:5174` để kiểm tra giao diện. Catalog trên máy mới có thể trống: seed chỉ nạp danh mục, thương hiệu, màu và cỡ, không nạp sản phẩm (`apps/api/prisma/seed/catalog.seed.ts:51`). Nạp dữ liệu thật theo [hướng dẫn Catalog](docs/features/products/README.md#nạp-dữ-liệu-thật-trên-máy-mới).
 
 Đặc tả API tự sinh nằm ở `http://localhost:3001/api/docs`.
 
@@ -49,9 +49,9 @@ Mở `http://localhost:5174` phải thấy 10 sản phẩm mẫu. Nếu thấy, 
 | `npm run test:http` | Kiểm thử gọi HTTP thật vào cơ sở dữ liệu kiểm thử |
 | `npm run test:cov` | Kiểm thử kèm báo cáo độ phủ |
 | `npm run lint:fix` | Sửa lỗi lint và định dạng tự động được |
-| `npm run db:up` / `npm run db:down` | Bật, tắt Postgres |
+| `npm run db:up` / `npm run db:down` | Bật, tắt PostgreSQL, Redis và Mailpit |
 | `npm run db:migrate` | Tạo và áp migration sau khi sửa tệp `.prisma` |
-| `npm run db:seed` | Nạp lại dữ liệu giả |
+| `npm run db:seed` | Nạp lại danh mục và bảng tra cứu; không tạo sản phẩm demo |
 | `npm run db:studio` | Mở giao diện xem bảng dữ liệu |
 | `npm run prod:up` / `npm run prod:down` | Chạy cả cụm bằng Docker như môi trường thật |
 
@@ -74,7 +74,10 @@ fashion-shop/
 │   │   │   ├── infra/            hạ tầng: Prisma, kiểm biến môi trường
 │   │   │   ├── modules/          MỖI PHÂN HỆ MỘT THƯ MỤC
 │   │   │   │   ├── health/
-│   │   │   │   └── products/     MODULE MẪU, chép cái này
+│   │   │   │   ├── products/     danh mục, khám phá, tìm kiếm, import
+│   │   │   │   ├── auth/         xác thực và phân quyền
+│   │   │   │   ├── cart/         giỏ khách và giỏ tài khoản
+│   │   │   │   └── users/        quản trị tài khoản, hồ sơ, địa chỉ
 │   │   │   ├── app.module.ts     nơi đăng ký phân hệ mới
 │   │   │   ├── app.setup.ts      thiết lập toàn cục, dùng chung với kiểm thử
 │   │   │   └── main.ts
@@ -86,13 +89,15 @@ fashion-shop/
 │       │   ├── core/             gọi API, định dạng, bộ nhớ đệm
 │       │   ├── ui/               thành phần hiển thị dùng chung
 │       │   └── features/         MỖI PHÂN HỆ MỘT THƯ MỤC
-│       │       └── products/     FEATURE MẪU, chép cái này
+│       │       ├── products/     khám phá, tìm kiếm, trang chủ
+│       │       ├── account/      xác thực; hồ sơ/địa chỉ đang ở PR #29
+│       │       └── cart/         trang giỏ và liên kết trên header
 │       ├── Dockerfile · nginx.conf · vercel.json
 ├── docs/                         tài liệu: README (đọc trước), LOG, shared/, features/
 ├── infra/compose.prod.yml        chạy cả cụm như môi trường thật
 ├── tools/                        luật lint, hook git, script minh chứng
 ├── .github/                      CODEOWNERS, mẫu PR, mẫu phiếu, CI và CD
-├── docker-compose.yml            chỉ Postgres, cho phát triển hằng ngày
+├── docker-compose.yml            PostgreSQL, Redis, Mailpit cho phát triển
 └── .env.example
 ```
 

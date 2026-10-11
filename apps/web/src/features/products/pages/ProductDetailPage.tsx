@@ -1,12 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { type CSSProperties, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 
 import { ApiError, formatPrice, pageTitle } from '@/core';
 import { ErrorNote, SkeletonDetail } from '@/ui';
 
 import { getProductDetail, getRelatedProducts, productKeys } from '../api/index.js';
 import { Breadcrumb } from '../components/Breadcrumb.js';
+import { Lightbox } from '../components/Lightbox.js';
 import { ProductGrid } from '../components/ProductGrid.js';
 import { SectionHeader } from '../components/SectionHeader.js';
 import {
@@ -20,6 +21,8 @@ import styles from './ProductDetailPage.module.css';
 
 export function ProductDetailPage() {
   const { slug = '' } = useParams();
+  /** Bien the nam tren URL (?color=&size=): mo tu ket qua loc se chon san mau do, refresh khong mat. */
+  const [searchParams, setSearchParams] = useSearchParams();
   const product = useQuery({
     queryKey: productKeys.detail(slug),
     queryFn: () => getProductDetail(slug),
@@ -30,10 +33,11 @@ export function ProductDetailPage() {
     queryFn: () => getRelatedProducts(slug, 4),
     enabled: Boolean(slug),
   });
-  const [chosenColor, setChosenColor] = useState<string | null>(null);
-  const [chosenSize, setChosenSize] = useState<string | null>(null);
+  const [chosenColor, setChosenColor] = useState<string | null>(() => searchParams.get('color'));
+  const [chosenSize, setChosenSize] = useState<string | null>(() => searchParams.get('size'));
   const [activeImage, setActiveImage] = useState(0);
   const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(() => new Set());
+  const [isLightboxOpen, setLightboxOpen] = useState(false);
 
   if (product.isPending)
     return (
@@ -88,6 +92,15 @@ export function ProductDetailPage() {
     ...data.breadcrumb.map((item) => ({ name: item.name, to: `/danh-muc/${item.slug}` })),
     { name: data.name },
   ];
+  /** Ghi bien the vua chon len URL (replace: khong doi duong dan cu trong lich su). */
+  const writeVariantUrl = (nextColor: string | null, nextSize: string | null) => {
+    const next = new URLSearchParams(searchParams);
+    if (!hideColor && nextColor) next.set('color', nextColor);
+    else next.delete('color');
+    if (!hideSize && nextSize) next.set('size', nextSize);
+    else next.delete('size');
+    setSearchParams(next, { replace: true });
+  };
   return (
     <div className={styles.container}>
       <title>{pageTitle(data.name)}</title>
@@ -98,6 +111,9 @@ export function ProductDetailPage() {
             className={styles.mainImage}
             tabIndex={gallery.length > 1 ? 0 : undefined}
             aria-label={gallery.length > 1 ? 'Thư viện ảnh sản phẩm' : undefined}
+            onClick={() => {
+              if (currentImage && !currentImageFailed) setLightboxOpen(true);
+            }}
             onKeyDown={(event) => {
               if (gallery.length < 2) return;
               if (event.key === 'ArrowLeft') {
@@ -106,6 +122,9 @@ export function ProductDetailPage() {
               } else if (event.key === 'ArrowRight') {
                 event.preventDefault();
                 setActiveImage((index) => (index + 1) % gallery.length);
+              } else if (event.key === 'Enter' && currentImage && !currentImageFailed) {
+                event.preventDefault();
+                setLightboxOpen(true);
               }
             }}
           >
@@ -130,9 +149,10 @@ export function ProductDetailPage() {
                   type="button"
                   className={`${styles.galleryArrow} ${styles.galleryPrevious}`}
                   aria-label="Ảnh trước"
-                  onClick={() =>
-                    setActiveImage((index) => (index - 1 + gallery.length) % gallery.length)
-                  }
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setActiveImage((index) => (index - 1 + gallery.length) % gallery.length);
+                  }}
                 >
                   ‹
                 </button>
@@ -140,7 +160,10 @@ export function ProductDetailPage() {
                   type="button"
                   className={`${styles.galleryArrow} ${styles.galleryNext}`}
                   aria-label="Ảnh tiếp theo"
-                  onClick={() => setActiveImage((index) => (index + 1) % gallery.length)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setActiveImage((index) => (index + 1) % gallery.length);
+                  }}
                 >
                   ›
                 </button>
@@ -189,9 +212,11 @@ export function ProductDetailPage() {
                       aria-pressed={color === item.code}
                       onClick={() => {
                         const nextSizes = availableSizes(data.variants, item.code);
+                        const keptSize = size && nextSizes.has(size) ? size : null;
                         setChosenColor(item.code);
-                        if (size && !nextSizes.has(size)) setChosenSize(null);
+                        setChosenSize(keptSize);
                         setActiveImage(0);
+                        writeVariantUrl(item.code, keptSize);
                       }}
                     >
                       {colorImage ? (
@@ -218,7 +243,10 @@ export function ProductDetailPage() {
                   key={code}
                   disabled={!sizesForColor.has(code)}
                   aria-pressed={size === code}
-                  onClick={() => setChosenSize(code)}
+                  onClick={() => {
+                    setChosenSize(code);
+                    writeVariantUrl(color, code);
+                  }}
                 >
                   {code}
                 </button>
@@ -239,6 +267,14 @@ export function ProductDetailPage() {
           <SectionHeader title="CÓ THỂ BẠN SẼ THÍCH" to={`/danh-muc/${data.categorySlug}`} />
           <ProductGrid products={related.data} showBrand />
         </section>
+      )}
+      {isLightboxOpen && currentImage && !currentImageFailed && (
+        <Lightbox
+          images={gallery.map((image) => ({ url: image.url, alt: image.alt ?? data.name }))}
+          index={Math.min(activeImage, gallery.length - 1)}
+          onClose={() => setLightboxOpen(false)}
+          onNavigate={setActiveImage}
+        />
       )}
     </div>
   );

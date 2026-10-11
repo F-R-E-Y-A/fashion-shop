@@ -10,7 +10,10 @@
   min-height: 78px;
   padding: 0 clamp(16px, 4vw, 56px);
   display: grid;
-  grid-template-columns: minmax(150px, 1fr) auto minmax(0, 1fr);
+  /* Hai cot ngoai theo noi dung, cot giua CO BOUND (minmax(0, 1fr)) nen menu danh muc phai xuong
+     dong khi het cho thay vi day cot ben canh tran len nhau — cot auto o giua la nguyen nhan header
+     chong lan o man hinh vua. */
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 24px;
   border-bottom: 1px solid var(--line);
@@ -39,18 +42,31 @@
   opacity: 0.8;
 }
 .brand {
-  font: 600 1rem var(--font-body);
-  letter-spacing: 0.3em;
-  white-space: nowrap;
   justify-self: start;
+  /* Symbol + wordmark nam ngang, can giua theo chieu doc. */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* Hai asset CUNG chieu cao de can giua doc; chieu rong tu theo ti le viewBox da cat
+   (wordmark 32 px cao ~ 186 px rong, dung khung 144-200 px cua BRAND_GUIDE). */
+.brandSymbol,
+.wordmark {
+  display: block;
+  height: 32px;
+  width: auto;
 }
 .menu {
   justify-self: center;
+  max-width: 100%;
 }
 .actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  /* Chiem tron cot (khong co gian ra ngoai) de nut tim kiem co the co lai khi man hinh vua du. */
+  /* Chiem tron cot (khong co gian ra ngoai) de nut tim kiem co the co lai khi man hinh vua du.
+     Cho wrap de nhom tai khoan xuong dong khi hep chu khong trun len menu. */
+  row-gap: 10px;
   justify-self: stretch;
   justify-content: flex-end;
   gap: clamp(20px, 3vw, 40px);
@@ -58,9 +74,10 @@
 }
 .account {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
-  flex-wrap: wrap;
+  row-gap: 6px;
   gap: clamp(12px, 1.5vw, 24px);
 }
 .cart {
@@ -123,30 +140,53 @@
 .footer p {
   letter-spacing: var(--tracking-caps);
 }
+/* Cum nhan dien footer: logo day du + khau hieu cung can giua theo mot truc cua wrapper;
+   wrapper la khoi con cua cot nen tu can trai, khong can margin am hay dich symbol. */
+.footerBrand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+/* Logo day du o footer: rong 180-240 px theo BRAND_GUIDE. */
+.footerLogo {
+  display: block;
+  width: clamp(180px, 16vw, 240px);
+  height: auto;
+}
+/* Khau hieu la cau tieng Viet co dau: sentence case, khong tracking-caps nhu nhan DANH MUC. */
+.footer .slogan {
+  letter-spacing: normal;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
 @media (prefers-reduced-motion: reduce) {
   .header {
     transition: none;
   }
 }
-@media (max-width: 760px) {
+@media (max-width: 880px) {
   .header {
-    grid-template-columns: minmax(0, 1fr);
+    /* Cot actions co gioi han tren (1fr) de nhom tai khoan phai xuong dong khi hep, khong tran vao brand. */
+    grid-template-columns: auto minmax(0, 1fr);
     row-gap: 14px;
     padding-block: 14px;
   }
   .brand {
-    grid-column: 1;
-    grid-row: 1;
+    gap: 8px;
+  }
+  /* Thu nho cum symbol + wordmark de danh cho actions o man hinh hep. */
+  .brandSymbol,
+  .wordmark {
+    height: 26px;
   }
   .menu {
-    grid-column: 1;
-    grid-row: 3;
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
   .actions {
-    grid-column: 1;
-    grid-row: 2;
-    justify-self: stretch;
-    justify-content: flex-end;
+    grid-column: 2;
+    grid-row: 1;
     gap: 12px;
   }
   .account {
@@ -158,5 +198,32 @@
   }
   .footer {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Dien thoai nho (<520px): bo wordmark, chi giu symbol — cum brand con ~30px, cot actions
+   du cho nhom tai khoan xuong dong khong tran chu. Footer giam padding_doc va logo. */
+@media (max-width: 520px) {
+  .header {
+    gap: 12px;
+  }
+  .wordmark {
+    display: none;
+  }
+  .brandSymbol {
+    height: 30px;
+  }
+  .brand {
+    gap: 6px;
+  }
+  .accountStatus {
+    max-width: 90px;
+  }
+  .footer {
+    padding-block: 44px;
+    gap: 24px;
+  }
+  .footerLogo {
+    width: clamp(150px, 20vw, 200px);
   }
 }

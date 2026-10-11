@@ -17,6 +17,9 @@ export function AccountLayout() {
         <NavLink to="dia-chi" className={({ isActive }) => (isActive ? styles.active : '')}>
           Sổ địa chỉ
         </NavLink>
+        <NavLink to="doi-mat-khau" className={({ isActive }) => (isActive ? styles.active : '')}>
+          Đổi mật khẩu
+        </NavLink>
       </nav>
       <Outlet />
     </section>

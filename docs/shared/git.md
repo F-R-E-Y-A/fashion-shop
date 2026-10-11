@@ -1,6 +1,6 @@
 ---
 title: Quy ước nhánh, commit, pull request và phiếu công việc
-updated: 2026-09-24
+updated: 2026-10-04
 status: đang dùng
 owner: Bảo
 ---
@@ -50,6 +50,8 @@ docs(ht-01): doi ma use case sang UC-NN.m
 ```
 
 Commit có phần do AI sinh thêm dòng cuối `Co-Authored-By: <công cụ> <địa chỉ>`, và `AI-Assisted: <phạm vi>` khi phần AI sinh đáng kể. Luật đầy đủ ở `ai-log/README.md` trong [kho docs](https://github.com/F-R-E-Y-A/docs).
+
+**Ngoại lệ đã xảy ra, không phải luật mới:** Bảo dặn ngày 29/09 commit PH-01 đợt 2 không có hai trailer trên (`work/PROMPT-GLM-ph01-dot2.md:16`, workspace ngoài kho mã). Nhật ký W40 vẫn kê khai Claude/Codex bằng transcript, diff và commit. Không suy ra "không dùng AI" từ việc thiếu trailer và không sửa lại lịch sử chỉ để bổ sung dấu.
 
 ## Luồng làm một phân hệ
 
