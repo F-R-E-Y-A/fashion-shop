@@ -3,13 +3,15 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { ApiError } from '@/core';
 
+import { readAuthNavigation } from '../auth-form.js';
 import { useAuth } from '../AuthProvider.js';
 
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [email, setEmail] = useState('');
+  const context = readAuthNavigation(location.state);
+  const [email, setEmail] = useState(context.email);
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
@@ -22,10 +24,7 @@ export function LoginPage() {
     setIsSubmitting(true);
     try {
       await login({ email, password });
-      const from = (location.state as { from?: unknown } | null)?.from;
-      navigate(
-        typeof from === 'string' && from.startsWith('/') && !from.startsWith('//') ? from : '/',
-      );
+      navigate(context.from ?? '/');
     } catch (submitError) {
       if (submitError instanceof ApiError && submitError.body.code === 'EMAIL_NOT_VERIFIED') {
         setUnverifiedEmail(email);
@@ -69,7 +68,7 @@ export function LoginPage() {
         {unverifiedEmail && (
           <p className="state state--error" role="alert">
             Email chưa được xác thực.{' '}
-            <Link to="/xac-thuc-email" state={{ email: unverifiedEmail }}>
+            <Link to="/xac-thuc-email" state={{ email: unverifiedEmail, from: context.from }}>
               Xác thực ngay
             </Link>
           </p>
@@ -82,7 +81,10 @@ export function LoginPage() {
         <Link to="/quen-mat-khau">Quên mật khẩu?</Link>
       </p>
       <p>
-        Chưa có tài khoản? <Link to="/register">Đăng ký</Link>
+        Chưa có tài khoản?{' '}
+        <Link to="/register" state={{ email, from: context.from }}>
+          Đăng ký
+        </Link>
       </p>
     </section>
   );

@@ -127,6 +127,9 @@
     position: absolute;
     top: 18px;
     left: var(--gutter);
+    /* Logo absolute không dùng width 100% của form rồi cộng thêm left gutter. */
+    width: auto;
+    max-width: calc(100% - 2 * var(--gutter));
     display: inline-flex;
     align-items: center;
     gap: 8px;

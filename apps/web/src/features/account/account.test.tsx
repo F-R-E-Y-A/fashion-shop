@@ -275,6 +275,7 @@ describe('Account authentication (PH3)', () => {
     renderWithRoutes('/register');
     await user.type(await screen.findByLabelText('Email'), 'customer@example.com');
     await user.type(screen.getByLabelText('Mật khẩu'), 'Password123');
+    await user.type(screen.getByLabelText('Xác nhận mật khẩu'), 'Password123');
     await user.click(screen.getByRole('button', { name: 'Đăng ký' }));
 
     expect(await screen.findByText(/Nhập mã 6 số/)).toBeInTheDocument();
@@ -286,7 +287,8 @@ describe('Account authentication (PH3)', () => {
 
     renderWithRoutes('/register');
     await user.type(await screen.findByLabelText('Email'), 'customer@example.com');
-    await user.type(screen.getByLabelText('Mật khẩu'), 'weakpass');
+    await user.type(screen.getByLabelText('Mật khẩu'), 'Password123');
+    await user.type(screen.getByLabelText('Xác nhận mật khẩu'), 'Password123');
     await user.click(screen.getByRole('button', { name: 'Đăng ký' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
@@ -383,7 +385,7 @@ describe('Account authentication (PH3)', () => {
     renderVerifyPage();
     await user.click(screen.getByRole('button', { name: 'Gửi lại mã' }));
 
-    expect(await screen.findByRole('status')).toHaveTextContent('một mã mới đã được gửi');
+    expect(await screen.findByRole('status')).toHaveTextContent('Yêu cầu đã được tiếp nhận');
     expect(screen.getByRole('button', { name: /Gửi lại sau \d+s/ })).toBeDisabled();
   });
 
