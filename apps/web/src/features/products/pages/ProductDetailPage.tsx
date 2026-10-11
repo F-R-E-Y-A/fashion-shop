@@ -7,6 +7,7 @@ import { ErrorNote, SkeletonDetail } from '@/ui';
 
 import { getProductDetail, getRelatedProducts, productKeys } from '../api/index.js';
 import { Breadcrumb } from '../components/Breadcrumb.js';
+import { Lightbox } from '../components/Lightbox.js';
 import { ProductGrid } from '../components/ProductGrid.js';
 import { SectionHeader } from '../components/SectionHeader.js';
 import {
@@ -34,6 +35,7 @@ export function ProductDetailPage() {
   const [chosenSize, setChosenSize] = useState<string | null>(null);
   const [activeImage, setActiveImage] = useState(0);
   const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(() => new Set());
+  const [isLightboxOpen, setLightboxOpen] = useState(false);
 
   if (product.isPending)
     return (
@@ -98,6 +100,9 @@ export function ProductDetailPage() {
             className={styles.mainImage}
             tabIndex={gallery.length > 1 ? 0 : undefined}
             aria-label={gallery.length > 1 ? 'Thư viện ảnh sản phẩm' : undefined}
+            onClick={() => {
+              if (currentImage && !currentImageFailed) setLightboxOpen(true);
+            }}
             onKeyDown={(event) => {
               if (gallery.length < 2) return;
               if (event.key === 'ArrowLeft') {
@@ -106,6 +111,9 @@ export function ProductDetailPage() {
               } else if (event.key === 'ArrowRight') {
                 event.preventDefault();
                 setActiveImage((index) => (index + 1) % gallery.length);
+              } else if (event.key === 'Enter' && currentImage && !currentImageFailed) {
+                event.preventDefault();
+                setLightboxOpen(true);
               }
             }}
           >
@@ -130,9 +138,10 @@ export function ProductDetailPage() {
                   type="button"
                   className={`${styles.galleryArrow} ${styles.galleryPrevious}`}
                   aria-label="Ảnh trước"
-                  onClick={() =>
-                    setActiveImage((index) => (index - 1 + gallery.length) % gallery.length)
-                  }
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setActiveImage((index) => (index - 1 + gallery.length) % gallery.length);
+                  }}
                 >
                   ‹
                 </button>
@@ -140,7 +149,10 @@ export function ProductDetailPage() {
                   type="button"
                   className={`${styles.galleryArrow} ${styles.galleryNext}`}
                   aria-label="Ảnh tiếp theo"
-                  onClick={() => setActiveImage((index) => (index + 1) % gallery.length)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setActiveImage((index) => (index + 1) % gallery.length);
+                  }}
                 >
                   ›
                 </button>
@@ -239,6 +251,14 @@ export function ProductDetailPage() {
           <SectionHeader title="CÓ THỂ BẠN SẼ THÍCH" to={`/danh-muc/${data.categorySlug}`} />
           <ProductGrid products={related.data} showBrand />
         </section>
+      )}
+      {isLightboxOpen && currentImage && !currentImageFailed && (
+        <Lightbox
+          images={gallery.map((image) => ({ url: image.url, alt: image.alt ?? data.name }))}
+          index={Math.min(activeImage, gallery.length - 1)}
+          onClose={() => setLightboxOpen(false)}
+          onNavigate={setActiveImage}
+        />
       )}
     </div>
   );

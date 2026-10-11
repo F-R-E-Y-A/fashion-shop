@@ -14,7 +14,9 @@
 }
 .mainImage {
   position: relative;
-  aspect-ratio: 3 / 4;
+  /* Vua mot khung hinh laptop: cap theo chieu cao man hinh thay vi ti le 3/4 cua ca cot,
+     anh to nhat cung chiem phan nhin duoc khong can cuon. */
+  height: min(72dvh, 760px);
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -22,9 +24,12 @@
 }
 .mainImage img {
   display: block;
-  width: 100%;
-  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
   object-fit: contain;
+  cursor: zoom-in;
 }
 .galleryArrow {
   position: absolute;
@@ -168,5 +173,9 @@
 @media (max-width: 760px) {
   .detail {
     grid-template-columns: 1fr;
+  }
+  /* Man hinh hep: anh chinh thap hon de danh cho thong tin san pham ngay khung dau. */
+  .mainImage {
+    height: min(58dvh, 520px);
   }
 }
