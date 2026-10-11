@@ -113,13 +113,151 @@
   text-overflow: ellipsis;
   color: var(--muted);
 }
-.logout {
-  padding: 0;
+
+/* ---- khach chua dang nhap: text link + nut dac ---- */
+.loginLink {
+  font-size: var(--s-1);
+}
+.registerBtn {
+  padding: 9px 18px;
+  background: var(--espresso);
+  color: var(--on-dark);
+  border-radius: var(--radius);
+  font-size: var(--s-1);
+  letter-spacing: 0.05em;
+  transition: background-color 0.2s var(--ease);
+}
+.registerBtn:hover {
+  background: var(--accent);
+}
+
+/* ---- menu tai khoan avatar ---- */
+.accountMenu {
+  position: relative;
+}
+.accountButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 4px;
   border: 0;
+  border-radius: 999px;
   background: transparent;
-  color: inherit;
+  cursor: pointer;
+}
+.avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--espresso);
+  color: var(--on-dark);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  box-shadow: 0 0 0 1px var(--line);
+  transition: box-shadow 0.2s var(--ease);
+}
+.accountButton:hover .avatar,
+.accountButton[aria-expanded='true'] .avatar {
+  box-shadow: 0 0 0 2px var(--amber-glow);
+}
+.presenceDot {
+  position: absolute;
+  right: 0;
+  bottom: 1px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--amber-glow);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.chevron {
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+
+/* Ten class phai KHAC .menu cua khoi DANH MUC o tren: CSS Module trong cung mot file dung
+   chung hash nen hai rule .menu se ap dung cho ca hai phan tu — bug da tung lam danh muc
+   bi keo xuong nhu dropdown. */
+.accountDropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 50;
+  display: grid;
+  min-width: min(264px, 86vw);
+  padding: 6px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 18px 48px rgb(17 17 17 / 0.16);
+  animation: menuIn 0.16s var(--ease);
+}
+@keyframes menuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+.menuHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+.menuAvatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.menuEmail {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--s-1);
+  color: var(--ink-2);
+}
+.menuLink {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
   font: inherit;
-  text-decoration: underline;
+  font-size: var(--s0);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.menuLink:hover {
+  background: var(--surface);
+}
+.menuSeparator {
+  height: 1px;
+  margin: 6px 4px;
+  background: var(--line);
+}
+.menuLogout {
+  color: var(--danger);
+}
+@media (prefers-reduced-motion: reduce) {
+  .accountDropdown {
+    animation: none;
+  }
 }
 .main {
   flex: 1;

@@ -101,6 +101,45 @@ describe('ProductDetailPage (UC-03.4)', () => {
     await screen.findByText('?color=den');
   });
 
+  it('mo tu deep-link ?color= (family) van chon dung mau co code gan dai', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        return response(
+          url.pathname.endsWith('/related')
+            ? []
+            : {
+                ...detail,
+                colors: [
+                  { code: 'do-do', name: 'Đỏ đô', hex: '#7a1f2b' },
+                  { code: 'trang', name: 'Trắng', hex: '#ffffff' },
+                ],
+                images: [
+                  { url: '/do.jpg', alt: null, colorCode: 'do-do' },
+                  { url: '/common.jpg', alt: null, colorCode: null },
+                ],
+                variants: [
+                  {
+                    id: 'v10',
+                    sku: 'DO-DO-S',
+                    colorCode: 'do-do',
+                    sizeCode: 'S',
+                    price: '299000',
+                    listPrice: null,
+                  },
+                ],
+              },
+        );
+      }),
+    );
+    renderDetail('/san-pham/mau-thu?color=do');
+    await screen.findByRole('heading', { name: 'Mẫu thử' });
+    expect(screen.getByRole('button', { name: 'Đỏ đô' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'S' }));
+    expect(screen.getByText('Mã hàng: DO-DO-S')).toBeInTheDocument();
+  });
+
   it('màu trắng chỉ có cỡ S; chọn cỡ hiện đúng SKU', async () => {
     vi.stubGlobal(
       'fetch',

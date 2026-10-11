@@ -120,7 +120,8 @@ describe('ProductsService (UC-03.1 catalog)', () => {
       include: { images: unknown };
       where: { images: unknown };
     };
-    expect(args.include.images).toMatchObject({ orderBy: { sortOrder: 'asc' }, take: 2 });
+    // take 12 (khong con la 2): du anh de chon anh theo ho mau dang loc, xem LOG 11/10.
+    expect(args.include.images).toMatchObject({ orderBy: { sortOrder: 'asc' }, take: 12 });
     expect(args.where.images).toEqual({ some: {} });
   });
 

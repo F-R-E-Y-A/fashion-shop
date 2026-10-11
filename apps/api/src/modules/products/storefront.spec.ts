@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { Prisma } from '../../generated/prisma/client.js';
-import { toProductResponse } from './storefront.js';
+import { preferredFamilyOf, toProductResponse } from './storefront.js';
 
 const D = (value: string) => new Prisma.Decimal(value);
 
@@ -71,5 +71,59 @@ describe('toProductResponse: truong moi cua the san pham (UC-03.1)', () => {
     const r = toProductResponse(row({ variants: [{ listPrice: D('49000'), salePrice: null }] }));
     expect(r.colorSwatches).toEqual([]);
     expect(r.colorCount).toBe(0);
+  });
+});
+
+describe('toProductResponse: anh the theo ho mau dang loc (UC-03.3)', () => {
+  const image = (url: string, colorName: string | null) => ({
+    url,
+    ...(colorName ? { color: { name: colorName } } : {}),
+  });
+  const multiColorRow = row({
+    images: [
+      image('https://example.test/vang.jpg', 'Vàng'), // anh mac dinh cua san pham
+      image('https://example.test/xanh-1.jpg', 'Xanh dương'),
+      image('https://example.test/xanh-2.jpg', 'Xanh biển'), // cung ho xanh-duong
+      image('https://example.test/trang.jpg', 'Trắng'),
+    ],
+  });
+
+  it('loc mot ho mau: anh chinh va anh re chuot la anh cua mau do', () => {
+    const r = toProductResponse(multiColorRow, { preferFamily: 'xanh-duong' });
+    expect(r.imageUrl).toBe('https://example.test/xanh-1.jpg');
+    expect(r.hoverImageUrl).toBe('https://example.test/xanh-2.jpg');
+  });
+
+  it('khong truyen ho mau uu tien: giu hai anh dau nhu cu', () => {
+    const r = toProductResponse(multiColorRow);
+    expect(r.imageUrl).toBe('https://example.test/vang.jpg');
+    expect(r.hoverImageUrl).toBe('https://example.test/xanh-1.jpg');
+  });
+
+  it('san pham khong co anh cua mau dang loc: ve anh mac dinh, khong lo', () => {
+    const r = toProductResponse(multiColorRow, { preferFamily: 'hong' });
+    expect(r.imageUrl).toBe('https://example.test/vang.jpg');
+    expect(r.hoverImageUrl).toBe('https://example.test/xanh-1.jpg');
+  });
+
+  it('anh re chuot khong trung anh chinh khi ho mau chi co mot anh', () => {
+    const oneBlue = row({
+      images: [
+        image('https://example.test/vang.jpg', 'Vàng'),
+        image('https://example.test/xanh.jpg', 'Xanh dương'),
+      ],
+    });
+    const r = toProductResponse(oneBlue, { preferFamily: 'xanh-duong' });
+    expect(r.imageUrl).toBe('https://example.test/xanh.jpg');
+    expect(r.hoverImageUrl).toBe('https://example.test/vang.jpg');
+  });
+});
+
+describe('preferredFamilyOf: chi uu tien khi loc dung mot ho mau', () => {
+  it('mot ho hop le → uu tien; hai ho hoac gia tri la → khong', () => {
+    expect(preferredFamilyOf(['xanh-duong'])).toBe('xanh-duong');
+    expect(preferredFamilyOf(['den', 'trang'])).toBeUndefined();
+    expect(preferredFamilyOf(undefined)).toBeUndefined();
+    expect(preferredFamilyOf(['khong-phai-ho'])).toBeUndefined();
   });
 });
