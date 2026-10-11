@@ -26,7 +26,11 @@ function FeaturedGrid() {
   });
   if (query.data && query.data.items.length === 0) return null;
   return (
-    <section className={`${layout.container} ${layout.section}`} aria-labelledby="home-feat-title">
+    <section
+      data-reveal
+      className={`${layout.container} ${layout.section}`}
+      aria-labelledby="home-feat-title"
+    >
       <HomeSectionHeader eyebrow="Được chọn" title="Nổi bật" titleId="home-feat-title" />
       {query.isPending && <SkeletonGrid count={4} />}
       {query.isError && (
@@ -44,11 +48,23 @@ export function HomePage() {
       <meta name="description" content={DESCRIPTION} />
       <HeroSearch />
       <CategoryMarquee />
-      <CategoryBento />
-      <ProductRail />
-      <OccasionTiles />
-      <AudienceDuo />
-      <MaterialStory />
+      {/* data-reveal: lop nang cao theo cuon dinh nghia o styles.css — trinh duyet khong ho tro
+          thi section van hien binh thuong, chi thieu hieu ung. Wrapper la div thuan khong style. */}
+      <div data-reveal>
+        <CategoryBento />
+      </div>
+      <div data-reveal>
+        <ProductRail />
+      </div>
+      <div data-reveal>
+        <OccasionTiles />
+      </div>
+      <div data-reveal>
+        <AudienceDuo />
+      </div>
+      <div data-reveal>
+        <MaterialStory />
+      </div>
       <FeaturedGrid />
     </>
   );

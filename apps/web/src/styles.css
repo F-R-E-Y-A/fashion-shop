@@ -349,3 +349,30 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+/* --- lop nang cao theo cuon cho trang chu (PH-01) ---
+   [data-reveal] chi la lop phu: trinh duyet khong ho tro animation-timeline (Firefox hien tai)
+   thi trang van day du noi dung tinh. Nguoi bat giam dong (reduced-motion) cung khong nhan hieu ung. */
+[data-reveal] {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 480px;
+}
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    [data-reveal] {
+      animation: home-reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 32%;
+    }
+  }
+}
+@keyframes home-reveal {
+  from {
+    opacity: 0.05;
+    transform: translateY(26px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
