@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -203,15 +203,16 @@ describe('UC-01.5 Hồ sơ cá nhân trên web', () => {
       </QueryClientProvider>,
     );
 
+    expect(await screen.findByRole('button', { name: /Tài khoản: / })).toBeInTheDocument();
+    // Link tai khoan nam trong dropdown avatar: mo ra roi moi thay.
+    fireEvent.click(screen.getByRole('button', { name: /Tài khoản: / }));
     expect(await screen.findByRole('link', { name: 'Hồ sơ cá nhân' })).toHaveAttribute(
       'href',
       '/tai-khoan/ho-so',
     );
-    expect(screen.getByRole('link', { name: 'Sổ địa chỉ' })).toHaveAttribute(
-      'href',
-      '/tai-khoan/dia-chi',
-    );
     expect(screen.getByRole('link', { name: 'Đổi mật khẩu' })).toBeInTheDocument();
+    // So dia chi khong con tren header: no la tab con cua /tai-khoan.
+    expect(screen.queryByRole('link', { name: 'Sổ địa chỉ' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Đăng xuất' })).toBeInTheDocument();
   });
 
@@ -280,6 +281,8 @@ describe('UC-01.5 Hồ sơ cá nhân trên web', () => {
     expect(await screen.findByDisplayValue('Nguyễn Văn An')).toBeInTheDocument();
     queryClient.setQueryData(addressKeys.list(user.id), [makeAddress('address-1', true)]);
     queryClient.setQueryData(['unrelated'], { retained: true });
+    // Đăng xuất nằm trong dropdown avatar: mở ra rồi bấm.
+    await actor.click(screen.getByRole('button', { name: /Tài khoản: / }));
     await actor.click(screen.getByRole('button', { name: 'Đăng xuất' }));
 
     expect(await screen.findByRole('heading', { name: 'Đăng nhập' })).toBeInTheDocument();

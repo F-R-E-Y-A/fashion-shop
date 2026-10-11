@@ -208,7 +208,11 @@ describe('Account authentication (PH3)', () => {
 
     renderStore();
 
-    expect(await screen.findByText('customer@example.com')).toBeInTheDocument();
+    // Navbar da dang nhap nay la avatar dropdown: nut chua email; mo ra moi thay Đăng xuất.
+    expect(
+      await screen.findByRole('button', { name: 'Tài khoản: customer@example.com' }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Tài khoản: customer@example.com' }));
     await user.click(screen.getByRole('button', { name: 'Đăng xuất' }));
     expect(await screen.findByRole('link', { name: 'Đăng nhập' })).toBeInTheDocument();
   });
@@ -503,6 +507,7 @@ describe('Account authentication (PH3)', () => {
 
     it('shows the form and a navbar link to it for an authenticated user', async () => {
       mockFetch(mockResponse(authenticated));
+      const user = userEvent.setup();
 
       renderChangePasswordPage();
 
@@ -510,6 +515,10 @@ describe('Account authentication (PH3)', () => {
       expect(screen.getByLabelText('Mật khẩu mới')).toBeInTheDocument();
       expect(screen.getByLabelText('Xác nhận mật khẩu mới')).toBeInTheDocument();
       // Doi mat khau gio la tab trong tai khoan (PH-03 AuthLayout), khong con trang roi /doi-mat-khau.
+      // Link nam trong dropdown avatar: mo ra roi moi thay.
+      await user.click(
+        await screen.findByRole('button', { name: 'Tài khoản: customer@example.com' }),
+      );
       expect(screen.getByRole('link', { name: 'Đổi mật khẩu' })).toHaveAttribute(
         'href',
         '/tai-khoan/doi-mat-khau',
@@ -572,7 +581,10 @@ describe('Account authentication (PH3)', () => {
       });
 
       expect(await screen.findByRole('alert')).toHaveTextContent('Mật khẩu hiện tại không đúng.');
-      expect(screen.getByText('customer@example.com')).toBeInTheDocument();
+      // Van dang nhap: avatar (chua email) con tren header.
+      expect(
+        screen.getByRole('button', { name: 'Tài khoản: customer@example.com' }),
+      ).toBeInTheDocument();
       expect(fetch).toHaveBeenCalledTimes(2); // restore + change-password, no /auth/refresh retry
     });
 
@@ -593,7 +605,9 @@ describe('Account authentication (PH3)', () => {
       const alert = await screen.findByRole('alert');
       expect(alert).toHaveTextContent('Không thể đổi mật khẩu. Hãy thử lại.');
       expect(alert).not.toHaveTextContent('boom');
-      expect(screen.getByText('customer@example.com')).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: 'Tài khoản: customer@example.com' }),
+      ).toBeInTheDocument();
     });
 
     it('sends only the two passwords, clears the auth state on success, and offers a login CTA', async () => {
@@ -601,7 +615,7 @@ describe('Account authentication (PH3)', () => {
       const user = userEvent.setup();
 
       renderChangePasswordPage();
-      await screen.findByText('customer@example.com');
+      await screen.findByRole('button', { name: 'Tài khoản: customer@example.com' });
       await fillChangePasswordForm(user, {
         current: 'Password123',
         next: 'NewPassword123',

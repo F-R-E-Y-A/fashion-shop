@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 
 import { STORE_NAME, STORE_TAGLINE } from '@/core';
@@ -51,6 +52,94 @@ function CartLink() {
   );
 }
 
+/** Hai chu cai dau email lam anh dai dien mac dinh; sau nay thay bang anh avatar that cung khung nay. */
+function initialsOf(email: string): string {
+  const local = email.split('@')[0] ?? '';
+  const letters = local
+    .replace(/[^a-z0-9]/gi, '')
+    .slice(0, 2)
+    .toUpperCase();
+  return letters || '?';
+}
+
+/**
+ * Menu tai khoan dang avatar (chu van): click mo bang chon, click ngoai hoac ESC dong,
+ * chuyen trang tu dong dong. So dia chi khong nam day — no la tab con cua /tai-khoan.
+ */
+function AccountMenu({ email, onLogout }: { email: string; onLogout: () => void }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent) => {
+      if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
+  // Chuyen trang tu dong dong menu khong can effect rieng: moi duong dan khac deu nam ngoai
+  // cum avatar nen pointerdown-outside o tren da dong; rieng link trong menu tu dong dong qua onClick.
+
+  const close = () => setOpen(false);
+  const initials = initialsOf(email);
+
+  return (
+    <div className={styles.accountMenu} ref={rootRef}>
+      <button
+        type="button"
+        className={styles.accountButton}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Tài khoản: ${email || 'của bạn'}`}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className={styles.avatar} aria-hidden="true">
+          {initials}
+          <i className={styles.presenceDot} />
+        </span>
+        <span className={styles.chevron} aria-hidden="true">
+          {open ? '▴' : '▾'}
+        </span>
+      </button>
+      {open && (
+        <div className={styles.menu} aria-label="Menu tài khoản">
+          <div className={styles.menuHeader}>
+            <span className={styles.menuAvatar} aria-hidden="true">
+              {initials}
+            </span>
+            <span className={styles.menuEmail} title={email}>
+              {email}
+            </span>
+          </div>
+          <NavLink className={styles.menuLink} to="/tai-khoan/ho-so" onClick={close}>
+            Hồ sơ cá nhân
+          </NavLink>
+          <NavLink className={styles.menuLink} to="/tai-khoan/doi-mat-khau" onClick={close}>
+            Đổi mật khẩu
+          </NavLink>
+          <div className={styles.menuSeparator} />
+          <button
+            type="button"
+            className={`${styles.menuLink} ${styles.menuLogout}`}
+            onClick={onLogout}
+          >
+            Đăng xuất
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function StoreLayout() {
   const { isAuthenticated, isLoading, logout, user } = useAuth();
   const { headerRef, isHome, overHero } = useHeaderState();
@@ -91,20 +180,16 @@ export function StoreLayout() {
             {isLoading && <span className={styles.accountStatus}>Đang khôi phục phiên…</span>}
             {!isLoading && !isAuthenticated && (
               <>
-                <NavLink to="/login">Đăng nhập</NavLink>
-                <NavLink to="/register">Đăng ký</NavLink>
+                <NavLink to="/login" className={styles.loginLink}>
+                  Đăng nhập
+                </NavLink>
+                <NavLink to="/register" className={styles.registerBtn}>
+                  Đăng ký
+                </NavLink>
               </>
             )}
             {!isLoading && isAuthenticated && (
-              <>
-                <span className={styles.accountStatus}>{user?.email}</span>
-                <NavLink to="/tai-khoan/ho-so">Hồ sơ cá nhân</NavLink>
-                <NavLink to="/tai-khoan/dia-chi">Sổ địa chỉ</NavLink>
-                <NavLink to="/tai-khoan/doi-mat-khau">Đổi mật khẩu</NavLink>
-                <button type="button" className={styles.logout} onClick={() => void logout()}>
-                  Đăng xuất
-                </button>
-              </>
+              <AccountMenu email={user?.email ?? ''} onLogout={() => void logout()} />
             )}
           </div>
         </div>
