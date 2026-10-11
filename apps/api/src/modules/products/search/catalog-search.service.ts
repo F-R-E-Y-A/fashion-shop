@@ -7,6 +7,7 @@ import type { ListProductsQuery } from '../dto/list-products.query.js';
 import type { ProductListResponse } from '../dto/product.response.js';
 import {
   DEFAULT_COLOR_CODE,
+  preferredFamilyOf,
   storefrontProductInclude,
   storefrontProductWhere,
   toProductResponse,
@@ -132,9 +133,11 @@ export class CatalogSearchService {
     const result = search(catalog.products, toSearchState(query), await this.dictionary.get());
 
     const start = skipOf(query);
+    // Dang loc dung mot ho mau thi the dung anh cua mau do (storefront.ts).
+    const preferFamily = preferredFamilyOf(query.colors);
     const items = result.items.slice(start, start + query.pageSize).flatMap((p) => {
       const row = catalog.byId.get(p.id);
-      return row ? [toProductResponse(row)] : [];
+      return row ? [toProductResponse(row, { preferFamily })] : [];
     });
 
     const response: ProductListResponse = toPage(items, result.total, query);

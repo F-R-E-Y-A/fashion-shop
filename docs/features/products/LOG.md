@@ -362,3 +362,9 @@ PR #31 (`33f323c`) sửa header/hero/chữ có CI SUCCESS, còn OPEN. Bộ FREYA
 ### Bổ sung cuối phiên 04/10 — working tree nhận diện thay đổi
 
 Sau mốc check baseline, đọc lại `core/brand.ts:2`, `:5` thấy F.R.E.Y.A. và slogan mới; `StoreLayout.tsx:18`, `:108` đã tham chiếu PNG trong resource. HEAD vẫn `33f323c`, các thay đổi web này chưa commit. Câu THỜI TRANG ở mục trên là trạng thái lúc đọc đầu phiên; không dùng kết quả check trước đó để xác nhận bản tích hợp nhận diện mới. Phiên tổng hợp chỉ cập nhật báo cáo, không sửa hoặc revert source web phát sinh.
+
+## 2026-10-11 · The san pham dung anh cua ho mau dang loc
+
+Khach loc `colors=xanh-duong` nhung the hien anh mac dinh cua san pham (vi du Ao Polo Nu Pima: anh sort 0-4 la Hong, anh Xanh duong bat dau sort 5) nen thay "loc xanh duong ma ra ao vang, ao hong". Thuat toan loc dung san: moi ket qua deu co bien the thuoc ho mau do (kiem tra DB 11/10). Nguyen nhan la `storefront.ts` luon lay `images[0]`/`images[1]`, khong biet bo loc dang chon mau nao.
+
+Sua: `storefrontProductInclude.images` kem ten mau va nho lay 12 anh; `toProductResponse` nhan `preferFamily` — khi bo loc chon dung MOT ho mau (ca mau do query understanding chi ra qua `interpretation.colorFamilies`), anh chinh va anh re chuot lay tu anh cua ho mau do, khong co thi ve anh mac dinh. `preferredFamilyOf` chi nhan dung mot gia tri hop le, hai ho tro len khong doan thay nguoi dung. Chi ap dung tren duong tim kiem/loc (catalog-search); danh sach thuong giu nhu cu.
