@@ -111,7 +111,7 @@ function AccountMenu({ email, onLogout }: { email: string; onLogout: () => void 
         </span>
       </button>
       {open && (
-        <div className={styles.menu} aria-label="Menu tài khoản">
+        <div className={styles.accountDropdown} aria-label="Menu tài khoản">
           <div className={styles.menuHeader}>
             <span className={styles.menuAvatar} aria-hidden="true">
               {initials}

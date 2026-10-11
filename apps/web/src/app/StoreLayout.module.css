@@ -179,7 +179,10 @@
   font-size: 0.65rem;
 }
 
-.menu {
+/* Ten class phai KHAC .menu cua khoi DANH MUC o tren: CSS Module trong cung mot file dung
+   chung hash nen hai rule .menu se ap dung cho ca hai phan tu — bug da tung lam danh muc
+   bi keo xuong nhu dropdown. */
+.accountDropdown {
   position: absolute;
   top: calc(100% + 10px);
   right: 0;
@@ -252,7 +255,7 @@
   color: var(--danger);
 }
 @media (prefers-reduced-motion: reduce) {
-  .menu {
+  .accountDropdown {
     animation: none;
   }
 }
