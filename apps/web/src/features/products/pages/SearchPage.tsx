@@ -72,15 +72,17 @@ export function SearchPage() {
   const terms = interpretation?.termGroups.flat();
   const clearAll = () => setParams(emptyCatalogParams);
 
-  /** Loc dung MOT mau / MOT co: card gan deep-link de trang chi tiet mo san bien the do.
+  /** Loc dang chi con DUNG MOT mau (ke ca mau do do query-understanding chi ra qua interpretation)
+   *  / MOT co: card gan deep-link de trang chi tiet mo san bien the do.
    *  Nhieu lua chon cung luc thi khong gan: khong doan thay nguoi dung. */
   const variantQuery = useMemo(() => {
+    const colorSet = new Set([...params.colors, ...(interpretation?.colorFamilies ?? [])]);
     const sp = new URLSearchParams();
-    if (params.colors.length === 1) sp.set('color', params.colors[0]);
+    if (colorSet.size === 1) sp.set('color', [...colorSet][0]);
     if (params.sizes.length === 1) sp.set('size', params.sizes[0]);
     const qs = sp.toString();
     return qs ? `?${qs}` : undefined;
-  }, [params.colors, params.sizes]);
+  }, [params.colors, params.sizes, interpretation]);
 
   return (
     <div className={`${layout.container} ${styles.page}`}>

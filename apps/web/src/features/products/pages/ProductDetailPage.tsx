@@ -69,9 +69,19 @@ export function ProductDetailPage() {
   const variantsForAvailableColors = data.variants.filter((variant) =>
     colorChoices.some((choice) => choice.code === variant.colorCode),
   );
-  const color = colorChoices.some((c) => c.code === chosenColor)
-    ? chosenColor
-    : (colorChoices[0]?.code ?? null);
+  /**
+   * Gia tri mau den tu URL co the la code chinh xac (den-than) hoac ca FAMILY mau (den) vi
+   * bo loc o trang tim kiem dung gia tri family. Khop chinh xac truoc; khong thi tim mau dau
+   * tien co cung family (tien to truoc dau gach) roi moi ve mau mac dinh.
+   */
+  const familyOf = (code: string) => code.split('-')[0];
+  const resolveColor = (wanted: string | null): string | null => {
+    if (!wanted) return colorChoices[0]?.code ?? null;
+    if (colorChoices.some((choice) => choice.code === wanted)) return wanted;
+    const byFamily = colorChoices.find((choice) => familyOf(choice.code) === wanted);
+    return byFamily?.code ?? colorChoices[0]?.code ?? null;
+  };
+  const color = resolveColor(chosenColor);
   const sizes = [...new Set(variantsForAvailableColors.map((v) => v.sizeCode))];
   const sizesForColor = availableSizes(variantsForAvailableColors, color);
   const hideColor =
