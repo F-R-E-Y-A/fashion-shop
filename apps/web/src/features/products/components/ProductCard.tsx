@@ -20,11 +20,14 @@ export function ProductCard({
   product,
   showBrand = false,
   terms,
+  variantQuery,
 }: {
   product: Product;
   showBrand?: boolean;
   /** Cac tu cua cau tim de to sang trong ten. */
   terms?: readonly string[];
+  /** Deep-link bien the: '?color=den' khi ket qua loc dang chon dung mot mau, de trang chi tiet mo san mau do. */
+  variantQuery?: string;
 }) {
   const [imageFailed, setImageFailed] = useState(false);
   const [hoverFailed, setHoverFailed] = useState(false);
@@ -32,7 +35,7 @@ export function ProductCard({
   const showHover = product.hoverImageUrl && !hoverFailed && !imageFailed;
   return (
     <li className={styles.card}>
-      <Link to={`/san-pham/${product.slug}`}>
+      <Link to={`/san-pham/${product.slug}${variantQuery ?? ''}`}>
         <div className={styles.image}>
           {product.imageUrl && !imageFailed ? (
             <img

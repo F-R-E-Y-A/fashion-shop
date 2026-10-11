@@ -72,6 +72,16 @@ export function SearchPage() {
   const terms = interpretation?.termGroups.flat();
   const clearAll = () => setParams(emptyCatalogParams);
 
+  /** Loc dung MOT mau / MOT co: card gan deep-link de trang chi tiet mo san bien the do.
+   *  Nhieu lua chon cung luc thi khong gan: khong doan thay nguoi dung. */
+  const variantQuery = useMemo(() => {
+    const sp = new URLSearchParams();
+    if (params.colors.length === 1) sp.set('color', params.colors[0]);
+    if (params.sizes.length === 1) sp.set('size', params.sizes[0]);
+    const qs = sp.toString();
+    return qs ? `?${qs}` : undefined;
+  }, [params.colors, params.sizes]);
+
   return (
     <div className={`${layout.container} ${styles.page}`}>
       <title>{pageTitle(q ? `Tìm “${q}”` : 'Tìm kiếm')}</title>
@@ -141,7 +151,12 @@ export function SearchPage() {
         {data?.items.length === 0 && <EmptyResults />}
         {data && data.items.length > 0 && (
           <div className={products.isPlaceholderData ? styles.stale : undefined}>
-            <ProductGrid products={data.items} showBrand terms={terms} />
+            <ProductGrid
+              products={data.items}
+              showBrand
+              terms={terms}
+              variantQuery={variantQuery}
+            />
             <Pager
               variant="numbered"
               page={data.page}

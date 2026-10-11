@@ -29,6 +29,17 @@ const FILTERS_ID = 'category-filters';
 export function CategoryPage() {
   const { slug = '' } = useParams();
   const [params, setParams] = useCatalogUrl();
+
+  /** Loc dung MOT mau / MOT co: card gan deep-link de trang chi tiet mo san bien the do.
+   *  Nhieu lua chon cung luc thi khong gan: khong doan thay nguoi dung. Dat tren dau component
+   *  vi phia duoi co early return (luat hook phai chay cung thu tu moi render). */
+  const variantQuery = useMemo(() => {
+    const sp = new URLSearchParams();
+    if (params.colors.length === 1) sp.set('color', params.colors[0]);
+    if (params.sizes.length === 1) sp.set('size', params.sizes[0]);
+    const qs = sp.toString();
+    return qs ? `?${qs}` : undefined;
+  }, [params.colors, params.sizes]);
   const { sheetOpen, openSheet, closeSheet, attachToggle } = useFilterSheet();
   // Trang danh muc khong co cau tim nen khong co "Lien quan nhat".
   const sort: ProductSort = params.sort && params.sort !== 'relevance' ? params.sort : 'newest';
@@ -166,7 +177,7 @@ export function CategoryPage() {
         )}
         {data && data.items.length > 0 && (
           <>
-            <ProductGrid products={data.items} showBrand />
+            <ProductGrid products={data.items} showBrand variantQuery={variantQuery} />
             <Pager
               variant="numbered"
               page={data.page}

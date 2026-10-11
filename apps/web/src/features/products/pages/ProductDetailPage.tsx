@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { type CSSProperties, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 
 import { ApiError, formatPrice, pageTitle } from '@/core';
 import { ErrorNote, SkeletonDetail } from '@/ui';
@@ -21,6 +21,8 @@ import styles from './ProductDetailPage.module.css';
 
 export function ProductDetailPage() {
   const { slug = '' } = useParams();
+  /** Bien the nam tren URL (?color=&size=): mo tu ket qua loc se chon san mau do, refresh khong mat. */
+  const [searchParams, setSearchParams] = useSearchParams();
   const product = useQuery({
     queryKey: productKeys.detail(slug),
     queryFn: () => getProductDetail(slug),
@@ -31,8 +33,8 @@ export function ProductDetailPage() {
     queryFn: () => getRelatedProducts(slug, 4),
     enabled: Boolean(slug),
   });
-  const [chosenColor, setChosenColor] = useState<string | null>(null);
-  const [chosenSize, setChosenSize] = useState<string | null>(null);
+  const [chosenColor, setChosenColor] = useState<string | null>(() => searchParams.get('color'));
+  const [chosenSize, setChosenSize] = useState<string | null>(() => searchParams.get('size'));
   const [activeImage, setActiveImage] = useState(0);
   const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(() => new Set());
   const [isLightboxOpen, setLightboxOpen] = useState(false);
@@ -90,6 +92,15 @@ export function ProductDetailPage() {
     ...data.breadcrumb.map((item) => ({ name: item.name, to: `/danh-muc/${item.slug}` })),
     { name: data.name },
   ];
+  /** Ghi bien the vua chon len URL (replace: khong doi duong dan cu trong lich su). */
+  const writeVariantUrl = (nextColor: string | null, nextSize: string | null) => {
+    const next = new URLSearchParams(searchParams);
+    if (!hideColor && nextColor) next.set('color', nextColor);
+    else next.delete('color');
+    if (!hideSize && nextSize) next.set('size', nextSize);
+    else next.delete('size');
+    setSearchParams(next, { replace: true });
+  };
   return (
     <div className={styles.container}>
       <title>{pageTitle(data.name)}</title>
@@ -201,9 +212,11 @@ export function ProductDetailPage() {
                       aria-pressed={color === item.code}
                       onClick={() => {
                         const nextSizes = availableSizes(data.variants, item.code);
+                        const keptSize = size && nextSizes.has(size) ? size : null;
                         setChosenColor(item.code);
-                        if (size && !nextSizes.has(size)) setChosenSize(null);
+                        setChosenSize(keptSize);
                         setActiveImage(0);
+                        writeVariantUrl(item.code, keptSize);
                       }}
                     >
                       {colorImage ? (
@@ -230,7 +243,10 @@ export function ProductDetailPage() {
                   key={code}
                   disabled={!sizesForColor.has(code)}
                   aria-pressed={size === code}
-                  onClick={() => setChosenSize(code)}
+                  onClick={() => {
+                    setChosenSize(code);
+                    writeVariantUrl(color, code);
+                  }}
                 >
                   {code}
                 </button>

@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { LocationProbe } from '../test-support/LocationProbe.js';
 import { ProductDetailPage } from './ProductDetailPage.js';
 
 const detail = {
@@ -46,11 +47,11 @@ const response = (body: unknown, status = 200) =>
     status,
     json: async () => body,
   }) as Response;
-function renderDetail() {
+function renderDetail(initialEntry = '/san-pham/mau-thu') {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={['/san-pham/mau-thu']}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route path="/san-pham/:slug" element={<ProductDetailPage />} />
         </Routes>
@@ -60,6 +61,46 @@ function renderDetail() {
 }
 afterEach(() => vi.unstubAllGlobals());
 describe('ProductDetailPage (UC-03.4)', () => {
+  it('mo tu deep-link ?color= chon san mau do, gallery theo mau do', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        return response(url.pathname.endsWith('/related') ? [] : detail);
+      }),
+    );
+    renderDetail('/san-pham/mau-thu?color=trang');
+    await screen.findByRole('heading', { name: 'Mẫu thử' });
+    expect(screen.getByRole('button', { name: 'Trắng' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Đen' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('doi mau cap nhat bien the tren URL (replace), doi sai bo param cu', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        return response(url.pathname.endsWith('/related') ? [] : detail);
+      }),
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/san-pham/mau-thu?color=trang']}>
+          {/* Doi tuong do: hien search cua vi tri hien tai de assert URL cap nhat theo lua chon. */}
+          <LocationProbe />
+          <Routes>
+            <Route path="/san-pham/:slug" element={<ProductDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await screen.findByRole('heading', { name: 'Mẫu thử' });
+    expect(screen.getByTestId('location-search').textContent).toBe('?color=trang');
+    fireEvent.click(screen.getByRole('button', { name: 'Đen' }));
+    await screen.findByText('?color=den');
+  });
+
   it('màu trắng chỉ có cỡ S; chọn cỡ hiện đúng SKU', async () => {
     vi.stubGlobal(
       'fetch',

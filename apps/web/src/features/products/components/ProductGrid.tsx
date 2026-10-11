@@ -6,16 +6,25 @@ export function ProductGrid({
   products,
   showBrand = false,
   terms,
+  variantQuery,
 }: {
   products: Product[];
   showBrand?: boolean;
   /** Cac tu cua cau tim de to sang trong ten. */
   terms?: readonly string[];
+  /** Deep-link bien the truyen xuong tung card (xem ProductCard). */
+  variantQuery?: string;
 }) {
   return (
     <ul className={styles.grid}>
       {products.map((product) => (
-        <ProductCard key={product.id} product={product} showBrand={showBrand} terms={terms} />
+        <ProductCard
+          key={product.id}
+          product={product}
+          showBrand={showBrand}
+          terms={terms}
+          variantQuery={variantQuery}
+        />
       ))}
     </ul>
   );
