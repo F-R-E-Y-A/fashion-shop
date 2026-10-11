@@ -200,3 +200,30 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Dien thoai nho (<520px): bo wordmark, chi giu symbol — cum brand con ~30px, cot actions
+   du cho nhom tai khoan xuong dong khong tran chu. Footer giam padding_doc va logo. */
+@media (max-width: 520px) {
+  .header {
+    gap: 12px;
+  }
+  .wordmark {
+    display: none;
+  }
+  .brandSymbol {
+    height: 30px;
+  }
+  .brand {
+    gap: 6px;
+  }
+  .accountStatus {
+    max-width: 90px;
+  }
+  .footer {
+    padding-block: 44px;
+    gap: 24px;
+  }
+  .footerLogo {
+    width: clamp(150px, 20vw, 200px);
+  }
+}
