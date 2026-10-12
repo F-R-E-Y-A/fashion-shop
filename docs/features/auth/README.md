@@ -1,6 +1,6 @@
 ---
 title: Tài khoản và xác thực — bản đồ
-updated: 2026-10-04
+updated: 2026-10-11
 status: đang làm
 owner: Tài
 ---
@@ -71,6 +71,31 @@ POST /auth/login            -> như cũ; PENDING_VERIFICATION + mật khẩu đ�
 
 Giao diện: đăng ký xong điều hướng sang `/xac-thuc-email` (không tự đăng nhập). Xác thực xong
 điều hướng người dùng sang `/login` bằng nút bấm, không tự động đăng nhập.
+
+### Refinement Patch 1–2 — diff chờ review
+
+- Register có email, mật khẩu và xác nhận; show/hide; checklist đúng policy backend hiện tại
+  (8 ký tự, chữ hoa A–Z, số 0–9). Xác nhận chỉ tồn tại trong state component, không gửi API.
+- Validation sau blur/submit; lỗi tại field, focus lỗi đầu tiên; request đang chạy không gửi lặp.
+  Khi lỗi API, giữ dữ liệu hợp lệ để sửa; khi thành công, xóa password và chuyển Verify.
+- Verify dùng một input OTP hỗ trợ paste/autofill, giữ số 0 đầu; hiển thị email nhận mã.
+  Resend có loading và thời gian chờ 60 giây theo email trong bộ nhớ trang.
+- `accepted` chỉ được diễn giải là tiếp nhận yêu cầu, không bảo đảm mail đã gửi. Thời gian chờ
+  frontend không chứng minh OTP được tạo, không tính thời điểm hết hạn OTP từ response accepted.
+- Sửa email xóa code và lỗi cũ; quay lại email trước vẫn giữ cooldown trong cùng lần mở trang.
+  Register/Verify chuyển email chuẩn hóa và return location nội bộ sang Login.
+- Email dùng cùng `validator`/options mặc định với `@IsEmail({})` của backend, sau trim/lowercase;
+  lỗi định dạng hiển thị dưới Email. Return location dùng matcher React Router, chặn route Auth
+  cả khi viết hoa, có slash cuối hoặc encoded path.
+- Sau resend accepted, giữ mã đang nhập vì không biết có mã mới được tạo hay không; hướng dẫn
+  thay bằng mã trong email mới nhất nếu nhận được mã mới. Không khẳng định mã cũ đã vô hiệu hóa.
+- AuthLayout sửa width của logo mobile absolute để không tràn ngang, giữ thiết kế desktop.
+- Components nằm ở [AuthForm.tsx](../../../apps/web/src/features/account/components/AuthForm.tsx),
+  CSS Modules dùng token thương hiệu, giữ AuthLayout; chưa áp vào Forgot/Reset/Change.
+- Kiểm thử routing thật ở [AuthRefinement.test.tsx](../../../apps/web/src/app/AuthRefinement.test.tsx).
+  JSDOM không chứng minh layout, password manager hoặc bàn phím mobile thực tế.
+- Không đổi backend, Cart, refresh/logout. Pending recovery và reset ticket chưa triển khai.
+  Policy 12 ký tự/72 byte là [đề xuất riêng](password-policy-proposal.md), chưa áp dụng.
 
 ### OTP policy (`apps/api/src/modules/auth/otp-policy.ts`)
 

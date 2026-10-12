@@ -1,0 +1,222 @@
+.page {
+  width: 100%;
+  max-width: 400px;
+  min-width: 0;
+  color: var(--ink);
+}
+.page h1 {
+  margin: 0 0 8px;
+  font-size: var(--s2);
+}
+.intro,
+.navigation,
+.destination,
+.resend > p {
+  font-size: var(--s0);
+  line-height: 1.6;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.intro {
+  margin: 0 0 24px;
+}
+.destination {
+  margin: 0 0 16px;
+}
+.destination strong {
+  color: var(--ink);
+}
+.form {
+  display: grid;
+  gap: 12px;
+}
+.field {
+  min-width: 0;
+}
+.field > label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.inputRow {
+  position: relative;
+}
+.input {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+}
+.input:focus {
+  border-color: var(--accent);
+}
+.input:focus-visible,
+.page button:focus-visible,
+.page a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+.withAction {
+  padding-right: 68px;
+}
+.toggle {
+  position: absolute;
+  right: 2px;
+  top: 2px;
+  bottom: 2px;
+  min-width: 56px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.9rem;
+}
+.fieldFeedback {
+  min-height: 1.4em;
+  margin-top: 6px;
+  color: var(--danger);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+.hint,
+.requirements {
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.hint {
+  margin-top: 6px;
+}
+.requirements {
+  margin: -8px 0 4px;
+}
+.requirements p {
+  margin: 0 0 4px;
+}
+.requirements ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.requirements li[data-met='true'] {
+  color: var(--ink);
+}
+.primary,
+.secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 48px;
+  padding: 12px 16px;
+  border: 1px solid var(--espresso);
+  border-radius: var(--radius);
+  background: var(--espresso);
+  color: var(--on-dark);
+  font: inherit;
+  font-weight: 600;
+}
+.primary:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.secondary {
+  background: transparent;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.secondary:hover:not(:disabled) {
+  background: var(--surface);
+}
+.page button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+.spinnerSlot {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+.spinner {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.noticeSlot {
+  min-height: 16px;
+}
+.notice {
+  padding: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: var(--s0);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.notice p {
+  margin: 0;
+}
+.errorNotice {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.page a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.navigation {
+  margin: 24px 0 0;
+}
+.otp {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.45em;
+  font-size: 1.5rem;
+}
+.resend {
+  margin-top: 20px;
+}
+.resend > p {
+  margin: 0 0 8px;
+}
+.resend .hint {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+@media (max-width: 400px) {
+  .otp {
+    letter-spacing: 0.3em;
+  }
+  .primary,
+  .secondary {
+    padding-inline: 10px;
+  }
+}

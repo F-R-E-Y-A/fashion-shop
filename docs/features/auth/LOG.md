@@ -516,3 +516,50 @@ lúc refresh" đỏ 3/3 lần.
 ### Điều kiện xem lại
 
 Khi đo được khoá dòng `users` làm chậm đăng nhập hay refresh ở tải thật (HT-08), thì cân nhắc phương án D.
+
+
+<a id="auth-ui-refinement-2026-10-11"></a>
+
+## 2026-10-11 · Refinement Auth UI — Patch 1 và 2
+
+**Loại:** thực thi · **Phạm vi:** frontend account, components và kiểm thử Register/Verify · **Commit:** chưa commit, chờ review
+
+Product Owner phê duyệt triển khai hai patch giao diện từ `3d76740`, trên nhánh
+`fix/auth-ux-ui-refinement` tách từ `develop`; không đổi backend, Cart, refresh/logout hoặc deploy.
+Components chỉ Auth cần được đặt trong feature account, dùng CSS Modules và token thương hiệu,
+giữ AuthLayout. Chỉ nối context vào Login để hành trình Verify không mất email/return location;
+redesign Login thuộc patch sau.
+
+Giữ policy 8 ký tự/chữ hoa/số vì thay rule riêng ở frontend sẽ lệch backend. Policy 12 ký tự,
+72 byte và blocklist là [đề xuất](password-policy-proposal.md), chờ phê duyệt đồng bộ.
+Resend deadline là hướng dẫn chờ request trong UI, không phải bằng chứng tạo/gửi OTP; email
+context đổi thì xóa code/lỗi, vẫn giữ deadline của email cũ trong bộ nhớ trang.
+
+Kiểm thử cần dùng AppRoutes thật cho Register → Verify → Login và mock fetch, không truy cập
+DB. Browser QA còn cần kiểm responsive, focus, mobile autofill và password managers; JSDOM
+không thay được phần này. Kết quả lệnh kiểm chứng được báo trong cuộc trò chuyện review diff.
+
+<a id="auth-ui-minor-fixes-2026-10-11"></a>
+
+## 2026-10-11 · Sửa F01–F04 sau review Patch 1–2
+
+**Loại:** thực thi · **Phạm vi:** Auth UI, AuthLayout, dependencies web và regression tests · **Commit:** chưa commit, chờ owner review
+
+Product Owner cho phép sửa overflow trong AuthLayout ở đợt này. Logo absolute không dùng width
+100% chung của form nữa; không che lỗi bằng overflow toàn trang. Return location dùng
+`matchRoutes` cùng React Router thay regex, vì route Auth mặc định không phân biệt hoa/thường
+và nhận nhiều slash cuối (`auth-form.ts`, `auth-form.test.ts`).
+
+Frontend gọi `validator/lib/isEmail.js` với options mặc định sau normalizeEmail, như
+`@IsEmail({})` ở `apps/api/src/modules/auth/dto/auth-credentials.request.ts:13`.
+Web khai dependency trực tiếp `validator` 13.15.35 và types 13.15.10, tái dùng phiên bản đã có
+trong lockfile; không đưa class-validator/backend vào bundle giao diện.
+
+Giữ OTP đang nhập sau resend accepted: response không chứng minh mã mới được tạo, nên xóa mã
+cũ hoặc thông báo mã cũ vô hiệu hóa sẽ suy diễn trạng thái server. Hướng dẫn dùng mã trong email
+mới nhất nếu nhận được mã mới. Đổi email vẫn xóa OTP/lỗi và tách cooldown theo email.
+
+Regression tests kiểm các email trước đây lọt regex, email dấu cộng/Unicode/quoted local part,
+route Auth viết hoa/slash/encoded, Login → Register → Verify → Login và resend/network errors.
+Browser QA dùng API giả lập trong bộ nhớ, không DB/SMTP/tài khoản thật; kết quả và phần chưa
+kiểm chứng được báo trong cuộc trò chuyện. Không đổi policy password, Cart hay refresh/logout.
