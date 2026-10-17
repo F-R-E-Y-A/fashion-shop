@@ -171,4 +171,98 @@ describe('Cart HTTP API (PH-02 Gio hang)', () => {
       expect(remainingGuestCart).toBeNull();
     });
   });
+
+  // PostgreSQL that, AuthModule that; chi chay tren CSDL dung xong bo da xac minh.
+  describe('PH-02 regression: ownership voi PostgreSQL', () => {
+    it('request dau sau login khong trung unique token guest va khong luu token vao account', async () => {
+      const token = 'ownership-existing-guest';
+      const guest = await t.http.get('/api/cart').set('x-guest-token', token).expect(200);
+      const user = await authFlows(t).activateAndLogin('cart-ownership-first@freya.vn');
+      const account = await t.http
+        .get('/api/cart')
+        .set('Authorization', `Bearer ${user.accessToken}`)
+        .set('x-guest-token', token)
+        .expect(200);
+      expect(account.body.cartId).not.toBe(guest.body.cartId);
+      expect(await t.prisma.cart.findUnique({ where: { userId: user.id } })).toMatchObject({
+        guestToken: null,
+      });
+      expect(await t.prisma.cart.findUnique({ where: { guestToken: token } })).toMatchObject({
+        id: guest.body.cartId,
+        userId: null,
+      });
+    });
+
+    it('legacy mixed row tu choi guest CRUD bang 409 va giu nguyen du lieu cho chu account', async () => {
+      const user = await authFlows(t).activateAndLogin('cart-ownership-legacy@freya.vn');
+      const legacy = await t.prisma.cart.create({
+        data: {
+          userId: user.id,
+          guestToken: 'ownership-legacy',
+          items: { create: { productVariantId: variantId, quantity: 7 } },
+        },
+      });
+      const requests = [
+        t.http.get('/api/cart'),
+        t.http.post('/api/cart/items').send({ variantId, quantity: 1 }),
+        t.http.patch(`/api/cart/items/${variantId}`).send({ quantity: 99 }),
+        t.http.delete(`/api/cart/items/${variantId}`),
+        t.http.delete('/api/cart'),
+      ];
+      for (const request of requests) {
+        await request.set('x-guest-token', 'ownership-legacy').expect(409);
+      }
+      const owner = await t.http
+        .get('/api/cart')
+        .set('Authorization', `Bearer ${user.accessToken}`)
+        .expect(200);
+      expect(owner.body).toMatchObject({ cartId: legacy.id, itemCount: 7 });
+      expect(await t.prisma.cart.findUnique({ where: { id: legacy.id } })).toMatchObject({
+        userId: user.id,
+        guestToken: 'ownership-legacy',
+      });
+    });
+
+    it('user A khong doc hoac ghi gio B bang guest token cua B', async () => {
+      const a = await authFlows(t).activateAndLogin('cart-ownership-a@freya.vn');
+      const b = await authFlows(t).activateAndLogin('cart-ownership-b@freya.vn');
+      const cartB = await t.prisma.cart.create({
+        data: {
+          userId: b.id,
+          guestToken: 'ownership-token-b',
+          items: { create: { productVariantId: variantId, quantity: 7 } },
+        },
+      });
+      const headers = {
+        Authorization: `Bearer ${a.accessToken}`,
+        'x-guest-token': 'ownership-token-b',
+        'x-user-id': b.id,
+      };
+      const own = await t.http.get('/api/cart').set(headers).expect(200);
+      expect(own.body.items).toEqual([]);
+      await t.http
+        .patch(`/api/cart/items/${variantId}`)
+        .set(headers)
+        .send({ quantity: 99 })
+        .expect(404);
+      await t.http.delete(`/api/cart/items/${variantId}`).set(headers).expect(200);
+      await t.http.delete('/api/cart').set(headers).expect(200);
+      await t.http
+        .post('/api/cart/items')
+        .set(headers)
+        .send({ variantId, quantity: 2 })
+        .expect(201);
+      expect(await t.prisma.cartItem.findMany({ where: { cartId: cartB.id } })).toMatchObject([
+        { quantity: 7 },
+      ]);
+    });
+
+    it('invalid Bearer cung guest token khong downgrade ve guest', async () => {
+      await t.http
+        .get('/api/cart')
+        .set('Authorization', 'Bearer invalid')
+        .set('x-guest-token', guestToken)
+        .expect(401);
+    });
+  });
 });

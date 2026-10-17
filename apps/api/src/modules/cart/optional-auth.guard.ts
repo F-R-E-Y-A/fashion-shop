@@ -13,7 +13,7 @@ export class OptionalAuthGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<{ headers: { authorization?: string } }>();
-    if (!request.headers.authorization) {
+    if (request.headers.authorization === undefined) {
       return true;
     }
     return this.authGuard.canActivate(context);
