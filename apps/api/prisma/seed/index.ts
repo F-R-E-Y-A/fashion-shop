@@ -12,6 +12,7 @@ import { PrismaClient } from '../../src/generated/prisma/client.js';
 import { seedAdministrativeAreas } from './administrative-areas.seed.js';
 import { seedCatalog } from './catalog.seed.js';
 import { seedIdentity } from './identity.seed.js';
+import { seedPromotions } from './promotions.seed.js';
 
 loadEnv({ path: '../../.env' });
 
@@ -23,16 +24,20 @@ if (!connectionString) {
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 
 async function main(): Promise<void> {
-  const [catalog, identity, areas] = await Promise.all([
+  const [catalog, identity, areas, promotions] = await Promise.all([
     seedCatalog(prisma),
     seedIdentity(prisma),
     seedAdministrativeAreas(prisma),
+    seedPromotions(prisma),
   ]);
   console.log(
     `Da nap du lieu nen: ${catalog.categories} danh muc, ${catalog.brands} thuong hieu, ${catalog.colors} mau, ${catalog.sizes} co, ${identity.roles} vai tro.`,
   );
   console.log(
     `Khu vuc hanh chinh: ${areas.provinces} tinh, ${areas.communes} xa; them ${areas.inserted}, doi ten ${areas.updated}, giu nguyen ${areas.unchanged}.`,
+  );
+  console.log(
+    `Khuyen mai: ${promotions.vouchers} ma voucher, ${promotions.promotions} chuong trinh khuyen mai.`,
   );
 }
 
