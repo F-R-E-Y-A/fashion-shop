@@ -5,9 +5,9 @@ import {
   IsEnum,
   IsInt,
   IsNotEmpty,
-  IsNumberString,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   Min,
   MinLength,
@@ -50,7 +50,7 @@ export class CreateVoucherDto {
     description: 'Giá trị giảm (ví dụ: 10 cho 10%, hoặc 50000 cho 50.000đ)',
     example: '10',
   })
-  @IsNumberString({}, { message: 'Giá trị giảm phải là chuỗi số hợp lệ' })
+  @Matches(/^\d+(\.\d{1,2})?$/, { message: 'Giá trị giảm phải là số không âm' })
   @IsNotEmpty({ message: 'Giá trị giảm không được để trống' })
   discountValue!: string;
 
@@ -58,7 +58,7 @@ export class CreateVoucherDto {
     description: 'Số tiền giảm tối đa (VNĐ) khi dùng loại PERCENTAGE',
     example: '100000',
   })
-  @IsNumberString({}, { message: 'Mức giảm tối đa phải là chuỗi số hợp lệ' })
+  @Matches(/^\d+(\.\d{1,2})?$/, { message: 'Mức giảm tối đa phải là số không âm' })
   @IsOptional()
   maxDiscountAmount?: string;
 
@@ -66,7 +66,7 @@ export class CreateVoucherDto {
     description: 'Giá trị đơn hàng tối thiểu (VNĐ) để áp dụng mã',
     example: '200000',
   })
-  @IsNumberString({}, { message: 'Giá trị đơn tối thiểu phải là chuỗi số hợp lệ' })
+  @Matches(/^\d+(\.\d{1,2})?$/, { message: 'Giá trị đơn tối thiểu phải là số không âm' })
   @IsOptional()
   minOrderAmount?: string;
 

@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsNotEmpty, IsNumberString, IsString } from 'class-validator';
+import { IsNotEmpty, IsString, Matches } from 'class-validator';
 
 export class ValidateVoucherDto {
   @ApiProperty({
@@ -18,7 +18,7 @@ export class ValidateVoucherDto {
     description: 'Tạm tính tiền hàng (trước giảm giá và phí vận chuyển), đơn vị VNĐ',
     example: '500000',
   })
-  @IsNumberString({}, { message: 'Tạm tính tiền hàng phải là chuỗi số hợp lệ' })
+  @Matches(/^\d+(\.\d{1,2})?$/, { message: 'Tạm tính tiền hàng phải là số không âm' })
   @IsNotEmpty({ message: 'Tạm tính tiền hàng không được để trống' })
   subtotal!: string;
 }

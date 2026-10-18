@@ -17,6 +17,7 @@ import {
   CreatePromotionDto,
   PromotionListResponse,
   PromotionResponse,
+  UpdatePromotionDto,
 } from './dto/promotion.dto.js';
 import { UpdateVoucherDto } from './dto/update-voucher.dto.js';
 import {
@@ -176,15 +177,83 @@ export class PromotionsService {
     },
     tx?: Prisma.TransactionClient,
   ) {
-    const db = tx ?? this.prisma;
-    return db.voucherUsage.create({
-      data: {
-        voucherId: params.voucherId,
-        orderId: params.orderId,
-        userId: params.userId ?? null,
-        discountAmount: new Decimal(params.discountAmount),
-      },
-    });
+    const execute = async (db: Prisma.TransactionClient) => {
+      const vouchers = await db.$queryRaw<
+        Array<{
+          id: string;
+          code: string;
+          status: string;
+          usageLimit: number | null;
+          perUserLimit: number | null;
+          startsAt: Date | null;
+          endsAt: Date | null;
+        }>
+      >`
+        SELECT
+          "id"::text AS "id",
+          "code",
+          "status"::text AS "status",
+          "usage_limit" AS "usageLimit",
+          "per_user_limit" AS "perUserLimit",
+          "starts_at" AS "startsAt",
+          "ends_at" AS "endsAt"
+        FROM "vouchers"
+        WHERE "id" = ${params.voucherId}::uuid
+        FOR UPDATE
+      `;
+
+      const voucher = vouchers[0];
+      if (!voucher) {
+        throw new NotFoundException('Không tìm thấy mã giảm giá');
+      }
+
+      if (voucher.status !== 'ACTIVE') {
+        throw new BadRequestException('Mã giảm giá hiện không khả dụng');
+      }
+
+      const now = new Date();
+      if (voucher.startsAt && now < voucher.startsAt) {
+        throw new BadRequestException('Mã giảm giá chưa đến ngày bắt đầu có hiệu lực');
+      }
+      if (voucher.endsAt && now > voucher.endsAt) {
+        throw new BadRequestException('Mã giảm giá đã hết thời hạn sử dụng');
+      }
+
+      if (voucher.usageLimit !== null && voucher.usageLimit !== undefined) {
+        const totalUsages = await db.voucherUsage.count({
+          where: { voucherId: params.voucherId },
+        });
+        if (totalUsages >= voucher.usageLimit) {
+          throw new BadRequestException('Mã giảm giá đã hết lượt sử dụng trên hệ thống');
+        }
+      }
+
+      if (params.userId && voucher.perUserLimit !== null && voucher.perUserLimit !== undefined) {
+        const userUsages = await db.voucherUsage.count({
+          where: {
+            voucherId: params.voucherId,
+            userId: params.userId,
+          },
+        });
+        if (userUsages >= voucher.perUserLimit) {
+          throw new BadRequestException('Bạn đã dùng hết số lượt cho phép của mã giảm giá này');
+        }
+      }
+
+      return db.voucherUsage.create({
+        data: {
+          voucherId: params.voucherId,
+          orderId: params.orderId,
+          userId: params.userId ?? null,
+          discountAmount: new Decimal(params.discountAmount),
+        },
+      });
+    };
+
+    if (tx) {
+      return execute(tx);
+    }
+    return this.prisma.$transaction((innerTx) => execute(innerTx));
   }
 
   /**
@@ -268,14 +337,34 @@ export class PromotionsService {
       throw new BadRequestException('Giá trị phần trăm giảm giá không thể vượt quá 100%');
     }
 
+    let maxDiscountAmount: Decimal | null = null;
+    if (dto.maxDiscountAmount !== undefined && dto.maxDiscountAmount !== null) {
+      maxDiscountAmount = new Decimal(dto.maxDiscountAmount);
+      if (maxDiscountAmount.lte(0)) {
+        throw new BadRequestException('Mức giảm tối đa phải lớn hơn 0');
+      }
+    }
+
+    let minOrderAmount: Decimal | null = null;
+    if (dto.minOrderAmount !== undefined && dto.minOrderAmount !== null) {
+      minOrderAmount = new Decimal(dto.minOrderAmount);
+      if (minOrderAmount.lt(0)) {
+        throw new BadRequestException('Giá trị đơn tối thiểu không được âm');
+      }
+    }
+
+    if (dto.startsAt && dto.endsAt && new Date(dto.endsAt) <= new Date(dto.startsAt)) {
+      throw new BadRequestException('Thời gian kết thúc phải sau thời gian bắt đầu');
+    }
+
     const voucher = await this.prisma.voucher.create({
       data: {
         code: normalizedCode,
         status: dto.status ?? VoucherStatus.ACTIVE,
         discountType: dto.discountType,
         discountValue,
-        maxDiscountAmount: dto.maxDiscountAmount ? new Decimal(dto.maxDiscountAmount) : null,
-        minOrderAmount: dto.minOrderAmount ? new Decimal(dto.minOrderAmount) : null,
+        maxDiscountAmount,
+        minOrderAmount,
         usageLimit: dto.usageLimit ?? null,
         perUserLimit: dto.perUserLimit ?? null,
         startsAt: dto.startsAt ? new Date(dto.startsAt) : null,
@@ -310,31 +399,54 @@ export class PromotionsService {
       }
     }
 
+    const mergedDiscountType = dto.discountType ?? existing.discountType;
+    const mergedDiscountValue =
+      dto.discountValue !== undefined ? new Decimal(dto.discountValue) : existing.discountValue;
+
+    if (mergedDiscountValue.lte(0)) {
+      throw new BadRequestException('Giá trị giảm phải lớn hơn 0');
+    }
+    if (mergedDiscountType === DiscountType.PERCENTAGE && mergedDiscountValue.gt(100)) {
+      throw new BadRequestException('Giá trị phần trăm không thể vượt quá 100%');
+    }
+
+    let mergedMaxDiscountAmount = existing.maxDiscountAmount;
+    if (dto.maxDiscountAmount !== undefined) {
+      mergedMaxDiscountAmount = dto.maxDiscountAmount ? new Decimal(dto.maxDiscountAmount) : null;
+    }
+    if (mergedMaxDiscountAmount && mergedMaxDiscountAmount.lte(0)) {
+      throw new BadRequestException('Mức giảm tối đa phải lớn hơn 0');
+    }
+
+    let mergedMinOrderAmount = existing.minOrderAmount;
+    if (dto.minOrderAmount !== undefined) {
+      mergedMinOrderAmount = dto.minOrderAmount ? new Decimal(dto.minOrderAmount) : null;
+    }
+    if (mergedMinOrderAmount && mergedMinOrderAmount.lt(0)) {
+      throw new BadRequestException('Giá trị đơn tối thiểu không được âm');
+    }
+
+    const mergedStartsAt =
+      dto.startsAt !== undefined
+        ? dto.startsAt
+          ? new Date(dto.startsAt)
+          : null
+        : existing.startsAt;
+    const mergedEndsAt =
+      dto.endsAt !== undefined ? (dto.endsAt ? new Date(dto.endsAt) : null) : existing.endsAt;
+    if (mergedStartsAt && mergedEndsAt && mergedEndsAt <= mergedStartsAt) {
+      throw new BadRequestException('Thời gian kết thúc phải sau thời gian bắt đầu');
+    }
+
     if (dto.status) data.status = dto.status;
     if (dto.discountType) data.discountType = dto.discountType;
-
-    if (dto.discountValue) {
-      const val = new Decimal(dto.discountValue);
-      if (val.lte(0)) throw new BadRequestException('Giá trị giảm phải lớn hơn 0');
-      const targetType = dto.discountType ?? existing.discountType;
-      if (targetType === DiscountType.PERCENTAGE && val.gt(100)) {
-        throw new BadRequestException('Giá trị phần trăm không thể vượt quá 100%');
-      }
-      data.discountValue = val;
-    }
-
-    if (dto.maxDiscountAmount !== undefined) {
-      data.maxDiscountAmount = dto.maxDiscountAmount ? new Decimal(dto.maxDiscountAmount) : null;
-    }
-
-    if (dto.minOrderAmount !== undefined) {
-      data.minOrderAmount = dto.minOrderAmount ? new Decimal(dto.minOrderAmount) : null;
-    }
-
+    if (dto.discountValue !== undefined) data.discountValue = mergedDiscountValue;
+    if (dto.maxDiscountAmount !== undefined) data.maxDiscountAmount = mergedMaxDiscountAmount;
+    if (dto.minOrderAmount !== undefined) data.minOrderAmount = mergedMinOrderAmount;
     if (dto.usageLimit !== undefined) data.usageLimit = dto.usageLimit ?? null;
     if (dto.perUserLimit !== undefined) data.perUserLimit = dto.perUserLimit ?? null;
-    if (dto.startsAt !== undefined) data.startsAt = dto.startsAt ? new Date(dto.startsAt) : null;
-    if (dto.endsAt !== undefined) data.endsAt = dto.endsAt ? new Date(dto.endsAt) : null;
+    if (dto.startsAt !== undefined) data.startsAt = mergedStartsAt;
+    if (dto.endsAt !== undefined) data.endsAt = mergedEndsAt;
 
     const updated = await this.prisma.voucher.update({
       where: { id },
@@ -404,13 +516,33 @@ export class PromotionsService {
       throw new BadRequestException('Giá trị phần trăm không thể vượt quá 100%');
     }
 
+    let maxDiscountAmount: Decimal | null = null;
+    if (dto.maxDiscountAmount !== undefined && dto.maxDiscountAmount !== null) {
+      maxDiscountAmount = new Decimal(dto.maxDiscountAmount);
+      if (maxDiscountAmount.lte(0)) {
+        throw new BadRequestException('Mức giảm tối đa phải lớn hơn 0');
+      }
+    }
+
+    let minOrderAmount: Decimal | null = null;
+    if (dto.minOrderAmount !== undefined && dto.minOrderAmount !== null) {
+      minOrderAmount = new Decimal(dto.minOrderAmount);
+      if (minOrderAmount.lt(0)) {
+        throw new BadRequestException('Giá trị đơn tối thiểu không được âm');
+      }
+    }
+
+    if (dto.startsAt && dto.endsAt && new Date(dto.endsAt) <= new Date(dto.startsAt)) {
+      throw new BadRequestException('Thời gian kết thúc phải sau thời gian bắt đầu');
+    }
+
     const promotion = await this.prisma.promotion.create({
       data: {
         name: dto.name.trim(),
         discountType: dto.discountType,
         discountValue,
-        maxDiscountAmount: dto.maxDiscountAmount ? new Decimal(dto.maxDiscountAmount) : null,
-        minOrderAmount: dto.minOrderAmount ? new Decimal(dto.minOrderAmount) : null,
+        maxDiscountAmount,
+        minOrderAmount,
         conditions: (dto.conditions as Prisma.InputJsonValue) ?? Prisma.JsonNull,
         status: dto.status ?? PromotionStatus.ACTIVE,
         startsAt: dto.startsAt ? new Date(dto.startsAt) : null,
@@ -421,34 +553,63 @@ export class PromotionsService {
     return this.mapPromotionToResponse(promotion);
   }
 
-  async updatePromotion(id: string, dto: Partial<CreatePromotionDto>): Promise<PromotionResponse> {
+  async updatePromotion(id: string, dto: UpdatePromotionDto): Promise<PromotionResponse> {
     const existing = await this.prisma.promotion.findUnique({ where: { id } });
     if (!existing) {
       throw new NotFoundException('Không tìm thấy chương trình khuyến mãi');
+    }
+
+    const mergedDiscountType = dto.discountType ?? existing.discountType;
+    const mergedDiscountValue =
+      dto.discountValue !== undefined ? new Decimal(dto.discountValue) : existing.discountValue;
+
+    if (mergedDiscountValue.lte(0)) {
+      throw new BadRequestException('Giá trị giảm phải lớn hơn 0');
+    }
+    if (mergedDiscountType === DiscountType.PERCENTAGE && mergedDiscountValue.gt(100)) {
+      throw new BadRequestException('Giá trị phần trăm không thể vượt quá 100%');
+    }
+
+    let mergedMaxDiscountAmount = existing.maxDiscountAmount;
+    if (dto.maxDiscountAmount !== undefined) {
+      mergedMaxDiscountAmount = dto.maxDiscountAmount ? new Decimal(dto.maxDiscountAmount) : null;
+    }
+    if (mergedMaxDiscountAmount && mergedMaxDiscountAmount.lte(0)) {
+      throw new BadRequestException('Mức giảm tối đa phải lớn hơn 0');
+    }
+
+    let mergedMinOrderAmount = existing.minOrderAmount;
+    if (dto.minOrderAmount !== undefined) {
+      mergedMinOrderAmount = dto.minOrderAmount ? new Decimal(dto.minOrderAmount) : null;
+    }
+    if (mergedMinOrderAmount && mergedMinOrderAmount.lt(0)) {
+      throw new BadRequestException('Giá trị đơn tối thiểu không được âm');
+    }
+
+    const mergedStartsAt =
+      dto.startsAt !== undefined
+        ? dto.startsAt
+          ? new Date(dto.startsAt)
+          : null
+        : existing.startsAt;
+    const mergedEndsAt =
+      dto.endsAt !== undefined ? (dto.endsAt ? new Date(dto.endsAt) : null) : existing.endsAt;
+    if (mergedStartsAt && mergedEndsAt && mergedEndsAt <= mergedStartsAt) {
+      throw new BadRequestException('Thời gian kết thúc phải sau thời gian bắt đầu');
     }
 
     const data: Prisma.PromotionUpdateInput = {};
     if (dto.name) data.name = dto.name.trim();
     if (dto.status) data.status = dto.status;
     if (dto.discountType) data.discountType = dto.discountType;
-
-    if (dto.discountValue) {
-      const val = new Decimal(dto.discountValue);
-      if (val.lte(0)) throw new BadRequestException('Giá trị giảm phải lớn hơn 0');
-      data.discountValue = val;
-    }
-
-    if (dto.maxDiscountAmount !== undefined) {
-      data.maxDiscountAmount = dto.maxDiscountAmount ? new Decimal(dto.maxDiscountAmount) : null;
-    }
-    if (dto.minOrderAmount !== undefined) {
-      data.minOrderAmount = dto.minOrderAmount ? new Decimal(dto.minOrderAmount) : null;
-    }
+    if (dto.discountValue !== undefined) data.discountValue = mergedDiscountValue;
+    if (dto.maxDiscountAmount !== undefined) data.maxDiscountAmount = mergedMaxDiscountAmount;
+    if (dto.minOrderAmount !== undefined) data.minOrderAmount = mergedMinOrderAmount;
     if (dto.conditions !== undefined) {
       data.conditions = (dto.conditions as Prisma.InputJsonValue) ?? Prisma.JsonNull;
     }
-    if (dto.startsAt !== undefined) data.startsAt = dto.startsAt ? new Date(dto.startsAt) : null;
-    if (dto.endsAt !== undefined) data.endsAt = dto.endsAt ? new Date(dto.endsAt) : null;
+    if (dto.startsAt !== undefined) data.startsAt = mergedStartsAt;
+    if (dto.endsAt !== undefined) data.endsAt = mergedEndsAt;
 
     const updated = await this.prisma.promotion.update({
       where: { id },

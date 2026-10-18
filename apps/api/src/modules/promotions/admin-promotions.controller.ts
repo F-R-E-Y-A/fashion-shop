@@ -7,6 +7,7 @@ import {
   CreatePromotionDto,
   PromotionListResponse,
   PromotionResponse,
+  UpdatePromotionDto,
 } from './dto/promotion.dto.js';
 import { PromotionsService } from './promotions.service.js';
 
@@ -35,7 +36,7 @@ export class AdminPromotionsController {
   @ApiOkResponse({ type: PromotionResponse })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: Partial<CreatePromotionDto>,
+    @Body() dto: UpdatePromotionDto,
   ): Promise<PromotionResponse> {
     return this.promotionsService.updatePromotion(id, dto);
   }

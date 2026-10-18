@@ -8,6 +8,13 @@ import { PromotionsService } from './promotions.service.js';
 
 function makePrisma() {
   const prisma = {
+    $queryRaw: vi.fn(),
+    $transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => {
+      if (typeof cb === 'function') {
+        return cb(prisma);
+      }
+      return Promise.all(cb);
+    }),
     voucher: {
       findUnique: vi.fn(),
       findMany: vi.fn(),
@@ -242,6 +249,47 @@ describe('PromotionsService (UC-07.2 Áp dụng mã giảm giá & UC-10.2 Quản
         }),
       );
     });
+
+    it('từ chối khi maxDiscountAmount hoặc minOrderAmount âm', async () => {
+      prisma.voucher.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.createVoucher({
+          code: 'NEGMAX',
+          discountType: DiscountType.PERCENTAGE,
+          discountValue: '10',
+          maxDiscountAmount: '-50000',
+        }),
+      ).rejects.toThrow('Mức giảm tối đa phải lớn hơn 0');
+
+      await expect(
+        service.createVoucher({
+          code: 'NEGMIN',
+          discountType: DiscountType.PERCENTAGE,
+          discountValue: '10',
+          minOrderAmount: '-1000',
+        }),
+      ).rejects.toThrow('Giá trị đơn tối thiểu không được âm');
+    });
+
+    it('từ chối khi PATCH đổi discountType thành PERCENTAGE nhưng discountValue hiện tại > 100', async () => {
+      prisma.voucher.findUnique.mockResolvedValue({
+        id: 'v-fixed',
+        code: 'FIXED50K',
+        discountType: DiscountType.FIXED_AMOUNT,
+        discountValue: new Decimal(50000),
+        maxDiscountAmount: null,
+        minOrderAmount: null,
+        startsAt: null,
+        endsAt: null,
+      });
+
+      await expect(
+        service.updateVoucher('v-fixed', {
+          discountType: DiscountType.PERCENTAGE,
+        }),
+      ).rejects.toThrow('Giá trị phần trăm không thể vượt quá 100%');
+    });
   });
 
   describe('deleteVoucher (Bảo toàn lịch sử dữ liệu)', () => {
@@ -274,8 +322,20 @@ describe('PromotionsService (UC-07.2 Áp dụng mã giảm giá & UC-10.2 Quản
     });
   });
 
-  describe('recordVoucherUsage (Tích hợp tạo đơn hàng)', () => {
-    it('lưu bản ghi voucher usage thành công', async () => {
+  describe('recordVoucherUsage (Tích hợp tạo đơn hàng & kiểm soát quota)', () => {
+    it('lưu bản ghi voucher usage thành công khi còn quota', async () => {
+      prisma.$queryRaw.mockResolvedValue([
+        {
+          id: 'v-1',
+          code: 'V1',
+          status: 'ACTIVE',
+          usageLimit: 10,
+          perUserLimit: 2,
+          startsAt: null,
+          endsAt: null,
+        },
+      ]);
+      prisma.voucherUsage.count.mockResolvedValue(0);
       prisma.voucherUsage.create.mockResolvedValue({ id: 'usage-1' });
 
       await service.recordVoucherUsage({
@@ -293,6 +353,118 @@ describe('PromotionsService (UC-07.2 Áp dụng mã giảm giá & UC-10.2 Quản
           discountAmount: new Decimal(50000),
         },
       });
+    });
+
+    it('báo lỗi khi voucher đã hết lượt sử dụng toàn hệ thống (usageLimit)', async () => {
+      prisma.$queryRaw.mockResolvedValue([
+        {
+          id: 'v-1',
+          code: 'V1',
+          status: 'ACTIVE',
+          usageLimit: 1,
+          perUserLimit: null,
+          startsAt: null,
+          endsAt: null,
+        },
+      ]);
+      prisma.voucherUsage.count.mockResolvedValue(1);
+
+      await expect(
+        service.recordVoucherUsage({
+          voucherId: 'v-1',
+          orderId: 'o-2',
+          userId: 'u-2',
+          discountAmount: '50000',
+        }),
+      ).rejects.toThrow('Mã giảm giá đã hết lượt sử dụng trên hệ thống');
+    });
+
+    it('báo lỗi khi người dùng đã dùng hết lượt cho phép (perUserLimit)', async () => {
+      prisma.$queryRaw.mockResolvedValue([
+        {
+          id: 'v-1',
+          code: 'V1',
+          status: 'ACTIVE',
+          usageLimit: 100,
+          perUserLimit: 1,
+          startsAt: null,
+          endsAt: null,
+        },
+      ]);
+      prisma.voucherUsage.count.mockResolvedValueOnce(5); // total count
+      prisma.voucherUsage.count.mockResolvedValueOnce(1); // user count
+
+      await expect(
+        service.recordVoucherUsage({
+          voucherId: 'v-1',
+          orderId: 'o-3',
+          userId: 'u-1',
+          discountAmount: '50000',
+        }),
+      ).rejects.toThrow('Bạn đã dùng hết số lượt cho phép của mã giảm giá này');
+    });
+
+    it('báo lỗi khi voucher đang INACTIVE hoặc hết hạn', async () => {
+      prisma.$queryRaw.mockResolvedValue([
+        {
+          id: 'v-inactive',
+          code: 'INACT',
+          status: 'INACTIVE',
+          usageLimit: 10,
+          perUserLimit: 2,
+          startsAt: null,
+          endsAt: null,
+        },
+      ]);
+
+      await expect(
+        service.recordVoucherUsage({
+          voucherId: 'v-inactive',
+          orderId: 'o-4',
+          discountAmount: '10000',
+        }),
+      ).rejects.toThrow('Mã giảm giá hiện không khả dụng');
+    });
+  });
+
+  describe('createPromotion & updatePromotion (UC-10.1)', () => {
+    it('từ chối tạo khuyến mãi với maxDiscountAmount hoặc minOrderAmount âm', async () => {
+      await expect(
+        service.createPromotion({
+          name: 'KM Mua Sam',
+          discountType: DiscountType.PERCENTAGE,
+          discountValue: '20',
+          maxDiscountAmount: '-10000',
+        }),
+      ).rejects.toThrow('Mức giảm tối đa phải lớn hơn 0');
+
+      await expect(
+        service.createPromotion({
+          name: 'KM Mua Sam',
+          discountType: DiscountType.PERCENTAGE,
+          discountValue: '20',
+          minOrderAmount: '-5000',
+        }),
+      ).rejects.toThrow('Giá trị đơn tối thiểu không được âm');
+    });
+
+    it('từ chối khi updatePromotion đổi sang PERCENTAGE nhưng discountValue > 100', async () => {
+      prisma.promotion.findUnique.mockResolvedValue({
+        id: 'p-1',
+        name: 'KM Tet',
+        discountType: DiscountType.FIXED_AMOUNT,
+        discountValue: new Decimal(200000),
+        maxDiscountAmount: null,
+        minOrderAmount: null,
+        startsAt: null,
+        endsAt: null,
+      });
+
+      await expect(
+        service.updatePromotion('p-1', {
+          discountType: DiscountType.PERCENTAGE,
+        }),
+      ).rejects.toThrow('Giá trị phần trăm không thể vượt quá 100%');
     });
   });
 });

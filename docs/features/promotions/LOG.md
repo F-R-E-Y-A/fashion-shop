@@ -37,3 +37,14 @@ Thực tế: (điền sau khi hoàn thành kiểm thử).
 ### Điều kiện xem lại
 
 Khi phân hệ Đặt hàng (Orders) và Thanh toán (Payment) cần mở rộng hỗ trợ nhiều voucher đồng thời hoặc hoàn lượt voucher (T6) khi hủy đơn.
+
+## 2026-10-18 · Gia cố kiểm soát quota đồng thời và bất biến cấu hình khuyến mãi
+
+**Loại:** thay đổi mã và kiểm thử · **Phạm vi:** PromotionsService, DTOs, controllers và HTTP tests · **Commit:** (chờ commit)
+
+Sau review PR #41 từ Bảo:
+1. `recordVoucherUsage`: Sử dụng khóa dòng bi quan `SELECT ... FOR UPDATE` trong transaction để tuần tự hóa các yêu cầu cạnh tranh cùng một voucher, đọc lại trạng thái, thời hạn và đếm lại quota tổng (`usageLimit`) lẫn quota người dùng (`perUserLimit`) trước khi ghi nhận lượt dùng.
+2. Kiểm tra bất biến cấu hình: Chặn cấu hình tiền âm (`maxDiscountAmount`, `minOrderAmount`) bằng regex DTO và Decimal validation; khi PATCH cấu hình, ghép cấu hình cập nhật với cấu hình hiện tại để kiểm tra tính hợp lệ toàn vẹn (ví dụ: đổi `discountType` sang `PERCENTAGE` khi `discountValue` cũ vượt quá 100%).
+3. DTO cập nhật khuyến mãi: Bổ sung class `UpdatePromotionDto extends PartialType(CreatePromotionDto)` để ValidationPipe hoạt động đúng metatype ở runtime, chặn các trường lạ và enum không hợp lệ.
+4. Bổ sung `apps/api/test/promotions.http.spec.ts` kiểm thử cạnh tranh 2 transaction đồng thời cho quota và các ca hồi quy HTTP validation.
+

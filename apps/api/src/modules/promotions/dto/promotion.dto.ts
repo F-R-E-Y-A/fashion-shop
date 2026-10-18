@@ -1,11 +1,11 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import {
   IsDateString,
   IsEnum,
   IsNotEmpty,
-  IsNumberString,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -36,7 +36,7 @@ export class CreatePromotionDto {
     description: 'Giá trị giảm (ví dụ: 15 cho 15%, hoặc 30000 cho 30.000đ)',
     example: '15',
   })
-  @IsNumberString({}, { message: 'Giá trị giảm phải là chuỗi số hợp lệ' })
+  @Matches(/^\d+(\.\d{1,2})?$/, { message: 'Giá trị giảm phải là số không âm' })
   @IsNotEmpty({ message: 'Giá trị giảm không được để trống' })
   discountValue!: string;
 
@@ -44,12 +44,12 @@ export class CreatePromotionDto {
     description: 'Số tiền giảm tối đa (VNĐ) khi dùng loại %',
     example: '150000',
   })
-  @IsNumberString({}, { message: 'Mức giảm tối đa phải là chuỗi số hợp lệ' })
+  @Matches(/^\d+(\.\d{1,2})?$/, { message: 'Mức giảm tối đa phải là số không âm' })
   @IsOptional()
   maxDiscountAmount?: string;
 
   @ApiPropertyOptional({ description: 'Đơn hàng tối thiểu (VNĐ) để áp dụng', example: '400000' })
-  @IsNumberString({}, { message: 'Giá trị đơn tối thiểu phải là chuỗi số hợp lệ' })
+  @Matches(/^\d+(\.\d{1,2})?$/, { message: 'Giá trị đơn tối thiểu phải là số không âm' })
   @IsOptional()
   minOrderAmount?: string;
 
@@ -79,6 +79,8 @@ export class CreatePromotionDto {
   @IsOptional()
   endsAt?: string;
 }
+
+export class UpdatePromotionDto extends PartialType(CreatePromotionDto) {}
 
 export class PromotionResponse {
   @ApiProperty({ description: 'ID khuyến mãi' })
