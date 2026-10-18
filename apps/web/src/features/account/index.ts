@@ -1,3 +1,6 @@
+export { AdminUserDetailPage } from './admin/AdminUserDetailPage.js';
+export { AdminUsersPage } from './admin/AdminUsersPage.js';
+export { hasAdminRole } from './admin/user-labels.js';
 export { AuthProvider, useAuth } from './AuthProvider.js';
 export { AccountLayout } from './pages/AccountLayout.js';
 export { AddressPage } from './pages/AddressPage.js';
@@ -8,6 +11,7 @@ export { ProfilePage } from './pages/ProfilePage.js';
 export { RegisterPage } from './pages/RegisterPage.js';
 export { ResetPasswordPage } from './pages/ResetPasswordPage.js';
 export { VerifyEmailPage } from './pages/VerifyEmailPage.js';
+export { RequireAdmin } from './RequireAdmin.js';
 export { RequireAuth } from './RequireAuth.js';
 export { SessionChangedError } from './session-sync.js';
 export type {

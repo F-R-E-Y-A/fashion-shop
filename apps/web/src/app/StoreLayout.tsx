@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 
 import { STORE_NAME, STORE_TAGLINE } from '@/core';
-import { useAuth } from '@/features/account';
+import { hasAdminRole, useAuth } from '@/features/account';
 import { cartKeys, getCart } from '@/features/cart';
 import { CategoryMenu, SearchTrigger } from '@/features/products';
 
@@ -66,7 +66,15 @@ function initialsOf(email: string): string {
  * Menu tai khoan dang avatar (chu van): click mo bang chon, click ngoai hoac ESC dong,
  * chuyen trang tu dong dong. So dia chi khong nam day — no la tab con cua /tai-khoan.
  */
-function AccountMenu({ email, onLogout }: { email: string; onLogout: () => void }) {
+function AccountMenu({
+  email,
+  isAdmin,
+  onLogout,
+}: {
+  email: string;
+  isAdmin: boolean;
+  onLogout: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -126,6 +134,12 @@ function AccountMenu({ email, onLogout }: { email: string; onLogout: () => void 
           <NavLink className={styles.menuLink} to="/tai-khoan/doi-mat-khau" onClick={close}>
             Đổi mật khẩu
           </NavLink>
+          {/* Chi la loi tat cho ADMIN; quyen that nam o RequireAdmin va RolesGuard may chu. */}
+          {isAdmin && (
+            <NavLink className={styles.menuLink} to="/admin" onClick={close}>
+              Quản trị
+            </NavLink>
+          )}
           <div className={styles.menuSeparator} />
           <button
             type="button"
@@ -143,6 +157,7 @@ function AccountMenu({ email, onLogout }: { email: string; onLogout: () => void 
 export function StoreLayout() {
   const { isAuthenticated, isLoading, logout, user } = useAuth();
   const { headerRef, isHome, overHero } = useHeaderState();
+  const isAdmin = hasAdminRole(user);
 
   return (
     <div className={styles.shell}>
@@ -189,7 +204,11 @@ export function StoreLayout() {
               </>
             )}
             {!isLoading && isAuthenticated && (
-              <AccountMenu email={user?.email ?? ''} onLogout={() => void logout()} />
+              <AccountMenu
+                email={user?.email ?? ''}
+                isAdmin={isAdmin}
+                onLogout={() => void logout()}
+              />
             )}
           </div>
         </div>
@@ -218,7 +237,13 @@ export function StoreLayout() {
           <CategoryMenu />
         </div>
         <small>
-          © {new Date().getFullYear()} {STORE_NAME} · <Link to="/quan-tri">Quản trị</Link>
+          © {new Date().getFullYear()} {STORE_NAME}
+          {isAdmin && (
+            <>
+              {' · '}
+              <Link to="/admin">Quản trị</Link>
+            </>
+          )}
         </small>
       </footer>
     </div>

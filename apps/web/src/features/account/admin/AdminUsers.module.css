@@ -1,0 +1,477 @@
+/* Man quan tri nguoi dung: chi dung token cua styles.css, khong go ma mau truc tiep. */
+.page {
+  display: grid;
+  gap: 1.5rem;
+  max-width: 70rem;
+}
+
+.header {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--s-1);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.headingRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--s3);
+  line-height: 1.15;
+}
+
+.count {
+  margin: 0;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.numeric {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.textLink {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.emptyPage {
+  display: grid;
+  gap: 0.75rem;
+  justify-items: start;
+}
+
+/* --- bang danh sach --- */
+.tableWrap {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow-x: auto;
+  transition: opacity 0.2s var(--ease);
+}
+
+.tableWrap[aria-busy='true'] {
+  opacity: 0.6;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--s0);
+}
+
+.table th {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--s-1);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-align: left;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table tbody tr {
+  transition: background-color 0.15s var(--ease);
+}
+
+.table tbody tr:hover {
+  background: color-mix(in srgb, var(--stone) 45%, transparent);
+}
+
+.emailCell {
+  min-width: 14rem;
+}
+
+.emailLink {
+  color: var(--ink);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  text-decoration: underline;
+  text-decoration-color: var(--line);
+  text-underline-offset: 4px;
+  transition: text-decoration-color 0.15s var(--ease);
+}
+
+.emailLink:hover {
+  text-decoration-color: var(--accent);
+}
+
+.self {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.05rem 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--ink-2);
+  font-size: var(--s-1);
+  vertical-align: middle;
+}
+
+/* --- huy hieu --- */
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--ink-2);
+  font-size: var(--s-1);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.statusDot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.status[data-status='ACTIVE'] .statusDot {
+  background: var(--accent);
+}
+
+.status[data-status='LOCKED'] {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.status[data-status='LOCKED'] .statusDot {
+  background: var(--danger);
+}
+
+.status[data-status='PENDING_VERIFICATION'] {
+  border-style: dashed;
+}
+
+.status[data-status='DISABLED'] {
+  background: var(--stone);
+}
+
+.roles {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.role {
+  padding: 0.1rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink-2);
+  font-size: var(--s-1);
+  white-space: nowrap;
+}
+
+.role[data-role='ADMIN'] {
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* --- chi tiet --- */
+.back {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.back:hover {
+  color: var(--accent);
+}
+
+.detailHeader {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.detailTitle {
+  overflow-wrap: anywhere;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.panel {
+  display: grid;
+  gap: 1rem;
+  padding: clamp(1.1rem, 3vw, 1.5rem);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: var(--s1);
+}
+
+.panelText {
+  margin: 0;
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+.facts {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.facts > div {
+  display: grid;
+  grid-template-columns: 9.5rem minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.facts > div:last-child {
+  border-bottom: 0;
+}
+
+.facts dt {
+  color: var(--muted);
+  font-size: var(--s-1);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.facts dd {
+  margin: 0;
+  color: var(--ink);
+}
+
+.mono {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: var(--s-1);
+  overflow-wrap: anywhere;
+}
+
+/* --- nut --- */
+.dangerButton,
+.primaryButton,
+.secondary {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0 1.25rem;
+  border-radius: var(--radius);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 0.2s var(--ease),
+    color 0.2s var(--ease);
+}
+
+.dangerButton {
+  border: 1px solid var(--danger);
+  background: transparent;
+  color: var(--danger);
+}
+
+.dangerButton:hover:not([aria-disabled='true']) {
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+}
+
+.primaryButton {
+  border: 1px solid var(--espresso);
+  background: var(--espresso);
+  color: var(--on-dark);
+}
+
+.primaryButton:hover:not([aria-disabled='true']) {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.secondary {
+  border: 1px solid var(--ink-2);
+  background: transparent;
+  color: var(--ink);
+}
+
+.secondary:hover {
+  background: var(--stone);
+}
+
+.dangerButton[aria-disabled='true'],
+.primaryButton[aria-disabled='true'] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* --- thong bao ket qua --- */
+/* Vung thong bao rong van phai nam trong cay tiep can (live region); chi rut khoi luoi de khoi
+   tao them mot khoang gap. */
+.noticeSlot:not(:has(p)) {
+  position: absolute;
+}
+
+.noticeSlot:focus-visible {
+  outline-offset: 4px;
+}
+
+.notice {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.notice p {
+  margin: 0;
+}
+
+.notice[data-tone='error'] {
+  border-left-color: var(--danger);
+}
+
+.notice[data-tone='warning'] {
+  border-left-color: var(--amber-glow);
+}
+
+.pendingLine {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+@media (max-width: 720px) {
+  .detailGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .facts > div {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+
+  .dangerButton,
+  .primaryButton,
+  .secondary {
+    justify-self: stretch;
+  }
+
+  /* Bang thanh danh sach the: moi hang mot the, nhan cot hien tu data-label. */
+  .tableWrap {
+    border: 0;
+    background: transparent;
+    overflow: visible;
+  }
+
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+
+  .table,
+  .table tbody,
+  .table tr,
+  .table td {
+    display: block;
+  }
+
+  .table tbody {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .table tbody tr {
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+
+  .table td {
+    display: grid;
+    grid-template-columns: 7.5rem minmax(0, 1fr);
+    align-items: center;
+    justify-items: start;
+    gap: 0.5rem;
+    padding: 0.3rem 0;
+    border: 0;
+  }
+
+  .table td[data-label]::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: var(--s-1);
+    font-weight: 600;
+  }
+
+  .table .emailCell {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+    padding-bottom: 0.5rem;
+  }
+
+  .emailLink {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+
+  .self {
+    margin-left: 0;
+  }
+}

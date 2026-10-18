@@ -12,6 +12,7 @@ import {
 import { ApiError, apiRequest, type ApiRequestOptions, setAccessTokenGetter } from '@/core';
 import { cartKeys, mergeCart } from '@/features/cart';
 
+import { adminUserKeys } from './admin/admin-users.api.js';
 import {
   login as loginRequest,
   logout as logoutRequest,
@@ -49,12 +50,17 @@ interface AuthContextValue {
     path: string,
     options?: Omit<ApiRequestOptions, 'accessToken'>,
   ): Promise<T>;
+  /**
+   * So hieu phien hien tai trong tab. Doi khi dang nhap, dang xuat, het phien, ke ca cung nguoi dung
+   * dang nhap lai; refresh cung phien thi khong doi. Ket qua chi ghi khi so hieu con nguyen.
+   */
+  getSessionEpoch(): number;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 /** Cache cua tai khoan dang dang nhap: bo khi danh tinh doi, giu moi cache khac. */
-const ACCOUNT_QUERY_KEYS = [profileKeys.all, addressKeys.all];
+const ACCOUNT_QUERY_KEYS = [profileKeys.all, addressKeys.all, adminUserKeys.all];
 
 type RefreshOutcome =
   { status: 'ROTATED'; accessToken: string } | { status: 'FAILED' } | { status: 'SESSION_CHANGED' };
@@ -364,6 +370,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [authLock, endLocalSession, refreshSession],
   );
 
+  const getSessionEpoch = useCallback(() => epochRef.current, []);
+
   const value: AuthContextValue = {
     user,
     accessToken,
@@ -374,6 +382,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     logout,
     changePassword,
     authenticatedRequest,
+    getSessionEpoch,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
