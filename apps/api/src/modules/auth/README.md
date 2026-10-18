@@ -1,11 +1,21 @@
+---
+title: Phân hệ auth — hợp đồng nội bộ
+updated: 2026-10-18
+status: đang dùng
+owner: Tài
+---
 # Phân hệ `auth`
+
+**Chức năng:** Công bố hợp đồng xác thực, phân quyền và vòng đời phiên để các phân hệ khác tích hợp đúng ranh giới.
 
 **Chủ sở hữu:** Tài · **Dòng việc:** PH-03 (Issue #8) · **Bảng:** `users`, `roles`, `user_roles`, `refresh_tokens`.
 
 ## Trạng thái
 
 Phase 4 thêm `POST /api/auth/refresh` và `POST /api/auth/logout`. Refresh token chỉ đi qua cookie
-HttpOnly, được rotate sau mỗi lần refresh; logout revoke refresh session hiện tại và xóa cookie.
+HttpOnly, được rotate sau mỗi lần refresh; logout thu hồi cả family của refresh token được gửi (kể cả
+token vừa bị xoay, xếp hàng với refresh bằng khoá dòng `users`) và xóa cookie
+([ADR-026](../../../../../docs/features/auth/LOG.md#adr-026)).
 Access token không cần thiết cho cả hai endpoint.
 
 Admin.1 thêm phân quyền theo vai (`RequireRoles`, `RolesGuard`, `RoleCode`). Lý do ở

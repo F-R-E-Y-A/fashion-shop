@@ -563,3 +563,70 @@ Regression tests kiểm các email trước đây lọt regex, email dấu cộn
 route Auth viết hoa/slash/encoded, Login → Register → Verify → Login và resend/network errors.
 Browser QA dùng API giả lập trong bộ nhớ, không DB/SMTP/tài khoản thật; kết quả và phần chưa
 kiểm chứng được báo trong cuộc trò chuyện. Không đổi policy password, Cart hay refresh/logout.
+
+---
+
+<a id="adr-026"></a>
+## 2026-10-18 · ADR-026 — Phiên ở giao diện theo epoch, khóa chung cho mọi thao tác chạm cookie; logout thu hồi cả family dưới khóa dòng `users`
+
+**Loại:** quyết định · **Phạm vi:** `features/account` (AuthProvider), `modules/auth` (logout) · **Trạng thái:** đề xuất · **Người quyết:** Tài · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+
+Issue [#43](https://github.com/F-R-E-Y-A/fashion-shop/issues/43), đọc trên `e7d4194`:
+
+- Refresh trả về sau logout vẫn gọi `applyAuthentication`, ghi lại user và token
+  (`apps/web/src/features/account/AuthProvider.tsx:82-86` bản cũ).
+- 401 mà token hiện tại khác token đã gửi thì request được gửi lại bằng token hiện tại, kể cả khi đó là
+  token của tài khoản khác (`AuthProvider.tsx:164-171` bản cũ).
+- Logout không phối hợp với refresh và chỉ thu hồi đúng token được gửi
+  (`apps/api/src/modules/auth/auth.service.ts:511-518` bản cũ). Refresh đã xoay T1→T2 thì logout mang T1 để
+  T2 sống. Khóa Web Locks của [ADR-016](#adr-016) chỉ bọc refresh.
+- Tab khác không biết phiên đã đổi; refresh giữa phiên nhận bất kỳ người dùng nào cookie trả về.
+- Review Codex trên bản sửa đầu (chưa commit): tin "phiên đã đổi" của một lần đăng nhập trước đến muộn xóa
+  phiên mới hơn của tab nhận; logout lỗi mạng không báo tab khác.
+
+Kiểm chứng ngược: 19 bài web mới, mã cũ hỏng 16; 7 bài HTTP mới, mã cũ hỏng 2. Bài chạy đồng thời 5 vòng qua
+cả trên mã cũ. Tiêu chí ở [use-cases.md](use-cases.md) (UC-01.4, mã đề xuất).
+
+### Phương án
+
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Chỉ kiểm `user !== null` trước khi ghi kết quả refresh | Ít mã | Không phân biệt phiên cũ với phiên mới đăng nhập; không chặn retry sang danh tính khác | Có |
+| **B. Epoch và intent ở giao diện; một khóa cho login, logout, refresh, đổi mật khẩu; dấu phiên trong `localStorage` ghi mới ở mọi sự kiện đổi phiên cookie; `BroadcastChannel` chỉ báo "kiểm lại", tab so dấu để phân biệt sự kiện cũ với phiên hiện tại; logout thu hồi cả family dưới `FOR NO KEY UPDATE` (chọn)** | Mọi kết quả đến muộn bị bỏ theo phiên; cookie đổi đúng thứ tự giữa các tab; máy chủ không để token vừa xoay sống sau logout | Thêm một tệp phối hợp phiên; logout giữ khóa dòng `users` một lúc ngắn | Có, từng phần độc lập |
+| C. Logout tăng `authVersion` | Giết cả access token | Đăng xuất mọi thiết bị của người dùng; đổi nghĩa logout | Có |
+| Không làm gì | Không | Phiên sống lại sau đăng xuất; request chạy dưới danh tính sai | — |
+
+**Chọn B** vì đúng phạm vi Tài chốt cho PR này. Tin giữa các tab không mang danh tính nên không tự phân biệt
+được tin cũ; dấu phiên dùng chung là thứ tự duy nhất giữa các sự kiện, và nó không chứa token, id hay email.
+Logout ghi dấu trước khi gọi mạng nên lỗi mạng vẫn kết thúc phiên ở mọi tab; tab đã bị thay phiên thì không ghi
+dấu, không báo tin. Riêng `FOR NO KEY UPDATE` thay vì `FOR SHARE`: chỉ khóa chia sẻ
+thì UPDATE của logout có thể không thấy token refresh vừa chèn (READ COMMITTED). Thứ tự khóa luôn `users`
+trước, `refresh_tokens` sau, như mọi luồng hiện có, nên không có vòng chờ.
+
+Trade-off chấp nhận (chờ Tài xác nhận):
+
+- Logout không giết access token.
+- Đăng nhập lại cùng tài khoản ở tab khác cũng làm tab này xóa trạng thái.
+- `localStorage` bị chặn thì chỉ còn lớp kiểm `userId`, và mọi tin từ tab khác đều xóa trạng thái local.
+- Hết hạn khóa 15 giây chỉ hủy phía trình duyệt.
+
+Chi tiết ở [session-lifecycle.md](session-lifecycle.md#giới-hạn-đã-biết).
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: 19 bài [session-lifecycle.test.tsx](../../../apps/web/src/features/account/session-lifecycle.test.tsx)
+và 7 bài [auth-session-lifecycle.http.spec.ts](../../../apps/api/test/auth-session-lifecycle.http.spec.ts) xanh;
+bài single-flight cũ giữ nguyên.
+
+Thực tế (18/10, chưa commit):
+- `npm run test -w apps/web`: 272/272 xanh.
+- `npm run test:http`: 311/311 xanh trên `fashion_shop_test`.
+- Lặp riêng: bài web 15/15 lần xanh, bài HTTP 8/8 lần xanh.
+
+### Điều kiện xem lại
+
+- Cần đăng xuất tức thì cả access token.
+- Trình duyệt mục tiêu không có Web Locks hay `BroadcastChannel`.
+- Có dữ liệu cho thấy tab bị xóa trạng thái vì đăng nhập lại cùng tài khoản gây phiền.

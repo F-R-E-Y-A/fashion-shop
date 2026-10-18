@@ -9,6 +9,7 @@ export { RegisterPage } from './pages/RegisterPage.js';
 export { ResetPasswordPage } from './pages/ResetPasswordPage.js';
 export { VerifyEmailPage } from './pages/VerifyEmailPage.js';
 export { RequireAuth } from './RequireAuth.js';
+export { SessionChangedError } from './session-sync.js';
 export type {
   AuthenticatedUser,
   AuthResponse,
