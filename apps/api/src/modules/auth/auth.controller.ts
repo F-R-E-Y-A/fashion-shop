@@ -87,8 +87,12 @@ export class AuthController {
 
   @Post('logout')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Dang xuat va huy refresh session hien tai' })
-  @ApiNoContentResponse({ description: 'Da xoa refresh cookie va huy session neu con hieu luc' })
+  @ApiOperation({
+    summary: 'Dang xuat: huy ca family cua refresh token trong cookie (ke ca token vua xoay)',
+  })
+  @ApiNoContentResponse({
+    description: 'Da xoa refresh cookie va huy family neu token con ton tai',
+  })
   async logout(
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,

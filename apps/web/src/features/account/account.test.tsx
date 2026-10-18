@@ -677,7 +677,12 @@ describe('Account authentication (PH3)', () => {
       });
       await screen.findByRole('status');
 
-      expect(setItem).not.toHaveBeenCalled();
+      // Doi mat khau ghi dau phien ngau nhien (ADR-026) nen setItem duoc goi; kiem truc tiep rang
+      // khong lan ghi nao, khong gia tri nao trong storage chua mat khau (ca hai deu chua 'Password123').
+      for (const [key, value] of setItem.mock.calls) {
+        expect(`${key}=${value}`).not.toContain('Password123');
+      }
+      expect(JSON.stringify({ ...localStorage, ...sessionStorage })).not.toContain('Password123');
       expect(window.location.href).not.toContain('Password123');
       setItem.mockRestore();
     });

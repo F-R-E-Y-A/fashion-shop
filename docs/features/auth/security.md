@@ -1,6 +1,6 @@
 ---
 title: Tài khoản và xác thực — các lớp bảo vệ (PH3.4)
-updated: 2026-09-28
+updated: 2026-10-18
 status: đang dùng
 owner: Tài
 ---
@@ -133,6 +133,9 @@ nhiên, không phải bí mật), không bao giờ log token hay hash.
 Như ở mọi nơi khác, không throw bên trong transaction cho kết quả đã biết trước: việc thu hồi family
 phải được lưu dù request thất bại.
 
+Logout thu hồi **cả family** của token được gửi, kể cả token vừa bị xoay, dưới khoá `FOR NO KEY UPDATE`
+dòng `users` để xếp hàng với refresh ([ADR-026](LOG.md#adr-026), [session-lifecycle.md](session-lifecycle.md)).
+
 **Đánh đổi chấp nhận:** nếu phản hồi refresh bị mất trên đường (mạng rớt sau khi server đã xoay), lần
 thử lại bằng token cũ bị coi là replay và người dùng phải đăng nhập lại.
 
@@ -149,6 +152,9 @@ mình**. `AuthProvider` ngăn điều đó ở ba mức:
 3. **Giữa các tab:** các tab cùng gốc dùng chung một cookie, nên khôi phục nhiều tab cùng lúc sẽ tự
    replay nhau. Lời gọi refresh chạy trong khoá `navigator.locks` (Web Locks): tab sau chỉ gửi request khi
    phản hồi của tab trước đã đặt cookie mới. Trình duyệt không có Web Locks vẫn được bảo vệ ở mức 1–2.
+
+Từ [ADR-026](LOG.md#adr-026), single-flight gắn với **epoch** của phiên, cùng khoá đó bọc cả đăng nhập, đăng
+xuất và đổi mật khẩu, và kết quả của phiên cũ bị bỏ. Cơ chế và giới hạn ở [session-lifecycle.md](session-lifecycle.md).
 
 Refresh token không bao giờ nằm trong JS (cookie HttpOnly). Test `refresh-single-flight.test.tsx` dùng
 một backend giả **mô hình hoá đúng cơ chế xoay + replay**, gồm nhóm đối chứng cho thấy thiếu khoá thì hai
@@ -205,8 +211,8 @@ container Redis cùng mạng.
 | Lệnh | Phủ |
 |---|---|
 | `npm run test -w apps/api` | chính sách, khoá riêng tư, mở/chặn, `env`, `token`, khoá OTP (kho giả), log gửi mail thất bại (`SmtpMailService`) |
-| `npm run test:http -w apps/api` | **Postgres và Redis thật**: brute-force, IP nguyên tử, giả mạo `X-Forwarded-For`, OTP song song, replay đồng thời, `authVersion`, Redis chết, gửi mail lỗi không lộ email trong log |
-| `npm run test -w apps/web` | refresh single-flight, khoá Web Locks (kèm nhóm đối chứng) |
+| `npm run test:http -w apps/api` | **Postgres và Redis thật**: brute-force, IP nguyên tử, giả mạo `X-Forwarded-For`, OTP song song, replay đồng thời, `authVersion`, Redis chết, gửi mail lỗi không lộ email trong log, logout thu hồi family theo hai thứ tự ép buộc |
+| `npm run test -w apps/web` | refresh single-flight, khoá Web Locks (kèm nhóm đối chứng), kết quả đến muộn và đổi phiên giữa các tab |
 
 Mỗi cơ chế được **kiểm chứng ngược**: phá riêng nó (bỏ khoá OTP, bỏ thu hồi family, coi replay đồng thời
 là lỗi thường, bỏ so sánh `ver`, bỏ single-flight, bỏ khoá Web Locks…) thì đúng các test tương ứng fail.
@@ -222,6 +228,6 @@ là lỗi thường, bỏ so sánh `ver`, bỏ single-flight, bỏ khoá Web Loc
   `infra/compose.prod.yml` chưa khai báo `JWT_ACCESS_SECRET`, `OTP_PEPPER`, `SMTP_*` từ PH3, và nay thêm
   `REDIS_URL`, `RATE_LIMIT_PEPPER`, `TRUST_PROXY_HOPS`. Staging cần một Redis (ví dụ Render Key Value) và
   số hop thật của Render phải được xác minh trước khi đặt `TRUST_PROXY_HOPS`.
-- Khoá Web Locks cần trình duyệt hỗ trợ; nếu request refresh treo lâu, các tab khác chờ khoá đó.
+- Khoá Web Locks cần trình duyệt hỗ trợ; mỗi lời gọi trong khoá bị huỷ sau 15 giây để tab treo không giữ khoá mãi.
 - Phản hồi refresh bị mất trên đường buộc đăng nhập lại (đánh đổi của phát hiện replay).
 - Cửa sổ cố định cho phép lọt tối đa gấp đôi sát ranh giới cửa sổ.
