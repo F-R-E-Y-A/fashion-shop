@@ -45,8 +45,9 @@ tiên, và hai API chỉ đọc `GET /api/admin/users`, `GET /api/admin/users/:i
 khóa tăng `authVersion` và thu hồi mọi refresh token, còn đăng nhập và refresh khoá dòng `users` khi tạo phiên
 ([ADR-022](LOG.md#adr-022)).
 
-Chưa có, biết và cố ý: chặn `/quan-tri` **ở giao diện** (`apps/web/src/app/routes.tsx:57`; PR #15 đã gộp),
-vai `STAFF`, gán vai qua API ([ND-03](../../TECH_DEBT.md)). Hồ sơ cá nhân và sổ địa chỉ nằm ở feature
+Chặn khu quản trị **ở giao diện** (`RequireAdmin` trước `/admin/*`, `/quan-tri` chuyển hướng) thuộc Admin.3,
+đang ở nhánh `feature/ph-03-admin-users-web`, chưa gộp ([users/README.md](../users/README.md#giao-diện-quản-trị)).
+Chưa có, biết và cố ý: vai `STAFF`, gán vai qua API ([ND-03](../../TECH_DEBT.md)). Hồ sơ cá nhân và sổ địa chỉ nằm ở feature
 [users](../users/README.md). Cũng chưa có: hồ sơ vóc dáng, OAuth, 2FA.
 
 Nền tảng ban đầu: `identity.prisma` và migration baseline đã có `users`, `roles`, `user_roles`, `refresh_tokens`.

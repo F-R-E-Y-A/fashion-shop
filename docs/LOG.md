@@ -420,3 +420,33 @@ Còn lại, không chặn: đổi tiêu đề và phạm vi Issue #6, #7, #8 cho
 Luật cũ ghi "nhánh đã gộp thì xoá" cho mọi nhánh. Bảo chốt giữ `feature/platform` lâu dài vì nền tảng còn sửa nhiều trong các sprint sau: mỗi việc nền tảng là một `task/<tên>` tách từ `feature/platform`, gộp vào đó rồi xoá, và `feature/platform` mở pull request vào `develop` khi có đợt đáng gộp. Kiểm trước khi đổi: kho đang **tắt** tự xoá nhánh khi gộp (`gh api repos/F-R-E-Y-A/fashion-shop` trả `delete_branch_on_merge: false`), nên gộp pull request của `feature/platform` không làm mất nhánh.
 
 Hệ quả đã ghi vào luật: pull request vào `feature/platform` không có CI, vì [ci.yml](../.github/workflows/ci.yml) chỉ chạy cho `develop` và `main`, nên chặn chất lượng dồn về bước `feature/platform` → `develop`; `Closes #N` chỉ tự đóng Issue ở bước đó; sau mỗi lần gộp vào `develop` phải gộp `develop` ngược lại vào `feature/platform` để khỏi lệch.
+
+<a id="adr-027"></a>
+## 2026-10-18 · ADR-027 — Khu quản trị dùng đường dẫn tiếng Anh `/admin/*`; đường dẫn cửa hàng giữ tiếng Việt
+
+**Loại:** quyết định · **Phạm vi:** `apps/web/src/app/routes.tsx`, [shared/code.md](shared/code.md), [shared/design.md](shared/design.md), mọi màn quản trị của ba người · **Trạng thái:** đề xuất · **Người quyết:** Tài đồng ý cho Admin.3 ([Issue #46](https://github.com/F-R-E-Y-A/fashion-shop/issues/46)); áp cho cả nhóm cần Bảo, Duy chốt · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+
+- Quy ước đặt tên ghi "đường dẫn trang: tiếng Việt không dấu" ([shared/code.md](shared/code.md), bảng Đặt tên) và luật 7 của [shared/design.md](shared/design.md).
+- Trên `3aa873b`, khu quản trị chỉ có `/quan-tri` dựng `AdminLayout` với trang Tổng quan của Bảo, chưa có trang con và chưa chặn quyền (`apps/web/src/app/routes.tsx:86-88` tại `3aa873b`). Link vào là chân trang cửa hàng, hiện cho mọi người.
+- API quản trị đã dùng tiền tố tiếng Anh `/api/admin/*` (`apps/api/src/modules/users/admin-users.controller.ts:33`).
+
+### Phương án
+
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Giữ tiếng Việt: `/quan-tri/nguoi-dung?trang=N` | Đúng quy ước cũ | Lệch với `/api/admin/*`; tên tham số phân trang khác API (`trang` và `page`) | Có |
+| **B. `/admin/*` cho khu quản trị; `/quan-tri` chuyển hướng thay thế về `/admin`; cửa hàng giữ nguyên (chọn)** | Cùng tên với API và tham số `page`; khu quản trị là công cụ nội bộ, không cần URL thân thiện tìm kiếm | Một ngoại lệ phải ghi rõ trong quy ước | Có: đổi lại route và chuyển hướng |
+| Đổi cả cửa hàng sang tiếng Anh | Một quy ước | Gãy link, SEO và trang của cả ba người | Khó |
+
+**Chọn B.** Trang quản trị mới của mọi phân hệ dùng `/admin/<tài nguyên số nhiều>`; chữ trên giao diện vẫn tiếng Việt có dấu. `/quan-tri` chỉ chuyển hướng, không dựng nội dung, và mọi trang `/admin` nằm sau cổng `RequireAdmin`.
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: `/quan-tri?x=1#h` về `/admin?x=1#h` bằng replace; `/admin`, `/admin/users`, `/admin/users/:id` mở trực tiếp được; không trang cửa hàng nào đổi URL.
+Thực tế: 18/10/2026, nhánh `feature/ph-03-admin-users-web` chưa commit · bài `UC-02.1/AC2` trong `AdminUsers.test.tsx` và QA Chrome headless đạt · chờ duyệt.
+
+### Điều kiện xem lại
+
+Khi nhóm đổi quy ước URL của cửa hàng, hoặc khi có màn quản trị cần URL công khai cho người ngoài.
