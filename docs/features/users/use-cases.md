@@ -1,18 +1,18 @@
 ---
 title: UC-02 Quản trị tài khoản — đặc tả use case
-updated: 2026-10-18
+updated: 2026-10-20
 status: đề xuất
 owner: Tài
 ---
 # UC-02 · Quản trị tài khoản
 
-**Chức năng:** Quản trị viên xem danh sách, chi tiết tài khoản và khóa, mở khóa tài khoản qua giao diện web.
+**Chức năng:** Quản trị viên tìm, lọc, xem tài khoản và khóa, mở khóa ở danh sách hay chi tiết qua giao diện web.
 
 | | |
 |---|---|
 | **Người viết đặc tả** | Tài (đề xuất, chờ duyệt) |
 | **Người sở hữu mã** | Tài, module `apps/api/src/modules/users` và `apps/web/src/features/account/admin` |
-| **Dòng việc** | PH-03 · Admin.3, [Issue #46](https://github.com/F-R-E-Y-A/fashion-shop/issues/46); UC-02.2 chưa giao |
+| **Dòng việc** | PH-03 · Admin.3, [Issue #46](https://github.com/F-R-E-Y-A/fashion-shop/issues/46); tìm, lọc và thao tác nhanh, [Issue #48](https://github.com/F-R-E-Y-A/fashion-shop/issues/48); UC-02.2 chưa giao |
 | **Tác nhân chính** | Quản trị viên |
 | **Tác nhân phụ** | Người dùng bị khóa hay mở khóa |
 
@@ -38,8 +38,9 @@ Người dùng đã đăng nhập; tài khoản `ACTIVE` và có vai `ADMIN`.
 | Bước | Tác nhân làm | Hệ thống đáp |
 |---|---|---|
 | 1 | Mở `/admin/users` | Kiểm phiên và vai; hiện trang 1, 20 tài khoản, tổng số lấy từ `total` |
+| 1a | Gõ email, chọn trạng thái, vai, xác thực, sắp xếp hay số dòng | API lọc trên toàn bộ dữ liệu; URL giữ điều kiện; về trang 1 |
 | 2 | Chọn một email | Mở `/admin/users/:id`, hiện sáu trường và thao tác được phép |
-| 3 | Bấm Khóa tài khoản | Mở hộp xác nhận nêu tác động; focus ở Hủy |
+| 3 | Bấm Khóa tài khoản ở chi tiết, hay Khóa ngay trên dòng của danh sách | Mở hộp xác nhận nêu tác động; focus ở Hủy |
 | 4 | Bấm xác nhận | Gửi đúng một yêu cầu; báo kết quả, cập nhật trạng thái, đưa focus tới thông báo |
 
 ### Luồng phụ và ngoại lệ
@@ -54,6 +55,9 @@ Người dùng đã đăng nhập; tài khoản `ACTIVE` và có vai `ADMIN`.
 | E7 | Máy chủ từ chối (422, vd tự khóa) | Hiện lý do |
 | E8 | Hết thời gian chờ, mất mạng hay 5xx khi khóa, mở khóa | Báo **chưa xác định kết quả**; cho kiểm lại bằng GET; không tự gửi lại |
 | E9 | Phiên đổi (đăng xuất, đăng nhập khác, kể cả cùng tài khoản) khi yêu cầu đang chạy | Hủy yêu cầu; bỏ kết quả về muộn; không ghi vào phiên mới |
+| E10 | Không tài khoản nào khớp bộ lọc | "Không có tài khoản phù hợp với bộ lọc", khác "Chưa có tài khoản nào"; có Xóa bộ lọc |
+| E11 | Khóa hay mở khóa làm tài khoản rời bộ lọc đang xem | Dòng ghi "Không còn khớp bộ lọc" tới khi API trả tập mới; tổng và trang lấy lại từ API |
+| E12 | Điều kiện trên URL sai dạng hay lặp | Bỏ giá trị sai, thay URL bằng bản chuẩn hóa; không gửi lên API |
 
 ### Quy tắc nghiệp vụ
 | Mã | Quy tắc |
@@ -65,9 +69,13 @@ Người dùng đã đăng nhập; tài khoản `ACTIVE` và có vai `ADMIN`.
 | BR5 | Khóa chấm dứt mọi phiên; mở khóa không khôi phục phiên nào |
 | BR6 | Chỉ hiển thị `id`, `email`, `status`, `roles`, `emailVerifiedAt`, `createdAt` |
 | BR7 | Khóa, mở khóa không tự gửi lại; truy vấn không tự thử lại lỗi 4xx |
+| BR8 | Tìm email là "chứa chuỗi", không phân biệt hoa thường; `%`, `_`, `\` và dấu nháy là ký tự thường |
+| BR9 | Các bộ lọc kết hợp AND; vai là "có vai này" (tài khoản nhiều vai khớp mỗi vai); "chưa xác thực" là chưa có thời điểm xác thực email, không suy từ trạng thái |
+| BR10 | Tổng và số trang luôn do máy chủ đếm theo đúng bộ lọc; giao diện không tự trừ |
 
 ### Đường dẫn
-Giao diện: `/admin`, `/admin/users`, `/admin/users?page=N`, `/admin/users/:id`; `/quan-tri` chuyển hướng
+Giao diện: `/admin`, `/admin/users` với `q`, `status`, `role`, `verified`, `sort`, `page`, `pageSize` (bỏ giá trị
+mặc định), `/admin/users/:id`; `/quan-tri` chuyển hướng
 thay thế về `/admin` ([LOG#adr-027](../../LOG.md#adr-027)). API: `GET /api/admin/users`,
 `GET /api/admin/users/:id`, `POST /api/admin/users/:id/lock`, `POST /api/admin/users/:id/unlock`.
 
@@ -101,11 +109,28 @@ Không thêm bảng hay cột. Đọc `users`, `user_roles`; khóa, mở khóa g
 - [ ] **AC10** `npm run check`, `npm run build -w apps/web`, docs lint đúng phạm vi và diff đạt; Bảo duyệt phần
   chung, Duy thống nhất mã UC; CI xanh trước khi gộp.
 
-AC1–AC8 ghi mã trong tên bài ở `apps/web/src/features/account/admin/*.test.ts(x)`; AC9 là minh chứng ở kho docs;
-AC10 là điều kiện gộp.
+Bổ sung cho Issue #48, **đề xuất**, giữ nguyên AC1–AC10; số AC11–AC15 chờ Duy thống nhất:
+
+- [ ] **AC11** API `GET /api/admin/users` nhận `q`, `status`, `role`, `verified`, `sort` theo BR8–BR10, tìm trên
+  toàn bộ dữ liệu; bốn kiểu sắp xếp có tiêu chí phụ `id`; giá trị ngoài hợp đồng, tham số lặp hay `q` quá 254 ký
+  tự trả 400; khách và `CUSTOMER` vẫn 401, 403 trước khi tham số được kiểm; chỉ trả sáu trường của BR6.
+- [ ] **AC12** Ô tìm gửi sau khoảng 300 ms hay khi nhấn Enter, không gửi mỗi phím, và thay URL chứ không thêm lịch
+  sử; đổi bộ lọc, sắp xếp, số dòng (10, 20, 50) về trang 1 và thêm lịch sử để Back quay lại; tải lại trang và quay
+  lại từ chi tiết giữ đủ điều kiện; URL sai được chuẩn hóa (E12).
+- [ ] **AC13** Phân biệt không có kết quả với chưa có tài khoản; Xóa bộ lọc giữ sắp xếp và số dòng; trang vượt số
+  trang có đường về trang hợp lệ và không tự chuyển lặp.
+- [ ] **AC14** Kết quả của điều kiện cũ về muộn không hiện và yêu cầu cũ bị hủy; đổi điều kiện không hiện tập cũ
+  trong lúc chờ; dữ liệu giữ chỗ chỉ dùng khi cùng actor và cùng điều kiện, chỉ khác trang.
+- [ ] **AC15** Khóa, mở khóa ngay trên dòng dùng chung luồng với chi tiết (AC5–AC8): hộp xác nhận, chặn bấm lặp và
+  chặn thao tác khác khi đang chạy, hết giờ, 403, đổi phiên; sau khi xong tải lại tập, tổng và trang từ API (E11);
+  focus về nút của dòng khi hủy, tới thông báo khi xong.
+
+AC1–AC8 và AC11–AC15 ghi mã trong tên bài ở `apps/web/src/features/account/admin/*.test.ts(x)` và
+`apps/api/test/admin-users-filters.http.spec.ts`; AC9 là minh chứng ở kho docs; AC10 là điều kiện gộp.
 
 ## Câu hỏi còn treo
 
-- Mã `UC-02.1` và số AC khi PR #26 gộp. [TBD — hỏi Duy]
+- Mã `UC-02.1`, số AC1–AC15 khi PR #26 gộp. [TBD — hỏi Duy]
+- Có cần chọn nhiều trạng thái hay vai cùng lúc không; API hiện từ chối tham số lặp. [TBD — hỏi Tài]
 - Máy chủ có nên từ chối khóa tài khoản `ADMIN`, hay giữ ít nhất một quản trị viên hoạt động? Đề xuất mở Issue
   riêng; chưa có quyết định hay hạn xử lý. [TBD — hỏi Tài]

@@ -81,7 +81,7 @@
 }
 
 .table th {
-  padding: 0.75rem 1rem;
+  padding: 0.75rem 0.7rem;
   border-bottom: 1px solid var(--line);
   color: var(--muted);
   font-size: var(--s-1);
@@ -89,11 +89,11 @@
   letter-spacing: var(--tracking-caps);
   text-align: left;
   text-transform: uppercase;
-  white-space: nowrap;
+  vertical-align: bottom;
 }
 
 .table td {
-  padding: 0.75rem 1rem;
+  padding: 0.75rem 0.7rem;
   border-bottom: 1px solid var(--line);
   vertical-align: middle;
 }
@@ -111,7 +111,7 @@
 }
 
 .emailCell {
-  min-width: 14rem;
+  min-width: 16rem;
 }
 
 .emailLink {
@@ -349,6 +349,190 @@
   cursor: progress;
 }
 
+/* --- tim kiem va bo loc (Issue #48) --- */
+.controls {
+  display: grid;
+  gap: 1rem;
+  padding: clamp(1rem, 3vw, 1.25rem);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.searchForm {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.searchLabel,
+.field > span,
+.pageSize > span {
+  color: var(--ink-2);
+  font-size: var(--s-1);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.searchRow {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.searchInput,
+.field select,
+.pageSize select {
+  min-height: 44px;
+  padding: 0 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  transition: border-color 0.2s var(--ease);
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+}
+
+.searchInput:focus,
+.field select:focus,
+.pageSize select:focus {
+  border-color: var(--accent);
+}
+
+.searchButton,
+.clearButton {
+  min-height: 44px;
+  padding: 0 1.1rem;
+  border-radius: var(--radius);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s var(--ease);
+}
+
+.searchButton {
+  border: 1px solid var(--espresso);
+  background: var(--espresso);
+  color: var(--on-dark);
+}
+
+.searchButton:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.clearButton {
+  justify-self: start;
+  border: 1px solid var(--ink-2);
+  background: transparent;
+  color: var(--ink);
+}
+
+.clearButton:hover {
+  background: var(--stone);
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+.field,
+.pageSize {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.field select {
+  width: 100%;
+  min-width: 0;
+}
+
+.refreshing {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--s-1);
+}
+
+/* --- thao tac nhanh tren dong --- */
+.actionCell {
+  white-space: nowrap;
+}
+
+.rowDanger,
+.rowPrimary {
+  min-height: 36px;
+  padding: 0 0.85rem;
+  border-radius: var(--radius);
+  font: inherit;
+  font-size: var(--s-1);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 0.2s var(--ease),
+    color 0.2s var(--ease);
+}
+
+.rowDanger {
+  border: 1px solid var(--danger);
+  background: transparent;
+  color: var(--danger);
+}
+
+.rowDanger:hover:not([aria-disabled='true']) {
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+}
+
+.rowPrimary {
+  border: 1px solid var(--espresso);
+  background: var(--espresso);
+  color: var(--on-dark);
+}
+
+.rowPrimary:hover:not([aria-disabled='true']) {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.rowDanger[aria-disabled='true'],
+.rowPrimary[aria-disabled='true'] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.leavingNote {
+  color: var(--ink-2);
+  font-size: var(--s-1);
+  font-style: italic;
+}
+
+.table tbody tr[data-leaving] {
+  background: color-mix(in srgb, var(--stone) 55%, transparent);
+}
+
+.listFooter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.5rem;
+}
+
+.listFooter > :first-child {
+  margin-top: 0;
+}
+
+.pageSize {
+  grid-auto-flow: column;
+  align-items: center;
+}
+
 /* --- thong bao ket qua --- */
 /* Vung thong bao rong van phai nam trong cay tiep can (live region); chi rut khoi luoi de khoi
    tao them mot khoang gap. */
@@ -390,6 +574,30 @@
 }
 
 @media (max-width: 720px) {
+  .filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Nhan dai ("Chờ xác thực email", "Email A → Z") can tron hang de khong bi cat chu. */
+  .filters > .field:nth-child(1),
+  .filters > .field:nth-child(4) {
+    grid-column: 1 / -1;
+  }
+
+  .clearButton {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+  }
+
+  .rowDanger,
+  .rowPrimary {
+    min-height: 44px;
+  }
+
+  .actionCell {
+    white-space: normal;
+  }
+
   .detailGrid {
     grid-template-columns: 1fr;
   }
