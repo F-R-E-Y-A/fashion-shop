@@ -421,8 +421,38 @@ Luật cũ ghi "nhánh đã gộp thì xoá" cho mọi nhánh. Bảo chốt gi�
 
 Hệ quả đã ghi vào luật: pull request vào `feature/platform` không có CI, vì [ci.yml](../.github/workflows/ci.yml) chỉ chạy cho `develop` và `main`, nên chặn chất lượng dồn về bước `feature/platform` → `develop`; `Closes #N` chỉ tự đóng Issue ở bước đó; sau mỗi lần gộp vào `develop` phải gộp `develop` ngược lại vào `feature/platform` để khỏi lệch.
 
-<a id="adr-026"></a>
-## 2026-10-18 · ADR-026 — Giỏ dùng giá/tồn hiện tại, cập nhật website qua SSE trước khi giữ hàng
+<a id="adr-027"></a>
+## 2026-10-18 · ADR-027 — Khu quản trị dùng đường dẫn tiếng Anh `/admin/*`; đường dẫn cửa hàng giữ tiếng Việt
+
+**Loại:** quyết định · **Phạm vi:** `apps/web/src/app/routes.tsx`, [shared/code.md](shared/code.md), [shared/design.md](shared/design.md), mọi màn quản trị của ba người · **Trạng thái:** đề xuất · **Người quyết:** Tài đồng ý cho Admin.3 ([Issue #46](https://github.com/F-R-E-Y-A/fashion-shop/issues/46)); áp cho cả nhóm cần Bảo, Duy chốt · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+
+- Quy ước đặt tên ghi "đường dẫn trang: tiếng Việt không dấu" ([shared/code.md](shared/code.md), bảng Đặt tên) và luật 7 của [shared/design.md](shared/design.md).
+- Trên `3aa873b`, khu quản trị chỉ có `/quan-tri` dựng `AdminLayout` với trang Tổng quan của Bảo, chưa có trang con và chưa chặn quyền (`apps/web/src/app/routes.tsx:86-88` tại `3aa873b`). Link vào là chân trang cửa hàng, hiện cho mọi người.
+- API quản trị đã dùng tiền tố tiếng Anh `/api/admin/*` (`apps/api/src/modules/users/admin-users.controller.ts:33`).
+
+### Phương án
+
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Giữ tiếng Việt: `/quan-tri/nguoi-dung?trang=N` | Đúng quy ước cũ | Lệch với `/api/admin/*`; tên tham số phân trang khác API (`trang` và `page`) | Có |
+| **B. `/admin/*` cho khu quản trị; `/quan-tri` chuyển hướng thay thế về `/admin`; cửa hàng giữ nguyên (chọn)** | Cùng tên với API và tham số `page`; khu quản trị là công cụ nội bộ, không cần URL thân thiện tìm kiếm | Một ngoại lệ phải ghi rõ trong quy ước | Có: đổi lại route và chuyển hướng |
+| Đổi cả cửa hàng sang tiếng Anh | Một quy ước | Gãy link, SEO và trang của cả ba người | Khó |
+
+**Chọn B.** Trang quản trị mới của mọi phân hệ dùng `/admin/<tài nguyên số nhiều>`; chữ trên giao diện vẫn tiếng Việt có dấu. `/quan-tri` chỉ chuyển hướng, không dựng nội dung, và mọi trang `/admin` nằm sau cổng `RequireAdmin`.
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: `/quan-tri?x=1#h` về `/admin?x=1#h` bằng replace; `/admin`, `/admin/users`, `/admin/users/:id` mở trực tiếp được; không trang cửa hàng nào đổi URL.
+Thực tế: 18/10/2026, nhánh `feature/ph-03-admin-users-web` chưa commit · bài `UC-02.1/AC2` trong `AdminUsers.test.tsx` và QA Chrome headless đạt · chờ duyệt.
+
+### Điều kiện xem lại
+
+Khi nhóm đổi quy ước URL của cửa hàng, hoặc khi có màn quản trị cần URL công khai cho người ngoài.
+
+<a id="adr-031"></a>
+## 2026-10-18 · ADR-031 — Giỏ dùng giá/tồn hiện tại, cập nhật website qua SSE trước khi giữ hàng
 
 **Loại:** quyết định · **Phạm vi:** Catalog, Cart, Inventory, web · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** chưa commit, nền `e7d419437ccfaba8016336b614d9ba820735d518`.
 
@@ -448,14 +478,14 @@ Cart truyền transaction tuỳ chọn qua public service thay vì gọi connect
 
 Mong đợi: giá list/sale đúng; hết hàng không mất dòng; restock không tự chọn; chỉ tính dòng đã chọn và đủ điều kiện; không tạo reservation; SSE phục hồi sau lỗi; ô khuyến mãi trống. Các trường hợp kiểm tại [cart-live.http.spec.ts](../apps/api/test/cart-live.http.spec.ts), [catalog-events.service.spec.ts](../apps/api/src/modules/products/catalog-events.service.spec.ts), [CartPage.test.tsx](../apps/web/src/features/cart/pages/CartPage.test.tsx) và [StorefrontLiveUpdates.test.tsx](../apps/web/src/app/StorefrontLiveUpdates.test.tsx).
 
-Thực tế: có implementation local; lệnh kiểm, output và SHA của working tree được giữ trong nhật ký phiên ngoài kho mã. Luồng tạo đơn/reservation/payment triển khai tiếp ở [ADR-027](#adr-027); khuyến mãi vẫn chờ Duy.
+Thực tế: có implementation local; lệnh kiểm, output và SHA của working tree được giữ trong nhật ký phiên ngoài kho mã. Luồng tạo đơn/reservation/payment triển khai tiếp ở [ADR-032](#adr-032); khuyến mãi vẫn chờ Duy.
 
 ### Điều kiện xem lại
 
 Khi dữ liệu hoặc tải tăng làm probe chậm, chuyển nguồn sự kiện sang notification/outbox; khi deploy qua proxy cần nghiệm thu buffering và timeout. ADR-025 hiện thuộc PR #41, giữ số này để tránh trùng lúc gộp.
 
-<a id="adr-027"></a>
-## 2026-10-18 · ADR-027 — Checkout điều phối đơn/giữ hàng nguyên tử, VNPAY xác nhận tiền qua IPN và query
+<a id="adr-032"></a>
+## 2026-10-18 · ADR-032 — Checkout điều phối đơn/giữ hàng nguyên tử, VNPAY xác nhận tiền qua IPN và query
 
 **Loại:** quyết định · **Phạm vi:** Cart, Orders, Inventory, Payments, Users, Shipping và web · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** chưa commit, nền `e7d419437ccfaba8016336b614d9ba820735d518`.
 
@@ -499,8 +529,8 @@ Buộc `timezone=UTC` qua connection startup options ở [connection.ts:2](../ap
 
 Bài HTTP tạo đơn so sánh `EXTRACT(EPOCH FROM expires_at - CURRENT_TIMESTAMP)` với deadline thực, không chỉ roundtrip Date qua Prisma ([checkout-payment.http.spec.ts](../apps/api/test/checkout-payment.http.spec.ts)). Timestamp legacy không tự sửa khi chưa biết nguồn; theo [ND-16](TECH_DEBT.md). Không dùng ALTER DATABASE hoặc chỉnh toàn bộ dữ liệu để che lỗi kết nối.
 
-<a id="adr-028"></a>
-## 2026-10-18 · ADR-028 — Hai payment adapter chung settlement, HTTPS tunnel cho nghiệm thu local
+<a id="adr-033"></a>
+## 2026-10-18 · ADR-033 — Hai payment adapter chung settlement, HTTPS tunnel cho nghiệm thu local
 
 **Loại:** quyết định · **Phạm vi:** Payments, Checkout, web và công cụ dev · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** chưa commit, nền `e7d419437ccfaba8016336b614d9ba820735d518`.
 
@@ -530,8 +560,8 @@ Mong đợi: cả hai cổng dùng cùng giữ hàng/settlement; MoMo HTTP ngoà
 
 Khi cần domain cố định/SSE public hoặc staging ổn định, chuyển sang named tunnel hoặc deployment thật. Khi thêm gateway mới, mở rộng code/DTO/registry và contract tests; không nhân bản settlement. Khi cần refund/đối soát vận hành, thiết kế nghiệp vụ riêng trước khi quảng bá sẵn sàng production.
 
-<a id="adr-029"></a>
-## 2026-10-19 · ADR-029 — Mỗi khách một đơn giữ hàng, link cổng hết hạn trước hold 3 phút, tồn nhập bằng CSV kiểm kê
+<a id="adr-034"></a>
+## 2026-10-19 · ADR-034 — Mỗi khách một đơn giữ hàng, link cổng hết hạn trước hold 3 phút, tồn nhập bằng CSV kiểm kê
 
 **Loại:** quyết định · **Phạm vi:** Checkout, Orders, Payments, Inventory, web · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** chưa commit, nền `e7d419437ccfaba8016336b614d9ba820735d518`.
 
@@ -566,8 +596,8 @@ Thực tế: điền khi có commit; lệnh và output của phiên lưu ngoài 
 
 Duy làm UI/API nhập kho thì `applyStockCounts` thành lõi dùng chung hoặc bị thay. Đo được IPN VNPAY trễ hơn 3 phút thì tăng đệm. Có guest checkout hoặc giỏ nhiều đơn song song thì xét lại luật một đơn chờ.
 
-<a id="adr-030"></a>
-## 2026-10-20 · ADR-030 — Nhả hold thì chọn lại món của đơn trong giỏ; preview chỉ ra đơn đang chờ
+<a id="adr-035"></a>
+## 2026-10-20 · ADR-035 — Nhả hold thì chọn lại món của đơn trong giỏ; preview chỉ ra đơn đang chờ
 
 **Loại:** quyết định · **Phạm vi:** Checkout (Bảo), Cart (Duy) · **Trạng thái:** đề xuất · **Người quyết:** Bảo, Duy review Cart · **Commit:** (điền khi thi hành)
 

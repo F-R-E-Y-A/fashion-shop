@@ -120,26 +120,7 @@ h2 {
   text-decoration: underline;
 }
 
-/* --- khung quan tri --- */
-.admin {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  min-height: 100vh;
-}
-.admin__side {
-  border-right: 1px solid var(--line);
-  padding: 1.25rem;
-}
-.admin__nav {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 1.5rem;
-  font-size: 0.9rem;
-}
-.admin__main {
-  padding: 1.5rem;
-}
+/* --- o so lieu cua trang Tong quan quan tri (khung quan tri o app/AdminLayout.module.css) --- */
 .tiles {
   display: flex;
   gap: 1rem;
@@ -409,9 +390,6 @@ button:disabled {
 }
 
 @media (max-width: 720px) {
-  .admin {
-    grid-template-columns: 1fr;
-  }
   .detail {
     grid-template-columns: 1fr;
   }

@@ -34,7 +34,7 @@ import { PasswordHasherService } from './password-hasher.service.js';
 import { buildPasswordResetEmail } from './password-reset-email.js';
 import { RoleCode } from './role-code.js';
 import { TokenService } from './token.service.js';
-import { lockUserForSession } from './user-session-lock.js';
+import { lockUserForSession, lockUserForSessionEnd } from './user-session-lock.js';
 import { buildVerificationEmail } from './verification-email.js';
 
 const UNKNOWN_PASSWORD_HASH = '$2b$12$kzzzR78c851Kd4LxTJycQe/toZ7t7DbCWRLKxCDY8FpcWnrPLk48e';
@@ -508,12 +508,27 @@ export class AuthService {
     return { status: 'REPLAY' } as const;
   }
 
+  /**
+   * Ket thuc phien cua cookie duoc gui: thu hoi CA family, ke ca khi token gui len vua bi xoay (logout
+   * mang cookie cu trong luc refresh dang bay). Family khac cua cung nguoi dung khong bi dong toi.
+   * Nguoi cam token cu von da thu hoi duoc ca family qua replay refresh (ADR-016), nen khong mo them
+   * nang luc nao. Token la thi khong lam gi.
+   */
   async logout(refreshToken: string | undefined): Promise<void> {
     if (!refreshToken) return;
 
-    await this.prisma.refreshToken.updateMany({
-      where: { tokenHash: this.tokens.hashRefreshToken(refreshToken), revokedAt: null },
-      data: { revokedAt: new Date() },
+    const tokenHash = this.tokens.hashRefreshToken(refreshToken);
+    await this.prisma.$transaction(async (transaction) => {
+      const owner = await transaction.refreshToken.findUnique({
+        where: { tokenHash },
+        select: { userId: true, familyId: true },
+      });
+      if (!owner) return;
+      await lockUserForSessionEnd(transaction, owner.userId);
+      await transaction.refreshToken.updateMany({
+        where: { userId: owner.userId, familyId: owner.familyId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
     });
   }
 

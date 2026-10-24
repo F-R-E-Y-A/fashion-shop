@@ -6,13 +6,13 @@ owner: Tài
 ---
 # Tài khoản người dùng
 
-**Chức năng:** Cửa vào của feature tài khoản: quản trị tài khoản (Admin.1, Admin.2) ở đây, hồ sơ và sổ địa chỉ ở [profile-address.md](profile-address.md).
+**Chức năng:** Cửa vào của feature tài khoản: quản trị tài khoản (Admin.1–Admin.3) ở đây, hồ sơ và sổ địa chỉ ở [profile-address.md](profile-address.md).
 
 | | |
 |---|---|
 | **Người sở hữu** | Tài · module `apps/api/src/modules/users` · bảng `users`, `roles`, `user_roles`, `refresh_tokens`, `audit_logs`, `addresses`, `administrative_areas` trong `prisma/schema/identity.prisma` |
 | **Dòng việc** | PH3 đợt 2 (S3): phân quyền và quản trị người dùng, đã gộp qua [PR #24](https://github.com/F-R-E-Y-A/fashion-shop/pull/24) (`aee345e`). PH4: hồ sơ và sổ địa chỉ phía máy chủ đã gộp qua [PR #25](https://github.com/F-R-E-Y-A/fashion-shop/pull/25) (`8e390c9`); giao diện đã gộp qua [PR #29](https://github.com/F-R-E-Y-A/fashion-shop/pull/29) và [PR #32](https://github.com/F-R-E-Y-A/fashion-shop/pull/32) |
-| **Use case** | PH-02.1 "Quản lý tài khoản người dùng" trong [sơ đồ use case](../../shared/diagrams/uc-tong-quan.md), theo quy ước mới là UC-02.1, chưa có đặc tả. Hồ sơ và địa chỉ: PH-01.5, PH-01.6 trong [uc-ph01](../../shared/uc-ph01-tai-khoan-xac-thuc.md), nay là UC-01.5, UC-01.6. [use-case-index.md](../../shared/use-case-index.md) còn trống |
+| **Use case** | UC-02.1 "Quản trị tài khoản và khóa người dùng": đặc tả đề xuất ở [use-cases.md](use-cases.md), mã theo PR #26 chưa gộp. Hồ sơ và địa chỉ: PH-01.5, PH-01.6 trong [uc-ph01](../../shared/uc-ph01-tai-khoan-xac-thuc.md), nay là UC-01.5, UC-01.6. [use-case-index.md](../../shared/use-case-index.md) còn trống |
 
 ## Giải quyết việc gì
 
@@ -27,7 +27,7 @@ quản trị đầu tiên của hệ thống, nơi phân quyền theo vai ([ADR-
 | Hạ tầng vai (`RoleCode`, `RolesGuard`, `RequireRoles`), vai `ADMIN` bằng migration, `admin:grant` | Admin.1, xong |
 | `GET /api/admin/users`, `GET /api/admin/users/:id` | Admin.1, xong |
 | `POST /api/admin/users/:id/lock`, `POST /api/admin/users/:id/unlock`, thu hồi phiên, nhật ký | Admin.2, xong |
-| Chặn `/quan-tri` ở giao diện | Chưa làm: route hiện chỉ dựng `AdminLayout` (`apps/web/src/app/routes.tsx:57`); PR #15 đã gộp |
+| Giao diện quản trị `/admin/users`, `/admin/users/:id`: guard `ADMIN`, danh sách, chi tiết, khóa và mở khóa | Admin.3, [Issue #46](https://github.com/F-R-E-Y-A/fashion-shop/issues/46), trên nhánh `feature/ph-03-admin-users-web`, chưa gộp: [mục dưới](#giao-diện-quản-trị) |
 | Gán vai, tìm kiếm, `STAFF`, màn xem nhật ký | Chưa làm |
 | Hồ sơ `GET`/`PATCH /api/users/me`, khu vực hành chính, sổ địa chỉ | PH4, xong phía máy chủ: [profile-address.md](profile-address.md) |
 | Giao diện `/tai-khoan`, hồ sơ và sổ địa chỉ | Đã gộp vào develop qua PR #29 và PR #32: [profile-address.md](profile-address.md#giao-diện-web-hiện-tại) |
@@ -79,16 +79,45 @@ email, token hay thân yêu cầu.
 ([ADR-022](../auth/LOG.md#adr-022)). Nhờ đó một lần đăng nhập đang tính bcrypt, hay một lần refresh đang xoay,
 đúng lúc quản trị viên khóa tài khoản sẽ không để lại token nào sống lại sau khi mở khóa.
 
+## Giao diện quản trị
+
+Mã ở `apps/web/src/features/account/admin`; cổng `RequireAdmin` ở `apps/web/src/features/account/RequireAdmin.tsx`;
+khung và route ở `apps/web/src/app` (Bảo duyệt). Nghiệp vụ và tiêu chí: [use-cases.md](use-cases.md). URL tiếng
+Anh cho khu quản trị: [LOG#adr-027](../../LOG.md#adr-027); quyết định riêng của màn này: [ADR-028](LOG.md#adr-028).
+
+| Đường dẫn | Trang |
+|---|---|
+| `/admin` | Tổng quan hiện có của Bảo (`AdminProductsPage`), nay sau guard |
+| `/admin/users?page=N` | Danh sách, 20 dòng mỗi trang |
+| `/admin/users/:id` | Chi tiết, khóa hay mở khóa |
+| `/quan-tri` | Chuyển hướng thay thế về `/admin`, giữ query và hash |
+
+- **Guard chỉ là UX.** `RequireAdmin` đọc `roles` của phiên trong tab; quyền thật là `RequireRoles(ADMIN)` ở máy
+  chủ. Vai bị gỡ giữa phiên thì trang vẫn mở tới yêu cầu kế tiếp, khi đó máy chủ trả 403 và giao diện hiện "Không
+  đủ quyền", xóa dữ liệu quản trị đã tải.
+- **Cache theo actor và phiên.** Query key có `actorId`; nhánh `admin-users` nằm trong `ACCOUNT_QUERY_KEYS` của
+  `AuthProvider` nên bị hủy và xóa mỗi khi phiên đổi, kể cả cùng tài khoản đăng nhập lại. Kết quả khóa, mở khóa
+  chỉ ghi khi số hiệu phiên (`getSessionEpoch`) **và** thế hệ quyền của actor còn nguyên: một lần 403 tăng thế
+  hệ ngay trong luồng xử lý phản hồi, không chờ React render/effect, nên POST về sát hay sau 403 không đưa
+  dữ liệu trở lại cache. Trước khi ghi, các GET chi tiết và danh sách
+  đang bay bị hủy để trạng thái cũ không về sau đè lên.
+- **Khóa, mở khóa không tự gửi lại.** Chờ tối đa 15 giây; hết giờ, mất mạng hay 5xx thì báo chưa rõ kết quả và cho
+  kiểm lại bằng GET.
+- **Hộp xác nhận** dùng `<dialog>` native (`showModal`); bài kiểm thử jsdom dùng stub, nên top layer và nền inert
+  chỉ được chứng minh trên trình duyệt thật.
+
 ## Tạo quản trị viên đầu tiên
 
 ```bash
 npm run admin:grant -w apps/api -- --email=<email>
 ```
 
-Người đó phải tự đăng ký và xác thực email trước. Kết quả: `GRANTED`, `ALREADY_ADMIN` (thoát 0) hoặc
+Script yêu cầu tài khoản đã tồn tại và `ACTIVE`; không kiểm riêng `emailVerifiedAt`. Luồng đăng ký mới
+có bước xác thực email. Kết quả: `GRANTED`, `ALREADY_ADMIN` (thoát 0) hoặc
 `USER_NOT_FOUND`, `USER_NOT_ACTIVE`, `INVALID_EMAIL`, `ADMIN_ROLE_MISSING` (thoát 1). Script in CSDL đích
 (không có thông tin đăng nhập) và id người dùng, không in email. Staging/production: đặt `DATABASE_URL` của
-môi trường đó trước lệnh. Vai có hiệu lực ngay request kế tiếp, không cần đăng nhập lại.
+môi trường đó trước lệnh. API nhận vai mới ngay request kế tiếp. Web đang giữ vai cũ thì đăng xuất rồi đăng
+nhập lại để cập nhật menu và guard.
 
 ## Kiểm thử và nghiệm thu
 
@@ -101,12 +130,11 @@ môi trường đó trước lệnh. Vai có hiệu lực ngay request kế ti�
 | Đồng thời (mỗi bài lặp 5 vòng): hai khóa, hai mở khóa, khóa cùng mở khóa, khóa trong lúc đăng nhập, khóa trong lúc refresh | như trên |
 | Chuyển trạng thái có điều kiện, không thu hồi hay ghi nhật ký khi thất bại | `apps/api/src/modules/users/admin-users.service.spec.ts` |
 | `RolesGuard`, `RequireRoles`, `RoleCode` | `apps/api/src/modules/auth/*.spec.ts` |
+| UC-02.1/AC1–AC8 giao diện: guard, URL, trang, trạng thái, ma trận nút, hộp xác nhận, lỗi, phiên | `apps/web/src/features/account/admin/*.test.ts(x)` (jsdom, API giả) |
 
-## Trạng thái hôm nay (04/10/2026)
+## Trạng thái hôm nay (18/10/2026)
 
-Admin.1 và Admin.2 đã gộp vào `develop` (pull request #24, `aee345e`). API hồ sơ, khu vực hành chính và sổ địa
-chỉ đã có; giao diện hồ sơ và địa chỉ đang được triển khai trên `feature/ph4-profile-address-web`. Dữ liệu
-tỉnh/xã thật (34 tỉnh, 3321 xã) đã nạp vào CSDL dev, chưa kiểm lại staging hay production trong PH-11. Checkout local đã dùng địa chỉ lưu qua public `CheckoutAddressService.get(userId, id, tx?)` ([checkout-address.service.ts:11](../../../apps/api/src/modules/users/checkout-address.service.ts#L11)); trả snapshot của đúng chủ và xã/tỉnh hoạt động. Avatar vẫn ngoài phạm vi.
+Admin.1 và Admin.2 đã gộp vào `develop` (pull request #24, `aee345e`). Admin.3 (giao diện quản trị người dùng) đã gộp vào `develop` qua pull request #47 sau khi qua review và sửa lỗi cache. API hồ sơ, khu vực hành chính, sổ địa chỉ và giao diện hồ sơ/địa chỉ đã có trong `develop` qua các PR ghi ở bảng Dòng việc. Dữ liệu tỉnh/xã thật (34 tỉnh, 3321 xã) đã nạp vào CSDL dev, chưa nạp staging hay production trong PH-11. Checkout local đã dùng địa chỉ lưu qua public `CheckoutAddressService.get(userId, id, tx?)` ([checkout-address.service.ts:11](../../../apps/api/src/modules/users/checkout-address.service.ts#L11)); trả snapshot của đúng chủ và xã/tỉnh hoạt động. Avatar vẫn ngoài phạm vi.
 
 ## Còn mở
 
@@ -114,10 +142,11 @@ tỉnh/xã thật (34 tỉnh, 3321 xã) đã nạp vào CSDL dev, chưa kiểm l
   trong [api.md](../../shared/api.md). [TBD — hỏi Bảo]
 - T-M5 ghi ẩn danh nhận 403; API trả 401 theo bảng mã lỗi của api.md (401 chưa đăng nhập, 403 thiếu quyền).
   [TBD — hỏi Duy sửa test-strategy.md]
-- Đặc tả UC-02.1 và UC-02.2 chưa viết.
+- UC-02.1 có đặc tả đề xuất ở [use-cases.md](use-cases.md), chờ Duy thống nhất mã; UC-02.2 chưa viết.
 - Tài khoản bị đặt `LOCKED` không qua API (sửa thẳng CSDL) thì không được tăng `authVersion` hay thu hồi phiên;
   mở khóa qua API khi đó không dọn các phiên cũ.
 - Quản trị viên khóa được quản trị viên khác. Không ai tự khóa được mình, nhưng hai quản trị viên khóa lẫn nhau
   **cùng lúc** thì cả hai đều thành công (mỗi bên đã qua `AuthGuard` trước khi bên kia commit) và có thể không
   còn quản trị viên nào hoạt động. Gỡ bằng `admin:grant` cho một tài khoản `ACTIVE` khác. Chưa có luật "quản
-  trị viên hoạt động cuối cùng".
+  trị viên hoạt động cuối cùng". Admin.3 chỉ **ẩn** nút khóa tài khoản `ADMIN` ở giao diện; gọi thẳng API vẫn
+  khóa được. Đề xuất một Issue phía máy chủ riêng; chưa có quyết định chấp nhận hay hạn xử lý. [TBD — hỏi Tài]

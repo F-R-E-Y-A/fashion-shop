@@ -220,3 +220,82 @@ Bằng chứng: `GET /api/administrative-areas` trên API dev trả 34 tỉnh; g
 3321 xã; Hà Nội 126, TP Hồ Chí Minh 168, Đà Nẵng 94, Đồng Tháp 102, An Giang 102. Nợ: [ND-12](../../TECH_DEBT.md)
 chuyển sang đã xử lý trên nhánh. Tài liệu đã sửa theo: `profile-address.md`, `README.md`,
 `docs/shared/data-model.md`, `docs/TECH_DEBT.md`.
+
+<a id="adr-028"></a>
+
+## 2026-10-18 · ADR-028 — Màn quản trị người dùng chặn ở giao diện chỉ để làm UX, gắn dữ liệu theo actor và phiên, không tự gửi lại khóa hay mở khóa
+
+**Loại:** quyết định · **Phạm vi:** `apps/web/src/features/account` (admin, `RequireAdmin`, `AuthProvider`), `apps/web/src/app` · **Trạng thái:** đề xuất · **Người quyết:** Tài · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+
+- API quản trị đã chặn quyền ở máy chủ, khóa thu hồi mọi phiên ([README.md](README.md#khóa-và-mở-khóa-phiên-đăng-nhập)). Máy chủ chưa chặn khóa tài khoản `ADMIN` hay "quản trị viên cuối cùng" ([README.md](README.md#còn-mở)).
+- PR #45 đã có epoch phiên, hủy request theo phiên và xóa cache theo `ACCOUNT_QUERY_KEYS` (`AuthProvider.tsx:57`, `:94`, `:264` tại `3aa873b`).
+- `queryClient` mặc định `retry: 1` (`apps/web/src/core/queryClient.ts:7`), tức là cả lỗi 4xx cũng bị thử lại.
+- jsdom 30.1.0 chưa có `HTMLDialogElement.showModal` (`node -e`, 18/10/2026).
+
+### Phương án
+
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Chỉ dựa vào 403 của API, không có guard giao diện | Ít mã | Lóe khung quản trị và gọi API trước khi biết quyền; khách không được dẫn đi đăng nhập | Có |
+| **B. Guard `RequireAdmin` ngoài `AdminLayout` + máy chủ vẫn là nguồn quyền (chọn)** | Không dựng khung, không gọi API khi chưa đủ quyền; khách quay lại đúng trang | `roles` trong tab có thể cũ tới yêu cầu kế tiếp | Có |
+| Modal tự dựng từ `div` theo mẫu Lightbox | Kiểm thử jsdom đầy đủ | Phải tự làm inert nền và top layer, dễ sót | Có |
+| **`<dialog>.showModal()` + bẫy Tab, khóa cuộn, trả focus (chọn)** | Trình duyệt lo inert và top layer, Esc phát `cancel` | jsdom phải dùng stub; inert chỉ chứng minh được trên trình duyệt thật | Có |
+
+**Chọn B và dialog native**, kèm các luật:
+
+- Giao diện chỉ đưa nút khóa cho tài khoản `ACTIVE`, không phải chính mình, không có vai `ADMIN`; tài khoản `LOCKED`, kể cả `ADMIN`, được mở khóa để còn đường gỡ.
+- Query key có `actorId`; nhánh `admin-users` bị hủy và xóa khi phiên đổi. `placeholderData` chỉ dùng trang cũ của cùng actor. Kết quả khóa, mở khóa chỉ ghi khi `getSessionEpoch()` còn bằng lúc bấm (lớp thứ hai sau `SessionChangedError` của `authenticatedRequest`).
+- Truy vấn không thử lại 4xx hay `SessionChangedError`; 5xx và lỗi mạng thử lại một lần. Khóa, mở khóa `retry: 0`, chống bấm kép bằng ref đặt đồng bộ, hết giờ sau 15 giây.
+- Hết giờ, mất mạng hay 5xx sau POST: báo chưa rõ kết quả, cho kiểm lại bằng GET; không tự gửi lại POST.
+- 403 giữa phiên: hiện không đủ quyền và xóa dữ liệu quản trị của actor; không đăng xuất tài khoản.
+
+Trade-off chấp nhận: ẩn nút **không** vá rủi ro máy chủ cho hai quản trị viên khóa lẫn nhau. Đề xuất một Issue phía máy chủ riêng; chưa ghi nợ được chấp nhận vì chưa có quyết định và hạn xử lý.
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: bài `UC-02.1/AC1`–`AC8` đạt; gỡ từng lớp bảo vệ thì đúng bài tương ứng đỏ; QA trên Chrome thật đạt ở 360×740, 1280×800 và phóng 200%.
+Thực tế: 18/10/2026, nhánh chưa commit · `npx vitest run src/features/account/admin` 34/34. Kiểm chứng ngược (gỡ rồi khôi phục):
+- bỏ kiểm actor trong `placeholderData`: 1 bài đỏ;
+- bỏ `adminUserKeys.all` khỏi `ACCOUNT_QUERY_KEYS`: 1 bài đỏ;
+- bỏ ref chống bấm kép: 1 bài đỏ;
+- để mặc định thử lại 4xx: 2 bài đỏ;
+- bỏ kiểm epoch trong `onSuccess`: **không** bài nào đỏ, vì `authenticatedRequest` đã chặn trước; giữ làm lớp phòng thủ thứ hai.
+
+QA Chrome headless với API giả: 47/47.
+
+Review Codex (18/10/2026, `/private/tmp/freya-admin-review/review.test.tsx`) tìm thêm hai lỗi P2, đã sửa trên cùng
+nhánh, chưa commit:
+- GET chi tiết hay danh sách đọc trước khi máy chủ ghi, về sau `onSuccess`, đè trạng thái mới. Sửa: hủy các GET
+  đó trước khi ghi (`cancelQueries`), vì một lần fetch thành công còn xóa cờ invalidated.
+- POST đã được xử lý trả thành công sau khi trang nhận 403 đưa dữ liệu quản trị trở lại cache, vì 403 không đổi
+  epoch. Sửa: thêm thế hệ quyền theo actor, tăng khi 403; kết quả chỉ ghi khi epoch và thế hệ còn nguyên.
+
+Mỗi lỗi có hai bài hồi quy (khóa, mở khóa) trong `AdminUsers.test.tsx`; gỡ từng bản sửa thì đúng hai bài tương ứng
+đỏ; tệp của Codex chạy lại 2/2.
+
+### Điều kiện xem lại
+
+Khi máy chủ thêm luật không khóa `ADMIN` hay quản trị viên cuối cùng; khi có vai `STAFF`; khi jsdom hỗ trợ `showModal`.
+
+
+## 2026-10-18 · Admin.3: xử lý 403 trước khi React cập nhật giao diện
+
+**Loại:** sửa lỗi · **Phạm vi:** `apps/web/src/features/account/admin` · **Commit:** (điền khi thi hành)
+
+Review bổ sung phát hiện GET đã nhận 403 nhưng React chưa chạy effect, POST về ngay sau đó vẫn ghi cache và
+xóa lỗi query. Thế hệ quyền của ADR-028 chưa tăng vì trước đây chỉ tăng trong effect; trang không còn nhận
+biết việc mất quyền.
+
+`useAdminForbidden.guardQuery` nay bắt 403 ngay trong chuỗi promise đọc danh sách/chi tiết, tăng thế hệ quyền,
+hủy và xóa query của actor, đồng thời đặt trạng thái không đủ quyền. Mutation cũ bị bỏ trước khi ghi cache;
+không đăng xuất tài khoản. Hai trang không còn dùng effect để phát hiện 403.
+
+Kiểm chứng trên nền `3aa873b`, cây làm việc chưa commit: bốn bài `UC-02.1/AC6` mới trong
+`admin-access.test.tsx` (khóa/mở khóa × GET danh sách/chi tiết) đều đỏ trước sửa và đều xanh sau sửa;
+`npm run test -w apps/web -- src/features/account/admin` đạt 42/42. Hai phản hồi được hoàn tất trong cùng
+batch, trước khi React có cơ hội chạy effect; ca danh sách còn kiểm mutation đã rời trang chi tiết.
+
+Chưa chạy lại QA trình duyệt hay HTTP local ở vòng này. CI và phần duyệt của Bảo/Duy vẫn là điều kiện trước
+gộp; không tự đổi trạng thái ADR hay chốt mã UC.

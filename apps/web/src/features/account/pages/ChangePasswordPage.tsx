@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { ApiError } from '@/core';
 
 import { useAuth } from '../AuthProvider.js';
+import { SessionChangedError } from '../session-sync.js';
 
 const ERROR_MESSAGES: Record<string, string> = {
   CURRENT_PASSWORD_INVALID: 'Mật khẩu hiện tại không đúng.',
@@ -46,6 +47,10 @@ export function ChangePasswordPage() {
       await changePassword(currentPassword, newPassword);
       setIsChanged(true);
     } catch (submitError) {
+      if (submitError instanceof SessionChangedError) {
+        setError(submitError.message);
+        return;
+      }
       const code = submitError instanceof ApiError ? submitError.body.code : undefined;
       setError((code && ERROR_MESSAGES[code]) ?? 'Không thể đổi mật khẩu. Hãy thử lại.');
     } finally {

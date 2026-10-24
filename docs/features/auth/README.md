@@ -1,6 +1,6 @@
 ---
 title: Tài khoản và xác thực — bản đồ
-updated: 2026-10-11
+updated: 2026-10-18
 status: đang làm
 owner: Tài
 ---
@@ -12,7 +12,7 @@ owner: Tài
 |---|---|
 | **Người sở hữu** | Tài · `apps/api/src/modules/auth` · `apps/web/src/features/account` · bảng trong `prisma/schema/identity.prisma` |
 | **Dòng việc** | PH-03 (Issue #8), sprint S2. Đã gộp vào `develop`: nền tảng auth #14, PH3.1 #18, PH3.2 #19, PH3.3 #20, PH3.4 #21. Đợt 2, S3: phân quyền và quản trị người dùng đã gộp qua [PR #24](https://github.com/F-R-E-Y-A/fashion-shop/pull/24) (`aee345e`) |
-| **Use case** | Đặc tả của Duy đã gộp qua pull request #9 tại [uc-ph01-tai-khoan-xac-thuc.md](../../shared/uc-ph01-tai-khoan-xac-thuc.md), còn theo mã cũ `PH-01.m` (đăng ký, đăng nhập, đặt lại mật khẩu, đăng xuất, hồ sơ, địa chỉ, vóc dáng) và chưa chuyển sang `UC-NN.m` hay về `docs/features/auth/use-cases.md`. Xác thực email OTP và đổi mật khẩu (PH3.1, PH3.3) chưa có use case riêng |
+| **Use case** | Đặc tả của Duy đã gộp qua pull request #9 tại [uc-ph01-tai-khoan-xac-thuc.md](../../shared/uc-ph01-tai-khoan-xac-thuc.md), còn theo mã cũ `PH-01.m` (đăng ký, đăng nhập, đặt lại mật khẩu, đăng xuất, hồ sơ, địa chỉ, vóc dáng) và chưa chuyển sang `UC-NN.m` hay về `docs/features/auth/use-cases.md`. Xác thực email OTP và đổi mật khẩu (PH3.1, PH3.3) chưa có use case riêng. Làm mới phiên và đăng xuất: UC-01.4 (mã đề xuất theo PR #26) ở [use-cases.md](use-cases.md) |
 
 ## Hợp đồng công bố
 
@@ -45,8 +45,9 @@ tiên, và hai API chỉ đọc `GET /api/admin/users`, `GET /api/admin/users/:i
 khóa tăng `authVersion` và thu hồi mọi refresh token, còn đăng nhập và refresh khoá dòng `users` khi tạo phiên
 ([ADR-022](LOG.md#adr-022)).
 
-Chưa có, biết và cố ý: chặn `/quan-tri` **ở giao diện** (`apps/web/src/app/routes.tsx:57`; PR #15 đã gộp),
-vai `STAFF`, gán vai qua API ([ND-03](../../TECH_DEBT.md)). Hồ sơ cá nhân và sổ địa chỉ nằm ở feature
+Chặn khu quản trị **ở giao diện** (`RequireAdmin` trước `/admin/*`, `/quan-tri` chuyển hướng) thuộc Admin.3,
+đang ở nhánh `feature/ph-03-admin-users-web`, chưa gộp ([users/README.md](../users/README.md#giao-diện-quản-trị)).
+Chưa có, biết và cố ý: vai `STAFF`, gán vai qua API ([ND-03](../../TECH_DEBT.md)). Hồ sơ cá nhân và sổ địa chỉ nằm ở feature
 [users](../users/README.md). Cũng chưa có: hồ sơ vóc dáng, OAuth, 2FA.
 
 Nền tảng ban đầu: `identity.prisma` và migration baseline đã có `users`, `roles`, `user_roles`, `refresh_tokens`.
@@ -54,6 +55,11 @@ Phase 4 đã có refresh/logout: refresh cookie HttpOnly được rotate khi c�
 logout revoke refresh session hiện tại và xóa cookie. Hai endpoint này không cần access token.
 Phase 5 giữ access token và user trong bộ nhớ giao diện; khi tải lại trang, app gọi `/auth/refresh`
 bằng cookie HttpOnly để khôi phục phiên. Logout luôn xóa state giao diện, kể cả khi gọi API gặp lỗi.
+
+Vòng đời phiên ([Issue #43](https://github.com/F-R-E-Y-A/fashion-shop/issues/43), [ADR-026](LOG.md#adr-026),
+nhánh `bugfix/auth-session-lifecycle`, chưa gộp): kết quả refresh hay đăng nhập đến muộn bị bỏ theo phiên,
+request không bao giờ được gửi lại bằng danh tính khác, logout thu hồi cả family, các tab báo nhau khi phiên đổi
+và chỉ xóa trạng thái local. Tiêu chí: [use-cases.md](use-cases.md); cơ chế: [session-lifecycle.md](session-lifecycle.md).
 
 ## PH3.1 — Xác thực email (OTP), nhánh `feature/ph3-email-verification`
 

@@ -1,6 +1,6 @@
 ---
 title: Sổ nợ kỹ thuật
-updated: 2026-10-11
+updated: 2026-10-18
 status: đang dùng
 owner: Bảo
 ---
@@ -16,7 +16,7 @@ Thêm mục: cấp mã tăng dần, đừng xoá mục đã xong mà đổi tr�
 |---|---|---|---|---|
 | ND-01 | `npm audit` ngày 11/10: 10 lỗ hổng mức cao, 1 trung bình, đều từ thư viện cấp dưới: `multer` theo `@nestjs/platform-express`, `deepmerge-ts` và `mysql2` theo `prisma`, `nodemailer`, và bốn gói vá được bằng `npm audit fix` (`brace-expansion`, `lodash`, `source-map-js`, `fast-uri`). Mức nghiêm trọng `proxy-addr` (GHSA-jqcg-44mw-7w3h) đã nâng lên 2.0.8 cùng ngày vì chặn CI | Không phải mã của nhóm, phải đợi bản vá của thư viện trên. `mysql2` chỉ là trình điều khiển MySQL mà dự án không dùng. CI chặn ở mức nghiêm trọng, mức cao thì ghi báo cáo | Kiểm lại mỗi sprint bằng `npm audit`; nâng bản khi có | Chấp nhận |
 | ND-02 | Kiểu dữ liệu ở giao diện gõ tay trong `features/*/api/*.api.ts`, sẽ lệch với máy chủ khi API đổi | Sinh kiểu từ OpenAPI chỉ đáng làm khi đặc tả đã ổn định; giờ đổi từng ngày | S3, khi 3 phân hệ đầu đã chốt hợp đồng | Mở |
-| ND-03 | Authentication PH3.1–PH3.4 đã gộp. RBAC, đọc tài khoản và khóa/mở khóa phía máy chủ đã gộp qua PR #24 (`aee345e`), [ADR-021](features/auth/LOG.md#adr-021), [ADR-022](features/auth/LOG.md#adr-022). Còn thiếu: kiểm quyền route web `/quan-tri` (`apps/web/src/app/routes.tsx:57`), vai `STAFF`, API gán vai | PR #15 đã gộp ngày 02/10 nên không còn là phụ thuộc chưa xong; API quản trị vẫn được bảo vệ tại `admin-users.controller.ts:34` | Giao diện: Admin.3; `STAFF` khi phân hệ nhân viên cần | Mở |
+| ND-03 | Authentication PH3.1–PH3.4 đã gộp. RBAC, đọc tài khoản và khóa/mở khóa phía máy chủ đã gộp qua PR #24 (`aee345e`), [ADR-021](features/auth/LOG.md#adr-021), [ADR-022](features/auth/LOG.md#adr-022). Kiểm quyền route web: Admin.3 thêm `RequireAdmin` trước `/admin/*` ([Issue #46](https://github.com/F-R-E-Y-A/fashion-shop/issues/46), nhánh `feature/ph-03-admin-users-web`, chưa gộp). Còn thiếu: vai `STAFF`, API gán vai | PR #15 đã gộp ngày 02/10 nên không còn là phụ thuộc chưa xong; API quản trị vẫn được bảo vệ tại `admin-users.controller.ts:34` | Guard giao diện: xong khi Admin.3 gộp; `STAFF` và gán vai khi phân hệ nhân viên cần | Mở |
 | ND-04 | Chưa có nhật ký có cấu trúc và mã yêu cầu; hiện dùng logger mặc định của Nest | Chỉ cần khi có nhiều phân hệ gọi chéo nhau để lần vết | HT-05, S5 | Mở |
 | ND-05 | `AllExceptionsFilter` đọc `body.error` để đặt mã lỗi, nên mã lỗi phụ thuộc chuỗi tiếng Anh của Nest | Đủ dùng cho ba người; đổi sang lớp lỗi nghiệp vụ riêng khi có phân hệ cần mã lỗi ổn định cho giao diện | S3, khi giỏ hàng và đặt hàng cần phân biệt lỗi nghiệp vụ | Mở |
 | ND-06 | Chưa đặt ngưỡng độ phủ kiểm thử, mới chỉ xuất báo cáo | Đặt ngưỡng khi chưa có mã nghiệp vụ thì chỉ là con số vô nghĩa. Ngưỡng do Duy chốt trong `test-strategy.md` | S2, cùng HT-04 | Mở |

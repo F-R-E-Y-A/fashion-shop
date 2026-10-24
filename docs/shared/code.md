@@ -1,6 +1,6 @@
 ---
 title: Quy ước viết mã
-updated: 2026-09-24
+updated: 2026-10-18
 status: đang dùng
 owner: Bảo
 ---
@@ -40,7 +40,7 @@ Lệnh đó chạy lần lượt: lint, kiểm luật ranh giới, kiểm địn
 | Tệp máy chủ | `<tên>.<vai trò>.ts` | `products.service.ts` |
 | Tệp giao diện | Hoa đầu cho component, thường cho phần còn lại | `ProductListPage.tsx`, `products.api.ts` |
 | Đường dẫn API | số nhiều, chữ thường, nối gạch ngang | `/api/product-variants` |
-| Đường dẫn trang | tiếng Việt không dấu, nối gạch ngang | `/san-pham/:slug` |
+| Đường dẫn trang | tiếng Việt không dấu, nối gạch ngang. Ngoại lệ đề xuất: khu quản trị dùng `/admin/<tài nguyên số nhiều>` ([LOG#adr-027](../LOG.md#adr-027)) | `/san-pham/:slug`, `/admin/users` |
 | Bảng dữ liệu | số nhiều, gạch dưới | `product_variants` |
 | Cột | gạch dưới trong cơ sở dữ liệu, lưng lạc đà trong mã | `created_at` ↔ `createdAt` |
 | Nhánh | `feature/<mã việc viết thường>-<tên ngắn>` | `feature/ph-02-cart`; việc nền tảng: `task/docs-restructure` trên `feature/platform` |

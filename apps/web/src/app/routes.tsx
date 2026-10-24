@@ -1,14 +1,17 @@
 import { Suspense } from 'react';
-import { Link, Navigate, Route, Routes } from 'react-router-dom';
+import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import {
   AccountLayout,
   AddressPage,
+  AdminUserDetailPage,
+  AdminUsersPage,
   ChangePasswordPage,
   ForgotPasswordPage,
   LoginPage,
   ProfilePage,
   RegisterPage,
+  RequireAdmin,
   RequireAuth,
   ResetPasswordPage,
   VerifyEmailPage,
@@ -48,6 +51,15 @@ function NotFoundPage() {
       </div>
     </div>
   );
+}
+
+/**
+ * Duong cu /quan-tri: chuyen han sang /admin, giu query va hash. Chi doi pathname co dinh nen
+ * khong mo ra dich ngoai trang; khong dung noi dung quan tri nao truoc RequireAdmin.
+ */
+function LegacyAdminRedirect() {
+  const { search, hash } = useLocation();
+  return <Navigate to={{ pathname: '/admin', search, hash }} replace />;
 }
 
 export function AppRoutes() {
@@ -106,8 +118,16 @@ export function AppRoutes() {
             <Route path="dat-lai-mat-khau" element={<ResetPasswordPage />} />
           </Route>
 
-          <Route path="quan-tri" element={<AdminLayout />}>
-            <Route index element={<AdminProductsPage />} />
+          {/* Khu quan tri dung URL tieng Anh (ngoai le cua quy uoc duong dan tieng Viet, xem
+              docs/shared/code.md). RequireAdmin dat NGOAI AdminLayout: dang khoi phuc phien hay
+              khong du quyen thi khong dung khung va khong goi API quan tri. */}
+          <Route path="quan-tri" element={<LegacyAdminRedirect />} />
+          <Route path="admin" element={<RequireAdmin />}>
+            <Route element={<AdminLayout />}>
+              <Route index element={<AdminProductsPage />} />
+              <Route path="users" element={<AdminUsersPage />} />
+              <Route path="users/:id" element={<AdminUserDetailPage />} />
+            </Route>
           </Route>
         </Routes>
       </Suspense>

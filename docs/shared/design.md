@@ -1,6 +1,6 @@
 ---
 title: Chuẩn giao diện chung
-updated: 2026-09-24
+updated: 2026-10-18
 status: đang dùng, nhận diện F.R.E.Y.A. đã chốt
 owner: Bảo
 ---
@@ -20,7 +20,8 @@ Hệ màu và phông **đã chốt theo bộ nhận diện F.R.E.Y.A. (04/10)**:
 
 | Loại | Đặt ở | Ai sửa |
 |---|---|---|
-| Token, reset, khung cửa hàng và khung quản trị | `apps/web/src/styles.css` | Bảo |
+| Token, reset, khung cửa hàng | `apps/web/src/styles.css` | Bảo |
+| Khung quản trị (thanh bên Espresso, vùng nội dung) | `apps/web/src/app/AdminLayout.module.css` | Bảo |
 | Kiểu của thành phần dùng chung | `apps/web/src/ui/<Tên>.module.css`, cạnh thành phần | Bảo |
 | Kiểu riêng của một feature | `apps/web/src/features/<x>/**/<Tên>.module.css`, cạnh thành phần dùng nó | Chủ feature |
 
@@ -41,10 +42,10 @@ Thành phần nào hai feature trở lên cần thì đưa vào `ui/`; một fea
 1. **Ba trạng thái đủ mặt:** đang tải, lỗi, không có dữ liệu. Thiếu một là người duyệt trả lại ([code.md](code.md) luật 2).
 2. **Tiền là chuỗi từ máy chủ, hiện bằng `formatPrice`.** Có giá khuyến mãi thì gạch giá niêm yết và làm nổi giá bán; không tự làm tròn hay tính lại giá ở giao diện.
 3. **Ảnh có khung tỉ lệ cố định** (sản phẩm `3 / 4`, xem `.card__image`) để trang không xê dịch khi ảnh tải xong; ảnh dưới màn hình đầu dùng `loading="lazy"`; mọi ảnh có `alt` mô tả.
-4. **Bố cục hẹp từ 360 px.** Điểm gãy chung hiện là `720px` ([styles.css:219](../../apps/web/src/styles.css#L219)); lưới sản phẩm tự co bằng `auto-fill`.
+4. **Bố cục hẹp từ 360 px.** Điểm gãy chung hiện là `720px` ([styles.css:325](../../apps/web/src/styles.css#L325)); lưới sản phẩm tự co bằng `auto-fill`.
 5. **Tiếp cận cơ bản:** thẻ tương tác là `button` hoặc `a` thật, không gắn `onClick` vào `div`; trường nhập có nhãn; trạng thái tải có `role="status"`, lỗi có `role="alert"` như `Feedback.tsx` đã làm.
 6. **Chữ trên giao diện tiếng Việt có dấu**; tên biến và tệp tiếng Anh ([code.md](code.md)).
-7. **Đường dẫn trang tiếng Việt không dấu, nối gạch ngang**, khai ở `app/routes.tsx` và chỉ ở đó: `/san-pham/:slug`, `/danh-muc/:slug`, `/gio-hang`, `/dang-nhap`.
+7. **Đường dẫn trang tiếng Việt không dấu, nối gạch ngang**, khai ở `app/routes.tsx` và chỉ ở đó: `/san-pham/:slug`, `/danh-muc/:slug`, `/gio-hang`, `/dang-nhap`. Ngoại lệ đề xuất: khu quản trị dùng `/admin/*`, chữ trên trang vẫn tiếng Việt, mọi trang nằm sau `RequireAdmin` ([LOG#adr-027](../LOG.md#adr-027)).
 
 ## Chưa có, sẽ có
 
