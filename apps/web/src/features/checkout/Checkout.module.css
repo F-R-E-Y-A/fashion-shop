@@ -1,0 +1,710 @@
+/* Checkout, ket qua don va danh sach don: cung bo khung voi trang gio hang (CartPage.module.css). */
+
+.page {
+  width: min(1080px, 100%);
+  margin: 0 auto;
+  padding: clamp(28px, 5vw, 56px) var(--gutter) 72px;
+  overflow-wrap: anywhere;
+}
+
+/* --- dau trang --- */
+.back {
+  display: inline-flex;
+  gap: 6px;
+  margin-bottom: 18px;
+  color: var(--muted);
+  font-size: var(--s-1);
+  transition: color 0.2s var(--ease);
+}
+.back:hover {
+  color: var(--accent);
+}
+.eyebrow {
+  margin: 0;
+  font-size: var(--s-1);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.title {
+  margin: 6px 0 4px;
+  font-size: var(--s3);
+  font-weight: 400;
+}
+.lead {
+  margin: 0 0 24px;
+  color: var(--muted);
+  font-size: var(--s-1);
+}
+
+/* buoc: Gio hang -> Xac nhan -> Thanh toan */
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin: 0 0 28px;
+  padding: 0;
+  list-style: none;
+  font-size: var(--s-1);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.steps li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.steps li::before {
+  content: attr(data-step);
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  font-size: 0.7rem;
+  letter-spacing: 0;
+}
+.stepDone {
+  color: var(--ink);
+}
+.stepDone::before {
+  border-color: var(--ink) !important;
+}
+.stepCurrent {
+  color: var(--accent);
+  font-weight: 600;
+}
+.stepCurrent::before {
+  border-color: var(--accent) !important;
+  background: var(--accent);
+  color: var(--on-dark);
+}
+
+/* --- luoi hai cot --- */
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 32px;
+  align-items: start;
+}
+.main {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+/* --- khoi noi dung trang --- */
+.section {
+  display: grid;
+  gap: 14px;
+  padding: clamp(18px, 3vw, 24px);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.sectionHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+.sectionTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--s1);
+  font-weight: 500;
+}
+.sectionLink {
+  color: var(--muted);
+  font-size: var(--s-1);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.sectionLink:hover {
+  color: var(--accent);
+}
+.muted {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--s-1);
+}
+
+/* the chon (dia chi, cong thanh toan) */
+.fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.legend {
+  margin-bottom: 14px;
+  padding: 0;
+}
+.options {
+  display: grid;
+  gap: 10px;
+}
+.option {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition:
+    border-color 0.2s var(--ease),
+    background-color 0.2s var(--ease);
+}
+.option:hover {
+  border-color: var(--stone);
+}
+.option:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--bg);
+}
+.option:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.option input {
+  margin: 3px 0 0;
+  accent-color: var(--accent);
+}
+.optionTitle {
+  display: block;
+  font-weight: 600;
+}
+.optionText {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: var(--s-1);
+  line-height: 1.5;
+}
+.tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  vertical-align: 2px;
+}
+
+/* danh sach mon */
+.items {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.item {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+}
+.item + .item {
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.thumb {
+  width: 64px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.itemName {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--s0);
+  font-weight: 500;
+  line-height: 1.3;
+}
+.itemName a:hover {
+  color: var(--accent);
+}
+.itemMeta {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: var(--s-1);
+}
+.itemTotal {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* --- thong bao trong trang --- */
+.notice {
+  margin: 0;
+  padding: 12px 14px;
+  border-left: 2px solid var(--accent);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--s-1);
+  line-height: 1.55;
+}
+.notice a {
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.noticeDanger {
+  border-left-color: var(--danger);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.noticeSuccess {
+  border-left-color: var(--success);
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+/* --- tom tat mat toi (giong gio hang) --- */
+.summary {
+  position: sticky;
+  top: 104px;
+  display: grid;
+  gap: 14px;
+  padding: 24px;
+  background: var(--espresso);
+  color: var(--on-dark);
+  border-radius: var(--radius);
+}
+.summaryTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--s1);
+  font-weight: 500;
+}
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+  font-size: var(--s-1);
+  color: var(--on-dark-muted);
+}
+.row span:last-child {
+  font-variant-numeric: tabular-nums;
+}
+.promotion {
+  display: grid;
+  gap: 8px;
+  font-size: var(--s-1);
+}
+.promotion input {
+  width: 100%;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid rgb(248 247 245 / 0.18);
+  border-radius: var(--radius);
+  background: rgb(248 247 245 / 0.08);
+  color: var(--on-dark-muted);
+  font: inherit;
+  opacity: 1;
+}
+.promotion input::placeholder {
+  color: var(--on-dark-muted);
+}
+.total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin: 4px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid rgb(248 247 245 / 0.18);
+}
+.total span {
+  font-size: var(--s-1);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--on-dark-muted);
+}
+.total strong {
+  font-size: var(--s2);
+  font-weight: 600;
+  color: var(--amber-glow);
+  font-variant-numeric: tabular-nums;
+}
+.summaryNote {
+  margin: 0;
+  font-size: var(--s-1);
+  line-height: 1.5;
+  color: var(--on-dark-muted);
+}
+.summaryNote strong {
+  color: var(--amber-glow);
+  font-weight: 600;
+}
+.summary .notice {
+  background: rgb(248 247 245 / 0.08);
+  color: var(--on-dark);
+  border-left-color: var(--amber-glow);
+}
+.summary .notice a {
+  color: var(--amber-glow);
+}
+.summary .noticeDanger {
+  border-left-color: #f1a596;
+  color: #ffd9d1;
+}
+
+/* nut */
+.cta {
+  display: block;
+  width: 100%;
+  padding: 14px 20px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--amber-glow);
+  color: var(--espresso);
+  font: inherit;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 0.2s var(--ease);
+}
+.cta:hover:not(:disabled) {
+  background: var(--accent-bright);
+  color: var(--on-dark);
+}
+.cta:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.ghost {
+  display: block;
+  width: 100%;
+  padding: 12px 20px;
+  border: 1px solid rgb(248 247 245 / 0.28);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--on-dark);
+  font: inherit;
+  font-size: var(--s-1);
+  letter-spacing: 0.04em;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s var(--ease);
+}
+.ghost:hover:not(:disabled) {
+  border-color: var(--amber-glow);
+}
+.ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.textButton {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--on-dark-muted);
+  font: inherit;
+  font-size: var(--s-1);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+.textButton:hover:not(:disabled) {
+  color: #ffd9d1;
+}
+.actions {
+  display: grid;
+  gap: 10px;
+}
+.linkRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  font-size: var(--s-1);
+}
+.linkRow a {
+  color: var(--on-dark-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.linkRow a:hover {
+  color: var(--on-dark);
+}
+
+/* --- trang ket qua don --- */
+.statusCard {
+  display: grid;
+  gap: 10px;
+  padding: clamp(18px, 3vw, 24px);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--amber-glow);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+.statusCard[data-status='CONFIRMED'] {
+  border-left-color: var(--success);
+}
+.statusCard[data-status='CANCELLED'] {
+  border-left-color: var(--muted);
+}
+.statusCard[data-status='PAYMENT_REVIEW'] {
+  border-left-color: var(--danger);
+}
+.statusTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--s2);
+  font-weight: 400;
+}
+.statusText {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--s0);
+  line-height: 1.55;
+}
+.countdown {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--s-1);
+}
+.countdown strong {
+  color: var(--ink);
+  font-size: var(--s2);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--s-1);
+}
+.meta strong {
+  color: var(--ink);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.address {
+  margin: 0;
+  font-size: var(--s-1);
+  line-height: 1.6;
+}
+.payments {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--s-1);
+  color: var(--on-dark-muted);
+}
+.payments li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.payments code {
+  font-family: inherit;
+  letter-spacing: 0.02em;
+}
+
+/* nhan trang thai */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+.badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--amber-glow);
+}
+.badge[data-status='CONFIRMED'] {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.badge[data-status='CONFIRMED']::before {
+  background: var(--success);
+}
+.badge[data-status='CANCELLED'] {
+  background: var(--stone);
+  color: var(--muted);
+}
+.badge[data-status='CANCELLED']::before {
+  background: var(--muted);
+}
+.badge[data-status='PAYMENT_REVIEW'] {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.badge[data-status='PAYMENT_REVIEW']::before {
+  background: var(--danger);
+}
+
+/* --- danh sach don --- */
+.orders {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.orderCard {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  padding: 18px 20px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  transition: border-color 0.2s var(--ease);
+}
+.orderCard:hover {
+  border-color: var(--stone);
+}
+.thumbs {
+  display: flex;
+}
+.thumbs img,
+.thumbs span {
+  width: 52px;
+  height: 66px;
+  object-fit: cover;
+  border: 2px solid var(--paper);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.thumbs > * + * {
+  margin-left: -18px;
+}
+.thumbs span {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: var(--s-1);
+}
+.orderInfo {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.orderCode {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.orderCode a:hover {
+  color: var(--accent);
+}
+.orderSide {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+}
+.orderTotal {
+  margin: 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.orderLink {
+  color: var(--accent);
+  font-size: var(--s-1);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* trang rong (giong gio hang) */
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: clamp(40px, 8vw, 80px) 24px;
+  border: 1px dashed var(--line);
+  text-align: center;
+}
+.emptyTitle {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--s2);
+  font-weight: 400;
+}
+.emptyCta {
+  margin-top: 10px;
+  padding: 12px 28px;
+  background: var(--espresso);
+  color: var(--on-dark);
+  font-size: var(--s-1);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: var(--radius);
+  transition: background-color 0.2s var(--ease);
+}
+.emptyCta:hover {
+  background: var(--accent);
+}
+
+@media (max-width: 880px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+  .summary {
+    position: static;
+  }
+}
+@media (max-width: 560px) {
+  .steps {
+    gap: 8px 12px;
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+  }
+  .steps li {
+    gap: 6px;
+  }
+  .orderCard {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .orderSide {
+    grid-column: 1 / -1;
+    grid-auto-flow: column;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .item {
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+  .thumb {
+    width: 56px;
+    height: 70px;
+  }
+  .itemTotal {
+    grid-column: 2;
+  }
+}
