@@ -9,9 +9,11 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { config as loadEnv } from 'dotenv';
 
 import { PrismaClient } from '../../src/generated/prisma/client.js';
+import { prismaConnection } from '../../src/infra/prisma/connection.js';
 import { seedAdministrativeAreas } from './administrative-areas.seed.js';
 import { seedCatalog } from './catalog.seed.js';
 import { seedIdentity } from './identity.seed.js';
+import { seedShipping } from './shipping.seed.js';
 
 loadEnv({ path: '../../.env' });
 
@@ -20,7 +22,7 @@ if (!connectionString) {
   throw new Error('Thieu DATABASE_URL. Chep .env.example thanh .env o goc kho ma.');
 }
 
-const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+const prisma = new PrismaClient({ adapter: new PrismaPg(prismaConnection(connectionString)) });
 
 async function main(): Promise<void> {
   const [catalog, identity, areas] = await Promise.all([
@@ -28,6 +30,7 @@ async function main(): Promise<void> {
     seedIdentity(prisma),
     seedAdministrativeAreas(prisma),
   ]);
+  await seedShipping(prisma);
   console.log(
     `Da nap du lieu nen: ${catalog.categories} danh muc, ${catalog.brands} thuong hieu, ${catalog.colors} mau, ${catalog.sizes} co, ${identity.roles} vai tro.`,
   );
