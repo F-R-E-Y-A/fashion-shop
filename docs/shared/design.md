@@ -12,7 +12,7 @@ Chuẩn này là **sàn**, không phải trần. Feature ghi phần riêng của
 
 ## Token: một nguồn
 
-Màu, bo góc và phông nằm ở biến CSS trong [styles.css:4-19](../../apps/web/src/styles.css#L4): `--ink`, `--muted`, `--line`, `--bg`, `--accent`, `--danger`, `--radius`. Dùng `var(--ink)`, **không gõ mã màu trực tiếp** trong tệp CSS của feature. Cần màu mới thì thêm biến vào `styles.css` trong pull request của mình và nhắn Bảo duyệt, vì tệp đó của chung.
+Màu, bo góc và phông nằm ở biến CSS trong [styles.css:2-33](../../apps/web/src/styles.css#L2): `--ink`, `--muted`, `--line`, `--bg`, `--accent`, `--danger`, `--radius`; nền trạng thái `--danger-soft`, `--success`/`--success-soft` và nền thẻ trắng `--paper` (thêm 20/10 cho trang đơn, chờ Bảo duyệt). Trang trạng thái đứng riêng (404, chờ phiên) dùng lớp chung `.page-state`. Dùng `var(--ink)`, **không gõ mã màu trực tiếp** trong tệp CSS của feature. Cần màu mới thì thêm biến vào `styles.css` trong pull request của mình và nhắn Bảo duyệt, vì tệp đó của chung.
 
 Hệ màu và phông **đã chốt theo bộ nhận diện F.R.E.Y.A. (04/10)**: palette Espresso/Ivory/Copper/Sand/Stone trùng token sẵn có trong `styles.css`; heading Playfair Display, nội dung Be Vietnam Pro. Tên, khẩu hiệu và asset logo lấy từ `core/brand.ts` và `public/images/brand/freya/`; quy tắc dùng logo ở bản bàn giao `work/branding/freya-brand-kit-v1/BRAND_GUIDE.md` (canvas PNG có margin, hiển thị qua `rasterLogoViewBox` trong `asset-manifest.json`).
 

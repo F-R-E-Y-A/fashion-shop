@@ -1,6 +1,6 @@
 ---
 title: Tài khoản người dùng — bản đồ
-updated: 2026-10-04
+updated: 2026-10-18
 status: đang làm
 owner: Tài
 ---
@@ -106,8 +106,7 @@ môi trường đó trước lệnh. Vai có hiệu lực ngay request kế ti�
 
 Admin.1 và Admin.2 đã gộp vào `develop` (pull request #24, `aee345e`). API hồ sơ, khu vực hành chính và sổ địa
 chỉ đã có; giao diện hồ sơ và địa chỉ đang được triển khai trên `feature/ph4-profile-address-web`. Dữ liệu
-tỉnh/xã thật (34 tỉnh, 3321 xã) đã nạp vào CSDL dev, chưa nạp staging hay production; avatar và tích hợp checkout
-ngoài phạm vi giao diện này.
+tỉnh/xã thật (34 tỉnh, 3321 xã) đã nạp vào CSDL dev, chưa kiểm lại staging hay production trong PH-11. Checkout local đã dùng địa chỉ lưu qua public `CheckoutAddressService.get(userId, id, tx?)` ([checkout-address.service.ts:11](../../../apps/api/src/modules/users/checkout-address.service.ts#L11)); trả snapshot của đúng chủ và xã/tỉnh hoạt động. Avatar vẫn ngoài phạm vi.
 
 ## Còn mở
 

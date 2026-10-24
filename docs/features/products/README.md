@@ -1,6 +1,6 @@
 ---
 title: Khám phá sản phẩm — bản đồ và kế hoạch PH-01
-updated: 2026-10-04
+updated: 2026-10-18
 status: đang làm
 owner: Bảo
 ---
@@ -17,6 +17,8 @@ owner: Bảo
 | **Quyết định** | [ADR-007](LOG.md#adr-007) mô hình dữ liệu **đã chốt** (M2, cài ở PR #11) · [ADR-008](LOG.md#adr-008) hình dạng API · [ADR-009](../../LOG.md#adr-009) CSS Modules — hai ADR sau đang **đề xuất** · [ADR-019](LOG.md#adr-019) tìm kiếm hiểu tiếng Việt · [ADR-020](LOG.md#adr-020) token giao diện bản 1 — cả hai **đề xuất** |
 
 ## Giải quyết việc gì
+
+PH-11 bổ sung cập nhật giá/tồn bằng SSE và mở thêm vào giỏ từ trang chi tiết. Catalog gọi cửa Inventory để hiển thị tồn khả dụng; không giữ hàng trước payment. Hợp đồng biến thể có transaction tuỳ chọn tại [README module](../../../apps/api/src/modules/products/README.md); quyết định ở [ADR-026](../../LOG.md#adr-026). Nợ lọc cỡ theo tồn [ND-14](../../TECH_DEBT.md) vẫn mở.
 
 Khách vào trang chủ, bấm một danh mục, mở một sản phẩm, chọn được cỡ và màu, thấy giá đổi theo lựa chọn. Xong PH-01 thì Duy có biến thể để bỏ vào giỏ, Tài có hàm để nạp hơn 300 sản phẩm thật.
 

@@ -1,6 +1,6 @@
 ---
 title: Hồ sơ cá nhân và sổ địa chỉ
-updated: 2026-10-04
+updated: 2026-10-18
 status: đang làm
 owner: Tài
 ---
@@ -146,8 +146,7 @@ dùng mutex trong bộ nhớ tiến trình.
 
 Sổ địa chỉ là **dữ liệu nguồn** cho bước đặt hàng. Đơn hàng không có khoá ngoại tới `addresses`: `orders`
 giữ `shipping_address_snapshot` (JSONB bắt buộc, [data-model.md](../../shared/data-model.md)). Sửa hay xoá địa
-chỉ sau khi đặt không đổi đơn cũ. Checkout sẽ cần một hàm đọc địa chỉ theo `userId` + `id` được công bố qua
-`modules/users/index.ts`; hình dạng bản chụp do Duy chốt cùng phân hệ đặt hàng. Chưa công bố ở đợt này.
+chỉ sau khi đặt không đổi đơn cũ. PH-11 đã công bố `CheckoutAddressService.get(userId, id, transaction?)` qua `modules/users/index.ts`, kiểm đúng chủ và xã/tỉnh hoạt động, trả snapshot địa chỉ ([checkout-address.service.ts:11](../../../apps/api/src/modules/users/checkout-address.service.ts#L11)). Hợp đồng ở [README module](../../../apps/api/src/modules/users/README.md), luồng ở [Checkout](../checkout/README.md).
 
 ## Kiểm thử
 
@@ -168,5 +167,4 @@ chỉ sau khi đặt không đổi đơn cũ. Checkout sẽ cần một hàm đ�
 - Số điện thoại chỉ nhận dạng `0xxxxxxxxx`; chưa nhận `+84` hay dấu cách. Giao diện nên chuẩn hoá trước khi gửi.
 - Chưa có trần số địa chỉ mỗi người. `addresses.user_id` có chỉ mục thường `addresses_user_id_idx`;
   `administrative_areas.parent_id` chưa có chỉ mục; bảng có 3355 dòng, thêm bằng migration riêng khi cần.
-- Tích hợp địa chỉ đã lưu vào bước checkout nằm ngoài phạm vi giao diện hiện tại; ranh giới dữ liệu đơn hàng ở
-  mục trên.
+- Checkout đã tích hợp local trong PH-11; nghiệm thu cổng thật chờ VNPAY key. Ranh giới snapshot ở mục trên.
