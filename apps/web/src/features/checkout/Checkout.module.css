@@ -110,6 +110,20 @@
   align-items: baseline;
   gap: 12px;
 }
+
+.sectionActions {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+}
+
+.sectionActions .sectionLink {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
 .sectionTitle {
   margin: 0;
   font-family: var(--font-display);

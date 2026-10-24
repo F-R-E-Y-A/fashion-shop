@@ -1,9 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { ApiError, formatPrice } from '@/core';
-import { addressKeys, listAddresses, useAuth } from '@/features/account';
+import {
+  AddressForm,
+  addressKeys,
+  createAddress,
+  type CreateAddressInput,
+  listAddresses,
+  useAuth,
+} from '@/features/account';
 
 import styles from './Checkout.module.css';
 import {
@@ -45,12 +52,31 @@ export function CheckoutPage() {
   const client = useQueryClient();
   const [selected, setSelected] = useState('');
   const [preferredGateway, setGateway] = useState<GatewayCode | ''>('');
+  const [addingAddress, setAddingAddress] = useState(false);
+  const [addressNotice, setAddressNotice] = useState<string | null>(null);
+  const autoOpenedAddressForm = useRef(false);
   const addresses = useQuery({
     queryKey: addressKeys.list(user!.id),
     queryFn: () => listAddresses(request),
   });
   const addressId =
     selected || addresses.data?.find((a) => a.isDefault)?.id || addresses.data?.[0]?.id || '';
+  // Chua co dia chi thi mo san form them ngay tai cho; chi tu dong mo mot lan.
+  useEffect(() => {
+    if (!autoOpenedAddressForm.current && addresses.data?.length === 0) {
+      autoOpenedAddressForm.current = true;
+      setAddingAddress(true);
+    }
+  }, [addresses.data]);
+  const addAddress = useMutation({
+    mutationFn: (data: CreateAddressInput) => createAddress(request, data),
+    onSuccess: async (created) => {
+      setSelected(created.id);
+      setAddingAddress(false);
+      setAddressNotice('Đã thêm địa chỉ giao hàng.');
+      await client.invalidateQueries({ queryKey: addressKeys.list(user!.id) });
+    },
+  });
   const key = checkoutKeys.preview(user!.id, addressId);
   const preview = useQuery({
     queryKey: key,
@@ -105,9 +131,20 @@ export function CheckoutPage() {
           <section className={styles.section}>
             <div className={styles.sectionHead}>
               <h2 className={styles.sectionTitle}>Địa chỉ giao hàng</h2>
-              <Link className={styles.sectionLink} to="/tai-khoan/dia-chi">
-                Thêm / sửa địa chỉ
-              </Link>
+              <div className={styles.sectionActions}>
+                {!addingAddress && (
+                  <button
+                    type="button"
+                    className={styles.sectionLink}
+                    onClick={() => setAddingAddress(true)}
+                  >
+                    + Thêm địa chỉ
+                  </button>
+                )}
+                <Link className={styles.sectionLink} to="/tai-khoan/dia-chi">
+                  Sổ địa chỉ
+                </Link>
+              </div>
             </div>
             {addresses.isPending && (
               <p className={styles.muted} role="status">
@@ -120,7 +157,19 @@ export function CheckoutPage() {
               </p>
             )}
             {addresses.data?.length === 0 && (
-              <p className={styles.notice}>Thêm địa chỉ giao hàng để tiếp tục.</p>
+              <p className={styles.notice}>Chưa có địa chỉ giao hàng. Thêm địa chỉ để tiếp tục.</p>
+            )}
+            {addressNotice && (
+              <p className={`${styles.notice} ${styles.noticeSuccess}`} role="status">
+                {addressNotice}
+              </p>
+            )}
+            {addingAddress && (
+              <AddressForm
+                isSaving={addAddress.isPending}
+                onCancel={() => setAddingAddress(false)}
+                onSave={(data) => addAddress.mutateAsync(data).then(() => undefined)}
+              />
             )}
             <div className={styles.options}>
               {addresses.data?.map((address) => (

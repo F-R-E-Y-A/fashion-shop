@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { createElement } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -9,11 +10,19 @@ import { CheckoutPage } from './CheckoutPage.js';
 import { OrderPage, OrdersPage } from './OrderPage.js';
 import { checkoutKey, type OrderView, type Quote } from './types.js';
 
-const { request, addresses } = vi.hoisted(() => ({ request: vi.fn(), addresses: vi.fn() }));
+const { request, addresses, createAddress, AddressFormStub } = vi.hoisted(() => ({
+  request: vi.fn(),
+  addresses: vi.fn(),
+  createAddress: vi.fn(),
+  AddressFormStub: ({ onSave }: { onSave: (data: unknown) => Promise<void> }) =>
+    createElement('button', { type: 'button', onClick: () => void onSave({}) }, 'Lưu địa chỉ'),
+}));
 vi.mock('@/features/account', () => ({
   useAuth: () => ({ user: { id: 'u1' }, authenticatedRequest: request }),
   listAddresses: addresses,
   addressKeys: { list: (id: string) => ['addresses', id] },
+  createAddress,
+  AddressForm: AddressFormStub,
 }));
 const quote: Quote = {
   fingerprint: 'a'.repeat(64),
@@ -90,6 +99,23 @@ afterEach(() => {
 });
 
 describe('PH-11 checkout UI', () => {
+  it('chưa có địa chỉ thì mở sẵn form thêm ngay; lưu xong tự chọn địa chỉ mới', async () => {
+    addresses.mockResolvedValue([]);
+    createAddress.mockResolvedValue({ id: 'a9' });
+    request.mockResolvedValue(quote);
+    show();
+    fireEvent.click(await screen.findByRole('button', { name: 'Lưu địa chỉ' }));
+    expect(await screen.findByRole('radio', { name: 'VNPAY' })).toBeChecked();
+    await waitFor(() =>
+      expect(request).toHaveBeenCalledWith('/checkout/preview', {
+        method: 'POST',
+        body: { addressId: 'a9' },
+      }),
+    );
+    expect(createAddress).toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Lưu địa chỉ' })).not.toBeInTheDocument();
+    expect(screen.getByText('Đã thêm địa chỉ giao hàng.')).toBeInTheDocument();
+  });
   it('chỉ hiện VNPAY khi MoMo chưa được cấu hình', async () => {
     request.mockResolvedValue({
       ...quote,
@@ -208,11 +234,14 @@ describe('PH-11 checkout UI', () => {
       expect.objectContaining({ body: { addressId: 'a1' } }),
     );
   });
-  it('chưa có địa chỉ hướng sang thêm địa chỉ, không gọi preview hay tạo đơn', async () => {
+  it('chưa có địa chỉ thì mở sẵn form thêm tại chỗ, không gọi preview hay tạo đơn', async () => {
     addresses.mockResolvedValue([]);
     show();
-    expect(await screen.findByText('Thêm địa chỉ giao hàng để tiếp tục.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Thêm / sửa địa chỉ' })).toHaveAttribute(
+    expect(
+      await screen.findByText('Chưa có địa chỉ giao hàng. Thêm địa chỉ để tiếp tục.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Lưu địa chỉ' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Sổ địa chỉ' })).toHaveAttribute(
       'href',
       '/tai-khoan/dia-chi',
     );
