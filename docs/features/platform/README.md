@@ -10,7 +10,7 @@ owner: Bảo
 
 | | |
 |---|---|
-| **Người sở hữu** | Bảo · `tools/`, `.github/`, `infra/`, `apps/api/src/{common,infra}`, `apps/web/src/{app,core,ui}` (xem `.github/CODEOWNERS`) |
+| **Người sở hữu** | Bảo · `tools/`, `.github/`, `infra/`, `apps/api/src/{common,infra}`, `apps/web/src/{app,core,ui}` (bản đồ sở hữu ở [README docs](../../README.md) mục 1) |
 | **Dòng việc** | HT-01 (Issue #1, pull request #2); các hạng mục `HT-` sau theo kế hoạch ở kho docs |
 
 ## Nền tảng gồm những gì
@@ -21,7 +21,6 @@ owner: Bảo
 | Hook máy: định dạng khi commit, dạng commit, chặn đẩy thẳng | `tools/git/`, `package.json` mục `simple-git-hooks` | [git.md](../../shared/git.md) |
 | CI sáu chặng | `.github/workflows/ci.yml` | [code-tour.md](../../shared/code-tour.md) mục 5 |
 | Tự triển khai môi trường thử | `.github/workflows/cd-staging.yml`, `render.yaml`, `apps/web/vercel.json` | [staging.md](staging.md) |
-| Gán người duyệt theo `CODEOWNERS` | `.github/workflows/pr-reviewers.yml` | [github-setup.md](github-setup.md) mục 6 |
 | Image Docker hai ứng dụng, chạy cả cụm trên máy | `apps/*/Dockerfile`, `infra/compose.prod.yml` | [staging.md](staging.md) mục cuối |
 | Số liệu minh chứng rubric từ GitHub | `tools/evidence/github-metrics.mjs` | `npm run evidence:github` |
 

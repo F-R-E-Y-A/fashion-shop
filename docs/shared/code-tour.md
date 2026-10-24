@@ -133,7 +133,6 @@ Bảng này chính là thứ để ôn trước buổi bảo vệ. Cột cuối 
 | `tools/git/check-commit-msg.mjs` | Ép dạng commit message | Lịch sử git lộn xộn, khó đối chiếu với nhật ký AI |
 | `tools/git/pre-push.mjs` | Chặn đẩy thẳng vào `develop`, `main` | Có người đẩy thẳng, bỏ qua duyệt và bỏ qua CI |
 | `tools/db/prepare-test-db.mjs` | Tạo cơ sở dữ liệu riêng cho kiểm thử | Kiểm thử xoá sạch dữ liệu đang làm việc |
-| `tools/github/request-reviewers.mjs` | Gán người duyệt theo `CODEOWNERS` | Kho riêng tư gói Free không tự gán, `CODEOWNERS` thành tờ giấy dán tường |
 | `tools/evidence/github-metrics.mjs` | Xuất bốn con số rubric chấm | Tới lúc nộp phải ngồi đếm tay, và đếm sai |
 | `.github/workflows/ci.yml` | Sáu chặng chặn gộp | Mã hỏng vào được `develop` |
 | `.github/workflows/cd-staging.yml` | Triển khai sau khi CI xanh | Không có số lần triển khai để nộp, TC2.6 mất điểm |

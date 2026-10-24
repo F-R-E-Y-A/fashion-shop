@@ -623,3 +623,12 @@ Thực tế: điền khi có commit; lệnh và output của phiên lưu ngoài 
 ### Điều kiện xem lại
 
 Duy làm phương án A trong Cart/Inventory thì bỏ `reselectReleased` và nhánh 409 của preview.
+
+<a id="bo-gan-nguoi-duyet"></a>
+## 2026-10-24 · Bỏ gán người duyệt theo CODEOWNERS; duyệt pull request thành tự nguyện
+
+**Loại:** thay đổi cách làm việc · **Phạm vi:** `shared/git.md` mục Luật gộp, `README.md`, `CONTRIBUTING.md`, `README docs` mục 6, `README platform` · **Người quyết:** Bảo, 24/10
+
+Sau PH-11, ba người cùng chấm nhiều phân hệ đan xen (checkout chạm cart/orders/inventory/shipping) nên gán người duyệt cứng theo thư mục dồn mỗi pull request vào một người và làm chậm tính năng. Bỏ ba mảnh của cơ chế: `.github/CODEOWNERS`, workflow `pr-reviewers.yml`, script `tools/github/request-reviewers.mjs`. Điều kiện gộp còn lại: CI xanh sáu chặng và một người duyệt bất kỳ tự nguyện, tác giả không tự duyệt pull request của mình. Luật "một phân hệ một người làm trọn" và "không ghi bảng người khác" vẫn do ESLint boundaries ép, không đổi. `github-setup.md` mục 6 giữ làm biên bản lịch sử cách dựng cơ chế cũ.
+
+Điều kiện xem lại: trước bản nộp chính thức, nếu giảng viên yêu cầu bằng chứng duyệt chéo theo ownership, khôi phục cơ chế từ lịch sử git tại commit bỏ này.
