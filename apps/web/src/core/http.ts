@@ -6,6 +6,11 @@
  */
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001/api';
 
+/** Stream nay chi chua revision cong khai, khong gui access token tren URL. */
+export function openEventStream(path: string): EventSource {
+  return new EventSource(`${BASE_URL}${path}`);
+}
+
 /** Hinh dang loi thong nhat, khop AllExceptionsFilter ben may chu. */
 export interface ApiErrorBody {
   statusCode: number;

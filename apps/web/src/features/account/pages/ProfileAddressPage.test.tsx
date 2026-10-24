@@ -211,6 +211,10 @@ describe('UC-01.5 Hồ sơ cá nhân trên web', () => {
       '/tai-khoan/ho-so',
     );
     expect(screen.getByRole('link', { name: 'Đổi mật khẩu' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Đơn hàng của tôi' })).toHaveAttribute(
+      'href',
+      '/tai-khoan/don-hang',
+    );
     // So dia chi khong con tren header: no la tab con cua /tai-khoan.
     expect(screen.queryByRole('link', { name: 'Sổ địa chỉ' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Đăng xuất' })).toBeInTheDocument();

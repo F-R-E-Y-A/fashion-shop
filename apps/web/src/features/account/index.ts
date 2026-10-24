@@ -1,3 +1,4 @@
+export { type Address, addressKeys, listAddresses } from './api/profile-address.api.js';
 export { AuthProvider, useAuth } from './AuthProvider.js';
 export { AccountLayout } from './pages/AccountLayout.js';
 export { AddressPage } from './pages/AddressPage.js';

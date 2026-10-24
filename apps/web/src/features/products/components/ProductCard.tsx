@@ -62,6 +62,7 @@ export function ProductCard({
         <h3 className={styles.name}>
           <HighlightedText text={product.name} terms={terms} />
         </h3>
+        {product.stockStatus === 'OUT_OF_STOCK' && <p>Hết hàng</p>}
         <div className={styles.meta}>
           <p className={styles.price}>
             {formatPrice(product.price)}

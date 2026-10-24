@@ -57,7 +57,9 @@ export function SearchPage() {
   );
   const products = useQuery({
     queryKey: productKeys.list(listParams),
-    queryFn: () => listProducts(listParams),
+    // SSE refetch khong phai mot lan khach gui tim kiem moi.
+    queryFn: ({ client, queryKey }) =>
+      listProducts({ ...listParams, log: client.getQueryData(queryKey) === undefined }),
     placeholderData: keepPreviousData,
   });
 
