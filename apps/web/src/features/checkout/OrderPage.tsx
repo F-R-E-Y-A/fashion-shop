@@ -26,6 +26,7 @@ export function OrderPage() {
   const { user, authenticatedRequest: request } = useAuth();
   const client = useQueryClient();
   const [now, setNow] = useState(() => Date.now());
+  const [reconcileNote, setReconcileNote] = useState<string | null>(null);
   const reconciledReturn = useRef('');
   const key = ['orders', user!.id, id || reference];
   const result = useQuery({
@@ -49,9 +50,20 @@ export function OrderPage() {
         method: 'POST',
         ...(name === 'payments' ? { body: { idempotencyKey: crypto.randomUUID() } } : {}),
       }),
-    onSuccess: (data) => {
+    onSuccess: (data, name) => {
       client.setQueryData(key, data);
       void client.invalidateQueries({ queryKey: cartKeys.all });
+      if (name !== 'reconcile' || !order) return;
+      // So sánh trạng thái trước/sau để nói rõ kết quả: đổi hay cổng chưa có gì mới.
+      const changed =
+        order.status !== data.status ||
+        order.payments.length !== data.payments.length ||
+        order.payments.some((payment, index) => payment.status !== data.payments[index]?.status);
+      setReconcileNote(
+        changed
+          ? 'Đã cập nhật trạng thái mới từ cổng thanh toán.'
+          : 'Chưa có thông tin mới từ cổng thanh toán. Cổng giới hạn tra cứu lặp mỗi 5 phút, vui lòng thử lại sau.',
+      );
     },
   });
   const reconcile = action.mutate;
@@ -73,6 +85,8 @@ export function OrderPage() {
   const deadline = latestPayment?.expiresAt ?? order?.paymentDueAt;
   const seconds = deadline ? Math.max(0, Math.ceil((Date.parse(deadline) - now) / 1000)) : 0;
   const pending = order?.status === 'PENDING_PAYMENT';
+  // Chỉ đối soát khi còn chờ cổng hoặc đơn đã hủy nhưng khách có thể đã trả tiền muộn.
+  const reconcilable = order?.status === 'PENDING_PAYMENT' || order?.status === 'CANCELLED';
   const paymentUrl =
     latestPayment && ['PENDING', 'PROCESSING'].includes(latestPayment.status)
       ? latestPayment.checkoutUrl
@@ -145,7 +159,7 @@ export function OrderPage() {
               {order.status === 'CANCELLED' && (
                 <p className={styles.statusText}>
                   Hàng đã được nhả. Sản phẩm vẫn ở giỏ để bạn kiểm tra giá, tồn và đặt lại. Nếu đã
-                  bị trừ tiền, hãy cập nhật đối soát và liên hệ shop.
+                  bị trừ tiền, hãy bấm "Kiểm tra lại thanh toán" và liên hệ shop.
                 </p>
               )}
             </section>
@@ -229,6 +243,11 @@ export function OrderPage() {
                 ))}
               </ul>
             )}
+            {reconcileNote && (
+              <p className={styles.summaryNote} role="status">
+                {reconcileNote}
+              </p>
+            )}
             {action.error && (
               <p className={`${styles.notice} ${styles.noticeDanger}`} role="alert">
                 {action.error.message}
@@ -254,18 +273,27 @@ export function OrderPage() {
                   Đặt lại từ giỏ hàng
                 </Link>
               )}
-              <button
-                className={styles.ghost}
-                disabled={action.isPending}
-                onClick={() => action.mutate('reconcile')}
-              >
-                Cập nhật đối soát
-              </button>
+              {reconcilable && (
+                <button
+                  className={styles.ghost}
+                  disabled={action.isPending}
+                  onClick={() => action.mutate('reconcile')}
+                >
+                  Kiểm tra lại thanh toán
+                </button>
+              )}
               {pending && (
                 <button
                   className={styles.textButton}
                   disabled={action.isPending}
-                  onClick={() => action.mutate('cancel')}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        'Hủy đơn và nhả hàng đang giữ? Sản phẩm vẫn còn trong giỏ để đặt lại sau.',
+                      )
+                    )
+                      action.mutate('cancel');
+                  }}
                 >
                   Hủy đơn, nhả hàng
                 </button>
