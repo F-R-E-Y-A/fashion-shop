@@ -29,7 +29,7 @@ Hình dạng HTTP thật ở Swagger `/api/docs`, sinh từ [DTO response](../..
 | Users / Shipping | Đọc địa chỉ có ownership / tính quote ship |
 | Checkout | Điều phối transaction qua các public service; không ghi trực tiếp bảng module khác |
 
-Quyết định liên module: [ADR-027](../../LOG.md#adr-027), [ADR-029](../../LOG.md#adr-029). Hợp đồng: [Orders](../../../apps/api/src/modules/orders/README.md), [Payments](../../../apps/api/src/modules/payments/README.md), [Inventory](../../../apps/api/src/modules/inventory/README.md), [Shipping](../../../apps/api/src/modules/shipping/README.md).
+Quyết định liên module: [ADR-032](../../LOG.md#adr-032), [ADR-034](../../LOG.md#adr-034). Hợp đồng: [Orders](../../../apps/api/src/modules/orders/README.md), [Payments](../../../apps/api/src/modules/payments/README.md), [Inventory](../../../apps/api/src/modules/inventory/README.md), [Shipping](../../../apps/api/src/modules/shipping/README.md).
 
 ## Dữ liệu và cấu hình cần dùng
 

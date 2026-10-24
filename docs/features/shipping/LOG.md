@@ -12,4 +12,4 @@ owner: Duy
 
 **Loại:** thay đổi mã và dữ liệu nền · **Commit:** chưa commit, nền `e7d419437ccfaba8016336b614d9ba820735d518`.
 
-Bảo uỷ quyền chọn phí hợp shop thời trang. Dùng cấu hình ShippingZone/Rate sẵn có, 30.000đ và ngưỡng 500.000đ để luồng đặt hàng hoạt động trước khi ghép carrier/voucher. Không hardcode miễn ship vào web; server trả quote và Order giữ snapshot. [ADR-027](../../LOG.md#adr-027), [README](README.md).
+Bảo uỷ quyền chọn phí hợp shop thời trang. Dùng cấu hình ShippingZone/Rate sẵn có, 30.000đ và ngưỡng 500.000đ để luồng đặt hàng hoạt động trước khi ghép carrier/voucher. Không hardcode miễn ship vào web; server trả quote và Order giữ snapshot. [ADR-032](../../LOG.md#adr-032), [README](README.md).

@@ -20,7 +20,7 @@ QueryDR ResponseCode=00 chỉ xác nhận API query thành công. TransactionSta
 
 - [Đăng ký hai cổng và cấu hình HTTPS tunnel](setup.md).
 - HTTP: [VNPAY](../../../apps/api/test/checkout-payment.http.spec.ts), [MoMo](../../../apps/api/test/checkout-momo.http.spec.ts); adapter: [VNPAY](../../../apps/api/src/modules/payments/vnpay.service.spec.ts), [MoMo](../../../apps/api/src/modules/payments/momo.adapter.spec.ts).
-- [Nhật ký](LOG.md), [ADR-027](../../LOG.md#adr-027), [ADR-028](../../LOG.md#adr-028).
+- [Nhật ký](LOG.md), [ADR-032](../../LOG.md#adr-032), [ADR-033](../../LOG.md#adr-033).
 
 Đã thử VNPAY PAY → thẻ NCB/OTP test → return HTTPS → QueryDR chữ ký hợp lệ → CONFIRMED/SUCCEEDED trên DB fixture riêng. Replay payload VNPAY ký thật vào IPN không bán/trừ kho lặp; sửa số tiền bị từ chối. Không coi replay là bằng chứng VNPAY chủ động gửi IPN: phần đó còn cần đăng ký endpoint bên nhà cung cấp. Lệnh/output/SHA lưu ngoài repo theo quy ước.
 

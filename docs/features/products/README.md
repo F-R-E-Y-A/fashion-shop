@@ -18,7 +18,7 @@ owner: Bảo
 
 ## Giải quyết việc gì
 
-PH-11 bổ sung cập nhật giá/tồn bằng SSE và mở thêm vào giỏ từ trang chi tiết. Catalog gọi cửa Inventory để hiển thị tồn khả dụng; không giữ hàng trước payment. Hợp đồng biến thể có transaction tuỳ chọn tại [README module](../../../apps/api/src/modules/products/README.md); quyết định ở [ADR-026](../../LOG.md#adr-026). Nợ lọc cỡ theo tồn [ND-14](../../TECH_DEBT.md) vẫn mở.
+PH-11 bổ sung cập nhật giá/tồn bằng SSE và mở thêm vào giỏ từ trang chi tiết. Catalog gọi cửa Inventory để hiển thị tồn khả dụng; không giữ hàng trước payment. Hợp đồng biến thể có transaction tuỳ chọn tại [README module](../../../apps/api/src/modules/products/README.md); quyết định ở [ADR-031](../../LOG.md#adr-031). Nợ lọc cỡ theo tồn [ND-14](../../TECH_DEBT.md) vẫn mở.
 
 Khách vào trang chủ, bấm một danh mục, mở một sản phẩm, chọn được cỡ và màu, thấy giá đổi theo lựa chọn. Xong PH-01 thì Duy có biến thể để bỏ vào giỏ, Tài có hàm để nạp hơn 300 sản phẩm thật.
 

@@ -12,7 +12,7 @@ owner: Bảo
 
 **Loại:** thay đổi mã · **Commit:** chưa commit, nền `e7d419437ccfaba8016336b614d9ba820735d518`.
 
-Theo uỷ quyền hoàn thiện luồng, dùng VNPAY trước để nghiệm thu một cổng từ đầu tới cuối. SOAP không tăng bảo đảm transaction của ngân hàng; chưa thêm protocol khi không có đối tác/rubric bắt buộc. So sánh phương án ở [ADR-027](../../LOG.md#adr-027).
+Theo uỷ quyền hoàn thiện luồng, dùng VNPAY trước để nghiệm thu một cổng từ đầu tới cuối. SOAP không tăng bảo đảm transaction của ngân hàng; chưa thêm protocol khi không có đối tác/rubric bắt buộc. So sánh phương án ở [ADR-032](../../LOG.md#adr-032).
 
 Giữ Payment và reference bền vững; timeout không đồng nghĩa thất bại. Callback/query chung một settlement có khoá và transaction, không giảm trạng thái SUCCEEDED về FAILED. Bảo chưa có sandbox key, yêu cầu cứ làm và hướng dẫn cấp sau: fake HTTP chỉ trong test, không fallback trên app. [README](README.md) ghi giới hạn refund/đối soát thật.
 
@@ -20,7 +20,7 @@ Giữ Payment và reference bền vững; timeout không đồng nghĩa thất b
 
 **Loại:** thay đổi mã và cấu hình · **Phạm vi:** Payments, Checkout và web · **Commit:** chưa commit, nền `e7d419437ccfaba8016336b614d9ba820735d518`.
 
-Theo yêu cầu Bảo, mở rộng sang hai cổng và chuẩn bị tunnel trước khi lấy merchant key. Strategy/Adapter/Registry giữ protocol riêng bên Payments, dùng chung settlement cho kho/đơn/giỏ. MoMo init intent được lưu trong transaction hiện có; network sau commit để không giữ khoá DB qua thời gian chờ cổng. Phương án và trade-off ở [ADR-028](../../LOG.md#adr-028).
+Theo yêu cầu Bảo, mở rộng sang hai cổng và chuẩn bị tunnel trước khi lấy merchant key. Strategy/Adapter/Registry giữ protocol riêng bên Payments, dùng chung settlement cho kho/đơn/giỏ. MoMo init intent được lưu trong transaction hiện có; network sau commit để không giữ khoá DB qua thời gian chờ cổng. Phương án và trade-off ở [ADR-033](../../LOG.md#adr-033).
 
 Hướng dẫn [setup](setup.md) thay phần chỉ có VNPAY bằng đăng ký cả hai, cấu hình key/callback, same-origin login và giới hạn Quick Tunnel. Không ghi domain ngắn hạn vào tài liệu như cấu hình cố định. Cổng chưa có key vẫn bị vô hiệu hoá; chưa nghiệm thu gateway thật.
 

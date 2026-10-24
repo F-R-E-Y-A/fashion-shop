@@ -19,4 +19,4 @@ OrdersService sở hữu Order, OrderItem, OrderStatusHistory; public contract �
 
 Xem đơn/danh sách và các thao tác trong [Checkout](../checkout/README.md), Swagger `/api/docs`. Mọi endpoint khách kiểm principal; không có endpoint khách tự đặt trạng thái paid. Danh sách hiện trả tối đa 50 đơn mới nhất ([orders.service.ts:62](../../../apps/api/src/modules/orders/orders.service.ts#L62)). Giao vận, dashboard shop và refund tự động chưa triển khai.
 
-[Nhật ký](LOG.md) · [ADR-027](../../LOG.md#adr-027).
+[Nhật ký](LOG.md) · [ADR-032](../../LOG.md#adr-032).

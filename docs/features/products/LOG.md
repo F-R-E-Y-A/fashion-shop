@@ -375,4 +375,4 @@ Sua: `storefrontProductInclude.images` kem ten mau va nho lay 12 anh; `toProduct
 
 Hai hàm public đọc biến thể nhận thêm transaction tuỳ chọn để Cart không phải đọc bằng connection riêng sau commit; caller cũ không truyền tham số vẫn tương thích ([products.service.ts:343](../../../apps/api/src/modules/products/products.service.ts#L343)). Giá list/sale hiện tại được dùng cả ở thẻ sản phẩm và bộ máy tìm kiếm. Catalog đọc tồn qua Inventory; chưa ghép điều kiện tồn vào bộ lọc cỡ ND-14.
 
-Trang chi tiết đã gọi Cart khi chọn được biến thể. SSE chỉ gửi revision để frontend tải lại các query đang mở; background refetch kết quả tìm kiếm không ghi thêm lượt tìm của khách. Phương án và trade-off ở [ADR-026](../../LOG.md#adr-026). Không tích hợp PR #41 hoặc giả lập tồn kho trên database cửa hàng.
+Trang chi tiết đã gọi Cart khi chọn được biến thể. SSE chỉ gửi revision để frontend tải lại các query đang mở; background refetch kết quả tìm kiếm không ghi thêm lượt tìm của khách. Phương án và trade-off ở [ADR-031](../../LOG.md#adr-031). Không tích hợp PR #41 hoặc giả lập tồn kho trên database cửa hàng.

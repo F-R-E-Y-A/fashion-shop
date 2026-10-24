@@ -12,4 +12,4 @@ owner: Duy
 
 **Loại:** thay đổi mã · **Commit:** chưa commit, nền `e7d419437ccfaba8016336b614d9ba820735d518`.
 
-Giữ Order/Item/History sẵn có; thêm key/fingerprint/deadline và hai trạng thái cần cho luồng trả trước. Cột mới nullable để dữ liệu cũ vẫn hợp lệ. `PAYMENT_REVIEW` không che mất việc đã nhận tiền sau khi đơn hủy/nhả hàng. Đánh đổi và cách điều phối ở [ADR-027](../../LOG.md#adr-027); phạm vi ở [README](README.md).
+Giữ Order/Item/History sẵn có; thêm key/fingerprint/deadline và hai trạng thái cần cho luồng trả trước. Cột mới nullable để dữ liệu cũ vẫn hợp lệ. `PAYMENT_REVIEW` không che mất việc đã nhận tiền sau khi đơn hủy/nhả hàng. Đánh đổi và cách điều phối ở [ADR-032](../../LOG.md#adr-032); phạm vi ở [README](README.md).

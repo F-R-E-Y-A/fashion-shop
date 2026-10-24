@@ -12,4 +12,4 @@ Seed tạo zone nội địa và rate 30.000đ cho xã hoạt động; chạy l�
 
 Đây là chính sách Freya được chọn theo uỷ quyền của Bảo, không phải giá cước hoặc deadline nội bộ Shopee. Chưa có API hãng vận chuyển, tính cân nặng, vùng xa hay shipment tracking. Order snapshot phí khi tạo. Public contract ở [README module](../../../apps/api/src/modules/shipping/README.md); luồng ở [Checkout](../checkout/README.md).
 
-[Nhật ký](LOG.md) · [ADR-027](../../LOG.md#adr-027).
+[Nhật ký](LOG.md) · [ADR-032](../../LOG.md#adr-032).
