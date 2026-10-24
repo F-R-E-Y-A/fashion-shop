@@ -3,6 +3,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { skipOf, toPage } from '../../common/pagination/page.response.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
+import { InventoryService } from '../inventory/index.js';
 import { ListProductsQuery } from './dto/list-products.query.js';
 import { ProductListResponse, ProductResponse } from './dto/product.response.js';
 import { ProductDetailResponse } from './dto/product-detail.response.js';
@@ -11,6 +12,7 @@ import { ImportRowError } from './import/import-row.error.js';
 import { sourceSlug } from './import/slug.js';
 import { validateRow } from './import/validate-row.js';
 import { audienceFrom } from './search/audience.js';
+import { withProductStock } from './stock.js';
 import {
   storefrontProductInclude,
   storefrontProductWhere,
@@ -53,7 +55,10 @@ type ImportSuccess = Extract<ImportRowResult, { status: 'created' | 'updated' }>
  */
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly inventory: InventoryService,
+  ) {}
 
   async importProducts(rows: ImportProductRow[]): Promise<ImportRowResult[]> {
     const results: ImportRowResult[] = [];
@@ -251,7 +256,11 @@ export class ProductsService {
     ]);
 
     return toPage(
-      rows.map((row) => toProductResponse(row)),
+      await withProductStock(
+        rows.map((row) => toProductResponse(row)),
+        rows,
+        this.inventory,
+      ),
       total,
       query,
     );
@@ -275,8 +284,12 @@ export class ProductsService {
         ]),
       ).values(),
     ];
+    const quantities = await this.inventory.getAvailableQuantities(
+      variants.map((variant) => variant.id),
+    );
+    const [summary] = await withProductStock([toProductResponse(row)], [row], this.inventory);
     return {
-      ...toProductResponse(row),
+      ...summary,
       material: row.material,
       careInstructions: row.careInstructions,
       breadcrumb: [
@@ -298,6 +311,7 @@ export class ProductsService {
         sizeCode: variant.size.code,
         price: (variant.salePrice ?? variant.listPrice).toString(),
         listPrice: variant.salePrice ? variant.listPrice.toString() : null,
+        availableQuantity: quantities.get(variant.id) ?? null,
       })),
     };
   }
@@ -319,17 +333,27 @@ export class ProductsService {
       orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
       take: limit,
     });
-    return rows.map((product) => toProductResponse(product));
+    return withProductStock(
+      rows.map((product) => toProductResponse(product)),
+      rows,
+      this.inventory,
+    );
   }
 
-  async getVariantForCart(variantId: string): Promise<VariantForCart | null> {
-    return (await this.getVariantsForCart([variantId]))[0] ?? null;
+  async getVariantForCart(
+    variantId: string,
+    transaction?: Prisma.TransactionClient,
+  ): Promise<VariantForCart | null> {
+    return (await this.getVariantsForCart([variantId], transaction))[0] ?? null;
   }
 
-  async getVariantsForCart(variantIds: string[]): Promise<VariantForCart[]> {
+  async getVariantsForCart(
+    variantIds: string[],
+    transaction?: Prisma.TransactionClient,
+  ): Promise<VariantForCart[]> {
     if (variantIds.length === 0) return [];
 
-    const variants = await this.prisma.productVariant.findMany({
+    const variants = await (transaction ?? this.prisma).productVariant.findMany({
       where: { id: { in: variantIds } },
       include: cartVariantInclude,
     });

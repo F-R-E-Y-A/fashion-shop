@@ -75,11 +75,52 @@ export const envSchema = z
       .transform(Number)
       .optional(),
     APP_VERSION: z.string().default('0.0.0-dev'),
+    VNPAY_TMN_CODE: z.string().optional(),
+    VNPAY_HASH_SECRET: z.string().optional(),
+    VNPAY_PAYMENT_URL: z.url().default('https://sandbox.vnpayment.vn/paymentv2/vpcpay.html'),
+    VNPAY_QUERY_URL: z
+      .url()
+      .default('https://sandbox.vnpayment.vn/merchant_webapi/api/transaction'),
+    VNPAY_RETURN_URL: z.url().default('http://localhost:5174/thanh-toan/ket-qua'),
+    MOMO_PARTNER_CODE: z.string().default(''),
+    MOMO_ACCESS_KEY: z.string().default(''),
+    MOMO_SECRET_KEY: z.string().default(''),
+    MOMO_API_URL: z.url().default('https://test-payment.momo.vn/v2/gateway/api'),
+    MOMO_RETURN_URL: z.url().default('http://localhost:5174/thanh-toan/ket-qua'),
+    MOMO_IPN_URL: z.union([z.literal(''), z.url()]).default(''),
     /** Ma commit dang chay: CI truyen GIT_SHA khi dung image; Render tu cap RENDER_GIT_COMMIT. */
     GIT_SHA: z.string().optional(),
     RENDER_GIT_COMMIT: z.string().optional(),
   })
   .superRefine((env, context) => {
+    if (env.MOMO_PARTNER_CODE && env.MOMO_ACCESS_KEY && env.MOMO_SECRET_KEY) {
+      if (env.NODE_ENV !== 'test' && !env.MOMO_IPN_URL.startsWith('https://'))
+        context.addIssue({
+          code: 'custom',
+          path: ['MOMO_IPN_URL'],
+          message: 'phai dung IPN HTTPS khi bat MoMo',
+        });
+      if (
+        ['staging', 'production'].includes(env.NODE_ENV) &&
+        !env.MOMO_RETURN_URL.startsWith('https://')
+      )
+        context.addIssue({
+          code: 'custom',
+          path: ['MOMO_RETURN_URL'],
+          message: 'phai dung HTTPS tren staging/production',
+        });
+    }
+    if (
+      (env.NODE_ENV === 'production' || env.NODE_ENV === 'staging') &&
+      (env.VNPAY_TMN_CODE || env.VNPAY_HASH_SECRET) &&
+      !env.VNPAY_RETURN_URL.startsWith('https://')
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['VNPAY_RETURN_URL'],
+        message: 'phai dung HTTPS khi bat VNPAY tren staging/production',
+      });
+    }
     if (
       (env.NODE_ENV === 'production' || env.NODE_ENV === 'staging') &&
       env.TRUST_PROXY_HOPS === undefined

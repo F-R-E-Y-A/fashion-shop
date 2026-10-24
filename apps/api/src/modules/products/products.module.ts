@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 
 import { RateLimitModule } from '../../infra/rate-limit/rate-limit.module.js';
+import { InventoryModule } from '../inventory/index.js';
+import { CatalogEventsService } from './catalog-events.service.js';
 import { CategoriesController } from './categories.controller.js';
 import { CategoriesService } from './categories.service.js';
 import { ProductsController } from './products.controller.js';
@@ -19,10 +21,11 @@ import { SuggestRateLimitService } from './search/suggest-rate-limit.service.js'
  * Vi vay exports luon liet ke service, khong bao gio la controller.
  */
 @Module({
-  imports: [RateLimitModule],
+  imports: [RateLimitModule, InventoryModule],
   controllers: [ProductsController, CategoriesController, SearchController],
   providers: [
     ProductsService,
+    CatalogEventsService,
     CategoriesService,
     CatalogSearchService,
     SearchDictionaryService,

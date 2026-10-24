@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Prisma } from '../../../generated/prisma/client.js';
 import type { PrismaService } from '../../../infra/prisma/prisma.service.js';
+import type { InventoryService } from '../../inventory/index.js';
 import { ListProductsQuery } from '../dto/list-products.query.js';
 import { CatalogSearchService } from './catalog-search.service.js';
 import { DEFAULT_DICTIONARY } from './dictionary.js';
@@ -41,12 +42,15 @@ const product = (
   audience: 'nu',
   category: { slug: 'ao-thun', name: 'Áo thun', sortOrder: 1, parent: AO },
   brand: null,
-  variants: [variant('Trắng', 'M', 30)],
   images: [
     { url: `https://example.test/${o.id}-1.jpg` },
     { url: `https://example.test/${o.id}-2.jpg` },
   ],
   ...o,
+  variants: (o.variants ?? [variant('Trắng', 'M', 30)]).map((v) => ({
+    ...v,
+    listPrice: D(o.priceFrom ?? '49000'),
+  })),
   priceFromDecimal: undefined,
 });
 
@@ -98,6 +102,7 @@ function make() {
   const service = new CatalogSearchService(
     prisma as unknown as PrismaService,
     dictionary as unknown as SearchDictionaryService,
+    { getStockStatuses: vi.fn(async () => new Map()) } as unknown as InventoryService,
   );
   return { service, findMany, create };
 }

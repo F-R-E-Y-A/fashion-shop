@@ -52,7 +52,13 @@ export class CartController {
     @CurrentUser() user?: CurrentUserType,
     @Headers('x-guest-token') guestToken?: string,
   ): Promise<CartResponse> {
-    return this.cartService.updateItem(variantId, dto.quantity, user?.id, guestToken);
+    return this.cartService.updateItem(
+      variantId,
+      dto.quantity,
+      user?.id,
+      guestToken,
+      dto.isSelected,
+    );
   }
 
   @Delete('items/:variantId')

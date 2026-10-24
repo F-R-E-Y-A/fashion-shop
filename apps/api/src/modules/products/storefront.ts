@@ -14,8 +14,7 @@ export const DEFAULT_COLOR_CODE = 'mac-dinh';
 
 const MAX_SWATCHES = 4;
 
-// Gia lay tu products.price_from (gia ban thap nhat, service tinh lai khi ghi bien the, ADR-007),
-// nen khong can truy van phu tim bien the re nhat cho moi dong.
+// Gia hien thi lay tu bien the dang ban; price_from van la chi muc sap xep do importer cap nhat.
 // Bien the xep theo ma mau de thu tu chip mau on dinh giua cac lan goi; lay hai anh dau de the
 // san pham doi anh khi re chuot.
 // Anh KEM TEN MAU va lay toi 12 (chu khong phai 2 nhu truoc): khi khach loc theo MOT ho mau,
@@ -28,6 +27,7 @@ export const storefrontProductInclude = {
     where: { isActive: true },
     orderBy: [{ color: { code: 'asc' } }, { id: 'asc' }],
     select: {
+      id: true,
       listPrice: true,
       salePrice: true,
       color: { select: { code: true, name: true } },
@@ -105,6 +105,7 @@ export function toProductResponse(
   opts: { preferFamily?: ColorFamily } = {},
 ): ProductResponse {
   const colors = colorSummary(row.variants);
+  const price = currentPriceFrom(row);
   // Dang loc theo dung mot ho mau: dung anh cua mau do lam anh chinh + anh re chuot, de the
   // khong con noi "loc xanh duong ma thay ao vang". San pham khong co anh mau do thi giu anh
   // mac dinh nhu cu.
@@ -121,16 +122,26 @@ export function toProductResponse(
     slug: row.slug,
     description: row.description,
     // Decimal -> chuoi, giao dien tu dinh dang. Khong tra Float.
-    price: row.priceFrom.toString(),
+    price: price.toString(),
     imageUrl: primary?.url ?? null,
     hoverImageUrl: hover?.url ?? null,
     categoryName: row.category.name,
     categorySlug: row.category.slug,
     brandName: row.brand?.name ?? null,
-    listPrice: listPriceOf(row.variants, row.priceFrom),
+    listPrice: listPriceOf(row.variants, price),
     colorSwatches: colors.swatches,
     colorCount: colors.count,
   };
+}
+
+/** Gia hien tai lay tu bien the; price_from van dung lam chi muc sap xep trong database. */
+export function currentPriceFrom(row: {
+  variants: RowVariant[];
+  priceFrom: Prisma.Decimal;
+}): Prisma.Decimal {
+  return row.variants.length > 0
+    ? Prisma.Decimal.min(...row.variants.map((variant) => variant.salePrice ?? variant.listPrice))
+    : row.priceFrom;
 }
 
 /**

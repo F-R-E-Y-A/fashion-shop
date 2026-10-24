@@ -1,0 +1,293 @@
+import { createHash } from 'node:crypto';
+
+import { ConflictException, Injectable, UnprocessableEntityException } from '@nestjs/common';
+import { Decimal } from 'decimal.js';
+
+import type { Prisma } from '../../generated/prisma/client.js';
+import { PrismaService } from '../../infra/prisma/prisma.service.js';
+import { CartService } from '../cart/index.js';
+import { InventoryService } from '../inventory/index.js';
+import { type OrderDetails, OrdersService } from '../orders/index.js';
+import { type GatewayCode, PaymentsService, SETTLEMENT_BUFFER_MINUTES } from '../payments/index.js';
+import { ShippingService } from '../shipping/index.js';
+import { CheckoutAddressService } from '../users/index.js';
+
+const HOLD_MINUTES = 15;
+
+@Injectable()
+export class CheckoutService {
+  constructor(
+    private readonly prisma: PrismaService,
+    readonly cart: CartService,
+    readonly inventory: InventoryService,
+    readonly orders: OrdersService,
+    readonly payments: PaymentsService,
+    private readonly addresses: CheckoutAddressService,
+    private readonly shipping: ShippingService,
+  ) {}
+
+  async quote(userId: string, addressId: string, tx: Prisma.TransactionClient) {
+    const items = (await this.cart.checkoutSelection(userId, tx)).sort((a, b) =>
+      a.variantId.localeCompare(b.variantId),
+    );
+    if (!items.length || items.some((item) => !item.canCheckout))
+      throw new UnprocessableEntityException(
+        'Chọn sản phẩm đủ tồn kho trong giỏ trước khi thanh toán.',
+      );
+    const address = await this.addresses.get(userId, addressId, tx);
+    const subtotalAmount = items
+      .reduce((sum, item) => sum.plus(new Decimal(item.price).times(item.quantity)), new Decimal(0))
+      .toFixed(2);
+    const shipping = await this.shipping.quote(address.administrativeAreaId, subtotalAmount, tx);
+    const totalAmount = new Decimal(subtotalAmount).plus(shipping.fee).toFixed(2);
+    const fingerprint = createHash('sha256')
+      .update(
+        JSON.stringify({
+          userId,
+          address,
+          items: items.map(({ variantId, price, quantity }) => ({
+            variantId,
+            price: new Decimal(price).toFixed(2),
+            quantity,
+          })),
+          subtotalAmount,
+          shipping,
+          discount: '0.00',
+        }),
+      )
+      .digest('hex');
+    return {
+      fingerprint,
+      address,
+      items,
+      subtotalAmount,
+      discountAmount: '0.00',
+      shippingFeeAmount: shipping.fee,
+      shippingRateId: shipping.rateId,
+      totalAmount,
+      paymentConfigured: this.payments.gateways.list().some((gateway) => gateway.configured),
+      gateways: this.payments.gateways.list(),
+      holdMinutes: HOLD_MINUTES,
+      payMinutes: HOLD_MINUTES - SETTLEMENT_BUFFER_MINUTES,
+    };
+  }
+
+  preview(userId: string, addressId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const pending = await this.orders.pending(userId, tx);
+      try {
+        const quote = await this.quote(userId, addressId, tx);
+        return {
+          ...quote,
+          pendingOrder: pending ? { id: pending.id, orderCode: pending.orderCode } : null,
+        };
+      } catch (error) {
+        // Don cho dang giu don vi cuoi nen gio thay het hang: chi ra don do, khong bao khach chon lai gio.
+        if (pending && error instanceof UnprocessableEntityException)
+          throw new ConflictException({
+            error: 'PENDING_ORDER_EXISTS',
+            message: `Bạn còn đơn ${pending.orderCode} đang chờ thanh toán và đang giữ hàng trong giỏ. Tiếp tục hoặc hủy đơn đó trước khi đặt đơn mới.`,
+          });
+        throw error;
+      }
+    });
+  }
+
+  async create(
+    user: { id: string; email: string },
+    input: {
+      addressId: string;
+      fingerprint: string;
+      idempotencyKey: string;
+      gateway?: GatewayCode;
+    },
+    ip: string,
+  ) {
+    const code = input.gateway ?? 'VNPAY';
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`checkout:${input.idempotencyKey}`}, 0))`;
+        await this.cart.lockForCheckout(user.id, tx);
+        const prior = await this.orders.byKey(input.idempotencyKey, tx);
+        if (prior) {
+          if (
+            prior.userId !== user.id ||
+            prior.checkoutFingerprint !== input.fingerprint ||
+            (prior.shippingAddressSnapshot as { id?: string }).id !== input.addressId ||
+            prior.payments[0]?.gateway !== code
+          )
+            throw new ConflictException('Mã yêu cầu đã sử dụng cho nội dung khác.');
+          return this.view(prior);
+        }
+        // Mot don giu hang moi khach: don thu hai co the bi tra tien cung luc va mua trung.
+        const pending = await this.orders.pending(user.id, tx);
+        if (pending) {
+          if (pending.checkoutFingerprint !== input.fingerprint)
+            throw new ConflictException({
+              error: 'PENDING_ORDER_EXISTS',
+              message:
+                'Bạn còn một đơn đang chờ thanh toán. Tiếp tục hoặc hủy đơn đó trước khi đặt đơn mới.',
+            });
+          if (pending.payments[0]?.gateway !== code)
+            throw new ConflictException(
+              'Đơn chờ đang dùng cổng khác. Tiếp tục đơn đó hoặc hủy trước khi đổi cổng.',
+            );
+          return this.view(pending);
+        }
+        const quote = await this.quote(user.id, input.addressId, tx);
+        if (quote.fingerprint !== input.fingerprint)
+          throw new ConflictException({
+            error: 'QUOTE_CHANGED',
+            message: 'Giá, giỏ hàng hoặc địa chỉ đã đổi. Kiểm tra và xác nhận lại.',
+          });
+        const due = new Date(Date.now() + HOLD_MINUTES * 60_000);
+        const order = await this.orders.create(
+          {
+            userId: user.id,
+            email: user.email,
+            key: input.idempotencyKey,
+            fingerprint: quote.fingerprint,
+            due,
+            address: quote.address,
+            shippingRateId: quote.shippingRateId,
+            subtotal: quote.subtotalAmount,
+            shipping: quote.shippingFeeAmount,
+            total: quote.totalAmount,
+            items: quote.items.map((item) => ({
+              variantId: item.variantId,
+              quantity: item.quantity,
+              price: item.price,
+              snapshot: {
+                name: item.name,
+                variantLabel: item.variantLabel,
+                imageUrl: item.imageUrl,
+                productSlug: item.productSlug,
+              },
+            })),
+          },
+          tx,
+        );
+        // Chi validate/ky local; loi cau hinh rollback don va hold. MoMo goi mang sau commit.
+        await this.payments.create(
+          order.id,
+          input.idempotencyKey,
+          quote.totalAmount,
+          due,
+          ip,
+          tx,
+          code,
+        );
+        await this.inventory.reserve(order.id, quote.items, due, tx);
+        return this.view(await this.orders.get(order.id, user.id, tx));
+      },
+      { timeout: 15_000 },
+    );
+    await this.payments.launchLatest(result.id, ip);
+    return this.view(await this.orders.get(result.id, user.id));
+  }
+
+  view(order: OrderDetails) {
+    return {
+      id: order.id,
+      orderCode: order.orderCode,
+      checkoutFingerprint: order.checkoutFingerprint,
+      status: order.status,
+      paymentDueAt: order.paymentDueAt?.toISOString() ?? null,
+      createdAt: order.createdAt.toISOString(),
+      address: order.shippingAddressSnapshot,
+      subtotalAmount: order.subtotalAmount.toFixed(2),
+      discountAmount: order.discountAmount.toFixed(2),
+      shippingFeeAmount: order.shippingFeeAmount.toFixed(2),
+      totalAmount: order.totalAmount.toFixed(2),
+      items: order.items.map((item) => ({
+        variantId: item.productVariantId,
+        quantity: item.quantity,
+        price: item.unitPrice.toFixed(2),
+        snapshot: item.productSnapshot,
+      })),
+      payments: order.payments.map((payment) => ({
+        id: payment.id,
+        gateway: payment.gateway,
+        reference: payment.reference,
+        status: payment.status,
+        expiresAt: payment.expiresAt?.toISOString() ?? null,
+        checkoutUrl:
+          order.status === 'PENDING_PAYMENT' &&
+          payment.status === 'PENDING' &&
+          payment.expiresAt &&
+          payment.expiresAt > new Date()
+            ? payment.checkoutUrl
+            : null,
+      })),
+    };
+  }
+
+  async withOrder<T>(
+    id: string,
+    userId: string,
+    work: (order: OrderDetails, tx: Prisma.TransactionClient) => Promise<T>,
+  ) {
+    return this.prisma.$transaction(
+      async (tx) => {
+        await this.cart.lockForCheckout(userId, tx);
+        await this.orders.lock(id, tx);
+        return work(await this.orders.get(id, userId, tx), tx);
+      },
+      { timeout: 15_000 },
+    );
+  }
+
+  stockItems(order: OrderDetails) {
+    return order.items.map((item) => ({
+      variantId: item.productVariantId,
+      quantity: item.quantity,
+    }));
+  }
+
+  async cancel(id: string, userId: string, expired = false) {
+    await this.withOrder(id, userId, async (order, tx) => {
+      if (order.status !== 'PENDING_PAYMENT') {
+        if (!expired && order.status !== 'CANCELLED')
+          throw new ConflictException('Đơn đã ghi nhận thanh toán, không thể hủy tại đây.');
+        return;
+      }
+      if (expired && order.paymentDueAt && order.paymentDueAt > new Date()) return;
+      const items = this.stockItems(order);
+      await this.inventory.release(id, items, tx);
+      await this.cart.reselectReleased(
+        userId,
+        items.map((item) => item.variantId),
+        tx,
+      );
+      await this.payments.expire(id, expired ? 'EXPIRED' : 'CANCELLED', tx);
+      await this.orders.transition(id, 'CANCELLED', tx, expired ? undefined : userId);
+    });
+    return this.view(await this.orders.get(id, userId));
+  }
+
+  async retry(id: string, userId: string, key: string, ip: string) {
+    await this.withOrder(id, userId, async (order, tx) => {
+      if (
+        order.status !== 'PENDING_PAYMENT' ||
+        !order.paymentDueAt ||
+        order.paymentDueAt <= new Date()
+      )
+        throw new ConflictException('Đơn không còn trong thời hạn thanh toán.');
+      const current = await this.payments.latest(id, tx);
+      // An uncertain/pending attempt must be reused, never start a second charge after a timeout.
+      if (!current || current.status === 'FAILED')
+        await this.payments.create(
+          id,
+          key,
+          order.totalAmount.toFixed(2),
+          order.paymentDueAt,
+          ip,
+          tx,
+          (current?.gateway ?? 'VNPAY') as GatewayCode,
+        );
+      return this.view(await this.orders.get(id, userId, tx));
+    });
+    await this.payments.launchLatest(id, ip);
+    return this.view(await this.orders.get(id, userId));
+  }
+}
