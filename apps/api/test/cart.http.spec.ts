@@ -11,6 +11,7 @@ describe('Cart HTTP API (PH-02 Gio hang)', () => {
 
   beforeAll(async () => {
     t = await createTestApp();
+    await t.resetRateLimits();
     await resetDatabase(t.prisma);
 
     const variant = await t.prisma.productVariant.findFirst();
