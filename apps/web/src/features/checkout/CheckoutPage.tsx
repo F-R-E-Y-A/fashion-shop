@@ -108,6 +108,9 @@ export function CheckoutPage() {
     },
   });
   const quote = preview.data;
+  // 422: giỏ chưa có món được tick "Chọn mua" hoặc món hết hàng — dẫn về giỏ thay vì báo lỗi khô.
+  const selectionMissing =
+    preview.error instanceof ApiError && preview.error.body.statusCode === 422;
   const offeredGateways = quote?.gateways ?? [
     { code: 'VNPAY' as const, label: 'VNPAY', configured: quote?.paymentConfigured ?? false },
   ];
@@ -201,7 +204,18 @@ export function CheckoutPage() {
               Đang cập nhật giá và phí vận chuyển…
             </p>
           )}
-          {preview.error && !submit.error && (
+          {preview.error && !submit.error && selectionMissing && (
+            <div className={styles.empty}>
+              <p className={styles.emptyTitle}>Chưa chọn sản phẩm để thanh toán</p>
+              <p className={styles.muted}>
+                Vào giỏ hàng tick ô "Chọn mua" cho sản phẩm còn hàng, rồi quay lại đây để đặt.
+              </p>
+              <Link className={styles.emptyCta} to="/gio-hang">
+                Về giỏ hàng chọn mua
+              </Link>
+            </div>
+          )}
+          {preview.error && !submit.error && !selectionMissing && (
             <p className={`${styles.notice} ${styles.noticeDanger}`} role="alert">
               {preview.error.message}{' '}
               {preview.error instanceof ApiError &&

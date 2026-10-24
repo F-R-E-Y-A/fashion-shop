@@ -291,7 +291,7 @@ describe('PH-11 checkout UI', () => {
     const key = checkoutKey('u1', quote.fingerprint);
     expect(checkoutKey('u1', quote.fingerprint)).toBe(key);
     show('/don-hang/o1');
-    fireEvent.click(await screen.findByRole('button', { name: 'Cập nhật đối soát' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Kiểm tra lại thanh toán' }));
     expect(
       await screen.findByRole('heading', { name: 'Đã thanh toán · chờ shop xử lý' }),
     ).toBeInTheDocument();
@@ -338,5 +338,45 @@ describe('PH-11 checkout UI', () => {
     show('/tai-khoan/don-hang');
     expect(await screen.findByText('Bạn chưa có đơn hàng')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Bắt đầu mua sắm' })).toHaveAttribute('href', '/');
+  });
+  it('đơn hủy: bấm kiểm tra lại thanh toán thì nhận thông báo khi cổng chưa có gì mới', async () => {
+    request.mockResolvedValue(order('CANCELLED'));
+    show('/don-hang/o1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Kiểm tra lại thanh toán' }));
+    expect(await screen.findByText(/Chưa có thông tin mới từ cổng thanh toán/)).toBeInTheDocument();
+  });
+  it('đơn đã thanh toán không còn nút kiểm tra lại thanh toán', async () => {
+    request.mockResolvedValue(order('CONFIRMED'));
+    show('/don-hang/o1');
+    await screen.findByText('Đã thanh toán · chờ shop xử lý');
+    expect(
+      screen.queryByRole('button', { name: 'Kiểm tra lại thanh toán' }),
+    ).not.toBeInTheDocument();
+  });
+  it('hủy đơn phải qua xác nhận; từ chối thì không gửi request hủy', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    request.mockResolvedValue(order('PENDING_PAYMENT'));
+    show('/don-hang/o1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Hủy đơn, nhả hàng' }));
+    expect(confirm).toHaveBeenCalled();
+    expect(request).not.toHaveBeenCalledWith('/orders/o1/cancel', expect.anything());
+    confirm.mockRestore();
+  });
+  it('giỏ chưa chọn món thì dẫn về giỏ hàng chọn mua thay vì báo lỗi', async () => {
+    request.mockRejectedValue(
+      new ApiError({
+        statusCode: 422,
+        code: 'SELECTION_REQUIRED',
+        message: 'Chọn sản phẩm đủ tồn kho trong giỏ trước khi thanh toán.',
+        path: '/api/checkout/preview',
+        timestamp: new Date().toISOString(),
+      }),
+    );
+    show();
+    expect(await screen.findByText('Chưa chọn sản phẩm để thanh toán')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Về giỏ hàng chọn mua' })).toHaveAttribute(
+      'href',
+      '/gio-hang',
+    );
   });
 });
