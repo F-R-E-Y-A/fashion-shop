@@ -38,6 +38,10 @@
 /docs/features/platform/**              @Ancuyou
 /apps/api/src/modules/search/**         @Ancuyou
 /apps/api/src/modules/payments/**       @Ancuyou
+/apps/api/src/modules/checkout/**       @Ancuyou
+/apps/web/src/features/checkout/**      @Ancuyou
+/docs/features/checkout/**              @Ancuyou
+/docs/features/payments/**              @Ancuyou
 /apps/api/src/modules/promotions/**     @Ancuyou
 /apps/web/src/features/products/**      @Ancuyou
 /apps/web/src/features/search/**        @Ancuyou
@@ -57,6 +61,8 @@
 /tests/e2e/**                           @DuyPhan422
 /docs/features/cart/**                  @DuyPhan422
 /docs/features/inventory/**             @DuyPhan422
+/docs/features/orders/**                @DuyPhan422
+/docs/features/shipping/**              @DuyPhan422
 /docs/shared/test-strategy.md           @DuyPhan422
 /docs/shared/use-case-index.md          @DuyPhan422
 /docs/shared/templates/use-case.md      @DuyPhan422
