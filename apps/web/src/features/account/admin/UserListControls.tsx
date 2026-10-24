@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useId, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useId, useRef } from 'react';
 
 import styles from './AdminUsers.module.css';
 import {
@@ -31,21 +31,18 @@ export type UserListNavigate = (next: UserListQuery, options: { replace: boolean
  */
 export function UserListControls({
   query,
+  draft,
+  setDraft,
   navigationKey,
   onNavigate,
 }: {
   query: UserListQuery;
+  draft: string;
+  setDraft: (value: string) => void;
   navigationKey: string;
   onNavigate: UserListNavigate;
 }) {
   const id = useId();
-  const [draft, setDraft] = useState(query.q);
-  const [syncedNavigation, setSyncedNavigation] = useState(navigationKey);
-  // URL doi tu ngoai (Back, xoa bo loc, link): o tim theo URL. Mau "state tu prop" cua React.
-  if (syncedNavigation !== navigationKey) {
-    setSyncedNavigation(navigationKey);
-    setDraft(query.q);
-  }
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const latest = useRef(query);
   useEffect(() => {

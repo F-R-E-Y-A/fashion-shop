@@ -1,6 +1,6 @@
 ---
 title: Tài khoản và xác thực — bản đồ
-updated: 2026-10-18
+updated: 2026-10-24
 status: đang làm
 owner: Tài
 ---
@@ -46,7 +46,7 @@ khóa tăng `authVersion` và thu hồi mọi refresh token, còn đăng nhập 
 ([ADR-022](LOG.md#adr-022)).
 
 Chặn khu quản trị **ở giao diện** (`RequireAdmin` trước `/admin/*`, `/quan-tri` chuyển hướng) thuộc Admin.3,
-đang ở nhánh `feature/ph-03-admin-users-web`, chưa gộp ([users/README.md](../users/README.md#giao-diện-quản-trị)).
+đã gộp qua [PR #47](https://github.com/F-R-E-Y-A/fashion-shop/pull/47) (`47576d4`) ([users/README.md](../users/README.md#giao-diện-quản-trị)).
 Chưa có, biết và cố ý: vai `STAFF`, gán vai qua API ([ND-03](../../TECH_DEBT.md)). Hồ sơ cá nhân và sổ địa chỉ nằm ở feature
 [users](../users/README.md). Cũng chưa có: hồ sơ vóc dáng, OAuth, 2FA.
 
@@ -57,7 +57,7 @@ Phase 5 giữ access token và user trong bộ nhớ giao diện; khi tải lạ
 bằng cookie HttpOnly để khôi phục phiên. Logout luôn xóa state giao diện, kể cả khi gọi API gặp lỗi.
 
 Vòng đời phiên ([Issue #43](https://github.com/F-R-E-Y-A/fashion-shop/issues/43), [ADR-026](LOG.md#adr-026),
-nhánh `bugfix/auth-session-lifecycle`, chưa gộp): kết quả refresh hay đăng nhập đến muộn bị bỏ theo phiên,
+đã gộp qua [PR #45](https://github.com/F-R-E-Y-A/fashion-shop/pull/45), `3aa873b`): kết quả refresh hay đăng nhập đến muộn bị bỏ theo phiên,
 request không bao giờ được gửi lại bằng danh tính khác, logout thu hồi cả family, các tab báo nhau khi phiên đổi
 và chỉ xóa trạng thái local. Tiêu chí: [use-cases.md](use-cases.md); cơ chế: [session-lifecycle.md](session-lifecycle.md).
 

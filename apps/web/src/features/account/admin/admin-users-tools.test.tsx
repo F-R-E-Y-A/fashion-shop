@@ -149,6 +149,37 @@ describe('UC-02.1 Issue #48 — tìm, lọc, sắp xếp trên URL', () => {
     expect(searchBox()).toHaveValue('bi-khoa-7');
   });
 
+  it.each(['pageSize', 'page'] as const)(
+    'UC-02.1/AC12 đổi %s giữ chữ tìm đang chờ, không mất q hoặc gửi debounce cũ',
+    async (control) => {
+      const backend = createAdminBackend({ users: people() });
+      renderAdminApp('/admin/users?pageSize=10');
+      await screen.findByText('nguoi-dung-1@example.test');
+      fireEvent.change(searchBox(), { target: { value: 'example.test' } });
+      if (control === 'pageSize') {
+        fireEvent.change(screen.getByRole('combobox', { name: 'Số dòng' }), {
+          target: { value: '50' },
+        });
+      } else {
+        fireEvent.click(screen.getByRole('button', { name: 'Trang sau' }));
+      }
+      const expected =
+        control === 'pageSize'
+          ? '/admin/users?q=example.test&pageSize=50'
+          : '/admin/users?q=example.test&pageSize=10';
+      await waitFor(() => expect(location().textContent).toBe(expected));
+      expect(searchBox()).toHaveValue('example.test');
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, USER_SEARCH_DEBOUNCE_MS + 100));
+      });
+      expect(location().textContent).toBe(expected);
+      expect(listParams(backend.requests.filter(isList).at(-1))).toMatchObject({
+        q: 'example.test',
+        page: '1',
+      });
+    },
+  );
+
   it('UC-02.1/AC12 Back hủy tìm kiếm đang debounce, không ghi đè URL vừa khôi phục', async () => {
     const backend = createAdminBackend({ users: people() });
     renderAdminApp('/admin/users');

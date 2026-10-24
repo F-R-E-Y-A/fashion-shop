@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 import { Empty, ErrorNote, Loading, Pager } from '@/ui';
@@ -13,6 +14,7 @@ import {
   DEFAULT_USER_LIST_QUERY,
   hasUserListFilters,
   matchesUserListFilter,
+  normalizeUserQueryText,
   parseUserListSearch,
   serializeUserListQuery,
   USER_PAGE_SIZES,
@@ -79,6 +81,14 @@ export function AdminUsersPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { query, canonical } = parseUserListSearch(location.search);
+  // Một bản nháp dùng chung cho ô tìm, phân trang và số dòng: điều khiển ngoài thanh lọc
+  // cũng phải mang theo chữ đang gõ trước khi debounce kịp cập nhật URL.
+  const [draft, setDraft] = useState(query.q);
+  const [syncedNavigation, setSyncedNavigation] = useState(location.key);
+  if (syncedNavigation !== location.key) {
+    setSyncedNavigation(location.key);
+    setDraft(query.q);
+  }
   const needsCanonical = canonical !== location.search;
   const signature = userListSignature(query);
   const filtered = hasUserListFilters(query);
@@ -234,7 +244,16 @@ export function AdminUsersPage() {
             totalPages={data.totalPages}
             total={data.total}
             unit="tài khoản"
-            onChange={(page) => go({ ...query, page }, { replace: false })}
+            onChange={(page) =>
+              go(
+                {
+                  ...query,
+                  q: normalizeUserQueryText(draft),
+                  page: normalizeUserQueryText(draft) === query.q ? page : 1,
+                },
+                { replace: false },
+              )
+            }
           />
           <label className={styles.pageSize}>
             <span>Số dòng</span>
@@ -244,6 +263,7 @@ export function AdminUsersPage() {
                 go(
                   {
                     ...query,
+                    q: normalizeUserQueryText(draft),
                     pageSize: Number(event.target.value) as UserListQuery['pageSize'],
                     page: 1,
                   },
@@ -272,7 +292,13 @@ export function AdminUsersPage() {
           {totalLabel && <p className={styles.count}>{totalLabel}</p>}
         </div>
       </header>
-      <UserListControls navigationKey={location.key} query={query} onNavigate={go} />
+      <UserListControls
+        navigationKey={location.key}
+        query={query}
+        draft={draft}
+        setDraft={setDraft}
+        onNavigate={go}
+      />
       <StatusActionNotice action={action} />
       {users.isFetching && data && !users.isPlaceholderData && (
         <p className={styles.refreshing} role="status">

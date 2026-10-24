@@ -28,7 +28,7 @@ quản trị đầu tiên của hệ thống, nơi phân quyền theo vai ([ADR-
 | `GET /api/admin/users`, `GET /api/admin/users/:id` | Admin.1, xong |
 | `POST /api/admin/users/:id/lock`, `POST /api/admin/users/:id/unlock`, thu hồi phiên, nhật ký | Admin.2, xong |
 | Giao diện quản trị `/admin/users`, `/admin/users/:id`: guard `ADMIN`, danh sách, chi tiết, khóa và mở khóa | Admin.3, [Issue #46](https://github.com/F-R-E-Y-A/fashion-shop/issues/46), đã gộp qua [PR #47](https://github.com/F-R-E-Y-A/fashion-shop/pull/47) (`47576d4`): [mục dưới](#giao-diện-quản-trị) |
-| Tìm email, lọc trạng thái/vai/xác thực, sắp xếp, số dòng; khóa, mở khóa ngay trên danh sách | [Issue #48](https://github.com/F-R-E-Y-A/fashion-shop/issues/48), nhánh `feature/ph-03-admin-users-tools`, chưa commit |
+| Tìm email, lọc trạng thái/vai/xác thực, sắp xếp, số dòng; khóa, mở khóa ngay trên danh sách | [Issue #48](https://github.com/F-R-E-Y-A/fashion-shop/issues/48), [PR #49](https://github.com/F-R-E-Y-A/fashion-shop/pull/49) vào `develop`, đang chờ review, chưa gộp |
 | Gán vai, `STAFF`, màn xem nhật ký, tạo/sửa/xóa tài khoản, thao tác hàng loạt, xuất dữ liệu | Chưa làm |
 | Hồ sơ `GET`/`PATCH /api/users/me`, khu vực hành chính, sổ địa chỉ | PH4, xong phía máy chủ: [profile-address.md](profile-address.md) |
 | Giao diện `/tai-khoan`, hồ sơ và sổ địa chỉ | Đã gộp vào develop qua PR #29 và PR #32: [profile-address.md](profile-address.md#giao-diện-web-hiện-tại) |
@@ -147,7 +147,7 @@ nhập lại để cập nhật menu và guard.
 ## Trạng thái hôm nay (24/10/2026)
 
 Admin.3 đã gộp qua PR #47 (`47576d4`). Issue #48 (tìm, lọc, thao tác nhanh) đang ở nhánh
-`feature/ph-03-admin-users-tools` trên nền `47576d4`, đã review và kiểm thử local; đang chuẩn bị PR vào `develop`, chưa gộp. Admin.1 và Admin.2 đã gộp vào `develop`
+`feature/ph-03-admin-users-tools` trên nền `47576d4`, đã kiểm thử local và mở [PR #49](https://github.com/F-R-E-Y-A/fashion-shop/pull/49) vào `develop`; đang chờ review, chưa gộp. Admin.1 và Admin.2 đã gộp vào `develop`
 (pull request #24, `aee345e`). API hồ sơ, khu vực hành chính, sổ địa chỉ và giao diện hồ sơ/địa chỉ đã có trong
 `develop` qua các PR ghi ở bảng Dòng việc. Dữ liệu
 tỉnh/xã thật (34 tỉnh, 3321 xã) đã nạp vào CSDL dev, chưa nạp staging hay production; avatar và tích hợp checkout

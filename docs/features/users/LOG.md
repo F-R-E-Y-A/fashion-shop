@@ -364,3 +364,13 @@ Kết quả xác minh ngày 24/10/2026 trên nền `47576d4`, chưa commit: `npm
 web admin 67/67, build web đạt, docs lint users 4 tệp đạt. HTTP chạy riêng trên `fashion_shop_test` và Redis
 6380: 320/320 bài, 17 tệp. Chrome/API thật: 41/41 bước gồm Back/debounce và giữ focus, desktop/mobile và zoom
 200% thật; dữ liệu QA đã dọn. Log và ảnh ở kho docs: `minh-chung/issue-48-review-2026-10-24/`.
+
+
+## 2026-10-24 · Review PR #49: giữ bản nháp tìm kiếm khi đổi số dòng hoặc phân trang
+
+**Loại:** thay đổi mã · **Phạm vi:** danh sách quản trị và tài liệu auth/users · **Commit:** cùng commit bổ sung PR #49
+
+Hai điều khiển ở chân bảng dùng q cũ trên URL, làm mất chữ đang gõ trước debounce. Bản nháp nay thuộc trang
+và được dùng chung cho thanh lọc, số dòng và phân trang; q đổi thì về trang 1. Hai bài UC-02.1/AC12 đã đỏ
+trước sửa, kiểm URL, giá trị ô tìm và request sau khi chờ hết debounce. Sửa cả README còn ghi PR #45/#47
+chưa gộp và Issue #48 chưa commit; không thay trạng thái ADR, không đổi chính sách backend.
