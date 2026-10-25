@@ -68,10 +68,14 @@ export class SettlementService implements OnModuleInit, OnModuleDestroy {
     const { payments, orders, inventory, cart } = this.checkout;
     const payment = await payments.byReference(event.reference);
     if (!payment) return 'UNKNOWN';
+    // IPN MoMo dung chung mot endpoint cho ca bien the vi va the: event den tu
+    // adapter MOMO nen don MOMO_ATM phia duoc cong cung ho MoMo, khong MISMATCH.
+    const momoFamily = (code: string): GatewayCode =>
+      code === 'MOMO_ATM' ? 'MOMO' : (code as GatewayCode);
     if (
-      payment.gateway !== event.gateway ||
+      momoFamily(payment.gateway!) !== momoFamily(event.gateway) ||
       !payments.gateways
-        .get(event.gateway)
+        .get(momoFamily(event.gateway))
         .matches(event, payment.reference!, payment.amount.toFixed(2))
     )
       return 'MISMATCH';
@@ -136,7 +140,7 @@ export class SettlementService implements OnModuleInit, OnModuleDestroy {
         if (order.userId) await this.checkout.cancel(order.id, order.userId, true);
       }
       for (const payment of await this.checkout.payments.candidates()) {
-        if (payment.gateway === 'MOMO' && !payment.checkoutUrl)
+        if (['MOMO', 'MOMO_ATM'].includes(payment.gateway ?? '') && !payment.checkoutUrl)
           await this.checkout.payments.launchLatest(payment.orderId, '127.0.0.1');
         if (payment.reference) await this.reconcile(payment.reference);
       }

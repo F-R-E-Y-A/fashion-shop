@@ -12,6 +12,7 @@ import {
   momoValidHash,
 } from './momo-signature.js';
 import type {
+  GatewayCode,
   GatewayRequest,
   PaymentEvent,
   PaymentGateway,
@@ -38,10 +39,12 @@ const finalFailures = new Set([
 
 @Injectable()
 export class MomoAdapter implements PaymentGateway {
-  readonly code = 'MOMO' as const;
-  readonly label = 'MoMo';
+  readonly code: GatewayCode = 'MOMO';
+  readonly label: string = 'MoMo';
   readonly queryIntervalMs = 60_000;
-  constructor(private readonly config: ConfigService) {}
+  /** captureWallet hien QR/dang nhap vi; payWithATM hien form the tren trang MoMo. */
+  protected requestType = 'captureWallet';
+  constructor(protected readonly config: ConfigService) {}
   configured() {
     return ['MOMO_PARTNER_CODE', 'MOMO_ACCESS_KEY', 'MOMO_SECRET_KEY'].every(
       (key) => !!this.config.get<string>(key),
@@ -116,7 +119,7 @@ export class MomoAdapter implements PaymentGateway {
       redirectUrl:
         this.config.get<string>('MOMO_RETURN_URL') || 'http://localhost:5174/thanh-toan/ket-qua',
       requestId: input.reference,
-      requestType: 'captureWallet',
+      requestType: this.requestType,
     };
     const signature = momoHash(
       secret,
@@ -216,4 +219,15 @@ export class MomoAdapter implements PaymentGateway {
       raw,
     };
   }
+}
+
+/**
+ * Bien the MOMO_ATM: cung khoa, IPN, query va settlement voi MomoAdapter; chi khac
+ * requestType payWithATM de trang MoMo hien form the ATM/quoc te thay vi QR vi.
+ */
+@Injectable()
+export class MomoAtmAdapter extends MomoAdapter {
+  override readonly code: GatewayCode = 'MOMO_ATM';
+  override readonly label: string = 'MoMo — thẻ ATM/thẻ quốc tế';
+  protected override requestType = 'payWithATM';
 }

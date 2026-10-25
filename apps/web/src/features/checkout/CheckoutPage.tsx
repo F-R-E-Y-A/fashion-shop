@@ -24,6 +24,7 @@ import {
 const gatewayHints: Record<GatewayCode, string> = {
   VNPAY: 'Thẻ ATM nội địa, thẻ quốc tế hoặc quét mã VNPAY-QR.',
   MOMO: 'Thanh toán bằng ví MoMo.',
+  MOMO_ATM: 'Thẻ ATM nội địa hoặc thẻ quốc tế qua trang MoMo, không cần ví.',
 };
 
 export function CheckoutSteps({ current }: { current: 1 | 2 | 3 }) {

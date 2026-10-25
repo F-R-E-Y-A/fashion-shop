@@ -1,16 +1,17 @@
 import { Injectable } from '@nestjs/common';
 
-import { MomoAdapter } from './momo.adapter.js';
+import { MomoAdapter, MomoAtmAdapter } from './momo.adapter.js';
 import type { GatewayCode, PaymentGateway } from './payment-gateway.js';
 import { VnpayAdapter } from './vnpay.adapter.js';
 
 @Injectable()
 export class GatewayRegistry {
   private readonly adapters: ReadonlyMap<GatewayCode, PaymentGateway>;
-  constructor(vnpay: VnpayAdapter, momo: MomoAdapter) {
+  constructor(vnpay: VnpayAdapter, momo: MomoAdapter, momoAtm: MomoAtmAdapter) {
     this.adapters = new Map<GatewayCode, PaymentGateway>([
       [vnpay.code, vnpay],
       [momo.code, momo],
+      [momoAtm.code, momoAtm],
     ]);
   }
   get(code: GatewayCode): PaymentGateway {

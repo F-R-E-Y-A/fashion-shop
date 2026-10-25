@@ -27,7 +27,7 @@ export class CheckoutItemResponse {
   @ApiProperty() canCheckout!: boolean;
 }
 export class GatewayResponse {
-  @ApiProperty({ enum: ['VNPAY', 'MOMO'] }) code!: string;
+  @ApiProperty({ enum: ['VNPAY', 'MOMO', 'MOMO_ATM'] }) code!: string;
   @ApiProperty() label!: string;
   @ApiProperty() configured!: boolean;
 }

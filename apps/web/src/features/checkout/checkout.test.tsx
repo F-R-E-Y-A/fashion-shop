@@ -129,6 +129,19 @@ describe('PH-11 checkout UI', () => {
     expect(screen.queryByRole('radio', { name: /MoMo/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Xác nhận và sang VNPAY' })).toBeEnabled();
   });
+  it('hiện cả MoMo ví và MoMo thẻ khi hai biến thể được cấu hình', async () => {
+    request.mockResolvedValue({
+      ...quote,
+      gateways: [
+        { code: 'VNPAY', label: 'VNPAY', configured: true },
+        { code: 'MOMO', label: 'MoMo', configured: true },
+        { code: 'MOMO_ATM', label: 'MoMo — thẻ ATM/thẻ quốc tế', configured: true },
+      ],
+    });
+    show();
+    expect(await screen.findByRole('radio', { name: /MoMo — thẻ/ })).toBeEnabled();
+    expect(screen.getByRole('radio', { name: 'MoMo' })).toBeEnabled();
+  });
   it('còn đơn chờ thì chỉ dẫn tới đơn đó, không cho tạo đơn thứ hai', async () => {
     request.mockResolvedValue({
       ...quote,

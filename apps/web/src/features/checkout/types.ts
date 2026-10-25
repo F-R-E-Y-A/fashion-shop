@@ -1,4 +1,4 @@
-export type GatewayCode = 'VNPAY' | 'MOMO';
+export type GatewayCode = 'VNPAY' | 'MOMO' | 'MOMO_ATM';
 export interface GatewayOption {
   code: GatewayCode;
   label: string;

@@ -3,7 +3,7 @@ import { createHmac } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { MomoAdapter } from './momo.adapter.js';
+import { MomoAdapter, MomoAtmAdapter } from './momo.adapter.js';
 
 const settings = {
   NODE_ENV: 'test',
@@ -39,6 +39,17 @@ describe('PH-11 MoMo contract', () => {
       requestId: 'PTEST',
     });
     expect(request).not.toHaveProperty('secretKey');
+  });
+  it('MOMO_ATM: biến thể thẻ ký requestType payWithATM, cùng khóa và phiên bản chữ ký', () => {
+    const atm = new MomoAtmAdapter(new ConfigService({ ...settings }));
+    const request = atm.request(input);
+    const expected =
+      'accessKey=test-access&amount=230000&extraData=&ipnUrl=https://shop.fixture.test/api/payments/momo/ipn&orderId=PTEST&orderInfo=Thanh toan Freya PTEST&partnerCode=TESTMERCHANT&redirectUrl=https://shop.fixture.test/thanh-toan/ket-qua&requestId=PTEST&requestType=payWithATM';
+    expect(atm.code).toBe('MOMO_ATM');
+    expect(request.requestType).toBe('payWithATM');
+    expect(request.signature).toBe(
+      createHmac('sha256', settings.MOMO_SECRET_KEY).update(expected).digest('hex'),
+    );
   });
   it('does not call a fake gateway outside tests and rejects fractional/out-of-range amounts', () => {
     expect(() => adapter({ NODE_ENV: 'development' }).prepare(input)).toThrow('URL cổng MoMo');

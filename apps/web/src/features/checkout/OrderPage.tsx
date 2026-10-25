@@ -16,7 +16,8 @@ const paymentStatuses: Record<string, string> = {
   EXPIRED: 'Hết hạn',
   CANCELLED: 'Đã hủy',
 };
-const gatewayName = (code?: string | null) => (code === 'MOMO' ? 'MoMo' : 'VNPAY');
+const gatewayName = (code?: string | null) =>
+  code === 'MOMO' ? 'MoMo' : code === 'MOMO_ATM' ? 'MoMo (thẻ)' : 'VNPAY';
 
 export function OrderPage() {
   const { id } = useParams();
