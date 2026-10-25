@@ -1,4 +1,4 @@
-export type GatewayCode = 'VNPAY' | 'MOMO' | 'MOMO_ATM';
+export type GatewayCode = 'VNPAY' | 'MOMO' | 'MOMO_ATM' | 'COD';
 export interface GatewayOption {
   code: GatewayCode;
   label: string;
@@ -69,6 +69,7 @@ export interface OrderView {
 
 export const orderStatuses: Record<string, string> = {
   PENDING_PAYMENT: 'Chờ thanh toán',
+  PENDING_CONFIRMATION: 'Chờ xử lý · thanh toán khi nhận hàng',
   CONFIRMED: 'Đã thanh toán · chờ shop xử lý',
   CANCELLED: 'Đã hủy / hết hạn',
   PAYMENT_REVIEW: 'Đã nhận tiền · cần shop đối soát',
@@ -77,6 +78,7 @@ export const orderStatuses: Record<string, string> = {
 /** Nhan ngan cho the danh sach; tieu de trang don van dung orderStatuses day du. */
 export const orderBadges: Record<string, string> = {
   PENDING_PAYMENT: 'Chờ thanh toán',
+  PENDING_CONFIRMATION: 'COD · chờ xử lý',
   CONFIRMED: 'Đã thanh toán',
   CANCELLED: 'Đã hủy',
   PAYMENT_REVIEW: 'Cần đối soát',

@@ -25,6 +25,7 @@ const gatewayHints: Record<GatewayCode, string> = {
   VNPAY: 'Thẻ ATM nội địa, thẻ quốc tế hoặc quét mã VNPAY-QR.',
   MOMO: 'Thanh toán bằng ví MoMo.',
   MOMO_ATM: 'Thẻ ATM nội địa hoặc thẻ quốc tế qua trang MoMo, không cần ví.',
+  COD: 'Nhân viên giao hàng thu tiền mặt khi bạn nhận hàng.',
 };
 
 export function CheckoutSteps({ current }: { current: 1 | 2 | 3 }) {
@@ -291,9 +292,9 @@ export function CheckoutPage() {
                 ))}
               </fieldset>
               <p className={styles.muted}>
-                Thanh toán qua {selectedGateway?.label} trong{' '}
-                {quote.payMinutes ?? quote.holdMinutes} phút; hàng được giữ {quote.holdMinutes} phút
-                để chờ cổng xác nhận. Tải lại trang hoặc thử lại không gia hạn.
+                {gateway === 'COD'
+                  ? 'Đơn COD được giữ cho shop xử lý trong 3 ngày; thanh toán tiền mặt khi nhận hàng.'
+                  : `Thanh toán qua ${selectedGateway?.label} trong ${quote.payMinutes ?? quote.holdMinutes} phút; hàng được giữ ${quote.holdMinutes} phút để chờ cổng xác nhận. Tải lại trang hoặc thử lại không gia hạn.`}
               </p>
             </section>
           )}
@@ -361,7 +362,11 @@ export function CheckoutPage() {
               }
               onClick={() => submit.mutate()}
             >
-              {submit.isPending ? 'Đang tạo đơn…' : `Xác nhận và sang ${selectedGateway?.label}`}
+              {submit.isPending
+                ? 'Đang tạo đơn…'
+                : gateway === 'COD'
+                  ? 'Xác nhận đặt hàng (COD)'
+                  : `Xác nhận và sang ${selectedGateway?.label}`}
             </button>
             {preview.isFetching && (
               <p className={styles.summaryNote} role="status">

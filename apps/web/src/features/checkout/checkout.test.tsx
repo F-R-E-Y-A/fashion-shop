@@ -142,6 +142,41 @@ describe('PH-11 checkout UI', () => {
     expect(await screen.findByRole('radio', { name: /MoMo — thẻ/ })).toBeEnabled();
     expect(screen.getByRole('radio', { name: 'MoMo' })).toBeEnabled();
   });
+  it('chọn COD tạo đơn chờ xử lý, không có link cổng hay đếm ngược', async () => {
+    const codOrder = {
+      ...order('PENDING_CONFIRMATION'),
+      paymentDueAt: null,
+      payments: [
+        {
+          id: 'c1',
+          gateway: 'COD',
+          reference: 'CODREF1',
+          status: 'PENDING',
+          checkoutUrl: null,
+          expiresAt: null,
+        },
+      ],
+    };
+    request.mockImplementation(async (path: string) => {
+      if (path === '/checkout/orders' || path === '/orders/o1') return codOrder;
+      return {
+        ...quote,
+        gateways: [
+          { code: 'VNPAY', label: 'VNPAY', configured: true },
+          { code: 'COD', label: 'COD — thanh toán khi nhận hàng', configured: true },
+        ],
+      };
+    });
+    show();
+    fireEvent.click(await screen.findByRole('radio', { name: /COD/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận đặt hàng (COD)' }));
+    expect(
+      await screen.findByRole('heading', { name: 'Chờ xử lý · thanh toán khi nhận hàng' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Thu khi nhận hàng')).toBeInTheDocument();
+    expect(screen.queryByRole('timer')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Hủy đơn' })).toBeInTheDocument();
+  });
   it('còn đơn chờ thì chỉ dẫn tới đơn đó, không cho tạo đơn thứ hai', async () => {
     request.mockResolvedValue({
       ...quote,

@@ -143,6 +143,7 @@ export class SettlementService implements OnModuleInit, OnModuleDestroy {
     if (
       !payment ||
       payment.status === 'SUCCEEDED' ||
+      payment.gateway === 'COD' ||
       !gatewayCodes.includes(payment.gateway as GatewayCode)
     )
       return;

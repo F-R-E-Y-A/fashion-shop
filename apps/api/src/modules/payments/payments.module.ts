@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { CodAdapter } from './cod.adapter.js';
 import { GatewayRegistry } from './gateway-registry.js';
 import { MomoAdapter, MomoAtmAdapter } from './momo.adapter.js';
 import { PaymentsService } from './payments.service.js';
@@ -12,6 +13,7 @@ import { VnpayService } from './vnpay.service.js';
     VnpayAdapter,
     MomoAdapter,
     MomoAtmAdapter,
+    CodAdapter,
     GatewayRegistry,
   ],
   exports: [PaymentsService],

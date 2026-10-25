@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import { ConflictException, Injectable, UnprocessableEntityException } from '@nestjs/common';
 import { Decimal } from 'decimal.js';
@@ -13,6 +13,8 @@ import { ShippingService } from '../shipping/index.js';
 import { CheckoutAddressService } from '../users/index.js';
 
 const HOLD_MINUTES = 15;
+/** COD khong co han thanh toan: giu hang cho cua so van hanh, qua han nay worker tu huy. */
+const COD_HOLD_DAYS = 3;
 
 @Injectable()
 export class CheckoutService {
@@ -140,7 +142,8 @@ export class CheckoutService {
             error: 'QUOTE_CHANGED',
             message: 'Giá, giỏ hàng hoặc địa chỉ đã đổi. Kiểm tra và xác nhận lại.',
           });
-        const due = new Date(Date.now() + HOLD_MINUTES * 60_000);
+        const cod = code === 'COD';
+        const due = new Date(Date.now() + (cod ? COD_HOLD_DAYS * 24 * 60 : HOLD_MINUTES) * 60_000);
         const order = await this.orders.create(
           {
             userId: user.id,
@@ -148,6 +151,7 @@ export class CheckoutService {
             key: input.idempotencyKey,
             fingerprint: quote.fingerprint,
             due,
+            status: cod ? 'PENDING_CONFIRMATION' : undefined,
             address: quote.address,
             shippingRateId: quote.shippingRateId,
             subtotal: quote.subtotalAmount,
@@ -182,7 +186,7 @@ export class CheckoutService {
       },
       { timeout: 15_000 },
     );
-    await this.payments.launchLatest(result.id, ip);
+    if (code !== 'COD') await this.payments.launchLatest(result.id, ip);
     return this.view(await this.orders.get(result.id, user.id));
   }
 
@@ -246,7 +250,9 @@ export class CheckoutService {
 
   async cancel(id: string, userId: string, expired = false) {
     await this.withOrder(id, userId, async (order, tx) => {
-      if (order.status !== 'PENDING_PAYMENT') {
+      const cancellable =
+        order.status === 'PENDING_PAYMENT' || order.status === 'PENDING_CONFIRMATION';
+      if (!cancellable) {
         if (!expired && order.status !== 'CANCELLED')
           throw new ConflictException('Đơn đã ghi nhận thanh toán, không thể hủy tại đây.');
         return;
@@ -263,6 +269,35 @@ export class CheckoutService {
       await this.orders.transition(id, 'CANCELLED', tx, expired ? undefined : userId);
     });
     return this.view(await this.orders.get(id, userId));
+  }
+
+  /**
+   * COD: nhan vien da giao va thu tien mat — chot giong IPN thanh toan online:
+   * payment SUCCEEDED, commit kho mot lan, don CONFIRMED, gio chi tru dung luong mua.
+   */
+  async codCollected(id: string, actorUserId: string) {
+    const initial = await this.orders.get(id);
+    if (!initial.userId) throw new ConflictException('Đơn không có chủ sở hữu.');
+    if (initial.status !== 'PENDING_CONFIRMATION' || initial.payments[0]?.gateway !== 'COD')
+      throw new ConflictException('Chỉ chốt thu tiền cho đơn COD đang chờ xử lý.');
+    await this.withOrder(id, initial.userId, async (order, tx) => {
+      if (order.status !== 'PENDING_CONFIRMATION')
+        throw new ConflictException('Đơn đã được xử lý.');
+      const payment = order.payments[0]!;
+      await this.payments.record(
+        payment.id,
+        'SUCCEEDED',
+        `COD:${order.orderCode}:${randomUUID().slice(0, 8)}`,
+        { collectedAt: new Date().toISOString(), actor: actorUserId },
+        tx,
+      );
+      const items = this.stockItems(order);
+      if (!(await this.inventory.commit(id, items, tx)))
+        throw new ConflictException('Hàng giữ cho đơn không còn hợp lệ.');
+      await this.orders.transition(id, 'CONFIRMED', tx, actorUserId);
+      await this.cart.consumePurchased(order.userId!, items, tx);
+    });
+    return this.view(await this.orders.get(id, initial.userId));
   }
 
   async retry(id: string, userId: string, key: string, ip: string) {

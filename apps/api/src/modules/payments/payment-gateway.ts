@@ -1,4 +1,4 @@
-export const gatewayCodes = ['VNPAY', 'MOMO', 'MOMO_ATM'] as const;
+export const gatewayCodes = ['VNPAY', 'MOMO', 'MOMO_ATM', 'COD'] as const;
 export type GatewayCode = (typeof gatewayCodes)[number];
 export type GatewayRequest = Record<string, string | number | boolean>;
 export interface PaymentInput {

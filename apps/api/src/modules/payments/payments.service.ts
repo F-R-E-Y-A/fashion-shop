@@ -42,14 +42,18 @@ export class PaymentsService {
         throw new ConflictException('Mã yêu cầu đã dùng cho đơn khác.');
       return previous;
     }
-    const expiresAt = new Date(holdUntil.getTime() - SETTLEMENT_BUFFER_MINUTES * 60_000);
-    if (expiresAt.getTime() - Date.now() < MIN_PAYMENT_WINDOW_MS)
+    // COD khong co han link thanh toan: tien thu khi giao, payment khong bao gio expire.
+    const cod = code === 'COD';
+    const expiresAt = cod
+      ? null
+      : new Date(holdUntil.getTime() - SETTLEMENT_BUFFER_MINUTES * 60_000);
+    if (!cod && expiresAt!.getTime() - Date.now() < MIN_PAYMENT_WINDOW_MS)
       throw new ConflictException(
         'Không còn đủ thời gian thanh toán an toàn cho đơn này. Hủy đơn và đặt lại.',
       );
     const reference = `P${randomUUID().replaceAll('-', '')}`;
     const adapter = this.gateways.get(code);
-    const input = { reference, amount, expiresAt, ip };
+    const input = { reference, amount, expiresAt: expiresAt ?? holdUntil, ip };
     const checkoutUrl = adapter.prepare(input);
     const payment = await tx.payment.create({
       data: {
@@ -57,7 +61,7 @@ export class PaymentsService {
         requestKey,
         reference,
         gateway: code,
-        method: 'ONLINE',
+        method: cod ? 'COD' : 'ONLINE',
         status: 'PENDING',
         amount,
         expiresAt,

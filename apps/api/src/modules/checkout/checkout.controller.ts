@@ -13,7 +13,13 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 
-import { AuthGuard, CurrentUser, type CurrentUserType } from '../auth/index.js';
+import {
+  AuthGuard,
+  CurrentUser,
+  type CurrentUserType,
+  RequireRoles,
+  RoleCode,
+} from '../auth/index.js';
 import { CheckoutService } from './checkout.service.js';
 import {
   CreateCheckoutDto,
@@ -93,6 +99,13 @@ export class OrdersController {
     @Ip() ip: string,
   ) {
     return this.checkout.retry(id, user.id, input.idempotencyKey, ip);
+  }
+  @ApiCreatedResponse({ type: OrderResponse })
+  @Post(':id/collect-cod')
+  @RequireRoles(RoleCode.ADMIN)
+  @Header('Cache-Control', 'no-store')
+  collectCod(@CurrentUser() user: CurrentUserType, @Param('id', ParseUUIDPipe) id: string) {
+    return this.checkout.codCollected(id, user.id);
   }
   @ApiCreatedResponse({ type: OrderResponse })
   @Post(':id/reconcile')

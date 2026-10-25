@@ -17,7 +17,7 @@ const paymentStatuses: Record<string, string> = {
   CANCELLED: 'Đã hủy',
 };
 const gatewayName = (code?: string | null) =>
-  code === 'MOMO' ? 'MoMo' : code === 'MOMO_ATM' ? 'MoMo (thẻ)' : 'VNPAY';
+  code === 'MOMO' ? 'MoMo' : code === 'MOMO_ATM' ? 'MoMo (thẻ)' : code === 'COD' ? 'COD' : 'VNPAY';
 
 export function OrderPage() {
   const { id } = useParams();
@@ -82,6 +82,7 @@ export function OrderPage() {
   const deadline = latestPayment?.expiresAt ?? order?.paymentDueAt;
   const seconds = deadline ? Math.max(0, Math.ceil((Date.parse(deadline) - now) / 1000)) : 0;
   const pending = order?.status === 'PENDING_PAYMENT';
+  const codPending = order?.status === 'PENDING_CONFIRMATION';
   // Đối soát là việc của hệ thống: chạy ngầm khi khách quay về từ cổng, worker nền lo phần còn lại.
   // Khách không bao giờ phải tự bấm "kiểm tra thanh toán" — chuẩn Stripe/Shopee.
   const verifying = action.isPending && action.variables?.name === 'reconcile';
@@ -160,6 +161,12 @@ export function OrderPage() {
                   Cổng đã xác nhận nhận tiền nhưng đơn cần shop đối soát do hết hạn, hủy hoặc thanh
                   toán nhiều lần. Không thanh toán lại. Liên hệ shop kèm mã đơn để xử lý hoặc hoàn
                   tiền.
+                </p>
+              )}
+              {codPending && (
+                <p className={styles.statusText} role="status">
+                  Cảm ơn bạn! Shop sẽ liên hệ xác nhận và giao hàng. Thanh toán tiền mặt cho nhân
+                  viên khi nhận hàng.
                 </p>
               )}
               {gatewayCancelled && (
@@ -251,7 +258,11 @@ export function OrderPage() {
                     <span>
                       {gatewayName(payment.gateway)} · <code>{payment.reference?.slice(-8)}</code>
                     </span>
-                    <span>{paymentStatuses[payment.status] ?? 'Chờ cổng xác nhận'}</span>
+                    <span>
+                      {payment.gateway === 'COD' && payment.status === 'PENDING'
+                        ? 'Thu khi nhận hàng'
+                        : (paymentStatuses[payment.status] ?? 'Chờ cổng xác nhận')}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -281,7 +292,7 @@ export function OrderPage() {
                   Đặt lại từ giỏ hàng
                 </Link>
               )}
-              {pending && (
+              {(pending || codPending) && (
                 <button
                   className={styles.textButton}
                   disabled={action.isPending}

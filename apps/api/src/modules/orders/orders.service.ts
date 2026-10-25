@@ -56,10 +56,16 @@ export class OrdersService {
     return tx.order.findUnique({ where: { checkoutKey }, include: details });
   }
 
-  /** Don cho tra tien con han cua chu; moi khach chi co toi da mot don giu hang. */
+  /** Don dang giu hang cua chu (cho tra tien con han hoac cho xac nhan COD); moi khach mot don. */
   pending(userId: string, tx?: Prisma.TransactionClient) {
     return (tx ?? this.prisma).order.findFirst({
-      where: { userId, status: 'PENDING_PAYMENT', paymentDueAt: { gt: new Date() } },
+      where: {
+        userId,
+        OR: [
+          { status: 'PENDING_PAYMENT', paymentDueAt: { gt: new Date() } },
+          { status: 'PENDING_CONFIRMATION' },
+        ],
+      },
       include: details,
       orderBy: { createdAt: 'desc' },
     });
@@ -74,7 +80,11 @@ export class OrdersService {
     });
   }
 
-  async create(input: NewOrder, tx: Prisma.TransactionClient) {
+  async create(
+    input: NewOrder & { status?: 'PENDING_PAYMENT' | 'PENDING_CONFIRMATION' },
+    tx: Prisma.TransactionClient,
+  ) {
+    const status = input.status ?? 'PENDING_PAYMENT';
     return tx.order.create({
       data: {
         userId: input.userId,
@@ -82,7 +92,7 @@ export class OrdersService {
         checkoutKey: input.key,
         checkoutFingerprint: input.fingerprint,
         orderCode: newOrderCode(),
-        status: 'PENDING_PAYMENT',
+        status,
         paymentDueAt: input.due,
         shippingAddressSnapshot: input.address,
         shippingRateId: input.shippingRateId,
@@ -98,7 +108,7 @@ export class OrdersService {
             productSnapshot: item.snapshot,
           })),
         },
-        statusHistory: { create: { status: 'PENDING_PAYMENT', actorUserId: input.userId } },
+        statusHistory: { create: { status, actorUserId: input.userId } },
       },
       include: details,
     });
@@ -118,7 +128,12 @@ export class OrdersService {
 
   due() {
     return this.prisma.order.findMany({
-      where: { status: 'PENDING_PAYMENT', paymentDueAt: { lte: new Date() } },
+      where: {
+        OR: [
+          { status: 'PENDING_PAYMENT', paymentDueAt: { lte: new Date() } },
+          { status: 'PENDING_CONFIRMATION', paymentDueAt: { lte: new Date() } },
+        ],
+      },
       take: 50,
       orderBy: { paymentDueAt: 'asc' },
     });
