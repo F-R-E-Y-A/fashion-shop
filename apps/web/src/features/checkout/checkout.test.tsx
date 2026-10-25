@@ -284,17 +284,18 @@ describe('PH-11 checkout UI', () => {
     expect(request).toHaveBeenCalledWith('/orders/o1/reconcile', { method: 'POST' });
     expect(request.mock.calls.filter(([path]) => path.endsWith('/reconcile'))).toHaveLength(1);
   });
-  it('pending không biết kết quả: thao tác thử lại phải qua backend, cập nhật đối soát nhận trạng thái thật', async () => {
+  it('quay về từ cổng: tự đối soát ngầm, đơn nhảy đã thanh toán, không cần thao tác tay', async () => {
     request.mockImplementation(async (path: string) =>
       path.endsWith('/reconcile') ? order('CONFIRMED') : order(),
     );
     const key = checkoutKey('u1', quote.fingerprint);
     expect(checkoutKey('u1', quote.fingerprint)).toBe(key);
-    show('/don-hang/o1');
-    fireEvent.click(await screen.findByRole('button', { name: 'Kiểm tra lại thanh toán' }));
+    show('/thanh-toan/ket-qua?vnp_TxnRef=REF1');
     expect(
       await screen.findByRole('heading', { name: 'Đã thanh toán · chờ shop xử lý' }),
     ).toBeInTheDocument();
+    expect(request).toHaveBeenCalledWith('/orders/by-payment/REF1');
+    expect(request).toHaveBeenCalledWith('/orders/o1/reconcile', { method: 'POST' });
     expect(screen.queryByRole('button', { name: 'Hủy đơn, nhả hàng' })).not.toBeInTheDocument();
     await waitFor(() =>
       expect(sessionStorage.getItem(`freya:checkout:u1:${quote.fingerprint}`)).toBeNull(),
@@ -339,16 +340,18 @@ describe('PH-11 checkout UI', () => {
     expect(await screen.findByText('Bạn chưa có đơn hàng')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Bắt đầu mua sắm' })).toHaveAttribute('href', '/');
   });
-  it('đơn hủy: bấm kiểm tra lại thanh toán thì nhận thông báo khi cổng chưa có gì mới', async () => {
+  it('không có nút kiểm tra thanh toán thủ công ở mọi trạng thái; đối soát do hệ thống tự làm', async () => {
     request.mockResolvedValue(order('CANCELLED'));
     show('/don-hang/o1');
-    fireEvent.click(await screen.findByRole('button', { name: 'Kiểm tra lại thanh toán' }));
-    expect(await screen.findByText(/Chưa có thông tin mới từ cổng thanh toán/)).toBeInTheDocument();
+    await screen.findByText('Đã hủy / hết hạn');
+    expect(
+      screen.queryByRole('button', { name: 'Kiểm tra lại thanh toán' }),
+    ).not.toBeInTheDocument();
   });
-  it('đơn đã thanh toán không còn nút kiểm tra lại thanh toán', async () => {
-    request.mockResolvedValue(order('CONFIRMED'));
+  it('đơn chờ thanh toán chỉ còn nút tiếp tục/thử lại và hủy đơn', async () => {
+    request.mockResolvedValue(order());
     show('/don-hang/o1');
-    await screen.findByText('Đã thanh toán · chờ shop xử lý');
+    expect(await screen.findByRole('button', { name: 'Hủy đơn, nhả hàng' })).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'Kiểm tra lại thanh toán' }),
     ).not.toBeInTheDocument();

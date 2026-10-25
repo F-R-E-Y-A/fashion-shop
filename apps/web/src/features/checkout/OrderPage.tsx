@@ -26,7 +26,6 @@ export function OrderPage() {
   const { user, authenticatedRequest: request } = useAuth();
   const client = useQueryClient();
   const [now, setNow] = useState(() => Date.now());
-  const [reconcileNote, setReconcileNote] = useState<string | null>(null);
   const reconciledReturn = useRef('');
   const key = ['orders', user!.id, id || reference];
   const result = useQuery({
@@ -50,20 +49,9 @@ export function OrderPage() {
         method: 'POST',
         ...(name === 'payments' ? { body: { idempotencyKey: crypto.randomUUID() } } : {}),
       }),
-    onSuccess: (data, name) => {
+    onSuccess: (data) => {
       client.setQueryData(key, data);
       void client.invalidateQueries({ queryKey: cartKeys.all });
-      if (name !== 'reconcile' || !order) return;
-      // So sánh trạng thái trước/sau để nói rõ kết quả: đổi hay cổng chưa có gì mới.
-      const changed =
-        order.status !== data.status ||
-        order.payments.length !== data.payments.length ||
-        order.payments.some((payment, index) => payment.status !== data.payments[index]?.status);
-      setReconcileNote(
-        changed
-          ? 'Đã cập nhật trạng thái mới từ cổng thanh toán.'
-          : 'Chưa có thông tin mới từ cổng thanh toán. Cổng giới hạn tra cứu lặp mỗi 5 phút, vui lòng thử lại sau.',
-      );
     },
   });
   const reconcile = action.mutate;
@@ -85,8 +73,9 @@ export function OrderPage() {
   const deadline = latestPayment?.expiresAt ?? order?.paymentDueAt;
   const seconds = deadline ? Math.max(0, Math.ceil((Date.parse(deadline) - now) / 1000)) : 0;
   const pending = order?.status === 'PENDING_PAYMENT';
-  // Chỉ đối soát khi còn chờ cổng hoặc đơn đã hủy nhưng khách có thể đã trả tiền muộn.
-  const reconcilable = order?.status === 'PENDING_PAYMENT' || order?.status === 'CANCELLED';
+  // Đối soát là việc của hệ thống: chạy ngầm khi khách quay về từ cổng, worker nền lo phần còn lại.
+  // Khách không bao giờ phải tự bấm "kiểm tra thanh toán" — chuẩn Stripe/Shopee.
+  const verifying = action.isPending && action.variables === 'reconcile';
   const paymentUrl =
     latestPayment && ['PENDING', 'PROCESSING'].includes(latestPayment.status)
       ? latestPayment.checkoutUrl
@@ -138,9 +127,11 @@ export function OrderPage() {
                 ) : null)}
               {pending && (
                 <p className={styles.statusText} role="status">
-                  {seconds
-                    ? 'Hệ thống đang chờ xác nhận từ cổng thanh toán.'
-                    : 'Đã hết thời gian thanh toán. Hàng còn giữ thêm ít phút để chờ cổng xác nhận.'}
+                  {verifying
+                    ? `Đang xác nhận thanh toán với ${gatewayLabel}… Trang sẽ tự cập nhật, bạn không cần làm gì thêm.`
+                    : seconds
+                      ? 'Hệ thống đang chờ xác nhận từ cổng thanh toán.'
+                      : 'Đã hết thời gian thanh toán. Hàng còn giữ thêm ít phút để chờ cổng xác nhận.'}
                 </p>
               )}
               {order.status === 'CONFIRMED' && (
@@ -159,7 +150,8 @@ export function OrderPage() {
               {order.status === 'CANCELLED' && (
                 <p className={styles.statusText}>
                   Hàng đã được nhả. Sản phẩm vẫn ở giỏ để bạn kiểm tra giá, tồn và đặt lại. Nếu đã
-                  bị trừ tiền, hãy bấm "Kiểm tra lại thanh toán" và liên hệ shop.
+                  bị trừ tiền, hệ thống tự đối soát và chuyển đơn sang trạng thái cần shop xử lý;
+                  liên hệ shop kèm mã đơn để được hỗ trợ sớm.
                 </p>
               )}
             </section>
@@ -243,11 +235,6 @@ export function OrderPage() {
                 ))}
               </ul>
             )}
-            {reconcileNote && (
-              <p className={styles.summaryNote} role="status">
-                {reconcileNote}
-              </p>
-            )}
             {action.error && (
               <p className={`${styles.notice} ${styles.noticeDanger}`} role="alert">
                 {action.error.message}
@@ -272,15 +259,6 @@ export function OrderPage() {
                 <Link className={styles.cta} to="/gio-hang">
                   Đặt lại từ giỏ hàng
                 </Link>
-              )}
-              {reconcilable && (
-                <button
-                  className={styles.ghost}
-                  disabled={action.isPending}
-                  onClick={() => action.mutate('reconcile')}
-                >
-                  Kiểm tra lại thanh toán
-                </button>
               )}
               {pending && (
                 <button
