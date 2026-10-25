@@ -105,6 +105,37 @@ export class SettlementService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  /**
+   * Return URL co chu ky cua cong (VNPAY vnp_SecureHash, MoMo signature): ket qua cu the
+   * duoc ghi ngay khong cho query interval. SUCCESS di qua settle nhu IPN; FAILED (khach
+   * huy tren cong) dong payment attempt, don giu nguyen de thu lai hoac huy tay.
+   */
+  async returnNotice(reference: string, raw: Record<string, unknown>): Promise<boolean> {
+    const payment = await this.checkout.payments.byReference(reference);
+    if (!payment || payment.status === 'SUCCEEDED') return false;
+    const family = (code: string): GatewayCode =>
+      code === 'MOMO_ATM' ? 'MOMO' : (code as GatewayCode);
+    const adapter = this.checkout.payments.gateways.get(family(payment.gateway!));
+    const event = adapter.notification(raw);
+    if (
+      !event ||
+      event.reference !== reference ||
+      event.state === 'PENDING' ||
+      !adapter.matches(event, reference, payment.amount.toFixed(2))
+    )
+      return false;
+    if (event.state === 'SUCCEEDED') {
+      await this.settle(event);
+      return true;
+    }
+    const order = await this.checkout.orders.get(payment.orderId);
+    if (!order.userId) return false;
+    await this.checkout.withOrder(order.id, order.userId, async (_order, tx) => {
+      await this.checkout.payments.record(payment.id, 'FAILED', event.receipt, event.raw, tx);
+    });
+    return true;
+  }
+
   async reconcile(reference: string) {
     const payments = this.checkout.payments;
     const payment = await payments.byReference(reference);

@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, IsUUID, Matches } from 'class-validator';
+import { IsIn, IsObject, IsOptional, IsString, IsUUID, Matches } from 'class-validator';
 
 import { type GatewayCode, gatewayCodes } from '../../payments/index.js';
 
@@ -16,4 +16,11 @@ export class CreateCheckoutDto extends PreviewDto {
 }
 export class RetryPaymentDto {
   @ApiProperty() @IsUUID('4') idempotencyKey!: string;
+}
+export class ReconcileDto {
+  /** Toan bo tham so return URL cua cong (kem chu ky); server xac thuc chu ky truoc khi tin. */
+  @ApiProperty({ type: Object, required: false })
+  @IsOptional()
+  @IsObject()
+  params?: Record<string, string>;
 }

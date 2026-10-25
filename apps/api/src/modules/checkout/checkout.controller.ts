@@ -15,7 +15,12 @@ import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nest
 
 import { AuthGuard, CurrentUser, type CurrentUserType } from '../auth/index.js';
 import { CheckoutService } from './checkout.service.js';
-import { CreateCheckoutDto, PreviewDto, RetryPaymentDto } from './dto/checkout.dto.js';
+import {
+  CreateCheckoutDto,
+  PreviewDto,
+  ReconcileDto,
+  RetryPaymentDto,
+} from './dto/checkout.dto.js';
 import { IpnResponse, OrderResponse, QuoteResponse } from './dto/checkout.response.js';
 import { SettlementService } from './settlement.service.js';
 
@@ -92,10 +97,19 @@ export class OrdersController {
   @ApiCreatedResponse({ type: OrderResponse })
   @Post(':id/reconcile')
   @Header('Cache-Control', 'no-store')
-  async reconcile(@CurrentUser() user: CurrentUserType, @Param('id', ParseUUIDPipe) id: string) {
+  async reconcile(
+    @CurrentUser() user: CurrentUserType,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() notice: ReconcileDto = {},
+  ) {
     const order = await this.checkout.orders.get(id, user.id);
     for (const payment of order.payments)
-      if (payment.reference) await this.settlement.reconcile(payment.reference);
+      if (payment.reference) {
+        const concluded = notice.params
+          ? await this.settlement.returnNotice(payment.reference, notice.params)
+          : false;
+        if (!concluded) await this.settlement.reconcile(payment.reference);
+      }
     return this.checkout.view(await this.checkout.orders.get(id, user.id));
   }
 }

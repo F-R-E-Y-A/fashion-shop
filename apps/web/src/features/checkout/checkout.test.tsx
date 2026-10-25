@@ -294,7 +294,10 @@ describe('PH-11 checkout UI', () => {
     expect(
       await screen.findByRole('heading', { name: 'Đã thanh toán · chờ shop xử lý' }),
     ).toBeInTheDocument();
-    expect(request).toHaveBeenCalledWith('/orders/o1/reconcile', { method: 'POST' });
+    expect(request).toHaveBeenCalledWith('/orders/o1/reconcile', {
+      method: 'POST',
+      body: { params: { vnp_TxnRef: 'REF1', vnp_ResponseCode: '24' } },
+    });
     expect(request.mock.calls.filter(([path]) => path.endsWith('/reconcile'))).toHaveLength(1);
   });
   it('quay về từ cổng: tự đối soát ngầm, đơn nhảy đã thanh toán, không cần thao tác tay', async () => {
@@ -308,8 +311,11 @@ describe('PH-11 checkout UI', () => {
       await screen.findByRole('heading', { name: 'Đã thanh toán · chờ shop xử lý' }),
     ).toBeInTheDocument();
     expect(request).toHaveBeenCalledWith('/orders/by-payment/REF1');
-    expect(request).toHaveBeenCalledWith('/orders/o1/reconcile', { method: 'POST' });
-    expect(screen.queryByRole('button', { name: 'Hủy đơn, nhả hàng' })).not.toBeInTheDocument();
+    expect(request).toHaveBeenCalledWith('/orders/o1/reconcile', {
+      method: 'POST',
+      body: { params: { vnp_TxnRef: 'REF1' } },
+    });
+    expect(screen.queryByRole('button', { name: 'Hủy đơn' })).not.toBeInTheDocument();
     await waitFor(() =>
       expect(sessionStorage.getItem(`freya:checkout:u1:${quote.fingerprint}`)).toBeNull(),
     );
@@ -364,7 +370,7 @@ describe('PH-11 checkout UI', () => {
   it('đơn chờ thanh toán chỉ còn nút tiếp tục/thử lại và hủy đơn', async () => {
     request.mockResolvedValue(order());
     show('/don-hang/o1');
-    expect(await screen.findByRole('button', { name: 'Hủy đơn, nhả hàng' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Hủy đơn' })).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'Kiểm tra lại thanh toán' }),
     ).not.toBeInTheDocument();
@@ -373,7 +379,7 @@ describe('PH-11 checkout UI', () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
     request.mockResolvedValue(order('PENDING_PAYMENT'));
     show('/don-hang/o1');
-    fireEvent.click(await screen.findByRole('button', { name: 'Hủy đơn, nhả hàng' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Hủy đơn' }));
     expect(confirm).toHaveBeenCalled();
     expect(request).not.toHaveBeenCalledWith('/orders/o1/cancel', expect.anything());
     confirm.mockRestore();

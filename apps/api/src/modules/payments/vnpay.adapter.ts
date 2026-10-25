@@ -37,7 +37,8 @@ export class VnpayAdapter implements PaymentGateway {
       reference: raw.vnp_TxnRef ?? '',
       state: success
         ? 'SUCCEEDED'
-        : ['02', '08', '11'].includes(raw.vnp_TransactionStatus ?? '')
+        : ['02', '08', '11'].includes(raw.vnp_TransactionStatus ?? '') ||
+            raw.vnp_ResponseCode === '24'
           ? 'FAILED'
           : 'PENDING',
       receipt: success

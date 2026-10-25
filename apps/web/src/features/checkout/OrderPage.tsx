@@ -45,10 +45,14 @@ export function OrderPage() {
       forgetCheckout(user!.id, order.checkoutFingerprint);
   }, [order, user]);
   const action = useMutation({
-    mutationFn: (name: 'payments' | 'cancel' | 'reconcile') =>
-      request<OrderView>(`/orders/${order!.id}/${name}`, {
+    mutationFn: (
+      input:
+        { name: 'payments' | 'cancel' } | { name: 'reconcile'; params?: Record<string, string> },
+    ) =>
+      request<OrderView>(`/orders/${order!.id}/${input.name}`, {
         method: 'POST',
-        ...(name === 'payments' ? { body: { idempotencyKey: crypto.randomUUID() } } : {}),
+        ...(input.name === 'payments' ? { body: { idempotencyKey: crypto.randomUUID() } } : {}),
+        ...(input.name === 'reconcile' && input.params ? { body: { params: input.params } } : {}),
       }),
     onSuccess: (data) => {
       client.setQueryData(key, data);
@@ -56,11 +60,15 @@ export function OrderPage() {
     },
   });
   const reconcile = action.mutate;
+  // Cong tra kem tham so return da ky: gui len server de xac thuc chu ky va ghi ngay
+  // ket qua (huy cua khach, thanh cong), khong cho query interval cua cong.
+  const returnParams = Object.fromEntries(params.entries());
   useEffect(() => {
     if (reference && order?.status === 'PENDING_PAYMENT' && reconciledReturn.current !== order.id) {
       reconciledReturn.current = order.id;
-      reconcile('reconcile');
+      reconcile({ name: 'reconcile', params: returnParams });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reference, order?.id, order?.status, reconcile]);
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000);
@@ -76,7 +84,13 @@ export function OrderPage() {
   const pending = order?.status === 'PENDING_PAYMENT';
   // Đối soát là việc của hệ thống: chạy ngầm khi khách quay về từ cổng, worker nền lo phần còn lại.
   // Khách không bao giờ phải tự bấm "kiểm tra thanh toán" — chuẩn Stripe/Shopee.
-  const verifying = action.isPending && action.variables === 'reconcile';
+  const verifying = action.isPending && action.variables?.name === 'reconcile';
+  // Cổng báo khách đã hủy ngay trên trang của nó (VNPAY 24; MoMo resultCode khác thành công).
+  const gatewayCancelled =
+    pending &&
+    !verifying &&
+    (params.get('vnp_ResponseCode') === '24' ||
+      (params.has('resultCode') && !['0', '7000', '9000'].includes(params.get('resultCode')!)));
   const paymentUrl =
     latestPayment && ['PENDING', 'PROCESSING'].includes(latestPayment.status)
       ? latestPayment.checkoutUrl
@@ -146,6 +160,12 @@ export function OrderPage() {
                   Cổng đã xác nhận nhận tiền nhưng đơn cần shop đối soát do hết hạn, hủy hoặc thanh
                   toán nhiều lần. Không thanh toán lại. Liên hệ shop kèm mã đơn để xử lý hoặc hoàn
                   tiền.
+                </p>
+              )}
+              {gatewayCancelled && (
+                <p className={`${styles.notice} ${styles.noticeDanger}`} role="alert">
+                  Bạn đã hủy thanh toán trên cổng. Đơn vẫn còn giữ đến hết hạn — bấm "Thử lại thanh
+                  toán" để dùng phương thức khác, hoặc "Hủy đơn".
                 </p>
               )}
               {order.status === 'CANCELLED' && (
@@ -251,7 +271,7 @@ export function OrderPage() {
                 <button
                   className={styles.cta}
                   disabled={action.isPending}
-                  onClick={() => action.mutate('payments')}
+                  onClick={() => action.mutate({ name: 'payments' })}
                 >
                   Thử lại thanh toán
                 </button>
@@ -266,15 +286,11 @@ export function OrderPage() {
                   className={styles.textButton}
                   disabled={action.isPending}
                   onClick={() => {
-                    if (
-                      window.confirm(
-                        'Hủy đơn và nhả hàng đang giữ? Sản phẩm vẫn còn trong giỏ để đặt lại sau.',
-                      )
-                    )
-                      action.mutate('cancel');
+                    if (window.confirm('Hủy đơn này? Sản phẩm vẫn còn trong giỏ để đặt lại sau.'))
+                      action.mutate({ name: 'cancel' });
                   }}
                 >
-                  Hủy đơn, nhả hàng
+                  Hủy đơn
                 </button>
               )}
             </div>
