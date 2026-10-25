@@ -117,12 +117,13 @@ export class SettlementService implements OnModuleInit, OnModuleDestroy {
       code === 'MOMO_ATM' ? 'MOMO' : (code as GatewayCode);
     const adapter = this.checkout.payments.gateways.get(family(payment.gateway!));
     const event = adapter.notification(raw);
-    if (
-      !event ||
-      event.reference !== reference ||
-      event.state === 'PENDING' ||
-      !adapter.matches(event, reference, payment.amount.toFixed(2))
-    )
+    if (!event || event.reference !== reference) {
+      this.logger.warn(
+        `${payment.gateway} return notice dropped: ${event ? 'sai reference' : 'chu ky hoac du lieu khong hop le'}.`,
+      );
+      return false;
+    }
+    if (event.state === 'PENDING' || !adapter.matches(event, reference, payment.amount.toFixed(2)))
       return false;
     if (event.state === 'SUCCEEDED') {
       await this.settle(event);
