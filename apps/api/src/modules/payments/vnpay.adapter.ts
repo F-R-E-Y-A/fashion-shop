@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 
-import type { PaymentEvent, PaymentGateway, PaymentInput } from './payment-gateway.js';
+import type {
+  PaymentEvent,
+  PaymentGateway,
+  PaymentInput,
+  RefundRequest,
+} from './payment-gateway.js';
 import { VnpayService } from './vnpay.service.js';
 
 @Injectable()
@@ -29,6 +34,9 @@ export class VnpayAdapter implements PaymentGateway {
     if (!checkoutUrl) return null;
     const data = await this.service.query(reference, checkoutUrl);
     return data ? this.event(data) : null;
+  }
+  refund(input: RefundRequest) {
+    return this.service.refund(input.reference, input.checkoutUrl, input.amount, input.actor);
   }
   private event(raw: Record<string, string>): PaymentEvent {
     const success = raw.vnp_ResponseCode === '00' && raw.vnp_TransactionStatus === '00';

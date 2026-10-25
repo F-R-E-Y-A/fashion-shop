@@ -11,6 +11,8 @@ import {
   queryRequestFields,
   queryResponseFields,
   queryString,
+  refundRequestFields,
+  refundResponseFields,
   validHash,
   vnpDate,
   type VnpParams,
@@ -141,5 +143,71 @@ export class VnpayService {
       return null;
     }
     return data;
+  }
+
+  /**
+   * Refund API v2.1.0: 02 hoan toan phan con lai, 03 hoan mot phan. Chi ghi nhan khi
+   * ResponseCode 00 va chu ky phan hoi dung; ma khac chi log cong khai de admin thu lai.
+   */
+  async refund(
+    reference: string,
+    checkoutUrl: string,
+    amount: string,
+    actor: string,
+  ): Promise<{ requestId: string; payload: VnpParams }> {
+    const { merchant, secret } = this.credentials();
+    const requestId = randomUUID().replaceAll('-', '');
+    const params: VnpParams = {
+      vnp_RequestId: requestId,
+      vnp_Version: '2.1.0',
+      vnp_Command: 'refund',
+      vnp_TmnCode: merchant,
+      vnp_Amount: new Decimal(amount).times(100).toFixed(0),
+      vnp_TxnRef: reference,
+      vnp_TransactionDate: new URL(checkoutUrl).searchParams.get('vnp_CreateDate')!,
+      vnp_TransactionType: '02',
+      vnp_CreateBy: actor,
+      vnp_CreateDate: vnpDate(new Date()),
+      vnp_IpAddr: '127.0.0.1',
+      vnp_OrderInfo: `Hoan tien ${reference}`,
+    };
+    params.vnp_SecureHash = hmac(secret, pipeString(params, refundRequestFields));
+    const response = await fetch(
+      this.gatewayUrl(
+        'VNPAY_REFUND_URL',
+        'https://sandbox.vnpayment.vn/merchant_webapi/api/transaction/Refund',
+      ),
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(params),
+        signal: AbortSignal.timeout(8000),
+      },
+    );
+    if (!response.ok) throw new ServiceUnavailableException('Refund API chưa phản hồi.');
+    const raw: unknown = await response.json();
+    const data =
+      raw && typeof raw === 'object' && !Array.isArray(raw)
+        ? flatParams(raw as Record<string, unknown>)
+        : null;
+    if (
+      !data ||
+      !validHash(secret, pipeString(data, refundResponseFields), data.vnp_SecureHash) ||
+      data.vnp_RequestId !== requestId ||
+      data.vnp_TmnCode !== merchant ||
+      data.vnp_TxnRef !== reference
+    ) {
+      this.logger.warn(
+        `Refund response not usable: ResponseCode=${data?.vnp_ResponseCode ?? 'n/a'}.`,
+      );
+      throw new ServiceUnavailableException('Phản hồi hoàn tiền không hợp lệ.');
+    }
+    if (data.vnp_ResponseCode !== '00') {
+      this.logger.warn(`Refund rejected: ResponseCode=${data.vnp_ResponseCode}.`);
+      throw new ServiceUnavailableException(
+        `Cổng từ chối hoàn tiền (mã ${data.vnp_ResponseCode}).`,
+      );
+    }
+    return { requestId, payload: data };
   }
 }

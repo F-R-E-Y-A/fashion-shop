@@ -29,6 +29,34 @@ export const queryRequestFields = [
   'IpAddr',
   'OrderInfo',
 ];
+export const refundRequestFields = [
+  'RequestId',
+  'Version',
+  'Command',
+  'TmnCode',
+  'Amount',
+  'TxnRef',
+  'TransactionDate',
+  'TransactionType',
+  'CreateBy',
+  'CreateDate',
+  'IpAddr',
+  'OrderInfo',
+];
+export const refundResponseFields = [
+  'RequestId',
+  'ResponseCode',
+  'TmnCode',
+  'Amount',
+  'TxnRef',
+  'TransactionDate',
+  'TransactionType',
+  'CreateBy',
+  'CreateDate',
+  'IpAddr',
+  'OrderInfo',
+  'Message',
+];
 
 export function vnpDate(date: Date): string {
   return new Date(date.getTime() + 7 * 3600_000).toISOString().replace(/\D/gu, '').slice(0, 14);

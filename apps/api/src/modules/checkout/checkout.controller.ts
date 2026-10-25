@@ -25,6 +25,7 @@ import {
   CreateCheckoutDto,
   PreviewDto,
   ReconcileDto,
+  RefundDto,
   RetryPaymentDto,
 } from './dto/checkout.dto.js';
 import { IpnResponse, OrderResponse, QuoteResponse } from './dto/checkout.response.js';
@@ -148,5 +149,25 @@ export class MomoController {
   @Header('Cache-Control', 'no-store')
   async ipn(@Body() body: Record<string, unknown>) {
     await this.settlement.momoIpn(body);
+  }
+}
+
+/** Hoan tien la thao tac van hanh: chi ADMIN, ghi day vung payment_transactions. */
+@ApiTags('admin-payments')
+@ApiBearerAuth()
+@UseGuards(AuthGuard)
+@RequireRoles(RoleCode.ADMIN)
+@Controller('admin/payments')
+export class AdminPaymentsController {
+  constructor(private readonly checkout: CheckoutService) {}
+  @ApiCreatedResponse({ type: OrderResponse })
+  @Post(':id/refund')
+  @Header('Cache-Control', 'no-store')
+  refund(
+    @CurrentUser() user: CurrentUserType,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() input: RefundDto,
+  ) {
+    return this.checkout.refundPayment(id, user.id, input);
   }
 }

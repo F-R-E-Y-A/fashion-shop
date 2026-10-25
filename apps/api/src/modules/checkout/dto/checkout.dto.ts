@@ -24,3 +24,14 @@ export class ReconcileDto {
   @IsObject()
   params?: Record<string, string>;
 }
+export class RefundDto {
+  @ApiProperty({ required: false, example: '100000.00' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d+(\.\d{1,2})?$/u)
+  amount?: string;
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  reason?: string;
+}

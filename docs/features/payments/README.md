@@ -19,8 +19,10 @@ Bảo yêu cầu ưu tiên VNPAY, MoMo để sau: chưa có key thì MoMo không
 QueryDR ResponseCode=00 chỉ xác nhận API query thành công. TransactionStatus=00 mới là thanh toán thành công; 02/08/11 là lỗi/hết hạn/hủy. Trạng thái chưa rõ giữ pending, không mở lượt thu tiền mới ([vnpay.adapter.ts:35](../../../apps/api/src/modules/payments/vnpay.adapter.ts#L35)); nguồn bảng mã và lý do ở [LOG](LOG.md).
 
 - [Đăng ký hai cổng và cấu hình HTTPS tunnel](setup.md).
-- HTTP: [VNPAY](../../../apps/api/test/checkout-payment.http.spec.ts), [MoMo](../../../apps/api/test/checkout-momo.http.spec.ts); adapter: [VNPAY](../../../apps/api/src/modules/payments/vnpay.service.spec.ts), [MoMo](../../../apps/api/src/modules/payments/momo.adapter.spec.ts).
+- HTTP: [VNPAY](../../../apps/api/test/checkout-payment.http.spec.ts), [MoMo](../../../apps/api/test/checkout-momo.http.spec.ts), [COD](../../../apps/api/test/cod.http.spec.ts); adapter: [VNPAY](../../../apps/api/src/modules/payments/vnpay.service.spec.ts), [MoMo](../../../apps/api/src/modules/payments/momo.adapter.spec.ts).
 - [Nhật ký](LOG.md), [ADR-032](../../LOG.md#adr-032), [ADR-033](../../LOG.md#adr-033).
+
+**COD:** phương thức thứ tư luôn sẵn sàng, không cần dịch vụ ngoài — đơn `PENDING_CONFIRMATION`, giữ hàng 3 ngày, không link cổng; ADMIN chốt thu khi giao qua `POST /api/admin/../orders/:id/collect-cod` (ghi `SUCCEEDED`, chốt kho, `CONFIRMED`, giỏ trừ đúng món). **Hoàn tiền v1:** `POST /api/admin/payments/:id/refund` (ADMIN, VNPAY Refund API, full hoặc một phần) — ghi `REFUND:{requestId}` vào `payment_transactions` để idempotent, đơn chuyển `REFUNDED`/`PARTIALLY_REFUNDED`; hàng đã bán không tự trả kho, thuộc luồng đổi trả. Refund gắn hồ sơ `returns` (bảng `refunds` schema sẵn) để sau.
 
 Đã thử VNPAY PAY → thẻ NCB/OTP test → return HTTPS → QueryDR chữ ký hợp lệ → CONFIRMED/SUCCEEDED trên DB fixture riêng. Replay payload VNPAY ký thật vào IPN không bán/trừ kho lặp; sửa số tiền bị từ chối. Không coi replay là bằng chứng VNPAY chủ động gửi IPN: phần đó còn cần đăng ký endpoint bên nhà cung cấp. Lệnh/output/SHA lưu ngoài repo theo quy ước.
 

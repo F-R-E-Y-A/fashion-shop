@@ -14,6 +14,12 @@ export interface PaymentEvent {
   receipt: string;
   raw: Record<string, string>;
 }
+export interface RefundRequest {
+  reference: string;
+  checkoutUrl: string;
+  amount: string;
+  actor: string;
+}
 export interface PaymentGateway {
   readonly code: GatewayCode;
   readonly label: string;
@@ -26,4 +32,6 @@ export interface PaymentGateway {
   notification(raw: Record<string, unknown>): PaymentEvent | null;
   matches(event: PaymentEvent, reference: string, amount: string): boolean;
   query(reference: string, checkoutUrl: string | null): Promise<PaymentEvent | null>;
+  /** Hoan tien phia cong; tung adapter tu quyet dinh ho tro hay khong (VNPAY Refund API). */
+  refund?(input: RefundRequest): Promise<{ requestId: string; payload: Record<string, string> }>;
 }

@@ -8,6 +8,7 @@ import { PaymentsModule } from '../payments/index.js';
 import { ShippingModule } from '../shipping/index.js';
 import { UsersModule } from '../users/index.js';
 import {
+  AdminPaymentsController,
   CheckoutController,
   MomoController,
   OrdersController,
@@ -26,6 +27,12 @@ import { SettlementService } from './settlement.service.js';
     UsersModule,
   ],
   providers: [CheckoutService, SettlementService],
-  controllers: [CheckoutController, OrdersController, VnpayController, MomoController],
+  controllers: [
+    CheckoutController,
+    OrdersController,
+    VnpayController,
+    MomoController,
+    AdminPaymentsController,
+  ],
 })
 export class CheckoutModule {}

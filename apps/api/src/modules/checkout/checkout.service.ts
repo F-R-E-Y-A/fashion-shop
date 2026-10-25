@@ -300,6 +300,69 @@ export class CheckoutService {
     return this.view(await this.orders.get(id, initial.userId));
   }
 
+  /**
+   * Hoan tien (VNPAY Refund API, v1 chi full-remaining hoac mot phan theo amount).
+   * Ghi transaction REFUND:{requestId} de idempotent; don chuyen REFUNDED/PARTIALLY_REFUNDED.
+   * Hang hoa da ban khong tu tra kho — thuoc luong doi tra rieng (Return).
+   */
+  async refundPayment(
+    paymentId: string,
+    actor: string,
+    input: { amount?: string; reason?: string },
+  ) {
+    const payment = await this.prisma.payment.findUnique({ where: { id: paymentId } });
+    if (!payment) throw new ConflictException('Không tìm thấy thanh toán.');
+    const order = await this.orders.get(payment.orderId);
+    if (!order.userId) throw new ConflictException('Đơn không có chủ sở hữu.');
+    if (payment.status !== 'SUCCEEDED')
+      throw new ConflictException('Chỉ hoàn tiền cho thanh toán đã thành công.');
+    if (!['CONFIRMED', 'PAYMENT_REVIEW', 'DELIVERED'].includes(order.status))
+      throw new ConflictException('Đơn không ở trạng thái cho phép hoàn tiền.');
+    const adapter = this.payments.gateways.get(payment.gateway as GatewayCode);
+    if (!adapter.refund)
+      throw new ConflictException(`Cổng ${payment.gateway} chưa hỗ trợ hoàn tiền tự động.`);
+    const prior = await this.prisma.paymentTransaction.findMany({
+      where: { paymentId: payment.id, externalTransactionId: { startsWith: 'REFUND:' } },
+    });
+    const refunded = prior.reduce(
+      (sum, row) =>
+        sum.plus(
+          new Decimal(((row.payload as { vnp_Amount?: string })?.vnp_Amount ?? '0') as string).div(
+            100,
+          ),
+        ),
+      new Decimal(0),
+    );
+    const remaining = payment.amount.minus(refunded);
+    if (remaining.lte(0)) throw new ConflictException('Thanh toán đã được hoàn đủ.');
+    const amount = new Decimal(input.amount ?? remaining.toFixed(2));
+    if (amount.lte(0) || amount.gt(remaining))
+      throw new ConflictException(
+        `Số hoàn tối đa là ${remaining.toFixed(2)}. Sử dụng số nhỏ hơn hoặc bằng.`,
+      );
+    // Goi cong NGOAI transaction; ket qua hop le moi ghi.
+    const { requestId, payload } = await adapter.refund({
+      reference: payment.reference!,
+      checkoutUrl: payment.checkoutUrl!,
+      amount: amount.toFixed(2),
+      actor,
+    });
+    const full = amount.eq(remaining);
+    await this.withOrder(order.id, order.userId, async (current, tx) => {
+      await tx.paymentTransaction.create({
+        data: {
+          paymentId: payment.id,
+          gateway: payment.gateway!,
+          externalTransactionId: `REFUND:${requestId}`,
+          status: 'PROCESSED',
+          payload: { ...payload, reason: input.reason ?? null, refundedAmount: amount.toFixed(2) },
+        },
+      });
+      await this.orders.transition(current.id, full ? 'REFUNDED' : 'PARTIALLY_REFUNDED', tx, actor);
+    });
+    return this.view(await this.orders.get(order.id, order.userId));
+  }
+
   async retry(id: string, userId: string, key: string, ip: string) {
     await this.withOrder(id, userId, async (order, tx) => {
       if (
