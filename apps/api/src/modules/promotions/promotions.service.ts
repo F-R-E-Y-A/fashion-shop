@@ -9,9 +9,19 @@ import { Decimal } from 'decimal.js';
 import { PageQuery } from '../../common/pagination/page.query.js';
 import { skipOf, toPage } from '../../common/pagination/page.response.js';
 import { Prisma } from '../../generated/prisma/client.js';
-import { DiscountType, PromotionStatus, VoucherStatus } from '../../generated/prisma/enums.js';
+import {
+  DiscountType,
+  OrderStatus,
+  PromotionStatus,
+  VoucherStatus,
+} from '../../generated/prisma/enums.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { CreateVoucherDto } from './dto/create-voucher.dto.js';
+import {
+  EvaluatedPromotionItem,
+  EvaluatePromotionsDto,
+  EvaluatePromotionsResponse,
+} from './dto/evaluate-promotions.dto.js';
 import { ListVouchersQuery } from './dto/list-vouchers.query.js';
 import {
   CreatePromotionDto,
@@ -25,10 +35,20 @@ import {
   VoucherListResponse,
   VoucherResponse,
 } from './dto/voucher.response.js';
+import {
+  type CustomerMetrics,
+  CustomerSegment,
+  CustomerSegmentRule,
+  type PromotionContext,
+  PromotionEvaluatorService,
+} from './engine/index.js';
 
 @Injectable()
 export class PromotionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly evaluator: PromotionEvaluatorService = new PromotionEvaluatorService(),
+  ) {}
 
   /**
    * Tinh toan so tien giam va kiem tra tinh hop le cua voucher (UC-07.2).
@@ -88,6 +108,42 @@ export class PromotionsService {
       if (userUsageCount >= voucher.perUserLimit) {
         throw new BadRequestException(
           'Bạn đã dùng hết số lượt áp dụng cho phép của mã giảm giá này',
+        );
+      }
+    }
+
+    if (voucher.code === 'CHAOBANMOI') {
+      if (userId) {
+        const metrics = await this.getCustomerMetrics(userId);
+        const segmentRule = new CustomerSegmentRule({ segment: CustomerSegment.NEW_CUSTOMER });
+        const result = segmentRule.isSatisfiedBy({
+          userId,
+          subtotal,
+          now,
+          customerMetrics: metrics,
+        });
+        if (!result.passed) {
+          throw new BadRequestException(
+            result.reason ?? 'Mã CHAOBANMOI chỉ áp dụng cho đơn hàng đầu tiên của khách hàng mới',
+          );
+        }
+      }
+    } else if (voucher.code === 'FREYAVIP') {
+      if (!userId) {
+        throw new BadRequestException('Vui lòng đăng nhập tài khoản VIP để áp dụng mã FREYAVIP');
+      }
+      const metrics = await this.getCustomerMetrics(userId);
+      const segmentRule = new CustomerSegmentRule({ segment: CustomerSegment.VIP_CUSTOMER });
+      const result = segmentRule.isSatisfiedBy({
+        userId,
+        subtotal,
+        now,
+        customerMetrics: metrics,
+      });
+      if (!result.passed) {
+        throw new BadRequestException(
+          result.reason ??
+            'Mã FREYAVIP chỉ áp dụng cho khách hàng hạng VIP (chi tiêu từ 2.000.000đ hoặc từ 3 đơn hàng)',
         );
       }
     }
@@ -617,6 +673,159 @@ export class PromotionsService {
     });
 
     return this.mapPromotionToResponse(updated);
+  }
+
+  async getPromotionById(id: string): Promise<PromotionResponse> {
+    const promo = await this.prisma.promotion.findUnique({ where: { id } });
+    if (!promo) {
+      throw new NotFoundException('Không tìm thấy chương trình khuyến mãi');
+    }
+    return this.mapPromotionToResponse(promo);
+  }
+
+  async deletePromotion(id: string): Promise<{ ok: boolean; message: string }> {
+    const promo = await this.prisma.promotion.findUnique({ where: { id } });
+    if (!promo) {
+      throw new NotFoundException('Không tìm thấy chương trình khuyến mãi');
+    }
+    await this.prisma.promotion.update({
+      where: { id },
+      data: { status: PromotionStatus.INACTIVE },
+    });
+    return {
+      ok: true,
+      message: 'Đã chuyển trạng thái chương trình khuyến mãi sang ngưng hoạt động (INACTIVE)',
+    };
+  }
+
+  /**
+   * Tính toán các chỉ số khách hàng phục vụ phân khúc (NEW, VIP, LOYAL).
+   */
+  async getCustomerMetrics(userId: string): Promise<CustomerMetrics> {
+    const [orderCount, sumAggregate] = await Promise.all([
+      this.prisma.order.count({
+        where: {
+          userId,
+          status: {
+            in: [
+              OrderStatus.CONFIRMED,
+              OrderStatus.PROCESSING,
+              OrderStatus.SHIPPED,
+              OrderStatus.DELIVERED,
+            ],
+          },
+        },
+      }),
+      this.prisma.order.aggregate({
+        where: {
+          userId,
+          status: {
+            in: [
+              OrderStatus.CONFIRMED,
+              OrderStatus.PROCESSING,
+              OrderStatus.SHIPPED,
+              OrderStatus.DELIVERED,
+            ],
+          },
+        },
+        _sum: {
+          totalAmount: true,
+        },
+      }),
+    ]);
+
+    const totalSpent = sumAggregate._sum.totalAmount ?? new Decimal(0);
+    const isNewCustomer = orderCount === 0;
+    const isVipCustomer = totalSpent.gte(2_000_000) || orderCount >= 3;
+
+    return {
+      orderCount,
+      totalSpent,
+      isNewCustomer,
+      isVipCustomer,
+    };
+  }
+
+  /**
+   * Đánh giá toàn bộ chương trình khuyến mãi động khả dụng cho giỏ hàng.
+   */
+  async evaluateCart(
+    dto: EvaluatePromotionsDto,
+    userId?: string,
+  ): Promise<EvaluatePromotionsResponse> {
+    const subtotal = new Decimal(dto.subtotal);
+    if (subtotal.lte(0)) {
+      throw new BadRequestException('Giá trị giỏ hàng phải lớn hơn 0 để tính toán khuyến mãi');
+    }
+
+    const now = new Date();
+    let customerMetrics: CustomerMetrics | undefined;
+    if (userId) {
+      customerMetrics = await this.getCustomerMetrics(userId);
+    }
+
+    const context: PromotionContext = {
+      userId,
+      subtotal,
+      items: dto.items?.map((item) => ({
+        variantId: item.variantId,
+        categorySlug: item.categorySlug,
+        price: new Decimal(item.price),
+        quantity: item.quantity,
+      })),
+      now,
+      customerMetrics,
+    };
+
+    const activePromotions = await this.prisma.promotion.findMany({
+      where: {
+        status: PromotionStatus.ACTIVE,
+        OR: [{ startsAt: null }, { startsAt: { lte: now } }],
+        AND: [{ OR: [{ endsAt: null }, { endsAt: { gte: now } }] }],
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const applicablePromotions: EvaluatedPromotionItem[] = [];
+
+    for (const promo of activePromotions) {
+      const evalResult = await this.evaluator.evaluateCandidate(
+        {
+          id: promo.id,
+          name: promo.name,
+          discountType: promo.discountType,
+          discountValue: promo.discountValue,
+          maxDiscountAmount: promo.maxDiscountAmount,
+          minOrderAmount: promo.minOrderAmount,
+          conditions: promo.conditions as Record<string, unknown> | null,
+        },
+        context,
+      );
+
+      if (evalResult.eligible && evalResult.evaluated) {
+        applicablePromotions.push({
+          promotionId: evalResult.evaluated.promotionId,
+          name: evalResult.evaluated.name,
+          discountType: evalResult.evaluated.discountType,
+          discountAmount: evalResult.evaluated.discountAmount.toFixed(0),
+          finalAmount: evalResult.evaluated.finalAmount.toFixed(0),
+          breakdown: evalResult.evaluated.breakdown,
+        });
+      }
+    }
+
+    let bestPromotion: EvaluatedPromotionItem | null = null;
+    if (applicablePromotions.length > 0) {
+      bestPromotion = applicablePromotions.reduce((prev, curr) =>
+        new Decimal(curr.discountAmount).gt(new Decimal(prev.discountAmount)) ? curr : prev,
+      );
+    }
+
+    return {
+      subtotal: subtotal.toFixed(0),
+      applicablePromotions,
+      bestPromotion,
+    };
   }
 
   // ================= HELPER FORMATTERS =================

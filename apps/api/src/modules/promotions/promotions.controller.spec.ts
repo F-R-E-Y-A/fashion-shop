@@ -10,6 +10,7 @@ describe('PromotionsController (Storefront - UC-07.2)', () => {
     validateVoucher: ReturnType<typeof vi.fn>;
     getAvailableVouchers: ReturnType<typeof vi.fn>;
     getActivePromotions: ReturnType<typeof vi.fn>;
+    evaluateCart: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
@@ -17,6 +18,7 @@ describe('PromotionsController (Storefront - UC-07.2)', () => {
       validateVoucher: vi.fn(),
       getAvailableVouchers: vi.fn(),
       getActivePromotions: vi.fn(),
+      evaluateCart: vi.fn(),
     };
     controller = new PromotionsController(service as unknown as PromotionsService);
   });
@@ -51,5 +53,19 @@ describe('PromotionsController (Storefront - UC-07.2)', () => {
     service.getActivePromotions.mockResolvedValue([]);
     await controller.getActivePromotions();
     expect(service.getActivePromotions).toHaveBeenCalled();
+  });
+
+  it('gọi service.evaluateCart khi đánh giá khuyến mãi giỏ hàng', async () => {
+    service.evaluateCart.mockResolvedValue({
+      subtotal: '500000',
+      applicablePromotions: [],
+      bestPromotion: null,
+    });
+    const res = await controller.evaluate(
+      { subtotal: '500000' },
+      { id: 'user-1', email: 'test@example.com', roles: ['CUSTOMER'] },
+    );
+    expect(service.evaluateCart).toHaveBeenCalledWith({ subtotal: '500000' }, 'user-1');
+    expect(res.subtotal).toBe('500000');
   });
 });

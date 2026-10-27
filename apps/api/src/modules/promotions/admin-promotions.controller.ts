@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { PageQuery } from '../../common/pagination/page.query.js';
@@ -31,6 +41,13 @@ export class AdminPromotionsController {
     return this.promotionsService.createPromotion(dto);
   }
 
+  @Get(':id')
+  @ApiOperation({ summary: 'Chi tiết chương trình khuyến mãi (Admin - UC-10.1)' })
+  @ApiOkResponse({ type: PromotionResponse })
+  async getById(@Param('id', ParseUUIDPipe) id: string): Promise<PromotionResponse> {
+    return this.promotionsService.getPromotionById(id);
+  }
+
   @Patch(':id')
   @ApiOperation({ summary: 'Cập nhật chương trình khuyến mãi (Admin - UC-10.1)' })
   @ApiOkResponse({ type: PromotionResponse })
@@ -39,5 +56,11 @@ export class AdminPromotionsController {
     @Body() dto: UpdatePromotionDto,
   ): Promise<PromotionResponse> {
     return this.promotionsService.updatePromotion(id, dto);
+  }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Ngưng kích hoạt chương trình khuyến mãi (Admin - UC-10.1)' })
+  async delete(@Param('id', ParseUUIDPipe) id: string) {
+    return this.promotionsService.deletePromotion(id);
   }
 }

@@ -2,6 +2,10 @@ import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@n
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, type CurrentUserType } from '../auth/index.js';
+import {
+  EvaluatePromotionsDto,
+  EvaluatePromotionsResponse,
+} from './dto/evaluate-promotions.dto.js';
 import { PromotionResponse } from './dto/promotion.dto.js';
 import { ValidateVoucherDto } from './dto/validate-voucher.dto.js';
 import { VoucherApplyResult, VoucherResponse } from './dto/voucher.response.js';
@@ -13,6 +17,21 @@ import { PromotionsService } from './promotions.service.js';
 @UseGuards(OptionalAuthGuard)
 export class PromotionsController {
   constructor(private readonly promotionsService: PromotionsService) {}
+
+  @Post('evaluate')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Đánh giá các chương trình khuyến mãi tự động cho giỏ hàng',
+    description:
+      'Đánh giá các điều kiện khuyến mãi (nhóm khách hàng, giá trị đơn, danh mục) và đề xuất ưu đãi tốt nhất.',
+  })
+  @ApiOkResponse({ type: EvaluatePromotionsResponse })
+  async evaluate(
+    @Body() dto: EvaluatePromotionsDto,
+    @CurrentUser() user?: CurrentUserType,
+  ): Promise<EvaluatePromotionsResponse> {
+    return this.promotionsService.evaluateCart(dto, user?.id);
+  }
 
   @Post('vouchers/apply')
   @HttpCode(HttpStatus.OK)

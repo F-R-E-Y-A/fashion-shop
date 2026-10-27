@@ -46,17 +46,24 @@ describe('UC-07.2 & UC-10.1 & UC-10.2 Promotions & Vouchers HTTP & Concurrency',
     return flows.activateAndLogin(CUSTOMER_EMAIL);
   }
 
-  async function createDummyOrder(codeSuffix: string, customerEmail = 'khach@example.test') {
+  async function createDummyOrder(
+    codeSuffix: string,
+    customerEmail = 'khach@example.test',
+    userId?: string,
+    status: 'PENDING_CONFIRMATION' | 'CONFIRMED' | 'DELIVERED' = 'PENDING_CONFIRMATION',
+    totalAmount = new Decimal(530000),
+  ) {
     return t.prisma.order.create({
       data: {
         orderCode: `ORD-${Date.now()}-${codeSuffix}`,
         customerEmail,
-        status: 'PENDING_CONFIRMATION',
+        userId: userId ?? null,
+        status,
         shippingAddressSnapshot: {},
-        subtotalAmount: new Decimal(500000),
+        subtotalAmount: totalAmount.sub(30000),
         discountAmount: new Decimal(0),
         shippingFeeAmount: new Decimal(30000),
-        totalAmount: new Decimal(530000),
+        totalAmount,
       },
     });
   }
@@ -247,6 +254,253 @@ describe('UC-07.2 & UC-10.1 & UC-10.2 Promotions & Vouchers HTTP & Concurrency',
         where: { voucherId: voucher.id, userId: customer.id },
       });
       expect(usages).toHaveLength(1);
+    });
+  });
+
+  describe('Customer Segmentation Engine (NEW_CUSTOMER & VIP_CUSTOMER)', () => {
+    it('áp dụng thành công CHAOBANMOI cho khách hàng mới (0 đơn hàng)', async () => {
+      const customer = await customerSession();
+
+      await t.prisma.voucher.create({
+        data: {
+          code: 'CHAOBANMOI',
+          status: VoucherStatus.ACTIVE,
+          discountType: DiscountType.FIXED_AMOUNT,
+          discountValue: new Decimal(30000),
+          minOrderAmount: new Decimal(150000),
+        },
+      });
+
+      const res = await t.http
+        .post('/api/promotions/vouchers/apply')
+        .set(bearer(customer.accessToken))
+        .send({
+          code: 'CHAOBANMOI',
+          subtotal: '200000',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.valid).toBe(true);
+      expect(res.body.discountAmount).toBe('30000');
+    });
+
+    it('từ chối CHAOBANMOI khi khách hàng đã có đơn hàng hoàn tất', async () => {
+      const customer = await customerSession();
+
+      await t.prisma.voucher.create({
+        data: {
+          code: 'CHAOBANMOI',
+          status: VoucherStatus.ACTIVE,
+          discountType: DiscountType.FIXED_AMOUNT,
+          discountValue: new Decimal(30000),
+          minOrderAmount: new Decimal(150000),
+        },
+      });
+
+      await createDummyOrder('OLD-CUST', CUSTOMER_EMAIL, customer.id, 'DELIVERED');
+
+      const res = await t.http
+        .post('/api/promotions/vouchers/apply')
+        .set(bearer(customer.accessToken))
+        .send({
+          code: 'CHAOBANMOI',
+          subtotal: '200000',
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain('đơn hàng đầu tiên');
+    });
+
+    it('từ chối FREYAVIP khi khách chưa đạt điều kiện chi tiêu VIP', async () => {
+      const customer = await customerSession();
+
+      await t.prisma.voucher.create({
+        data: {
+          code: 'FREYAVIP',
+          status: VoucherStatus.ACTIVE,
+          discountType: DiscountType.PERCENTAGE,
+          discountValue: new Decimal(20),
+          maxDiscountAmount: new Decimal(100000),
+          minOrderAmount: new Decimal(400000),
+        },
+      });
+
+      // Đã có đơn nhưng chỉ 500k (< 2M)
+      await createDummyOrder(
+        'SMALL-ORD',
+        CUSTOMER_EMAIL,
+        customer.id,
+        'DELIVERED',
+        new Decimal(500000),
+      );
+
+      const res = await t.http
+        .post('/api/promotions/vouchers/apply')
+        .set(bearer(customer.accessToken))
+        .send({
+          code: 'FREYAVIP',
+          subtotal: '500000',
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toContain('VIP');
+    });
+
+    it('áp dụng thành công FREYAVIP khi khách hàng đã chi tiêu >= 2.000.000đ', async () => {
+      const customer = await customerSession();
+
+      await t.prisma.voucher.create({
+        data: {
+          code: 'FREYAVIP',
+          status: VoucherStatus.ACTIVE,
+          discountType: DiscountType.PERCENTAGE,
+          discountValue: new Decimal(20),
+          maxDiscountAmount: new Decimal(100000),
+          minOrderAmount: new Decimal(400000),
+        },
+      });
+
+      // Đạt 2.500.000đ chi tiêu
+      await createDummyOrder(
+        'BIG-ORD',
+        CUSTOMER_EMAIL,
+        customer.id,
+        'DELIVERED',
+        new Decimal(2500000),
+      );
+
+      const res = await t.http
+        .post('/api/promotions/vouchers/apply')
+        .set(bearer(customer.accessToken))
+        .send({
+          code: 'FREYAVIP',
+          subtotal: '600000',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.valid).toBe(true);
+      expect(res.body.discountAmount).toBe('100000'); // 20% cua 600k la 120k, bi cap 100k
+    });
+  });
+
+  describe('Dynamic Cart Evaluation (POST /api/promotions/evaluate)', () => {
+    it('tính toán khuyến mãi động nhiều bậc (TieredDiscountStrategy) cho giỏ hàng', async () => {
+      await t.prisma.promotion.create({
+        data: {
+          name: 'Khuyến mãi bậc thang mùa đông',
+          status: 'ACTIVE',
+          discountType: DiscountType.PERCENTAGE,
+          discountValue: new Decimal(10),
+          conditions: {
+            type: 'AND',
+            rules: [{ type: 'CATEGORY', categorySlugs: ['ao-khoac'] }],
+            tiers: [
+              { minAmount: 300000, discount: 30000 },
+              { minAmount: 600000, discount: 70000 },
+              { minAmount: 1000000, discount: 150000 },
+            ],
+          },
+        },
+      });
+
+      // Mức 1: Tạm tính 400.000đ -> nhận giảm 30.000đ
+      const resTier1 = await t.http.post('/api/promotions/evaluate').send({
+        subtotal: '400000',
+        items: [
+          {
+            variantId: '00000000-0000-4000-8000-000000000001',
+            categorySlug: 'ao-khoac',
+            price: '400000',
+            quantity: 1,
+          },
+        ],
+      });
+
+      expect(resTier1.status).toBe(200);
+      expect(resTier1.body.applicablePromotions).toHaveLength(1);
+      expect(resTier1.body.bestPromotion.discountAmount).toBe('30000');
+      expect(resTier1.body.bestPromotion.finalAmount).toBe('370000');
+
+      // Mức 2: Tạm tính 700.000đ -> nhận giảm 70.000đ
+      const resTier2 = await t.http.post('/api/promotions/evaluate').send({
+        subtotal: '700000',
+        items: [
+          {
+            variantId: '00000000-0000-4000-8000-000000000001',
+            categorySlug: 'ao-khoac',
+            price: '700000',
+            quantity: 1,
+          },
+        ],
+      });
+
+      expect(resTier2.status).toBe(200);
+      expect(resTier2.body.bestPromotion.discountAmount).toBe('70000');
+
+      // Trường hợp không có sản phẩm khớp danh mục quy định
+      const resNoMatch = await t.http.post('/api/promotions/evaluate').send({
+        subtotal: '700000',
+        items: [
+          {
+            variantId: '00000000-0000-4000-8000-000000000002',
+            categorySlug: 'phu-kien',
+            price: '700000',
+            quantity: 1,
+          },
+        ],
+      });
+
+      expect(resNoMatch.status).toBe(200);
+      expect(resNoMatch.body.applicablePromotions).toHaveLength(0);
+      expect(resNoMatch.body.bestPromotion).toBeNull();
+    });
+  });
+
+  describe('Admin Promotion CRUD & Dynamic Conditions Management (UC-10.1)', () => {
+    it('Admin tạo, xem chi tiết và ngưng kích hoạt khuyến mãi với conditions JSON', async () => {
+      const admin = await adminSession();
+
+      // 1. Tạo khuyến mãi với JSONB conditions
+      const createRes = await t.http
+        .post('/api/admin/promotions')
+        .set(bearer(admin.accessToken))
+        .send({
+          name: 'Flash Sale Black Friday',
+          discountType: DiscountType.PERCENTAGE,
+          discountValue: '25',
+          maxDiscountAmount: '200000',
+          minOrderAmount: '500000',
+          conditions: {
+            type: 'AND',
+            rules: [
+              { type: 'MIN_ITEM_COUNT', minItems: 2 },
+              { type: 'CUSTOMER_SEGMENT', segment: 'VIP_CUSTOMER' },
+            ],
+          },
+        });
+
+      expect(createRes.status).toBe(201);
+      const promoId = createRes.body.id;
+      expect(createRes.body.conditions.type).toBe('AND');
+
+      // 2. Lấy chi tiết khuyến mãi
+      const getRes = await t.http
+        .get(`/api/admin/promotions/${promoId}`)
+        .set(bearer(admin.accessToken));
+
+      expect(getRes.status).toBe(200);
+      expect(getRes.body.name).toBe('Flash Sale Black Friday');
+
+      // 3. Ngưng kích hoạt qua DELETE
+      const deleteRes = await t.http
+        .delete(`/api/admin/promotions/${promoId}`)
+        .set(bearer(admin.accessToken));
+
+      expect(deleteRes.status).toBe(200);
+      expect(deleteRes.body.ok).toBe(true);
+
+      const checkInactive = await t.prisma.promotion.findUnique({ where: { id: promoId } });
+      expect(checkInactive?.status).toBe('INACTIVE');
     });
   });
 });
