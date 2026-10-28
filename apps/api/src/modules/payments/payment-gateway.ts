@@ -19,6 +19,8 @@ export interface RefundRequest {
   checkoutUrl: string;
   amount: string;
   actor: string;
+  /** 02 hoan toan phan con lai, 03 hoan mot phan — VNPAY yeu cau dung loai. */
+  full: boolean;
 }
 export interface PaymentGateway {
   readonly code: GatewayCode;

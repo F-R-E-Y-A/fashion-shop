@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsObject, IsOptional, IsString, IsUUID, Matches } from 'class-validator';
+import { IsIn, IsObject, IsOptional, IsString, IsUUID, Length, Matches } from 'class-validator';
 
 import { type GatewayCode, gatewayCodes } from '../../payments/index.js';
 
@@ -34,4 +34,14 @@ export class RefundDto {
   @IsOptional()
   @IsString()
   reason?: string;
+}
+/** Admin chot lenh hoan chua ro ket qua sau khi doi chieu tren cong (merchant portal). */
+export class ResolveRefundDto {
+  @ApiProperty({ enum: ['SUCCEEDED', 'FAILED'] })
+  @IsIn(['SUCCEEDED', 'FAILED'])
+  outcome!: 'SUCCEEDED' | 'FAILED';
+  @ApiProperty({ example: 'Đối chiếu merchant portal: chưa có giao dịch hoàn.' })
+  @IsString()
+  @Length(1, 500)
+  note!: string;
 }

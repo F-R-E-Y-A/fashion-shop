@@ -36,7 +36,13 @@ export class VnpayAdapter implements PaymentGateway {
     return data ? this.event(data) : null;
   }
   refund(input: RefundRequest) {
-    return this.service.refund(input.reference, input.checkoutUrl, input.amount, input.actor);
+    return this.service.refund(
+      input.reference,
+      input.checkoutUrl,
+      input.amount,
+      input.actor,
+      input.full,
+    );
   }
   private event(raw: Record<string, string>): PaymentEvent {
     const success = raw.vnp_ResponseCode === '00' && raw.vnp_TransactionStatus === '00';

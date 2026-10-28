@@ -154,6 +154,7 @@ export class VnpayService {
     checkoutUrl: string,
     amount: string,
     actor: string,
+    full = true,
   ): Promise<{ requestId: string; payload: VnpParams }> {
     const { merchant, secret } = this.credentials();
     const requestId = randomUUID().replaceAll('-', '');
@@ -165,7 +166,7 @@ export class VnpayService {
       vnp_Amount: new Decimal(amount).times(100).toFixed(0),
       vnp_TxnRef: reference,
       vnp_TransactionDate: new URL(checkoutUrl).searchParams.get('vnp_CreateDate')!,
-      vnp_TransactionType: '02',
+      vnp_TransactionType: full ? '02' : '03',
       vnp_CreateBy: actor,
       vnp_CreateDate: vnpDate(new Date()),
       vnp_IpAddr: '127.0.0.1',

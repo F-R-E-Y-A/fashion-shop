@@ -1,6 +1,6 @@
 ---
 title: Checkout — luồng PH-11
-updated: 2026-10-20
+updated: 2026-10-28
 status: ưu tiên VNPAY sandbox, MoMo để sau
 owner: Bảo
 ---
@@ -46,4 +46,4 @@ Worker chỉ hoạt động khi API đang chạy; khởi động lại quét dea
 
 Theo phạm vi mới của Bảo, hiện cấu hình VNPAY; checkout ẩn MoMo khi chưa có key. VNPAY PAY/OTP/return và QueryDR có chữ ký đã được nghiệm thu trên HTTPS với DB riêng; IPN thử bằng replay payload hợp lệ, chưa xác minh VNPAY chủ động gọi IPN đã đăng ký. MoMo chưa nghiệm thu cổng thật. Ngày 19/10 chạy trọn luồng trên app với DB clone riêng: khách vãng lai thêm hàng → đăng nhập gộp giỏ → thêm địa chỉ → checkout 79.000đ → VNPAY NCB/OTP → worker QueryDR → `CONFIRMED`, tồn 5→4, một SALE, giỏ trừ đúng món. Tồn nạp bằng `stock:import`.
 
-`PAYMENT_REVIEW` yêu cầu khách không thanh toán lại, liên hệ shop kèm mã đơn; chưa tự động refund hoặc có màn quản trị hoàn tiền. SOAP không thuộc luồng cơ bản này.
+`PAYMENT_REVIEW` yêu cầu khách không thanh toán lại, liên hệ shop kèm mã đơn; ADMIN hoàn qua API ([payments/README.md](../payments/README.md)), chưa tự động hoàn và chưa có màn quản trị. SOAP không thuộc luồng cơ bản này.

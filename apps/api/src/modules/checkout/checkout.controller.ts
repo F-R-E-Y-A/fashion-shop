@@ -26,6 +26,7 @@ import {
   PreviewDto,
   ReconcileDto,
   RefundDto,
+  ResolveRefundDto,
   RetryPaymentDto,
 } from './dto/checkout.dto.js';
 import { IpnResponse, OrderResponse, QuoteResponse } from './dto/checkout.response.js';
@@ -169,5 +170,15 @@ export class AdminPaymentsController {
     @Body() input: RefundDto,
   ) {
     return this.checkout.refundPayment(id, user.id, input);
+  }
+  @ApiCreatedResponse({ type: OrderResponse })
+  @Post(':id/refund/resolve')
+  @Header('Cache-Control', 'no-store')
+  resolveRefund(
+    @CurrentUser() user: CurrentUserType,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() input: ResolveRefundDto,
+  ) {
+    return this.checkout.resolveRefund(id, user.id, input);
   }
 }

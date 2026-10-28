@@ -1,6 +1,6 @@
 ---
 title: Payments — nhật ký
-updated: 2026-10-18
+updated: 2026-10-28
 status: đang dùng
 owner: Bảo
 ---
@@ -41,3 +41,31 @@ Thử PAY/NCB/OTP thật trên DB fixture qua HTTPS phát hiện worker một ph
 QueryDR của giao dịch hủy thực tế trả ResponseCode=00 (query thành công) và TransactionStatus=11 (giao dịch bị hủy), có HMAC hợp lệ. Bảng 2.5.7.2 trang 36 của [đặc tả chính thức](https://sandbox.vnpayment.vn/apis/files/VNPAY%20Payment%20Gateway_Techspec%20Post%20method%202.1.0-VN.pdf) xác nhận 08 quá thời gian, 11 hủy; 09 là hoàn tiền bị từ chối, không phải thất bại thanh toán. Adapter dùng FAILED cho 02/08/11, giữ 09 và trạng thái chưa rõ ở PENDING để không cho tạo lượt thu tiền mới khi chưa chắc chắn ([vnpay.adapter.ts:40](../../../apps/api/src/modules/payments/vnpay.adapter.ts#L40)).
 
 Thêm [adapter contract tests](../../../apps/api/src/modules/payments/vnpay.adapter.spec.ts) và ca HTTP query-hủy-thử lại cùng deadline. Không dùng ResponseCode trên URL trình duyệt để quyết định trạng thái tiền.
+
+<a id="adr-036"></a>
+## 2026-10-28 · ADR-036 — Hoàn tiền giữ lệnh chờ dưới khoá đơn và chỉ ghi sổ khi cổng trả 00
+
+**Loại:** quyết định · **Phạm vi:** Payments, Checkout (PH-11), ADMIN vận hành · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- Trước sửa, mọi kiểm tra của `refundPayment` chạy ngoài khoá và khoá đơn chỉ lấy sau khi đã gọi cổng: hai lệnh song song cùng thấy số còn lại và cùng gọi Refund API ([checkout.service.ts:313-364 tại c7c59ba](https://github.com/F-R-E-Y-A/fashion-shop/blob/c7c59ba/apps/api/src/modules/checkout/checkout.service.ts#L313-L364)).
+- Gọi cổng timeout 8 giây ([vnpay.service.ts:185](../../../apps/api/src/modules/payments/vnpay.service.ts#L185)); lần thử lại tạo `vnp_RequestId` mới nên có thể hoàn trùng.
+- Đơn `PARTIALLY_REFUNDED` không nằm trong danh sách được hoàn; tổng đã hoàn cộng `vnp_Amount`, chỉ đúng với VNPAY.
+- [Đặc tả VNPAY 2.1.0](https://sandbox.vnpayment.vn/apis/files/VNPAY%20Payment%20Gateway_Techspec%20Post%20method%202.1.0-VN.pdf) mục 2.5.5 (trang 21–26) không nói mã phản hồi refund nào chắc chắn là "chưa hoàn"; [bảng mã lỗi](https://sandbox.vnpayment.vn/apis/docs/bang-ma-loi/) đã có link ở [setup.md](setup.md) nhưng chưa đối chiếu cho refund. Trang 22 ghi `02` hoàn toàn phần, `03` hoàn một phần.
+- Cũng theo trang 23 và 26, chuỗi ký request refund là `RequestId|Version|Command|TmnCode|TransactionType|TxnRef|Amount|TransactionNo|TransactionDate|CreateBy|CreateDate|IpAddr|OrderInfo` và phản hồi mang `vnp_ResponseId`, ký `ResponseId|Command|ResponseCode|Message|TmnCode|TxnRef|Amount|BankCode|PayDate|TransactionNo|TransactionType|TransactionStatus|OrderInfo`. Mã hiện ký theo thứ tự khác, thiếu `TransactionNo` và đòi `vnp_RequestId` trong phản hồi ([vnpay-signature.ts:32-58](../../../apps/api/src/modules/payments/vnpay-signature.ts#L32-L58)), nên với cổng thật lệnh hoàn sẽ không thành công (suy luận từ đặc tả, chưa thử sandbox). Nhờ quyết định này, lệnh đó chỉ nằm chờ đối soát, không ghi sai sổ; sửa chữ ký là việc riêng.
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Bảng `refunds` có sẵn | Sổ riêng, đúng mô hình | `return_id` bắt buộc, phải migration và gắn luồng đổi trả chưa có | Được, nhưng tốn migration |
+| **B. Lệnh `REFUND-INTENT:*` trong `payment_transactions`, claim dưới khoá đơn (chọn)** | Không migration; cùng cơ chế advisory lock như `pending()`; fail closed | Lệnh chưa rõ chặn hoàn tiếp tới khi ADMIN chốt tay | Được: chuyển sổ sang `refunds` khi làm đổi trả |
+| Không làm gì | — | Hoàn trùng khi bấm lặp hoặc timeout | — |
+
+**Chọn B.** Ba bước: dưới khoá đơn kiểm và ghi lệnh `RECEIVED`; gọi cổng ngoài transaction; dưới khoá đơn ghi `REFUND:{requestId}`, lệnh `PROCESSED`, chuyển đơn theo tổng sổ. Mọi kết quả khác `00` (timeout, sai chữ ký, mã lỗi) giữ lệnh `RECEIVED` và trả 503 `REFUND_PENDING`; ADMIN chốt bằng `POST /api/admin/payments/:id/refund/resolve` (`SUCCEEDED` ghi `REFUND:MANUAL:*`, `FAILED` mở lại quyền hoàn), cũng dưới khoá đơn. Trade-off chấp nhận: đối soát tay, chưa tự query trạng thái hoàn qua QueryDR vì ngữ nghĩa QueryDR cho giao dịch hoàn chưa được kiểm trên sandbox. ADMIN chỉ chốt được lệnh đã có lỗi trả về hoặc quá 60 giây, để không chốt lệnh còn đang chờ cổng.
+
+### Kết quả mong đợi → thực tế
+Mong đợi: [checkout-refund.http.spec.ts](../../../apps/api/test/checkout-refund.http.spec.ts) — hai lệnh song song chỉ gọi cổng một lần; hoàn một phần hai lần ra `PARTIALLY_REFUNDED` rồi `REFUNDED`; mất kết nối hoặc mã lỗi giữ lệnh chờ và chặn lệnh mới; không chốt được lệnh đang chờ cổng; chỉ ADMIN.
+Thực tế: 2026-10-28 · `npx vitest run test/checkout-refund.http.spec.ts test/checkout-payment.http.spec.ts test/cod.http.spec.ts` → 3 tệp, 29 test đạt trên DB test local; chưa thử Refund API sandbox thật.
+
+### Điều kiện xem lại
+Đối chiếu được bảng mã lỗi cho refund để phân loại mã chắc chắn từ chối; kiểm được QueryDR cho giao dịch hoàn để tự đối soát; làm luồng đổi trả (chuyển sổ sang bảng `refunds`).
