@@ -363,8 +363,13 @@ export class CheckoutService {
         amount: amount.toFixed(2),
         actor,
         reason: input.reason ?? null,
-        full: amount.eq(remaining),
+        // Dac ta VNPAY: 02 hoan toan phan giao dich, nen chi dung khi hoan tron so da thu lan dau.
+        full: ledger.refunded.isZero() && amount.eq(payment.amount),
       };
+      // Receipt thanh cong settle da ghi la so giao dich cua cong (vnp_TransactionNo).
+      const transactionNo = (
+        await tx.paymentTransaction.findMany({ where: { paymentId, status: 'PROCESSED' } })
+      ).find((row) => /^\d+$/u.test(row.externalTransactionId))?.externalTransactionId;
       const intentId = `${REFUND_INTENT}${randomUUID()}`;
       await tx.paymentTransaction.create({
         data: {
@@ -375,9 +380,9 @@ export class CheckoutService {
           payload,
         },
       });
-      return { intentId, payload, payment };
+      return { intentId, payload, payment, transactionNo };
     });
-    const { intentId, payload, payment } = claim;
+    const { intentId, payload, payment, transactionNo } = claim;
     let result: Awaited<ReturnType<NonNullable<typeof adapter.refund>>>;
     try {
       result = await adapter.refund({
@@ -386,6 +391,7 @@ export class CheckoutService {
         amount: payload.amount,
         actor,
         full: payload.full,
+        transactionNo,
       });
     } catch (error) {
       // Timeout, phan hoi sai chu ky hay ma loi deu khong chung minh cong chua hoan: giu intent.

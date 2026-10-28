@@ -29,33 +29,37 @@ export const queryRequestFields = [
   'IpAddr',
   'OrderInfo',
 ];
+/** Dac ta VNPAY 2.1.0 muc 2.5.5.1 (trang 23): thu tu chuoi ky request refund. */
 export const refundRequestFields = [
   'RequestId',
   'Version',
   'Command',
   'TmnCode',
-  'Amount',
-  'TxnRef',
-  'TransactionDate',
   'TransactionType',
+  'TxnRef',
+  'Amount',
+  'TransactionNo',
+  'TransactionDate',
   'CreateBy',
   'CreateDate',
   'IpAddr',
   'OrderInfo',
 ];
+/** Muc 2.5.5.2 (trang 26): phan hoi mang vnp_ResponseId do VNPAY sinh, khong lap lai RequestId. */
 export const refundResponseFields = [
-  'RequestId',
+  'ResponseId',
+  'Command',
   'ResponseCode',
-  'TmnCode',
-  'Amount',
-  'TxnRef',
-  'TransactionDate',
-  'TransactionType',
-  'CreateBy',
-  'CreateDate',
-  'IpAddr',
-  'OrderInfo',
   'Message',
+  'TmnCode',
+  'TxnRef',
+  'Amount',
+  'BankCode',
+  'PayDate',
+  'TransactionNo',
+  'TransactionType',
+  'TransactionStatus',
+  'OrderInfo',
 ];
 
 export function vnpDate(date: Date): string {

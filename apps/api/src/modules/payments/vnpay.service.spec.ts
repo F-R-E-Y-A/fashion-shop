@@ -2,7 +2,14 @@ import { ConfigService } from '@nestjs/config';
 import { describe, expect, it, vi } from 'vitest';
 
 import { VnpayService } from './vnpay.service.js';
-import { flatParams, hmac, queryString, vnpDate } from './vnpay-signature.js';
+import {
+  flatParams,
+  hmac,
+  pipeString,
+  queryString,
+  refundResponseFields,
+  vnpDate,
+} from './vnpay-signature.js';
 
 function gateway(values: Record<string, string> = {}) {
   return new VnpayService(
@@ -64,12 +71,9 @@ describe('PH-11 VNPAY adapter', () => {
 describe('PH-11 VNPAY refund', () => {
   const checkoutUrl =
     'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?vnp_CreateDate=20261025120000';
-  it('ký refund request theo tài liệu và chỉ nhận phản hồi có chữ khớp requestId/merchant', async () => {
-    vi.resetModules();
-    const { VnpayService: Service } = await import('./vnpay.service.js');
-    const { default: nodeCrypto } = await import('node:crypto');
+  it('ký refund đúng thứ tự đặc tả 2.5.5.1, nhận phản hồi vnp_ResponseId ký theo 2.5.5.2', async () => {
     const secret = 'refund-test-secret';
-    const service = new Service(
+    const service = new VnpayService(
       new ConfigService({
         NODE_ENV: 'test',
         VNPAY_TMN_CODE: 'TESTONLY',
@@ -83,36 +87,52 @@ describe('PH-11 VNPAY refund', () => {
       vi.fn(async (_url: unknown, init: { body: string }) => {
         sent = JSON.parse(init.body);
         const reply: Record<string, string> = {
-          vnp_RequestId: sent!.vnp_RequestId!,
+          vnp_ResponseId: 'vnpay-generated-id',
+          vnp_Command: 'refund',
           vnp_ResponseCode: '00',
+          vnp_Message: 'Refund success',
           vnp_TmnCode: 'TESTONLY',
-          vnp_Amount: sent!.vnp_Amount!,
           vnp_TxnRef: sent!.vnp_TxnRef!,
-          vnp_TransactionDate: sent!.vnp_TransactionDate!,
-          vnp_TransactionType: '02',
-          vnp_CreateBy: sent!.vnp_CreateBy!,
-          vnp_CreateDate: sent!.vnp_CreateDate!,
-          vnp_IpAddr: sent!.vnp_IpAddr!,
+          vnp_Amount: sent!.vnp_Amount!,
+          vnp_BankCode: 'NCB',
+          vnp_PayDate: '20261025121000',
+          vnp_TransactionNo: '14123456',
+          vnp_TransactionType: sent!.vnp_TransactionType!,
+          vnp_TransactionStatus: '05',
           vnp_OrderInfo: sent!.vnp_OrderInfo!,
-          vnp_Message: 'Ok',
         };
-        const { pipeString, hmac, refundResponseFields } = await import('./vnpay-signature.js');
         reply.vnp_SecureHash = hmac(secret, pipeString(reply, refundResponseFields));
         return Response.json(reply);
       }),
     );
-    const result = await service.refund('PREF1', checkoutUrl, '50000.00', 'admin-1');
-    expect(result.requestId).toBe(sent!.vnp_RequestId);
-    const { pipeString, hmac, refundRequestFields } = await import('./vnpay-signature.js');
-    expect(sent!.vnp_SecureHash).toBe(hmac(secret, pipeString(sent!, refundRequestFields)));
-    expect(sent).toMatchObject({
-      vnp_Command: 'refund',
-      vnp_TxnRef: 'PREF1',
-      vnp_Amount: '5000000',
-      vnp_TransactionDate: '20261025120000',
-      vnp_TransactionType: '02',
-    });
-    expect(typeof nodeCrypto.randomUUID).toBe('function');
+    const result = await service.refund(
+      'PREF1',
+      checkoutUrl,
+      '50000.00',
+      'admin-1',
+      false,
+      '14123456',
+    );
+    const s = sent!;
+    // Chuoi ky viet tay theo dung thu tu trang 23 cua dac ta, khong suy ra tu mang trong ma.
+    const specOrder = [
+      s.vnp_RequestId,
+      '2.1.0',
+      'refund',
+      'TESTONLY',
+      '03',
+      'PREF1',
+      '5000000',
+      '14123456',
+      '20261025120000',
+      'admin-1',
+      s.vnp_CreateDate,
+      '127.0.0.1',
+      s.vnp_OrderInfo,
+    ].join('|');
+    expect(s.vnp_SecureHash).toBe(hmac(secret, specOrder));
+    expect(result.requestId).toBe(s.vnp_RequestId);
+    expect(result.payload.vnp_ResponseId).toBe('vnpay-generated-id');
     vi.unstubAllGlobals();
   });
   it('từ chối khi phản hồi sai mã hoặc sai chữ ký, không tạo kết quả bừa', async () => {

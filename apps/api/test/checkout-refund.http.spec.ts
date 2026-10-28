@@ -29,6 +29,7 @@ describe('PH-11 hoàn tiền: khoá đơn, sổ hoàn và đối soát tay (Post
   let mode: Mode = 'ok';
   let delayMs = 0;
   let sent: VnpParams[] = [];
+  let receiptNo = 14123456;
   const as = (bearer: string) => ({ Authorization: `Bearer ${bearer}` });
   const refund = (paymentId: string, body: { amount?: string; reason?: string } = {}) =>
     t.http.post(`/api/admin/payments/${paymentId}/refund`).set(as(adminToken)).send(body);
@@ -60,6 +61,16 @@ describe('PH-11 hoàn tiền: khoá đơn, sổ hoàn và đối soát tay (Post
     ).body as { id: string; payments: { id: string }[] };
     const paymentId = order.payments[0]!.id;
     await t.prisma.payment.update({ where: { id: paymentId }, data: { status: 'SUCCEEDED' } });
+    // Receipt settle ghi khi IPN/QueryDR thanh cong: so giao dich cua cong.
+    await t.prisma.paymentTransaction.create({
+      data: {
+        paymentId,
+        gateway: 'VNPAY',
+        externalTransactionId: String(receiptNo++),
+        status: 'PROCESSED',
+        payload: {},
+      },
+    });
     await t.prisma.order.update({ where: { id: order.id }, data: { status: 'CONFIRMED' } });
     return { orderId: order.id, paymentId };
   }
@@ -78,18 +89,19 @@ describe('PH-11 hoàn tiền: khoá đơn, sổ hoàn và đối soát tay (Post
         return;
       }
       const reply: VnpParams = {
-        vnp_RequestId: request.vnp_RequestId!,
+        vnp_ResponseId: randomUUID().replaceAll('-', ''),
+        vnp_Command: 'refund',
         vnp_ResponseCode: mode === 'ok' ? '00' : '99',
+        vnp_Message: mode === 'ok' ? 'Refund success' : 'Loi khac',
         vnp_TmnCode: merchant,
-        vnp_Amount: request.vnp_Amount!,
         vnp_TxnRef: request.vnp_TxnRef!,
-        vnp_TransactionDate: request.vnp_TransactionDate!,
+        vnp_Amount: request.vnp_Amount!,
+        vnp_BankCode: 'NCB',
+        vnp_PayDate: request.vnp_CreateDate!,
+        vnp_TransactionNo: request.vnp_TransactionNo ?? '',
         vnp_TransactionType: request.vnp_TransactionType!,
-        vnp_CreateBy: request.vnp_CreateBy!,
-        vnp_CreateDate: request.vnp_CreateDate!,
-        vnp_IpAddr: request.vnp_IpAddr!,
+        vnp_TransactionStatus: '05',
         vnp_OrderInfo: request.vnp_OrderInfo!,
-        vnp_Message: mode === 'ok' ? 'Ok' : 'Loi khac',
       };
       reply.vnp_SecureHash = hmac(secret, pipeString(reply, refundResponseFields));
       res.setHeader('content-type', 'application/json');
@@ -109,6 +121,7 @@ describe('PH-11 hoàn tiền: khoá đơn, sổ hoàn và đối soát tay (Post
     mode = 'ok';
     delayMs = 0;
     sent = [];
+    receiptNo = 14123456;
     await resetDatabase(t.prisma);
     const jwt = t.app.get(JwtService);
     const customer = await t.prisma.user.create({
@@ -163,7 +176,11 @@ describe('PH-11 hoàn tiền: khoá đơn, sổ hoàn và đối soát tay (Post
     const results = await Promise.all([refund(paymentId), refund(paymentId)]);
     expect(results.map((r) => r.status).sort()).toEqual([201, 409]);
     expect(sent).toHaveLength(1);
-    expect(sent[0]).toMatchObject({ vnp_Amount: '23000000', vnp_TransactionType: '02' });
+    expect(sent[0]).toMatchObject({
+      vnp_Amount: '23000000',
+      vnp_TransactionType: '02',
+      vnp_TransactionNo: '14123456',
+    });
     expect(await orderStatus(orderId)).toBe('REFUNDED');
     expect(await ledger()).toHaveLength(1);
     expect(await intents('RECEIVED')).toHaveLength(0);
@@ -176,7 +193,8 @@ describe('PH-11 hoàn tiền: khoá đơn, sổ hoàn và đối soát tay (Post
     expect(sent[0]).toMatchObject({ vnp_Amount: '10000000', vnp_TransactionType: '03' });
     expect(await orderStatus(orderId)).toBe('PARTIALLY_REFUNDED');
     await refund(paymentId).expect(201);
-    expect(sent[1]).toMatchObject({ vnp_Amount: '13000000' });
+    // Phan con lai sau mot lan hoan mot phan van la hoan mot phan giao dich (03).
+    expect(sent[1]).toMatchObject({ vnp_Amount: '13000000', vnp_TransactionType: '03' });
     expect(await orderStatus(orderId)).toBe('REFUNDED');
     const rows = await ledger();
     expect(

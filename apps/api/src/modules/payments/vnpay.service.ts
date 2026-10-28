@@ -146,8 +146,8 @@ export class VnpayService {
   }
 
   /**
-   * Refund API v2.1.0: 02 hoan toan phan con lai, 03 hoan mot phan. Chi ghi nhan khi
-   * ResponseCode 00 va chu ky phan hoi dung; ma khac chi log cong khai de admin thu lai.
+   * Refund API v2.1.0 (dac ta muc 2.5.5): 02 hoan toan phan, 03 hoan mot phan. Chi ghi nhan khi
+   * ResponseCode 00 va chu ky phan hoi dung; ma khac chi log cong khai, lenh giu cho doi soat.
    */
   async refund(
     reference: string,
@@ -155,6 +155,7 @@ export class VnpayService {
     amount: string,
     actor: string,
     full = true,
+    transactionNo?: string,
   ): Promise<{ requestId: string; payload: VnpParams }> {
     const { merchant, secret } = this.credentials();
     const requestId = randomUUID().replaceAll('-', '');
@@ -171,12 +172,17 @@ export class VnpayService {
       vnp_CreateDate: vnpDate(new Date()),
       vnp_IpAddr: '127.0.0.1',
       vnp_OrderInfo: `Hoan tien ${reference}`,
+      // Tuy chon trong dac ta nhung nam trong chuoi ky: thieu thi ky chuoi rong.
+      ...(transactionNo ? { vnp_TransactionNo: transactionNo } : {}),
     };
     params.vnp_SecureHash = hmac(secret, pipeString(params, refundRequestFields));
     const response = await fetch(
+      // Dac ta khong ghi URL rieng cho refund; mac dinh dung chung endpoint merchant_webapi voi
+      // QueryDR (lenh phan biet bang vnp_Command). Chua thu tren sandbox.
       this.gatewayUrl(
         'VNPAY_REFUND_URL',
-        'https://sandbox.vnpayment.vn/merchant_webapi/api/transaction/Refund',
+        this.config.get<string>('VNPAY_QUERY_URL') ||
+          'https://sandbox.vnpayment.vn/merchant_webapi/api/transaction',
       ),
       {
         method: 'POST',
@@ -194,7 +200,7 @@ export class VnpayService {
     if (
       !data ||
       !validHash(secret, pipeString(data, refundResponseFields), data.vnp_SecureHash) ||
-      data.vnp_RequestId !== requestId ||
+      (data.vnp_Command ?? 'refund') !== 'refund' ||
       data.vnp_TmnCode !== merchant ||
       data.vnp_TxnRef !== reference
     ) {

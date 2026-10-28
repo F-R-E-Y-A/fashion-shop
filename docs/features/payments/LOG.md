@@ -45,7 +45,7 @@ Thêm [adapter contract tests](../../../apps/api/src/modules/payments/vnpay.adap
 <a id="adr-036"></a>
 ## 2026-10-28 · ADR-036 — Hoàn tiền giữ lệnh chờ dưới khoá đơn và chỉ ghi sổ khi cổng trả 00
 
-**Loại:** quyết định · **Phạm vi:** Payments, Checkout (PH-11), ADMIN vận hành · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+**Loại:** quyết định · **Phạm vi:** Payments, Checkout (PH-11), ADMIN vận hành · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** [0ead671](https://github.com/F-R-E-Y-A/fashion-shop/commit/0ead671)
 
 ### Hiện trạng
 - Trước sửa, mọi kiểm tra của `refundPayment` chạy ngoài khoá và khoá đơn chỉ lấy sau khi đã gọi cổng: hai lệnh song song cùng thấy số còn lại và cùng gọi Refund API ([checkout.service.ts:313-364 tại c7c59ba](https://github.com/F-R-E-Y-A/fashion-shop/blob/c7c59ba/apps/api/src/modules/checkout/checkout.service.ts#L313-L364)).
@@ -69,3 +69,14 @@ Thực tế: 2026-10-28 · `npx vitest run test/checkout-refund.http.spec.ts tes
 
 ### Điều kiện xem lại
 Đối chiếu được bảng mã lỗi cho refund để phân loại mã chắc chắn từ chối; kiểm được QueryDR cho giao dịch hoàn để tự đối soát; làm luồng đổi trả (chuyển sổ sang bảng `refunds`).
+
+## 2026-10-28 · PH-11 — ký Refund API VNPAY theo đặc tả 2.1.0
+
+**Loại:** thay đổi mã · **Phạm vi:** Payments, Checkout · **Commit:** (commit kế tiếp của nhánh `feature/ph-11-payment`)
+
+Đối chiếu [đặc tả 2.1.0](https://sandbox.vnpayment.vn/apis/files/VNPAY%20Payment%20Gateway_Techspec%20Post%20method%202.1.0-VN.pdf) mục 2.5.5 (trang 21–26) cho thấy refund ký sai thứ tự, thiếu `vnp_TransactionNo` và đòi `vnp_RequestId` trong phản hồi, trong khi VNPAY trả `vnp_ResponseId` ([ADR-036](#adr-036)). Đã sửa [vnpay-signature.ts](../../../apps/api/src/modules/payments/vnpay-signature.ts) theo trang 23 và 26; request gửi kèm số giao dịch cổng lấy từ receipt thanh toán thành công. Cách đọc đặc tả được kiểm bằng `queryResponseFields` đã chạy trên sandbox, khớp trang 20.
+
+`02` chỉ gửi khi hoàn trọn số đã thu ở lần đầu; phần còn lại sau một lần hoàn một phần gửi `03` (trang 22: 02 toàn phần, 03 một phần). URL mặc định của refund đổi sang cùng endpoint với QueryDR (`VNPAY_QUERY_URL`), vẫn ghi đè được bằng `VNPAY_REFUND_URL`; đặc tả không ghi URL riêng nên đây là suy luận.
+
+Bằng chứng: `npx vitest run src/modules/payments test/checkout-refund.http.spec.ts` → 4 tệp, 26 test đạt, gồm ca so chữ ký với chuỗi viết tay theo trang 23. Chưa thử Refund API sandbox thật: lần thử đầu là nghiệm thu cần làm.
+

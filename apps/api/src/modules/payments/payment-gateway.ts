@@ -19,8 +19,10 @@ export interface RefundRequest {
   checkoutUrl: string;
   amount: string;
   actor: string;
-  /** 02 hoan toan phan con lai, 03 hoan mot phan — VNPAY yeu cau dung loai. */
+  /** Hoan dung toan bo so tien da thu, lan dau: VNPAY 02; con lai la 03. */
   full: boolean;
+  /** Ma giao dich cua cong luc thu tien (VNPAY vnp_TransactionNo), neu da ghi nhan. */
+  transactionNo?: string;
 }
 export interface PaymentGateway {
   readonly code: GatewayCode;

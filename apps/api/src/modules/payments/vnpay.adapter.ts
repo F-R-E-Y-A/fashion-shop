@@ -42,6 +42,7 @@ export class VnpayAdapter implements PaymentGateway {
       input.amount,
       input.actor,
       input.full,
+      input.transactionNo,
     );
   }
   private event(raw: Record<string, string>): PaymentEvent {
