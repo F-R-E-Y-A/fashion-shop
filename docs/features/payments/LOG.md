@@ -72,7 +72,7 @@ Thực tế: 2026-10-28 · `npx vitest run test/checkout-refund.http.spec.ts tes
 
 ## 2026-10-28 · PH-11 — ký Refund API VNPAY theo đặc tả 2.1.0
 
-**Loại:** thay đổi mã · **Phạm vi:** Payments, Checkout · **Commit:** (commit kế tiếp của nhánh `feature/ph-11-payment`)
+**Loại:** thay đổi mã · **Phạm vi:** Payments, Checkout · **Commit:** [44b5c57](https://github.com/F-R-E-Y-A/fashion-shop/commit/44b5c57)
 
 Đối chiếu [đặc tả 2.1.0](https://sandbox.vnpayment.vn/apis/files/VNPAY%20Payment%20Gateway_Techspec%20Post%20method%202.1.0-VN.pdf) mục 2.5.5 (trang 21–26) cho thấy refund ký sai thứ tự, thiếu `vnp_TransactionNo` và đòi `vnp_RequestId` trong phản hồi, trong khi VNPAY trả `vnp_ResponseId` ([ADR-036](#adr-036)). Đã sửa [vnpay-signature.ts](../../../apps/api/src/modules/payments/vnpay-signature.ts) theo trang 23 và 26; request gửi kèm số giao dịch cổng lấy từ receipt thanh toán thành công. Cách đọc đặc tả được kiểm bằng `queryResponseFields` đã chạy trên sandbox, khớp trang 20.
 

@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 import { ConflictException, Injectable } from '@nestjs/common';
 
 import type { Prisma } from '../../generated/prisma/client.js';
@@ -99,12 +97,18 @@ export class InventoryService {
     );
   }
 
-  /** Chi cong bo revision, khong cong bo order hay du lieu giu hang. */
+  /**
+   * Chi cong bo revision, khong cong bo order hay du lieu giu hang. Ghi vao inventory hoac
+   * inventory_reservations tang inventory_revision_seq (ADR-037); giu hang het han khong sinh ghi
+   * nao nen kem han som nhat con hieu luc: qua moc do thi revision doi theo.
+   */
   async getAvailabilityRevision(): Promise<string> {
-    const rows = await this.prisma.inventory.findMany({ orderBy: { productVariantId: 'asc' } });
-    const quantities = await this.getAvailableQuantities(rows.map((row) => row.productVariantId));
-    return createHash('sha256')
-      .update(JSON.stringify([...quantities]))
-      .digest('hex');
+    const [row] = await this.prisma.$queryRaw<{ value: string }[]>`
+      SELECT concat_ws(':', s.last_value, s.is_called, (
+        SELECT min(r.expires_at) FROM public.inventory_reservations r
+        WHERE r.released_at IS NULL AND r.expires_at > now()
+      )) AS value
+      FROM public.inventory_revision_seq s`;
+    return row?.value ?? '';
   }
 }

@@ -6,10 +6,10 @@ import { CatalogEventsService } from './catalog-events.service.js';
 
 function fixture() {
   vi.useFakeTimers();
-  const findMany = vi.fn().mockResolvedValue([{ id: 'p', price: '100' }]);
+  const findMany = vi.fn().mockResolvedValue([{ value: '7:true' }]);
   const stock = vi.fn().mockResolvedValue('stock-1');
   const service = new CatalogEventsService(
-    { product: { findMany } } as unknown as PrismaService,
+    { $queryRaw: findMany } as unknown as PrismaService,
     { getAvailabilityRevision: stock } as unknown as InventoryService,
   );
   return { service, findMany, stock };

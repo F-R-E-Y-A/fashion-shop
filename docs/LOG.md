@@ -1,6 +1,6 @@
 ---
 title: Nhật ký quyết định toàn hệ thống
-updated: 2026-09-24
+updated: 2026-10-28
 status: đang dùng
 owner: Bảo
 ---
@@ -632,3 +632,28 @@ Duy làm phương án A trong Cart/Inventory thì bỏ `reselectReleased` và nh
 Sau PH-11, ba người cùng chấm nhiều phân hệ đan xen (checkout chạm cart/orders/inventory/shipping) nên gán người duyệt cứng theo thư mục dồn mỗi pull request vào một người và làm chậm tính năng. Bỏ ba mảnh của cơ chế: `.github/CODEOWNERS`, workflow `pr-reviewers.yml`, script `tools/github/request-reviewers.mjs`. Điều kiện gộp còn lại: CI xanh sáu chặng và một người duyệt bất kỳ tự nguyện, tác giả không tự duyệt pull request của mình. Luật "một phân hệ một người làm trọn" và "không ghi bảng người khác" vẫn do ESLint boundaries ép, không đổi. `github-setup.md` mục 6 giữ làm biên bản lịch sử cách dựng cơ chế cũ.
 
 Điều kiện xem lại: trước bản nộp chính thức, nếu giảng viên yêu cầu bằng chứng duyệt chéo theo ownership, khôi phục cơ chế từ lịch sử git tại commit bỏ này.
+
+<a id="adr-037"></a>
+## 2026-10-28 · ADR-037 — Revision SSE đọc từ sequence do trigger tăng, không quét catalog
+
+**Loại:** quyết định · **Phạm vi:** Products (SSE `/api/products/events`), Inventory, PH-11; bổ sung cách probe của [ADR-031](#adr-031) · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- Probe mỗi 2 giây của mỗi API process đọc toàn bộ sản phẩm, biến thể, ảnh rồi băm ([catalog-events.service.ts:48-73 tại 8bc5672](https://github.com/F-R-E-Y-A/fashion-shop/blob/8bc5672/apps/api/src/modules/products/catalog-events.service.ts#L48-L73)); revision tồn đọc mọi dòng `inventory` và cộng dồn mọi giữ hàng ([inventory.service.ts:103-109 tại 8bc5672](https://github.com/F-R-E-Y-A/fashion-shop/blob/8bc5672/apps/api/src/modules/inventory/inventory.service.ts#L103-L109)). Chi phí tỉ lệ với cỡ catalog: ổn với 87 sản phẩm, không ổn với mục tiêu 100k (suy luận, chưa đo ở 100k).
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Đếm và `max(updated_at)` mỗi bảng | Không migration | Vẫn quét bảng; `@updatedAt` do Prisma ghi, SQL tay bỏ sót | Được |
+| B. Một hàng đếm do trigger tăng | Đọc một dòng | Mọi checkout cùng khoá một hàng tới khi commit, thành điểm nghẽn | Được |
+| **C. Sequence do trigger mức câu lệnh tăng (chọn)** | Đọc một dòng; sequence không theo transaction nên không có hàng nóng; bắt cả SQL tay | Transaction rollback cũng tăng số, client tải lại thừa; thêm trigger viết tay | Được: xoá trigger và sequence |
+| D. Outbox phát version | Đúng hướng lâu dài | Chưa có dispatcher (việc 11) | — |
+
+**Chọn C** làm cầu nối tới outbox. Hai sequence theo chủ module: `catalog_revision_seq` cho sản phẩm/biến thể/ảnh/danh mục/màu/cỡ, `inventory_revision_seq` cho tồn và giữ hàng. Giữ hàng hết hạn không sinh ghi nào, nên revision tồn kèm hạn sớm nhất còn hiệu lực. Trade-off chấp nhận: sự kiện thừa khi rollback.
+
+### Kết quả mong đợi → thực tế
+Mong đợi: revision đổi khi ghi, đứng yên khi chỉ đọc, đổi khi qua mốc hết hạn giữ hàng; Prisma không báo drift.
+Thực tế: 2026-10-28 · [catalog-revision.http.spec.ts](../apps/api/test/catalog-revision.http.spec.ts) 2/2 và 6 tệp HTTP cart/catalog/checkout 101/101 đạt trên DB test; `prisma migrate diff --from-config-datasource --to-schema prisma/schema` với DB test → `This is an empty migration.`; `EXPLAIN ANALYZE` revision tồn: một Index Scan trên `inventory_reservations_expires_at_idx` có Limit, 0,093 ms trên DB test.
+
+### Điều kiện xem lại
+Có outbox và dispatcher (việc 11) thì phát version từ outbox, bỏ trigger; nếu đo thấy trigger làm chậm ghi khi nhập kho hàng loạt.

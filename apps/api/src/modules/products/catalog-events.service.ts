@@ -45,30 +45,16 @@ export class CatalogEventsService {
     interval(15_000).pipe(map((): MessageEvent => ({ type: 'heartbeat', data: {} }))),
   );
 
-  private async revision(): Promise<string> {
-    const rows = await this.prisma.product.findMany({
-      orderBy: { id: 'asc' },
-      select: {
-        id: true,
-        name: true,
-        updatedAt: true,
-        isActive: true,
-        category: { select: { isActive: true, parent: { select: { isActive: true } } } },
-        variants: {
-          orderBy: { id: 'asc' },
-          select: {
-            id: true,
-            listPrice: true,
-            salePrice: true,
-            isActive: true,
-            color: { select: { name: true } },
-            size: { select: { code: true } },
-          },
-        },
-        images: { orderBy: { id: 'asc' }, select: { url: true, colorId: true, sortOrder: true } },
-      },
-    });
+  /**
+   * Trigger tang catalog_revision_seq moi khi bang catalog doi (migration ph11_live_revision,
+   * ADR-037): doc mot dong thay vi tai ca catalog moi 2 giay. is_called phan biet so dau tien.
+   */
+  async revision(): Promise<string> {
+    const [row] = await this.prisma.$queryRaw<{ value: string }[]>`
+      SELECT concat_ws(':', last_value, is_called) AS value FROM public.catalog_revision_seq`;
     const stock = await this.inventory.getAvailabilityRevision();
-    return createHash('sha256').update(JSON.stringify({ rows, stock })).digest('hex');
+    return createHash('sha256')
+      .update(`${row?.value ?? ''}|${stock}`)
+      .digest('hex');
   }
 }
