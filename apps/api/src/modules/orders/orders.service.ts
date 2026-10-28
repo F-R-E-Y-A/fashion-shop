@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 
 import type { OrderStatus, Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
@@ -11,6 +11,30 @@ const details = {
   statusHistory: { orderBy: { createdAt: 'asc' as const } },
 };
 const CODE_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+
+/**
+ * Buoc chuyen hop le cua don. Caller van tu kiem nghiep vu; day la chot cuoi o tang du lieu de
+ * khong ai nhay trang thai (vd don da huy thanh CONFIRMED). Tien ve bat thuong o bat ky dau
+ * cung vao PAYMENT_REVIEW, nen settlement khong bao gio bi chan va IPN khong phai gui lai mai.
+ */
+export const ORDER_TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
+  PENDING_PAYMENT: ['CONFIRMED', 'PAYMENT_REVIEW', 'CANCELLED'],
+  PENDING_CONFIRMATION: ['CONFIRMED', 'PAYMENT_REVIEW', 'CANCELLED'],
+  PAYMENT_REVIEW: ['PARTIALLY_REFUNDED', 'REFUNDED'],
+  CONFIRMED: ['PROCESSING', 'PAYMENT_REVIEW', 'PARTIALLY_REFUNDED', 'REFUNDED'],
+  PROCESSING: ['SHIPPED', 'PAYMENT_REVIEW'],
+  SHIPPED: ['DELIVERED', 'PAYMENT_REVIEW'],
+  DELIVERED: ['PAYMENT_REVIEW', 'PARTIALLY_REFUNDED', 'REFUNDED'],
+  CANCELLED: ['PAYMENT_REVIEW'],
+  PARTIALLY_REFUNDED: ['PAYMENT_REVIEW', 'PARTIALLY_REFUNDED', 'REFUNDED'],
+  REFUNDED: ['PAYMENT_REVIEW'],
+};
+
+export function statusesLeadingTo(status: OrderStatus): OrderStatus[] {
+  return (Object.keys(ORDER_TRANSITIONS) as OrderStatus[]).filter((from) =>
+    ORDER_TRANSITIONS[from].includes(status),
+  );
+}
 
 /** Ma doc duoc qua dien thoai: FR + yymmdd (gio VN) + 8 ky tu base32 Crockford; cot unique chan trung. */
 export function newOrderCode(now = new Date()) {
@@ -114,16 +138,20 @@ export class OrdersService {
     });
   }
 
+  /** Update co dieu kien trang thai nguon: buoc khong hop le thi 409, khong ghi lich su. */
   async transition(
     id: string,
     status: OrderStatus,
     tx: Prisma.TransactionClient,
     actorUserId?: string,
   ) {
-    await tx.order.update({
-      where: { id },
-      data: { status, statusHistory: { create: { status, actorUserId } } },
+    const changed = await tx.order.updateMany({
+      where: { id, status: { in: statusesLeadingTo(status) } },
+      data: { status },
     });
+    if (changed.count !== 1)
+      throw new ConflictException(`Đơn không thể chuyển sang ${status} từ trạng thái hiện tại.`);
+    await tx.orderStatusHistory.create({ data: { orderId: id, status, actorUserId } });
   }
 
   due() {
