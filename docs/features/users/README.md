@@ -1,12 +1,12 @@
 ---
 title: Tài khoản người dùng — bản đồ
-updated: 2026-10-18
+updated: 2026-10-24
 status: đang làm
 owner: Tài
 ---
 # Tài khoản người dùng
 
-**Chức năng:** Cửa vào của feature tài khoản: quản trị tài khoản (Admin.1–Admin.3) ở đây, hồ sơ và sổ địa chỉ ở [profile-address.md](profile-address.md).
+**Chức năng:** Cửa vào của feature tài khoản: quản trị tài khoản (Admin.1–Admin.3, Issue #48) ở đây, hồ sơ và sổ địa chỉ ở [profile-address.md](profile-address.md).
 
 | | |
 |---|---|
@@ -27,8 +27,9 @@ quản trị đầu tiên của hệ thống, nơi phân quyền theo vai ([ADR-
 | Hạ tầng vai (`RoleCode`, `RolesGuard`, `RequireRoles`), vai `ADMIN` bằng migration, `admin:grant` | Admin.1, xong |
 | `GET /api/admin/users`, `GET /api/admin/users/:id` | Admin.1, xong |
 | `POST /api/admin/users/:id/lock`, `POST /api/admin/users/:id/unlock`, thu hồi phiên, nhật ký | Admin.2, xong |
-| Giao diện quản trị `/admin/users`, `/admin/users/:id`: guard `ADMIN`, danh sách, chi tiết, khóa và mở khóa | Admin.3, [Issue #46](https://github.com/F-R-E-Y-A/fashion-shop/issues/46), trên nhánh `feature/ph-03-admin-users-web`, chưa gộp: [mục dưới](#giao-diện-quản-trị) |
-| Gán vai, tìm kiếm, `STAFF`, màn xem nhật ký | Chưa làm |
+| Giao diện quản trị `/admin/users`, `/admin/users/:id`: guard `ADMIN`, danh sách, chi tiết, khóa và mở khóa | Admin.3, [Issue #46](https://github.com/F-R-E-Y-A/fashion-shop/issues/46), đã gộp qua [PR #47](https://github.com/F-R-E-Y-A/fashion-shop/pull/47) (`47576d4`): [mục dưới](#giao-diện-quản-trị) |
+| Tìm email, lọc trạng thái/vai/xác thực, sắp xếp, số dòng; khóa, mở khóa ngay trên danh sách | [Issue #48](https://github.com/F-R-E-Y-A/fashion-shop/issues/48), [PR #49](https://github.com/F-R-E-Y-A/fashion-shop/pull/49) vào `develop`, đang chờ review, chưa gộp |
+| Gán vai, `STAFF`, màn xem nhật ký, tạo/sửa/xóa tài khoản, thao tác hàng loạt, xuất dữ liệu | Chưa làm |
 | Hồ sơ `GET`/`PATCH /api/users/me`, khu vực hành chính, sổ địa chỉ | PH4, xong phía máy chủ: [profile-address.md](profile-address.md) |
 | Giao diện `/tai-khoan`, hồ sơ và sổ địa chỉ | Đã gộp vào develop qua PR #29 và PR #32: [profile-address.md](profile-address.md#giao-diện-web-hiện-tại) |
 | Dữ liệu tỉnh/xã thật: 34 tỉnh, 3321 xã theo Quyết định 19/2025/QĐ-TTg | Đã có tệp, seed và `areas:import` trong develop: [profile-address.md](profile-address.md#dữ-liệu-tỉnhxã), [ADR-024](LOG.md#adr-024); còn chạy nạp trên staging/production ([ND-12](../../TECH_DEBT.md)) |
@@ -47,13 +48,16 @@ Không có bảng mới, không migration mới ở Admin.2. Đọc `users` qua 
 |---|---|
 | Không có hoặc sai access token, tài khoản không `ACTIVE` | `401 UNAUTHORIZED` |
 | Đã đăng nhập nhưng không có vai `ADMIN` | `403 FORBIDDEN` |
-| `page`, `pageSize` sai; tham số lạ (`search`, `status` chưa hỗ trợ); `:id` không phải UUID | `400 BAD_REQUEST` |
+| `page`, `pageSize`, `q`, `status`, `role`, `verified`, `sort` sai; tham số lặp; tham số lạ (vd `search`); `:id` không phải UUID | `400 BAD_REQUEST` |
 | `:id` đúng dạng UUID nhưng không có tài khoản | `404 NOT_FOUND` |
 | Khóa tài khoản không ở `ACTIVE` (đã khóa, `PENDING_VERIFICATION`, `DISABLED`) | `409 USER_NOT_ACTIVE` |
 | Mở khóa tài khoản không ở `LOCKED` | `409 USER_NOT_LOCKED` |
 | Tự khóa chính mình | `422 CANNOT_LOCK_SELF` |
 
-Danh sách theo `Page` của [api.md](../../shared/api.md), mới tạo trước, trùng thời điểm thì theo `id`.
+Danh sách theo `Page` của [api.md](../../shared/api.md); mặc định mới tạo trước, trùng thời điểm thì theo `id`.
+Từ Issue #48 nhận thêm tìm email, lọc trạng thái, vai, xác thực và bốn kiểu sắp xếp; `total` đếm theo đúng bộ lọc.
+Luật nghiệp vụ ở [use-cases.md](use-cases.md) (BR8–BR10), hình dạng ở Swagger. Prisma **không** escape ký tự
+đặc biệt của `LIKE` trong `contains`, nên service tự escape `\`, `%`, `_` (`escapeLikePattern`).
 Mỗi tài khoản (cả phản hồi 200 của khóa và mở khóa) chỉ gồm `id`, `email`, `status`, `roles` (xếp theo abc),
 `emailVerifiedAt`, `createdAt`. Không bao giờ có `passwordHash`, `authVersion`, token hay OTP.
 Mọi phản hồi của controller này (200, và 400/404/409/422 sau khi qua kiểm quyền) mang `Cache-Control: no-store`.
@@ -88,7 +92,7 @@ Anh cho khu quản trị: [LOG#adr-027](../../LOG.md#adr-027); quyết định r
 | Đường dẫn | Trang |
 |---|---|
 | `/admin` | Tổng quan hiện có của Bảo (`AdminProductsPage`), nay sau guard |
-| `/admin/users?page=N` | Danh sách, 20 dòng mỗi trang |
+| `/admin/users` | Danh sách: `q`, `status`, `role`, `verified`, `sort`, `page`, `pageSize` (10, 20, 50; mặc định 20) trên URL, bỏ giá trị mặc định |
 | `/admin/users/:id` | Chi tiết, khóa hay mở khóa |
 | `/quan-tri` | Chuyển hướng thay thế về `/admin`, giữ query và hash |
 
@@ -105,6 +109,12 @@ Anh cho khu quản trị: [LOG#adr-027](../../LOG.md#adr-027); quyết định r
   kiểm lại bằng GET.
 - **Hộp xác nhận** dùng `<dialog>` native (`showModal`); bài kiểm thử jsdom dùng stub, nên top layer và nền inert
   chỉ được chứng minh trên trình duyệt thật.
+- **Một codec điều kiện** (`list-query.ts`) đọc và ghi URL, tạo tham số API và chữ ký của query key; giá trị sai bị
+  bỏ và URL được thay bằng bản chuẩn hóa. Gõ tìm chờ 300 ms rồi thay URL (không thêm lịch sử); bộ lọc thêm lịch sử.
+  Dữ liệu giữ chỗ chỉ dùng khi cùng actor, cùng điều kiện, chỉ khác trang.
+- **Một luồng khóa, mở khóa** (`user-status-action.tsx`) cho cả chi tiết và dòng của danh sách. Sau khi xong, mọi
+  danh sách của actor được tải lại từ API; dòng rời bộ lọc được ghi "Không còn khớp bộ lọc" tới khi tập mới về.
+  Lý do: [ADR-029](LOG.md#adr-029).
 
 ## Tạo quản trị viên đầu tiên
 
@@ -131,11 +141,13 @@ nhập lại để cập nhật menu và guard.
 | Chuyển trạng thái có điều kiện, không thu hồi hay ghi nhật ký khi thất bại | `apps/api/src/modules/users/admin-users.service.spec.ts` |
 | `RolesGuard`, `RequireRoles`, `RoleCode` | `apps/api/src/modules/auth/*.spec.ts` |
 | UC-02.1/AC1–AC8 giao diện: guard, URL, trang, trạng thái, ma trận nút, hộp xác nhận, lỗi, phiên | `apps/web/src/features/account/admin/*.test.ts(x)` (jsdom, API giả) |
+| UC-02.1/AC11 tìm, lọc, sắp xếp, escape, 400/401/403 | `apps/api/test/admin-users-filters.http.spec.ts`, `dto/list-admin-users.query.spec.ts`, `admin-users.service.spec.ts` |
+| UC-02.1/AC12–AC15 URL, debounce, Back, race, placeholder, thao tác nhanh, membership, phiên | `admin/list-query.test.ts`, `admin/admin-users-tools.test.tsx` |
 
-## Trạng thái hôm nay (18/10/2026)
+## Trạng thái hôm nay (24/10/2026)
 
-Admin.3 (giao diện quản trị người dùng) đang ở nhánh `feature/ph-03-admin-users-web` trên nền `3aa873b`, chưa
-gộp, đã qua review và sửa lỗi cache; chờ Bảo duyệt phần khung chung. Admin.1 và Admin.2 đã gộp vào `develop`
+Admin.3 đã gộp qua PR #47 (`47576d4`). Issue #48 (tìm, lọc, thao tác nhanh) đang ở nhánh
+`feature/ph-03-admin-users-tools` trên nền `47576d4`, đã kiểm thử local và mở [PR #49](https://github.com/F-R-E-Y-A/fashion-shop/pull/49) vào `develop`; đang chờ review, chưa gộp. Admin.1 và Admin.2 đã gộp vào `develop`
 (pull request #24, `aee345e`). API hồ sơ, khu vực hành chính, sổ địa chỉ và giao diện hồ sơ/địa chỉ đã có trong
 `develop` qua các PR ghi ở bảng Dòng việc. Dữ liệu
 tỉnh/xã thật (34 tỉnh, 3321 xã) đã nạp vào CSDL dev, chưa nạp staging hay production; avatar và tích hợp checkout
@@ -147,7 +159,9 @@ ngoài phạm vi giao diện này.
   trong [api.md](../../shared/api.md). [TBD — hỏi Bảo]
 - T-M5 ghi ẩn danh nhận 403; API trả 401 theo bảng mã lỗi của api.md (401 chưa đăng nhập, 403 thiếu quyền).
   [TBD — hỏi Duy sửa test-strategy.md]
-- UC-02.1 có đặc tả đề xuất ở [use-cases.md](use-cases.md), chờ Duy thống nhất mã; UC-02.2 chưa viết.
+- UC-02.1 có đặc tả đề xuất ở [use-cases.md](use-cases.md), chờ Duy thống nhất mã và số AC11–AC15; UC-02.2 chưa viết.
+- Tìm email là `ILIKE '%q%'`, không dùng được chỉ mục B-tree; chưa đo và chưa thêm chỉ mục theo suy đoán. Khi số
+  tài khoản lớn và đo thấy chậm thì đề xuất `pg_trgm` kèm số đo. [TBD — đo khi có dữ liệu thật]
 - Tài khoản bị đặt `LOCKED` không qua API (sửa thẳng CSDL) thì không được tăng `authVersion` hay thu hồi phiên;
   mở khóa qua API khi đó không dọn các phiên cũ.
 - Quản trị viên khóa được quản trị viên khác. Không ai tự khóa được mình, nhưng hai quản trị viên khóa lẫn nhau
