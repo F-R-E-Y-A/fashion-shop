@@ -5,12 +5,12 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 
-import type { PageQuery } from '../../common/pagination/page.query.js';
 import { skipOf, toPage } from '../../common/pagination/page.response.js';
 import { type Prisma, UserStatus } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { AdminAuditAction, AUDIT_ENTITY_USER } from './admin-audit.js';
 import type { AdminUserListResponse, AdminUserResponse } from './dto/admin-user.response.js';
+import type { AdminUserSort, ListAdminUsersQuery } from './dto/list-admin-users.query.js';
 
 /** Allowlist cot duoc doc: them truong vao response thi phai them o day, co chu y. */
 const adminUserSelect = {
@@ -24,6 +24,39 @@ const adminUserSelect = {
 
 type AdminUserRow = Prisma.UserGetPayload<{ select: typeof adminUserSelect }>;
 
+/**
+ * Sort cua API la allowlist anh xa sang orderBy co kieu; khong bao gio dua chuoi tu query vao Prisma.
+ * id tang dan la tieu chi phu: hai tai khoan trung createdAt van co thu tu on dinh giua cac trang.
+ */
+const ADMIN_USER_ORDER: Record<AdminUserSort, Prisma.UserOrderByWithRelationInput[]> = {
+  newest: [{ createdAt: 'desc' }, { id: 'asc' }],
+  oldest: [{ createdAt: 'asc' }, { id: 'asc' }],
+  email_asc: [{ email: 'asc' }, { id: 'asc' }],
+  email_desc: [{ email: 'desc' }, { id: 'asc' }],
+};
+
+/**
+ * Prisma bien `contains` thanh ILIKE '%gia tri%' va KHONG escape ky tu dac biet cua LIKE (do bang
+ * test/admin-users-filters.http.spec.ts: chua escape thi q=% khop moi tai khoan). Gia tri van la tham
+ * so cua cau lenh nen khong co SQL injection; chi can bien \, % va _ thanh ky tu thuong. Postgres dung
+ * \ lam ky tu escape mac dinh cua LIKE/ILIKE.
+ */
+export function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
+/** Dieu kien loc, ket hop AND; count va findMany dung chung de total khop bo loc. */
+function adminUserWhere(query: ListAdminUsersQuery): Prisma.UserWhereInput {
+  return {
+    ...(query.q ? { email: { contains: escapeLikePattern(query.q), mode: 'insensitive' } } : {}),
+    ...(query.status ? { status: UserStatus[query.status] } : {}),
+    ...(query.role ? { userRoles: { some: { role: { code: query.role } } } } : {}),
+    ...(query.verified === undefined
+      ? {}
+      : { emailVerifiedAt: query.verified ? { not: null } : null }),
+  };
+}
+
 type StatusChangeOutcome =
   { status: 'CHANGED'; user: AdminUserRow } | { status: 'NOT_FOUND' } | { status: 'WRONG_STATE' };
 
@@ -35,14 +68,16 @@ type StatusChangeOutcome =
 export class AdminUsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(query: PageQuery): Promise<AdminUserListResponse> {
-    // Dem va lay trong cung mot giao dich de total khop items; id pha hoa khi trung createdAt de
-    // phan trang on dinh, khong lap hay sot dong giua hai trang.
+  async list(query: ListAdminUsersQuery): Promise<AdminUserListResponse> {
+    // Dem va lay trong cung mot giao dich, CUNG mot where, de total la tong theo bo loc chu khong
+    // tinh tu items; id pha hoa de phan trang on dinh, khong lap hay sot dong giua hai trang.
+    const where = adminUserWhere(query);
     const [total, rows] = await this.prisma.$transaction([
-      this.prisma.user.count(),
+      this.prisma.user.count({ where }),
       this.prisma.user.findMany({
+        where,
         select: adminUserSelect,
-        orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+        orderBy: ADMIN_USER_ORDER[query.sort ?? 'newest'],
         skip: skipOf(query),
         take: query.pageSize,
       }),

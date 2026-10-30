@@ -17,11 +17,11 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 
-import { PageQuery } from '../../common/pagination/page.query.js';
 import { CurrentUser, type CurrentUserType, RequireRoles, RoleCode } from '../auth/index.js';
 import { AdminUsersService } from './admin-users.service.js';
 import { AdminUserListResponse, AdminUserResponse } from './dto/admin-user.response.js';
 import { AdminUserIdParam } from './dto/admin-user-id.param.js';
+import { ListAdminUsersQuery } from './dto/list-admin-users.query.js';
 import { NoStoreInterceptor } from './no-store.interceptor.js';
 
 /**
@@ -37,9 +37,11 @@ export class AdminUsersController {
   constructor(private readonly users: AdminUsersService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Liet ke tai khoan cho quan tri vien, moi nhat truoc, co phan trang' })
+  @ApiOperation({
+    summary: 'Liet ke tai khoan cho quan tri vien: tim email, loc trang thai/vai/xac thuc, sap xep',
+  })
   @ApiOkResponse({ type: AdminUserListResponse })
-  list(@Query() query: PageQuery): Promise<AdminUserListResponse> {
+  list(@Query() query: ListAdminUsersQuery): Promise<AdminUserListResponse> {
     return this.users.list(query);
   }
 

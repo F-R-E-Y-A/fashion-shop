@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-libra
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { adminUserKeys } from './admin-users.api.js';
+import { DEFAULT_USER_LIST_QUERY } from './list-query.js';
 import {
   adminA,
   apiError,
@@ -102,7 +103,7 @@ describe('UC-02.1 mất quyền trước khi React cập nhật giao diện', ()
           await queryClient.invalidateQueries({
             queryKey:
               source === 'list'
-                ? adminUserKeys.list(adminA.id, 1)
+                ? adminUserKeys.list(adminA.id, DEFAULT_USER_LIST_QUERY)
                 : adminUserKeys.detail(adminA.id, target.id),
           });
           gate.resolve();

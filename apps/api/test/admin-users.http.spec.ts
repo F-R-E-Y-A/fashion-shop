@@ -245,16 +245,10 @@ describe('UC-02.1 Quan tri tai khoan, Admin.1: GET /api/admin/users (T-M5)', () 
       expect(beyond.body).toMatchObject({ items: [], total: 6, page: 9, totalPages: 3 });
     });
 
-    it('tham so sai hoac chua ho tro (search, status) tra 400', async () => {
+    it('tham so sai hoac chua ho tro (search) tra 400; bo loc hop le xem admin-users-filters', async () => {
       const admin = await adminSession();
 
-      for (const query of [
-        '?page=0',
-        '?pageSize=61',
-        '?pageSize=abc',
-        '?search=a',
-        '?status=ACTIVE',
-      ]) {
+      for (const query of ['?page=0', '?pageSize=61', '?pageSize=abc', '?search=a']) {
         const response = await list(admin.accessToken, query).expect(400);
         expect(response.body).toMatchObject({ statusCode: 400, code: 'BAD_REQUEST' });
       }

@@ -2,8 +2,10 @@ import { ConflictException, NotFoundException, UnprocessableEntityException } fr
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { PageQuery } from '../../common/pagination/page.query.js';
+import { UserStatus } from '../../generated/prisma/client.js';
 import type { PrismaService } from '../../infra/prisma/prisma.service.js';
-import { AdminUsersService } from './admin-users.service.js';
+import { AdminUsersService, escapeLikePattern } from './admin-users.service.js';
+import { ADMIN_USER_STATUSES, ListAdminUsersQuery } from './dto/list-admin-users.query.js';
 
 const ADMIN_ID = '00000000-0000-4000-8000-0000000000aa';
 const TARGET_ID = '00000000-0000-4000-8000-000000000001';
@@ -41,6 +43,9 @@ function makePrisma() {
 
 const query = (page: number, pageSize: number): PageQuery =>
   Object.assign(new PageQuery(), { page, pageSize });
+
+const filtered = (filters: Partial<ListAdminUsersQuery>): ListAdminUsersQuery =>
+  Object.assign(new ListAdminUsersQuery(), { page: 1, pageSize: 20 }, filters);
 
 describe('AdminUsersService (UC-02.1 quan tri tai khoan, Admin.1)', () => {
   let prisma: ReturnType<typeof makePrisma>['prisma'];
@@ -86,6 +91,71 @@ describe('AdminUsersService (UC-02.1 quan tri tai khoan, Admin.1)', () => {
       }),
     );
     expect(page).toMatchObject({ total: 5, page: 2, pageSize: 2, totalPages: 3 });
+  });
+
+  it('UC-02.1/AC11 count va findMany dung CUNG where; bo loc AND, role la membership, verified theo null', async () => {
+    prisma.user.count.mockResolvedValue(0);
+    prisma.user.findMany.mockResolvedValue([]);
+
+    await service.list(
+      filtered({
+        q: '50%_off\\x',
+        status: 'LOCKED',
+        role: 'ADMIN',
+        verified: false,
+        sort: 'email_asc',
+      }),
+    );
+
+    const where = {
+      email: { contains: '50\\%\\_off\\\\x', mode: 'insensitive' },
+      status: 'LOCKED',
+      userRoles: { some: { role: { code: 'ADMIN' } } },
+      emailVerifiedAt: null,
+    };
+    expect(prisma.user.count).toHaveBeenCalledWith({ where });
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where, orderBy: [{ email: 'asc' }, { id: 'asc' }] }),
+    );
+  });
+
+  it('UC-02.1/AC11 verified=true la emailVerifiedAt khac null; khong bo loc thi where rong', async () => {
+    prisma.user.count.mockResolvedValue(0);
+    prisma.user.findMany.mockResolvedValue([]);
+
+    await service.list(filtered({ verified: true }));
+    await service.list(filtered({}));
+
+    expect(prisma.user.count.mock.calls[0]![0]).toEqual({
+      where: { emailVerifiedAt: { not: null } },
+    });
+    expect(prisma.user.count.mock.calls[1]![0]).toEqual({ where: {} });
+  });
+
+  it('UC-02.1/AC11 bon kieu sap xep anh xa allowlist, tie-break id tang', async () => {
+    prisma.user.count.mockResolvedValue(0);
+    prisma.user.findMany.mockResolvedValue([]);
+    const expected = {
+      newest: [{ createdAt: 'desc' }, { id: 'asc' }],
+      oldest: [{ createdAt: 'asc' }, { id: 'asc' }],
+      email_asc: [{ email: 'asc' }, { id: 'asc' }],
+      email_desc: [{ email: 'desc' }, { id: 'asc' }],
+    } as const;
+
+    for (const [sort, orderBy] of Object.entries(expected)) {
+      prisma.user.findMany.mockClear();
+      await service.list(filtered({ sort: sort as keyof typeof expected }));
+      expect(prisma.user.findMany.mock.calls[0]![0].orderBy).toEqual(orderBy);
+    }
+  });
+
+  it('UC-02.1/AC11 trang thai khai trong DTO (DTO khong duoc doc Prisma) trung enum UserStatus', () => {
+    expect([...ADMIN_USER_STATUSES].sort()).toEqual(Object.values(UserStatus).sort());
+  });
+
+  it('UC-02.1/AC11 escape \\, % va _ cua LIKE, giu nguyen ky tu khac', () => {
+    expect(escapeLikePattern('a%b_c\\d')).toBe('a\\%b\\_c\\\\d');
+    expect(escapeLikePattern("o'neil@example.test")).toBe("o'neil@example.test");
   });
 
   it('tra dang an toan: vai xep abc, thoi diem la chuoi ISO, chua xac thuc thi null', async () => {

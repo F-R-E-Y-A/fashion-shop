@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
 import { useEffect } from 'react';
-import { MemoryRouter, useLocation, useNavigationType } from 'react-router-dom';
+import { MemoryRouter, useLocation, useNavigate, useNavigationType } from 'react-router-dom';
 import { vi } from 'vitest';
 
 import { AppRoutes } from '@/app';
@@ -149,9 +149,31 @@ export function createAdminBackend(options: {
     if (pathname === '/admin/users') {
       const page = Number(url.searchParams.get('page') ?? 1);
       const pageSize = Number(url.searchParams.get('pageSize') ?? 12);
-      const total = state.users.length;
+      // Loc va sap xep nhu API that (AND, role la membership, verified theo null). `newest` giu thu tu
+      // mang (cac bai cu xep san moi nhat truoc).
+      const q = url.searchParams.get('q')?.toLowerCase();
+      const status = url.searchParams.get('status');
+      const role = url.searchParams.get('role');
+      const verified = url.searchParams.get('verified');
+      const sort = url.searchParams.get('sort') ?? 'newest';
+      const matched = state.users.filter(
+        (user) =>
+          (!q || user.email.toLowerCase().includes(q)) &&
+          (!status || user.status === status) &&
+          (!role || user.roles.includes(role)) &&
+          (verified === null || (user.emailVerifiedAt !== null) === (verified === 'true')),
+      );
+      const ordered =
+        sort === 'oldest'
+          ? [...matched].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+          : sort === 'email_asc'
+            ? [...matched].sort((a, b) => a.email.localeCompare(b.email))
+            : sort === 'email_desc'
+              ? [...matched].sort((a, b) => b.email.localeCompare(a.email))
+              : matched;
+      const total = ordered.length;
       return json({
-        items: state.users.slice((page - 1) * pageSize, page * pageSize),
+        items: ordered.slice((page - 1) * pageSize, page * pageSize),
         total,
         page,
         pageSize,
@@ -247,10 +269,15 @@ export function installDialogStub() {
 export function LocationProbe() {
   const location = useLocation();
   const type = useNavigationType();
+  const navigate = useNavigate();
   return (
-    <p data-testid="location" data-navigation={type}>
-      {location.pathname + location.search + location.hash}
-    </p>
+    <>
+      <p data-testid="location" data-navigation={type}>
+        {location.pathname + location.search + location.hash}
+      </p>
+      {/* Nut Back cua trinh duyet trong MemoryRouter. */}
+      <button type="button" data-testid="history-back" hidden onClick={() => void navigate(-1)} />
+    </>
   );
 }
 

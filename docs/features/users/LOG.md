@@ -299,3 +299,78 @@ batch, trước khi React có cơ hội chạy effect; ca danh sách còn kiểm
 
 Chưa chạy lại QA trình duyệt hay HTTP local ở vòng này. CI và phần duyệt của Bảo/Duy vẫn là điều kiện trước
 gộp; không tự đổi trạng thái ADR hay chốt mã UC.
+
+<a id="adr-029"></a>
+
+## 2026-10-20 · ADR-029 — Tìm và lọc tài khoản ở máy chủ bằng một codec điều kiện; sau khi khóa hay mở khóa luôn tải lại tập từ API
+
+**Loại:** quyết định · **Phạm vi:** `apps/api/src/modules/users` (DTO, service), `apps/web/src/features/account/admin` · **Trạng thái:** đề xuất · **Người quyết:** Tài · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+
+- `GET /api/admin/users` trên `47576d4` chỉ nhận `PageQuery`; tham số lạ trả 400 (`app.setup.ts:34-35`).
+- Admin.3 có một luồng khóa, mở khóa nằm trong trang chi tiết; danh sách chỉ thay trạng thái dòng trong cache.
+- Prisma 7 biến `contains` thành `ILIKE '%…%'` mà không escape `%`, `_`, `\`: chưa escape thì `q=%` khớp mọi
+  tài khoản (đo bằng `test/admin-users-filters.http.spec.ts`, 20/10/2026).
+
+### Phương án
+
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Lọc ở giao diện trên trang đã tải | Không đổi API | Sai: chỉ thấy 20 dòng, total sai | Có |
+| **B. DTO riêng kế thừa `PageQuery` + `where` dùng chung cho `count` và `findMany` (chọn)** | Tìm trên toàn bộ dữ liệu; total khớp bộ lọc | Thêm DTO và bài HTTP | Có |
+| `pg_trgm` hay chỉ mục ngay bây giờ | Nhanh với dữ liệu lớn | Migration theo suy đoán, chưa có số đo | Có, tốn |
+| Sau thao tác: chỉ thay dòng trong cache | Không thêm request | Dòng có thể rời bộ lọc, total và trang sai | Có |
+| **Sau thao tác: thay dòng để hiện ngay, đánh dấu "Không còn khớp bộ lọc", tải lại tập từ API (chọn)** | Total, trang và membership luôn của máy chủ | Thêm một GET mỗi thao tác | Có |
+
+**Chọn B và tải lại sau thao tác**, kèm các luật:
+
+- `q` trim, tối đa 254 ký tự, không phân biệt hoa thường; service escape `\`, `%`, `_` (`escapeLikePattern`).
+  Giá trị vẫn là tham số của câu lệnh, không nối chuỗi SQL.
+- `verified` chỉ nhận chuỗi `true`/`false`, chuyển tường minh; không dùng `@Type(() => Boolean)`.
+- `status` khai lại trong DTO (luật ranh giới cấm DTO đọc Prisma); bài spec đối chiếu với enum `UserStatus`.
+- Một codec web (`list-query.ts`) cho URL, tham số API và chữ ký query key; dữ liệu giữ chỗ chỉ khi cùng actor và
+  cùng chữ ký.
+- Một hook (`user-status-action.tsx`) cho chi tiết và danh sách; giữ ref chống bấm kép, hết giờ, kết quả chưa rõ,
+  epoch và thế hệ quyền của Admin.3, không nhân đôi cơ chế. Khi một thao tác đang chạy, mọi nút thao tác khác bị
+  chặn (chặt hơn "chặn cùng tài khoản" để giữ một luồng đơn giản).
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: bài `UC-02.1/AC11`–`AC15` đạt; gỡ từng lớp bảo vệ thì bài tương ứng đỏ.
+Thực tế: 20/10/2026, nhánh chưa commit · HTTP lọc 9/9, đơn vị users API 26/26, web admin 65/65 (ba lượt liên
+tiếp). Kiểm chứng ngược (gỡ rồi khôi phục):
+- bỏ escape LIKE: 1 bài HTTP đỏ;
+- placeholder không kiểm chữ ký điều kiện: 2 bài đỏ;
+- không tải lại danh sách sau thao tác: 3 bài đỏ;
+- bỏ debounce: 2 bài đỏ.
+
+### Điều kiện xem lại
+
+Khi số tài khoản đủ lớn để đo thấy tìm chậm (đề xuất `pg_trgm` kèm số đo), khi cần chọn nhiều trạng thái hay vai,
+hoặc khi có vai `STAFF`.
+
+
+## 2026-10-24 · Review Issue #48: hủy debounce khi điều hướng
+
+**Loại:** thay đổi mã · **Phạm vi:** `UserListControls.tsx`, `AdminUsersPage.tsx`, `admin-users-tools.test.tsx` · **Commit:** chưa commit
+
+Review độc lập tái hiện lỗi: nhập tìm kiếm rồi Back trước 300 ms khiến timer cũ ghi đè URL vừa khôi phục,
+kể cả khi hai URL có cùng `q`. Bộ điều khiển nay nhận khóa điều hướng, đồng bộ bản nháp và hủy timer khi khóa
+đổi; giữ nguyên input DOM để debounce không làm mất focus. Hai bài `UC-02.1/AC12` kiểm Back và tiếp tục gõ sau
+khi URL cập nhật. Bài Back đã đỏ trên mã cũ trước khi sửa.
+
+Kết quả xác minh ngày 24/10/2026 trên nền `47576d4`, chưa commit: `npm run check` đạt (API 320, web 339 bài),
+web admin 67/67, build web đạt, docs lint users 4 tệp đạt. HTTP chạy riêng trên `fashion_shop_test` và Redis
+6380: 320/320 bài, 17 tệp. Chrome/API thật: 41/41 bước gồm Back/debounce và giữ focus, desktop/mobile và zoom
+200% thật; dữ liệu QA đã dọn. Log và ảnh ở kho docs: `minh-chung/issue-48-review-2026-10-24/`.
+
+
+## 2026-10-24 · Review PR #49: giữ bản nháp tìm kiếm khi đổi số dòng hoặc phân trang
+
+**Loại:** thay đổi mã · **Phạm vi:** danh sách quản trị và tài liệu auth/users · **Commit:** cùng commit bổ sung PR #49
+
+Hai điều khiển ở chân bảng dùng q cũ trên URL, làm mất chữ đang gõ trước debounce. Bản nháp nay thuộc trang
+và được dùng chung cho thanh lọc, số dòng và phân trang; q đổi thì về trang 1. Hai bài UC-02.1/AC12 đã đỏ
+trước sửa, kiểm URL, giá trị ô tìm và request sau khi chờ hết debounce. Sửa cả README còn ghi PR #45/#47
+chưa gộp và Issue #48 chưa commit; không thay trạng thái ADR, không đổi chính sách backend.
