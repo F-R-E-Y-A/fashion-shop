@@ -22,7 +22,12 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
   constructor(config: ConfigService<Env, true>) {
     super({
-      adapter: new PrismaPg(prismaConnection(config.get('DATABASE_URL', { infer: true }))),
+      adapter: new PrismaPg(
+        prismaConnection(config.get('DATABASE_URL', { infer: true }), {
+          max: config.get('DATABASE_POOL_MAX', { infer: true }),
+          connectionTimeoutMillis: config.get('DATABASE_POOL_TIMEOUT_MS', { infer: true }),
+        }),
+      ),
     });
   }
 

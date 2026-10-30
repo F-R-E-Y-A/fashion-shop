@@ -23,6 +23,13 @@ export const envSchema = z
         (value) => value.startsWith('postgresql://') || value.startsWith('postgres://'),
         'phai bat dau bang postgresql://',
       ),
+    /**
+     * So ket noi toi da moi API process. Tong cua moi instance (va worker, script) phai nho hon
+     * max_connections cua PostgreSQL; checkout giu mot ket noi trong ca transaction tao don.
+     */
+    DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(200).default(10),
+    /** Cho ket noi ranh toi da bao lau (ms) roi bao loi thay vi treo request mai; 0 la cho mai. */
+    DATABASE_POOL_TIMEOUT_MS: z.coerce.number().int().min(0).default(10_000),
     /** Cac goc web duoc goi API, cach nhau bang dau phay. Staging dien dung dia chi web cua no. */
     CORS_ORIGINS: z.string().default('http://localhost:5174'),
     /** Bat buoc tu moi truong; khong co default de khong bao gio dua production secret vao ma nguon. */

@@ -84,6 +84,7 @@ model InventoryReservation {
   @@unique([orderId, productVariantId])
   @@index([expiresAt])
   @@index([orderId])
+  @@index([productVariantId, expiresAt])
   @@map("inventory_reservations")
   @@schema("public")
 }
