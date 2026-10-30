@@ -14,6 +14,7 @@
     "test:watch": "vitest --project unit",
     "test:cov": "vitest run --project unit --coverage",
     "test:http": "vitest run --project http",
+    "test:load": "vitest run --project load",
     "test:http:cov": "vitest run --project http --coverage --coverage.reportsDirectory=coverage-http",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
