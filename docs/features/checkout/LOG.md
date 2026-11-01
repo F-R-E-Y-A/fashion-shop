@@ -61,3 +61,11 @@ Lệnh: `LOAD_USERS=<n> LOAD_RAMP_MS=<ms> DATABASE_POOL_MAX=<pool> npx vitest ru
 
 Mục tiêu p95 tạo đơn dưới 800 ms ở 1000 khách **chưa đạt**. Pool 30 không nhanh hơn pool 10, nên nút thắt không phải số kết nối; một process xử lý khoảng 35–65 request/giây (100 request trong 2,9 giây ở lượt 50 khách). Suy luận, chưa tách đo: CPU của process Node cho chuỗi khoảng 10 query mỗi preview/tạo đơn, cộng khoá SKU hot khi giữ hàng. Hướng tiếp: đo CPU Node và `pg_stat_activity` khi tải, giảm số query mỗi request, chạy nhiều instance API sau PgBouncer, rồi đo lại bằng chính bộ này.
 
+
+## 2026-11-01 · PH-11 — rút lại nhận định "pool 30 không nhanh hơn pool 10" của lượt đo tải 30/10
+
+**Loại:** số đo · **Phạm vi:** Checkout, hạ tầng Prisma · **Commit:** [bdb4228](https://github.com/F-R-E-Y-A/fashion-shop/commit/bdb4228) (bộ đo), gộp develop ở [49f5e22](https://github.com/F-R-E-Y-A/fashion-shop/commit/49f5e22)
+
+Mục đo tải 30/10 ở trên kết luận số kết nối không phải nút thắt vì pool 30 không nhanh hơn pool 10. Kết luận đó chưa đứng được: trong bảng, lượt pool 30 chạy *trước* sửa lỗi `pg-pool` (45 lần 500, 182 lần 503), còn lượt pool 10 chạy *sau*; hai lượt không cùng mã. Thêm nữa, bộ đo gọi API bằng supertest trong cùng tiến trình Node, nên p95 gồm cả thời gian phía client tranh CPU với server (suy luận, chưa tách đo).
+
+Giữ nguyên: đúng đắn ở 1000 khách (50 đơn / 50 giữ hàng, không bán vượt) và mục tiêu p95 tạo đơn < 800 ms chưa đạt. Muốn kết luận về pool thì đo lại pool 10 và 30 trên cùng commit, client tải chạy ở tiến trình riêng, kèm CPU Node và `pg_stat_activity`.
