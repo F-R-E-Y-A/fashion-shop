@@ -117,9 +117,11 @@ export class PaymentsService {
     });
   }
 
-  candidates() {
+  /** `skip`: payment worker da xu ly trong tick nay (vd chua claim duoc), tick sau thu lai. */
+  candidates(skip: string[] = []) {
     return this.prisma.payment.findMany({
       where: {
+        id: { notIn: skip },
         createdAt: { gte: new Date(Date.now() - 86400_000) },
         status: { not: 'SUCCEEDED' },
         OR: gatewayCodes.map((code) => {
@@ -133,7 +135,7 @@ export class PaymentsService {
           };
         }),
       },
-      take: 20,
+      take: 50,
       orderBy: [{ lastCheckedAt: 'asc' }, { createdAt: 'asc' }],
     });
   }

@@ -11,6 +11,9 @@ import { ConfigService } from '@nestjs/config';
 import { type GatewayCode, gatewayCodes, type PaymentEvent } from '../payments/index.js';
 import { CheckoutService } from './checkout.service.js';
 
+/** Nho hon chu ky 30 giay de tick sau khong phai doi; viec con lai sang tick sau. */
+const TICK_BUDGET_MS = 20_000;
+
 type Result = 'PROCESSED' | 'DUPLICATE' | 'UNKNOWN' | 'MISMATCH' | 'INVALID' | 'RETRY';
 const vnpayReplies: Record<Result, { RspCode: string; Message: string }> = {
   PROCESSED: { RspCode: '00', Message: 'Processed' },
@@ -165,22 +168,71 @@ export class SettlementService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  /**
+   * Quet don qua han va payment can doi soat. Moi tick lay tung lo cho toi khi het viec hoac het
+   * TICK_BUDGET_MS, nen khong con tran 50 don/20 payment moi 30 giay. Nhieu instance chay cung
+   * an toan: huy don khoa theo don va kiem lai trang thai, query payment co claim theo lastCheckedAt.
+   */
   async tick() {
     if (this.busy) return;
     this.busy = true;
+    const deadline = Date.now() + TICK_BUDGET_MS;
     try {
-      for (const order of await this.checkout.orders.due()) {
-        if (order.userId) await this.checkout.cancel(order.id, order.userId, true);
-      }
-      for (const payment of await this.checkout.payments.candidates()) {
-        if (['MOMO', 'MOMO_ATM'].includes(payment.gateway ?? '') && !payment.checkoutUrl)
-          await this.checkout.payments.launchLatest(payment.orderId, '127.0.0.1');
-        if (payment.reference) await this.reconcile(payment.reference);
-      }
-    } catch {
-      this.logger.error('Checkout recovery interrupted; next tick will retry.');
+      await this.drain(
+        'order',
+        deadline,
+        (skip) => this.checkout.orders.due(skip),
+        async (order) => {
+          if (order.userId) await this.checkout.cancel(order.id, order.userId, true);
+        },
+      );
+      await this.drain(
+        'payment',
+        deadline,
+        (skip) => this.checkout.payments.candidates(skip),
+        async (payment) => {
+          if (['MOMO', 'MOMO_ATM'].includes(payment.gateway ?? '') && !payment.checkoutUrl)
+            await this.checkout.payments.launchLatest(payment.orderId, '127.0.0.1');
+          if (payment.reference) await this.reconcile(payment.reference);
+        },
+      );
     } finally {
       this.busy = false;
+    }
+  }
+
+  /**
+   * Lay lo, xu ly tung muc rieng: mot muc loi chi log id roi di tiep, khong chan cac muc sau.
+   * Muc da dua vao xu ly trong tick bi loai khoi lo ke tiep, nen muc loi mai hoac muc chua claim
+   * duoc khong lap vo han trong mot tick; tick sau thu lai.
+   */
+  private async drain<T extends { id: string }>(
+    kind: string,
+    deadline: number,
+    fetch: (skip: string[]) => Promise<T[]>,
+    work: (item: T) => Promise<void>,
+  ) {
+    const seen = new Set<string>();
+    while (Date.now() < deadline) {
+      let batch: T[];
+      try {
+        batch = await fetch([...seen]);
+      } catch {
+        this.logger.error(`Checkout recovery could not list ${kind}s; next tick will retry.`);
+        return;
+      }
+      if (!batch.length) return;
+      for (const item of batch) {
+        if (Date.now() >= deadline) return;
+        seen.add(item.id);
+        try {
+          await work(item);
+        } catch (error) {
+          this.logger.error(
+            `Checkout recovery ${kind} ${item.id} failed (${error instanceof Error ? error.name : 'unknown'}); next tick will retry.`,
+          );
+        }
+      }
     }
   }
 }

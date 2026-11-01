@@ -11,7 +11,13 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiTags,
+  ApiTooManyRequestsResponse,
+} from '@nestjs/swagger';
 
 import {
   AuthGuard,
@@ -21,6 +27,7 @@ import {
   RoleCode,
 } from '../auth/index.js';
 import { CheckoutService } from './checkout.service.js';
+import { CheckoutRateLimitService } from './checkout-rate-limit.service.js';
 import {
   AdminOrderPageResponse,
   AdminOrderResponse,
@@ -45,7 +52,10 @@ import { SettlementService } from './settlement.service.js';
 @UseGuards(AuthGuard)
 @Controller('checkout')
 export class CheckoutController {
-  constructor(private readonly checkout: CheckoutService) {}
+  constructor(
+    private readonly checkout: CheckoutService,
+    private readonly rateLimit: CheckoutRateLimitService,
+  ) {}
   @ApiCreatedResponse({ type: QuoteResponse })
   @Post('preview')
   @Header('Cache-Control', 'no-store')
@@ -53,9 +63,15 @@ export class CheckoutController {
     return this.checkout.preview(user.id, input.addressId);
   }
   @ApiCreatedResponse({ type: OrderResponse })
+  @ApiTooManyRequestsResponse({ description: 'Quá 10 lần mỗi phút một tài khoản; có Retry-After' })
   @Post('orders')
   @Header('Cache-Control', 'no-store')
-  create(@CurrentUser() user: CurrentUserType, @Body() input: CreateCheckoutDto, @Ip() ip: string) {
+  async create(
+    @CurrentUser() user: CurrentUserType,
+    @Body() input: CreateCheckoutDto,
+    @Ip() ip: string,
+  ) {
+    await this.rateLimit.enforce(user.id, 'order');
     return this.checkout.create(user, input, ip);
   }
 }
@@ -68,6 +84,7 @@ export class OrdersController {
   constructor(
     private readonly checkout: CheckoutService,
     private readonly settlement: SettlementService,
+    private readonly rateLimit: CheckoutRateLimitService,
   ) {}
   @ApiOkResponse({ type: [OrderResponse] })
   @Get()
@@ -100,14 +117,16 @@ export class OrdersController {
     return this.checkout.cancel(id, user.id);
   }
   @ApiCreatedResponse({ type: OrderResponse })
+  @ApiTooManyRequestsResponse({ description: 'Quá 20 lần mỗi phút một tài khoản; có Retry-After' })
   @Post(':id/payments')
   @Header('Cache-Control', 'no-store')
-  retry(
+  async retry(
     @CurrentUser() user: CurrentUserType,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() input: RetryPaymentDto,
     @Ip() ip: string,
   ) {
+    await this.rateLimit.enforce(user.id, 'payment');
     return this.checkout.retry(id, user.id, input.idempotencyKey, ip);
   }
   @ApiCreatedResponse({ type: OrderResponse })

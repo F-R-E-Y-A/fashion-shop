@@ -290,4 +290,19 @@ describe('PH-11 COD: tao don, giu hang, thu tien khi giao (PostgreSQL)', () => {
       .set({ Authorization: `Bearer ${adminToken}` })
       .expect(400);
   });
+
+  it('qua 10 lan tao don moi phut mot tai khoan thi 429 kem Retry-After, khong tao them gi', async () => {
+    const quote = await preview().expect(201);
+    const body = {
+      addressId,
+      fingerprint: quote.body.fingerprint,
+      idempotencyKey: randomUUID(),
+      gateway: 'COD',
+    };
+    for (let i = 0; i < 10; i++)
+      await t.http.post('/api/checkout/orders').set(auth()).send(body).expect(201);
+    const blocked = await t.http.post('/api/checkout/orders').set(auth()).send(body).expect(429);
+    expect(Number(blocked.headers['retry-after'])).toBeGreaterThan(0);
+    expect(await t.prisma.order.count()).toBe(1);
+  });
 });

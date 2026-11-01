@@ -14,4 +14,13 @@ describe('Prisma PostgreSQL session configuration', () => {
     );
     expect(url.searchParams.get('schema')).toBe('public');
   });
+
+  it('chuyen gioi han pool cho pg, bo trong thi giu mac dinh cua pg', () => {
+    const url = 'postgresql://user:password@localhost/db';
+    expect(prismaConnection(url, { max: 25, connectionTimeoutMillis: 5000 })).toMatchObject({
+      max: 25,
+      connectionTimeoutMillis: 5000,
+    });
+    expect(Object.keys(prismaConnection(url))).toEqual(['connectionString']);
+  });
 });

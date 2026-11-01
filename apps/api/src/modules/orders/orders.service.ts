@@ -218,9 +218,11 @@ export class OrdersService {
     await tx.orderStatusHistory.create({ data: { orderId: id, status, actorUserId } });
   }
 
-  due() {
+  /** `skip`: don worker da xu ly trong tick nay, de don loi khong lap lai trong cung tick. */
+  due(skip: string[] = []) {
     return this.prisma.order.findMany({
       where: {
+        id: { notIn: skip },
         OR: [
           { status: 'PENDING_PAYMENT', paymentDueAt: { lte: new Date() } },
           { status: 'PENDING_CONFIRMATION', paymentDueAt: { lte: new Date() } },
