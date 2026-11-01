@@ -722,3 +722,28 @@ Thực tế: 2026-10-31 · `npx vitest run src/features/account` → 189/189 tr�
 
 ### Điều kiện xem lại
 Có màn quản trị thứ ba cần thứ kit chưa có; Vite đổi thứ tự CSS; nhóm muốn ESLint kiểm cả đường `composes`.
+
+<a id="adr-040"></a>
+## 2026-11-01 · ADR-040 — Đơn COD chờ xác nhận không chặn đơn mới, tối đa 3 đơn mỗi tài khoản
+
+**Loại:** quyết định · **Phạm vi:** Checkout, Orders (Bảo); thay một phần luật "mỗi khách một đơn giữ hàng" của ADR-034 · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- `OrdersService.pending` coi cả đơn COD `PENDING_CONFIRMATION` là đơn giữ hàng ([orders.service.ts:107-114 tại 5940fd0](https://github.com/F-R-E-Y-A/fashion-shop/blob/5940fd0/apps/api/src/modules/orders/orders.service.ts#L107-L114)), nên khách đặt một đơn COD thì không đặt được đơn nào khác tới khi shop xác nhận hoặc hết 3 ngày, với câu báo "đang chờ thanh toán" dù COD không có gì để thanh toán.
+- Luật một đơn giữ hàng ở ADR-034 sinh ra để khách không trả tiền hai đơn cùng lúc; với COD rủi ro đó không có.
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Giữ luật chặn, chỉ sửa câu báo | Không đổi hành vi | Khách COD chờ tới 3 ngày mới đặt thêm được | Được |
+| **B. Đơn COD chờ không chặn; trần `COD_MAX_PENDING_ORDERS` (mặc định 3) qua `codBlock` (chọn)** | Khách đặt thêm được; khi chạm trần COD tắt kèm lý do như hai chặn COD của ADR-038 | Một tài khoản giữ tối đa 3 × 2.000.000đ hàng chưa xác nhận | Được: đặt env về 1 gần như luật cũ |
+| C. Không trần | Đơn giản nhất | Một tài khoản bom hàng giữ được kho không giới hạn | Được |
+
+**Chọn B** (Bảo chọn ngày 01/11, hỏi con số trần). Con số 3 là phán đoán của agent (suy luận, chưa có số liệu bom thật): đủ cho khách quên món đặt thêm trong ngày, mức kho bị giữ bị chặn bởi `COD_MAX_AMOUNT`. Đơn trả trước vẫn một đơn chờ mỗi khách. Gửi lại đúng giỏ của một đơn đang chờ (online hoặc COD) với key mới thì trả lại đơn đó thay vì tạo đơn trùng.
+
+### Kết quả mong đợi → thực tế
+Mong đợi: [cod.http.spec.ts](../apps/api/test/cod.http.spec.ts) phủ ba đơn COD liên tiếp, đơn thứ tư bị 409 `COD_UNAVAILABLE`, shop xác nhận một đơn thì COD mở lại; `npm run check` xanh.
+Thực tế: 2026-11-01 · `npx vitest run --project http test/cod.http.spec.ts test/checkout-payment.http.spec.ts` → 2 tệp, 31 test đạt.
+
+### Điều kiện xem lại
+Số liệu bom thật cho thấy 3 quá rộng hoặc quá chặt; có hãng vận chuyển xác nhận đơn tự động.

@@ -1,8 +1,8 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createElement } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '@/core';
 
@@ -24,6 +24,18 @@ vi.mock('@/features/account', () => ({
   createAddress,
   AddressForm: AddressFormStub,
 }));
+/** jsdom chua co HTMLDialogElement.showModal: stub toi thieu cho ConfirmDialog cua trang don. */
+beforeAll(() => {
+  const proto = HTMLDialogElement.prototype as HTMLDialogElement & { showModal(): void };
+  if (typeof proto.showModal === 'function') return;
+  proto.showModal = function showModal(this: HTMLDialogElement) {
+    this.setAttribute('open', '');
+  };
+  proto.close = function close(this: HTMLDialogElement) {
+    this.removeAttribute('open');
+    this.dispatchEvent(new Event('close'));
+  };
+});
 const quote: Quote = {
   fingerprint: 'a'.repeat(64),
   address: {
@@ -410,14 +422,15 @@ describe('PH-11 checkout UI', () => {
       screen.queryByRole('button', { name: 'Kiểm tra lại thanh toán' }),
     ).not.toBeInTheDocument();
   });
-  it('hủy đơn phải qua xác nhận; từ chối thì không gửi request hủy', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  it('hủy đơn phải qua hộp xác nhận; bấm Hủy trong hộp thì không gửi request hủy', async () => {
     request.mockResolvedValue(order('PENDING_PAYMENT'));
     show('/don-hang/o1');
     fireEvent.click(await screen.findByRole('button', { name: 'Hủy đơn' }));
-    expect(confirm).toHaveBeenCalled();
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/Hàng đang giữ cho đơn được nhả/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Hủy' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(request).not.toHaveBeenCalledWith('/orders/o1/cancel', expect.anything());
-    confirm.mockRestore();
   });
   it('giỏ chưa chọn món thì dẫn về giỏ hàng chọn mua thay vì báo lỗi', async () => {
     request.mockRejectedValue(
@@ -437,7 +450,6 @@ describe('PH-11 checkout UI', () => {
     );
   });
   it('ADR-038: đơn đã trả chưa xử lý có nút hủy và hoàn tiền; xong hiện số đã hoàn', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
     const paid = {
       ...order('CONFIRMED'),
       payments: [
@@ -461,11 +473,28 @@ describe('PH-11 checkout UI', () => {
     show('/don-hang/o1');
     expect(await screen.findByText(/vẫn hủy được và nhận hoàn tiền tự động/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Hủy đơn và hoàn tiền' }));
-    expect(confirm.mock.calls[0]![0]).toContain('hoàn 230.000');
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/Hoàn 230\.000 ₫ về VNPAY/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Hủy và hoàn tiền' }));
     expect(await screen.findByRole('heading', { name: 'Đã hoàn tiền' })).toBeInTheDocument();
     expect(screen.getByText('Đã hoàn')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Hủy đơn/ })).not.toBeInTheDocument();
-    confirm.mockRestore();
+  });
+  it('đơn đã trả bị hủy mà cổng chưa hoàn (lệnh chốt thất bại): báo còn nợ tiền, không mời đặt lại', async () => {
+    request.mockResolvedValue({
+      ...order('CANCELLED'),
+      payments: [
+        { id: 'p1', gateway: 'VNPAY', reference: 'REF1', status: 'SUCCEEDED', checkoutUrl: null },
+      ],
+      canCancel: false,
+      cancelRefunds: false,
+      refundPending: false,
+      refundedAmount: '0.00',
+    });
+    show('/don-hang/o1');
+    expect(await screen.findByText(/chưa được hoàn tự động/)).toBeInTheDocument();
+    expect(screen.queryByText(/Hàng đã được nhả/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Đặt lại từ giỏ hàng' })).not.toBeInTheDocument();
   });
   it('ADR-038: lệnh hoàn chưa có kết quả thì báo đang xử lý, không mời đặt lại', async () => {
     request.mockResolvedValue({ ...order('CANCELLED'), refundPending: true, canCancel: false });

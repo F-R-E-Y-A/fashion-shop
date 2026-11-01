@@ -98,7 +98,7 @@ describe('PH-11 COD: tao don, giu hang, thu tien khi giao (PostgreSQL)', () => {
     );
   });
 
-  it('don COD: PENDING_CONFIRMATION, khong link, giu hang dai han, chan don thu hai', async () => {
+  it('don COD: PENDING_CONFIRMATION, khong link, giu hang dai han, gui lai cung gio tra cung don', async () => {
     const order = await createCod();
     expect(order.status).toBe('PENDING_CONFIRMATION');
     expect(order.payments[0]).toMatchObject({
@@ -114,9 +114,9 @@ describe('PH-11 COD: tao don, giu hang, thu tien khi giao (PostgreSQL)', () => {
       where: { orderId: order.id },
     });
     expect(reservation.quantity).toBe(2);
-    await createCod().catch((error: { status: number; body: { code?: string } }) => {
-      expect(error.status).toBe(409);
-    });
+    // Cung gio, key moi (bam lai sau khi mat mang): tra lai don cu, khong tao don trung.
+    expect((await createCod()).id).toBe(order.id);
+    expect(await t.prisma.order.count()).toBe(1);
     const again = await t.http
       .post('/api/checkout/orders')
       .set(auth())
@@ -127,6 +127,42 @@ describe('PH-11 COD: tao don, giu hang, thu tien khi giao (PostgreSQL)', () => {
         gateway: 'COD',
       });
     expect(again.status).toBe(409);
+  });
+
+  it('ADR-040: don COD cho xac nhan khong chan don moi; den tran COD_MAX_PENDING_ORDERS (3) thi tat COD', async () => {
+    const setQuantity = (quantity: number) =>
+      t.http.patch(`/api/cart/items/${variantId}`).set(auth()).send({ quantity }).expect(200);
+    const first = await createCod();
+    // Don COD cho khong phai don cho thanh toan: preview khong chi ve no, khach dat tiep duoc.
+    expect((await preview().expect(201)).body.pendingOrder).toBeNull();
+    await setQuantity(1);
+    const second = await createCod();
+    await setQuantity(3);
+    const third = await createCod();
+    expect(new Set([first.id, second.id, third.id]).size).toBe(3);
+    // Gio khac ca ba don (so luong 4) de khong roi vao nhanh tra lai don cu cung gio.
+    await setQuantity(4);
+    expect(await codGateway()).toMatchObject({
+      configured: false,
+      unavailableReason: expect.stringContaining('3 đơn COD chờ shop xác nhận'),
+    });
+    const quote = await preview().expect(201);
+    const blocked = await t.http
+      .post('/api/checkout/orders')
+      .set(auth())
+      .send({
+        addressId,
+        fingerprint: quote.body.fingerprint,
+        idempotencyKey: randomUUID(),
+        gateway: 'COD',
+      })
+      .expect(409);
+    expect(blocked.body.code).toBe('COD_UNAVAILABLE');
+    expect(await t.prisma.order.count()).toBe(3);
+    // Shop xac nhan mot don (PROCESSING) thi duoi tran tro lai.
+    await admin(`${first.id}/confirm-cod`).expect(201);
+    await t.http.post('/api/cart/items').set(auth()).send({ variantId, quantity: 1 }).expect(201);
+    expect((await codGateway()).configured).toBe(true);
   });
 
   it('huy don COD tra hang ve kho va cho dat lai', async () => {
