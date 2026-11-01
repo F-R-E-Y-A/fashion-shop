@@ -5,6 +5,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { formatDateTime, formatPrice } from '@/core';
 import { useAuth } from '@/features/account';
 import { cartKeys } from '@/features/cart';
+import { ConfirmDialog } from '@/ui';
 
 import styles from './Checkout.module.css';
 import { CheckoutSteps } from './CheckoutPage.js';
@@ -27,6 +28,8 @@ export function OrderPage() {
   const { user, authenticatedRequest: request } = useAuth();
   const client = useQueryClient();
   const [now, setNow] = useState(() => Date.now());
+  const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const cancelButton = useRef<HTMLButtonElement>(null);
   const reconciledReturn = useRef('');
   const key = ['orders', user!.id, id || reference];
   const result = useQuery({
@@ -101,9 +104,22 @@ export function OrderPage() {
   const refunded = Number(order?.refundedAmount ?? 0);
   // May chu tinh canCancel (ke ca huy don da tra truoc khi shop xu ly, ADR-038); du lieu cu thi suy ra.
   const canCancel = order?.canCancel ?? (pending || codPending);
-  const cancelPrompt = order?.cancelRefunds
-    ? `Hủy đơn và hoàn ${formatPrice(order.totalAmount)} về ${gatewayLabel}? Thời gian tiền về tài khoản tùy ngân hàng.`
-    : 'Hủy đơn này? Sản phẩm vẫn còn trong giỏ để đặt lại sau.';
+  const cancelImpacts = order?.cancelRefunds
+    ? [
+        `Hoàn ${formatPrice(order.totalAmount)} về ${gatewayLabel}; thời gian tiền về tài khoản tùy ngân hàng hoặc ví.`,
+        'Không hoàn tác được: muốn mua lại phải đặt đơn mới.',
+      ]
+    : [
+        'Hàng đang giữ cho đơn được nhả; sản phẩm vẫn ở giỏ để đặt lại sau.',
+        'Không hoàn tác được.',
+      ];
+  // Khach tu huy don da tra nhung cong khong hoan va lenh hoan da chot that bai: tien da tru, chua
+  // hoan, don van CANCELLED. Khong duoc bao "hang da nha, dat lai tu gio" nhu don chua tra.
+  const refundOwed =
+    order?.status === 'CANCELLED' &&
+    !order.refundPending &&
+    order.payments.some((payment) => payment.status === 'SUCCEEDED' && payment.gateway !== 'COD') &&
+    refunded < Number(order.totalAmount);
   return (
     <div className={styles.page}>
       <Link className={styles.back} to="/tai-khoan/don-hang">
@@ -211,8 +227,16 @@ export function OrderPage() {
               {order.status === 'CANCELLED' && isCod && latestPayment?.status === 'FAILED' && (
                 <p className={styles.statusText}>Đơn được hủy vì giao hàng không thành công.</p>
               )}
+              {refundOwed && (
+                <p className={`${styles.notice} ${styles.noticeDanger}`} role="alert">
+                  Đơn đã hủy nhưng khoản {formatPrice(order.totalAmount)} đã thanh toán qua{' '}
+                  {gatewayLabel} chưa được hoàn tự động. Shop sẽ hoàn thủ công; liên hệ shop kèm mã
+                  đơn {order.orderCode} nếu cần hỗ trợ.
+                </p>
+              )}
               {order.status === 'CANCELLED' &&
                 !order.refundPending &&
+                !refundOwed &&
                 refunded === 0 &&
                 !(isCod && latestPayment?.status === 'FAILED') && (
                   <p className={styles.statusText}>
@@ -334,18 +358,20 @@ export function OrderPage() {
                   Thử lại thanh toán
                 </button>
               )}
-              {order.status === 'CANCELLED' && refunded === 0 && !order.refundPending && (
-                <Link className={styles.cta} to="/gio-hang">
-                  Đặt lại từ giỏ hàng
-                </Link>
-              )}
+              {order.status === 'CANCELLED' &&
+                refunded === 0 &&
+                !order.refundPending &&
+                !refundOwed && (
+                  <Link className={styles.cta} to="/gio-hang">
+                    Đặt lại từ giỏ hàng
+                  </Link>
+                )}
               {canCancel && (
                 <button
+                  ref={cancelButton}
                   className={styles.textButton}
                   disabled={action.isPending}
-                  onClick={() => {
-                    if (window.confirm(cancelPrompt)) action.mutate({ name: 'cancel' });
-                  }}
+                  onClick={() => setConfirmingCancel(true)}
                 >
                   {action.isPending && action.variables?.name === 'cancel'
                     ? 'Đang hủy…'
@@ -355,6 +381,23 @@ export function OrderPage() {
                 </button>
               )}
             </div>
+            {confirmingCancel && (
+              <ConfirmDialog
+                open
+                title={order.cancelRefunds ? 'Hủy đơn và hoàn tiền?' : 'Hủy đơn này?'}
+                subject={`Đơn ${order.orderCode}`}
+                impacts={cancelImpacts}
+                confirmLabel={order.cancelRefunds ? 'Hủy và hoàn tiền' : 'Hủy đơn'}
+                pendingLabel="Đang hủy…"
+                tone="danger"
+                pending={action.isPending && action.variables?.name === 'cancel'}
+                onConfirm={() =>
+                  action.mutate({ name: 'cancel' }, { onSettled: () => setConfirmingCancel(false) })
+                }
+                onClose={() => setConfirmingCancel(false)}
+                returnFocusRef={cancelButton}
+              />
+            )}
             <div className={styles.linkRow}>
               {order.status !== 'CANCELLED' && <Link to="/gio-hang">Về giỏ hàng</Link>}
               <Link to="/">Tiếp tục mua sắm</Link>

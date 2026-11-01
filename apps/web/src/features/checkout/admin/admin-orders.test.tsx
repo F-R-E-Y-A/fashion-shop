@@ -189,7 +189,14 @@ describe('PH-11 quản trị đơn hàng (ADR-038)', () => {
       },
     });
     show('/admin/orders/o1');
-    expect(await screen.findByRole('button', { name: 'Đã giao, đã thu tiền' })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Đã giao, đã thu tiền' }));
+    // Nut trong hop cung nhan voi nut tren trang.
+    const delivered = await screen.findByRole('dialog');
+    expect(
+      within(delivered).getByRole('button', { name: 'Đã giao, đã thu tiền' }),
+    ).toBeInTheDocument();
+    fireEvent.click(within(delivered).getByRole('button', { name: 'Hủy' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
     expect(screen.queryByRole('button', { name: /Hoàn tiền/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Chốt lệnh hoàn' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Giao thất bại' }));

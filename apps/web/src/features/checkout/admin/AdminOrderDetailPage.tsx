@@ -169,7 +169,7 @@ export function AdminOrderDetailPage() {
                       className={styles.primaryButton}
                       onClick={() => open({ kind: 'markDelivered' })}
                     >
-                      {order.actions.deliveryFailed ? 'Đã giao, đã thu tiền' : 'Đã giao'}
+                      {titleOf({ kind: 'markDelivered' }, order)}
                     </button>
                   )}
                   {order.actions.deliveryFailed && (
@@ -352,10 +352,10 @@ export function AdminOrderDetailPage() {
             <ConfirmDialog
               open
               tone={TONE[dialog.kind]}
-              title={TITLE[dialog.kind]}
+              title={titleOf(dialog, order)}
               subject={`Đơn ${order.orderCode} · ${formatPrice(order.totalAmount)}`}
               impacts={impacts(dialog, order)}
-              confirmLabel={TITLE[dialog.kind]}
+              confirmLabel={titleOf(dialog, order)}
               pendingLabel="Đang xử lý…"
               pending={action.isPending}
               onClose={() => setDialog(null)}
@@ -463,6 +463,13 @@ const DONE: Record<Dialog['kind'], string> = {
   refund: 'Cổng đã xác nhận hoàn tiền.',
   resolve: 'Đã chốt lệnh hoàn.',
 };
+
+/** Nut tren trang va nut trong hop cung mot nhan: COD chua thu thi "da giao" cung la "da thu tien". */
+function titleOf(dialog: Pick<Dialog, 'kind'>, order: AdminOrder): string {
+  if (dialog.kind === 'markDelivered')
+    return order.actions.deliveryFailed ? 'Đã giao, đã thu tiền' : 'Đã giao';
+  return TITLE[dialog.kind];
+}
 
 function impacts(dialog: Dialog, order: AdminOrder): string[] {
   switch (dialog.kind) {
