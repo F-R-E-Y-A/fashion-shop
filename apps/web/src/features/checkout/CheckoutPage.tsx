@@ -116,7 +116,10 @@ export function CheckoutPage() {
   const offeredGateways = quote?.gateways ?? [
     { code: 'VNPAY' as const, label: 'VNPAY', configured: quote?.paymentConfigured ?? false },
   ];
-  const gateways = offeredGateways.filter((item) => item.configured || item.code === 'VNPAY');
+  // COD bi tat vi chong bom (ADR-038) van hien kem ly do, khong bien mat khong loi giai thich.
+  const gateways = offeredGateways.filter(
+    (item) => item.configured || item.code === 'VNPAY' || !!item.unavailableReason,
+  );
   const gateway = preferredGateway || gateways.find((item) => item.configured)?.code || 'VNPAY';
   const selectedGateway = gateways.find((item) => item.code === gateway);
   const count = quote?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
@@ -284,16 +287,21 @@ export function CheckoutPage() {
                     <span>
                       <span className={styles.optionTitle}>
                         {item.label}
-                        {!item.configured && ' — chưa sẵn sàng'}
+                        {!item.configured &&
+                          (item.unavailableReason
+                            ? ' — không áp dụng cho đơn này'
+                            : ' — chưa sẵn sàng')}
                       </span>
-                      <span className={styles.optionText}>{gatewayHints[item.code]}</span>
+                      <span className={styles.optionText}>
+                        {item.unavailableReason ?? gatewayHints[item.code]}
+                      </span>
                     </span>
                   </label>
                 ))}
               </fieldset>
               <p className={styles.muted}>
                 {gateway === 'COD'
-                  ? 'Đơn COD được giữ cho shop xử lý trong 3 ngày; thanh toán tiền mặt khi nhận hàng.'
+                  ? 'Shop sẽ gọi xác nhận trong 3 ngày rồi giao hàng; thanh toán tiền mặt khi nhận hàng.'
                   : `Thanh toán qua ${selectedGateway?.label} trong ${quote.payMinutes ?? quote.holdMinutes} phút; hàng được giữ ${quote.holdMinutes} phút để chờ cổng xác nhận. Tải lại trang hoặc thử lại không gia hạn.`}
               </p>
             </section>

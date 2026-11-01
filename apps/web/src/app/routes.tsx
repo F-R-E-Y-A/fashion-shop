@@ -17,7 +17,13 @@ import {
   VerifyEmailPage,
 } from '@/features/account';
 import { CartPage } from '@/features/cart';
-import { CheckoutPage, OrderPage, OrdersPage } from '@/features/checkout';
+import {
+  AdminOrderDetailPage,
+  AdminOrdersPage,
+  CheckoutPage,
+  OrderPage,
+  OrdersPage,
+} from '@/features/checkout';
 import {
   AdminProductsPage,
   CategoryPage,
@@ -127,6 +133,8 @@ export function AppRoutes() {
               <Route index element={<AdminProductsPage />} />
               <Route path="users" element={<AdminUsersPage />} />
               <Route path="users/:id" element={<AdminUserDetailPage />} />
+              <Route path="orders" element={<AdminOrdersPage />} />
+              <Route path="orders/:id" element={<AdminOrderDetailPage />} />
             </Route>
           </Route>
         </Routes>
