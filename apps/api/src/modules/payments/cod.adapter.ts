@@ -10,8 +10,8 @@ import type {
 
 /**
  * COD khong phai cong thanh toan tu xa: khong URL, khong IPN, khong query.
- * Tien mat duoc thu khi giao hang; checkout.service.codCollected la diem chot
- * tien chuyen trang thai don va kho giong nhu IPN thanh toan online.
+ * Shop xac nhan don thi chot kho (order-admin.service confirmCod); tien mat ghi nhan
+ * khi danh dau da giao (markDelivered), khach khong nhan thi deliveryFailed tra kho (ADR-038).
  */
 @Injectable()
 export class CodAdapter implements PaymentGateway {

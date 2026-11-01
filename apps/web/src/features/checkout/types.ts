@@ -3,6 +3,8 @@ export interface GatewayOption {
   code: GatewayCode;
   label: string;
   configured: boolean;
+  /** COD bi tat cho don/khach nay (tran gia tri, tien su giao that bai) — ADR-038. */
+  unavailableReason?: string;
 }
 export interface Quote {
   fingerprint: string;
@@ -65,14 +67,25 @@ export interface OrderView {
     expiresAt?: string | null;
     checkoutUrl: string | null;
   }[];
+  /** Tong da hoan; may chu luon gui, test cu co the bo qua. */
+  refundedAmount?: string;
+  refundPending?: boolean;
+  /** Khach huy duoc luc nay; cancelRefunds: huy se hoan tien tu dong (ADR-038). */
+  canCancel?: boolean;
+  cancelRefunds?: boolean;
 }
 
 export const orderStatuses: Record<string, string> = {
   PENDING_PAYMENT: 'Chờ thanh toán',
   PENDING_CONFIRMATION: 'Chờ xử lý · thanh toán khi nhận hàng',
   CONFIRMED: 'Đã thanh toán · chờ shop xử lý',
+  PROCESSING: 'Shop đang chuẩn bị và giao hàng',
+  SHIPPED: 'Đang giao hàng',
+  DELIVERED: 'Đã giao hàng',
   CANCELLED: 'Đã hủy / hết hạn',
   PAYMENT_REVIEW: 'Đã nhận tiền · cần shop đối soát',
+  PARTIALLY_REFUNDED: 'Đã hoàn tiền một phần',
+  REFUNDED: 'Đã hoàn tiền',
 };
 
 /** Nhan ngan cho the danh sach; tieu de trang don van dung orderStatuses day du. */
@@ -80,8 +93,13 @@ export const orderBadges: Record<string, string> = {
   PENDING_PAYMENT: 'Chờ thanh toán',
   PENDING_CONFIRMATION: 'COD · chờ xử lý',
   CONFIRMED: 'Đã thanh toán',
+  PROCESSING: 'Đang giao',
+  SHIPPED: 'Đang giao',
+  DELIVERED: 'Đã giao',
   CANCELLED: 'Đã hủy',
   PAYMENT_REVIEW: 'Cần đối soát',
+  PARTIALLY_REFUNDED: 'Hoàn một phần',
+  REFUNDED: 'Đã hoàn tiền',
 };
 
 /** Persist only a random request key, never an address, token or payment URL. */

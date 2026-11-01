@@ -41,6 +41,9 @@ export function AdminLayout() {
           <NavLink to="/admin/users" className={navClass}>
             Người dùng
           </NavLink>
+          <NavLink to="/admin/orders" className={navClass}>
+            Đơn hàng
+          </NavLink>
         </nav>
         <Link className={styles.store} to="/">
           ← Về cửa hàng

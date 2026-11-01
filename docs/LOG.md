@@ -658,6 +658,39 @@ Thực tế: 2026-10-28 · [catalog-revision.http.spec.ts](../apps/api/test/cata
 ### Điều kiện xem lại
 Có outbox và dispatcher (việc 11) thì phát version từ outbox, bỏ trigger; nếu đo thấy trigger làm chậm ghi khi nhập kho hàng loạt.
 
+<a id="adr-038"></a>
+## 2026-10-31 · ADR-038 — Khách tự hủy đơn đã trả trước khi shop xử lý; COD chốt kho khi shop xác nhận, giao thất bại trả kho và tính lần bom
+
+**Loại:** quyết định · **Phạm vi:** Checkout, Payments (Bảo); Orders, Inventory (Duy — đổi bảng bước và thêm `restock`); màn quản trị (`/admin/orders`) · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- Tại [c27d0c8](https://github.com/F-R-E-Y-A/fashion-shop/blob/c27d0c8/apps/api/src/modules/checkout/checkout.service.ts#L279-L283) khách chỉ hủy được đơn chưa trả; đơn đã trả phải nhờ shop, mà shop không có màn quản trị đơn nào, chỉ có API hoàn tiền gọi qua Swagger.
+- COD giữ hàng 3 ngày ([checkout.service.ts:23 tại c27d0c8](https://github.com/F-R-E-Y-A/fashion-shop/blob/c27d0c8/apps/api/src/modules/checkout/checkout.service.ts#L23)); worker hủy mọi đơn `PENDING_CONFIRMATION` quá hạn ([orders.service.ts:162 tại c27d0c8](https://github.com/F-R-E-Y-A/fashion-shop/blob/c27d0c8/apps/api/src/modules/orders/orders.service.ts#L162)). Đơn chỉ rời trạng thái đó khi ADMIN bấm "đã thu COD" lúc giao xong ([checkout.service.ts:304 tại c27d0c8](https://github.com/F-R-E-Y-A/fashion-shop/blob/c27d0c8/apps/api/src/modules/checkout/checkout.service.ts#L304)). Hệ quả: gói hàng đi quá 3 ngày bị hủy và cộng lại kho trong khi đang ở chỗ shipper (bán trùng); khách không nhận hàng không để lại dấu vết nào.
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Chỉ màn admin hoàn tay (kiểu Shopify) | Không đổi luồng khách | Khách đã trả muốn hủy vẫn phải liên hệ | Được |
+| **A+. A và khách tự hủy đơn online `CONFIRMED`, hoàn tự động, trả kho (kiểu Amazon/Shopee trước giao) (chọn)** | Không cần bảng mới: dùng sổ `REFUND-INTENT`/`REFUND:` của [ADR-036](features/payments/LOG.md#adr-036) | Thêm bước `CONFIRMED → CANCELLED`, `CANCELLED → (PARTIALLY_)REFUNDED`; shop phải bấm "Bắt đầu xử lý" để khóa cửa sổ hủy | Được: bỏ nhánh trong `cancel` |
+| B. Khách gửi yêu cầu hoàn, admin duyệt | Shop kiểm soát từng ca | Bảng mới, migration, thêm một vòng chờ | Khó hơn |
+| **C1. COD: xác nhận → `PROCESSING` chốt kho; đã giao → `DELIVERED` ghi tiền; giao thất bại → `CANCELLED` trả kho, payment COD `FAILED`; chặn COD theo trần giá trị và số lần thất bại (chọn)** | Sửa lỗi hủy đơn đang giao; đếm bom từ `payments` không cần cột mới | Thêm `PENDING_CONFIRMATION → PROCESSING`, `PROCESSING → DELIVERED/CANCELLED`, `SHIPPED → CANCELLED` | Được |
+| C2. Bỏ COD | Hết rủi ro bom | Mất phương thức phổ biến (suy luận, chờ số liệu khảo sát) | Được |
+
+**Chọn A+ và C1** (Bảo chọn ngày 31/10). Luật đi kèm:
+- Hàng chưa rời kho thì trả kho: khách hủy đơn đã trả trước khi xử lý, COD giao thất bại. `InventoryService.restock` ghi `RETURN` unique theo (đơn, biến thể) nên không cộng trùng ([inventory.service.ts:58](../apps/api/src/modules/inventory/inventory.service.ts#L58)). Hàng đã giao rồi trả lại vẫn thuộc luồng đổi trả, admin hoàn tiền không tự trả kho.
+- Khách hủy, hoặc ADMIN bấm "Hủy và hoàn tiền" trên đơn `CONFIRMED` (khách gọi báo hủy): cùng một hàm, dưới khóa đơn trả kho và chuyển `CANCELLED`, rồi gọi Refund toàn bộ ngoài transaction ([checkout.service.ts:347](../apps/api/src/modules/checkout/checkout.service.ts#L347)). Màn quản trị không mở nút hoàn tay trên đơn `CONFIRMED`: hoàn mà không trả kho làm lệch tồn, hoàn một phần làm đơn kẹt ở `PARTIALLY_REFUNDED` không giao được. Nợ biết trước: API `POST /api/admin/payments/:id/refund` vẫn nhận đơn `CONFIRMED` như [ADR-036](features/payments/LOG.md#adr-036) để không đổi hợp đồng đã kiểm; gọi tay qua Swagger vẫn có thể gây lệch đó. Cổng không xác nhận thì đơn vẫn hủy, lệnh hoàn nằm ở tab "Cần xử lý" chờ ADMIN chốt. Chỉ mở khi cổng có Refund API và đã cấu hình ([checkout.service.ts:264](../apps/api/src/modules/checkout/checkout.service.ts#L264)); MoMo hiện chưa có nên chưa mở.
+- Chống bom ([checkout.service.ts:72](../apps/api/src/modules/checkout/checkout.service.ts#L72)): đơn trên `COD_MAX_AMOUNT` (mặc định 2.000.000đ) hoặc khách có từ `COD_MAX_FAILED_DELIVERIES` (mặc định 2) payment COD `FAILED` thì COD hiện kèm lý do và tạo đơn bị 409 `COD_UNAVAILABLE`. Hai ngưỡng là chọn tạm (suy luận), chỉnh qua env.
+- Chưa nối hãng vận chuyển nên shop đánh dấu "đã giao" thẳng từ `PROCESSING`; `SHIPPED` để dành cho giao vận.
+
+Trade-off chấp nhận: hai bước chuyển mới trong bảng của Orders (module của Duy) cần Duy duyệt; "Bắt đầu xử lý" là thao tác tay nên cửa sổ hủy dài tùy shop.
+
+### Kết quả mong đợi → thực tế
+Mong đợi: [cod.http.spec.ts](../apps/api/test/cod.http.spec.ts) và [checkout-refund.http.spec.ts](../apps/api/test/checkout-refund.http.spec.ts) phủ xác nhận, giao, giao thất bại, chặn COD, danh sách admin, khách hủy và cổng từ chối; toàn bộ `test:http` và `npm run check` xanh.
+Thực tế: 2026-10-31 · `npx vitest run --project http test/cod.http.spec.ts test/checkout-refund.http.spec.ts` → 2 tệp, 19 test đạt trên DB test. Chưa thử trên sandbox VNPAY thật. Toàn bộ `npm run test:http` cùng ngày → 389/390; test lỗi `cart-live.http.spec.ts` (tìm sản phẩm theo tên trong catalog, ngoài phạm vi ADR này) chạy riêng → 19/19 đạt, nghi chập chờn (suy luận). E2E tay trên localhost cùng ngày (Chrome, DB dev, VNPAY sandbox thẻ NCB): trả tiền VNPAY → CONFIRMED đạt; khách hủy đơn đã trả → CANCELLED, trả kho, lệnh hoàn treo vì cổng `merchant_webapi` sandbox trả `vnp_ResponseCode=99 Unexpected error` cho cả QueryDR lẫn Refund (kể cả mã đơn không tồn tại, chữ ký sai) → admin chốt tay đạt; luồng COD xác nhận/đã giao/giao thất bại và hai chặn COD (2 lần bom, đơn > 2.000.000đ) đạt. **Hoàn tiền thật qua cổng vẫn chưa nghiệm thu.**
+
+### Điều kiện xem lại
+Nối hãng vận chuyển (trạng thái giao từ webhook thay nút tay); có luồng đổi trả; số liệu bom thật cho thấy ngưỡng sai; MoMo có Refund API.
+
 <a id="adr-039"></a>
 ## 2026-10-31 · ADR-039 — Màn quản trị dùng chung khung `ui/AdminKit`, `ConfirmDialog` ở `ui/`, nhóm lỗi HTTP ở `core/`
 

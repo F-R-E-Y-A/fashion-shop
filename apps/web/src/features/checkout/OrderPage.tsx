@@ -97,6 +97,13 @@ export function OrderPage() {
       ? latestPayment.checkoutUrl
       : null;
   const gatewayLabel = gatewayName(latestPayment?.gateway);
+  const isCod = latestPayment?.gateway === 'COD';
+  const refunded = Number(order?.refundedAmount ?? 0);
+  // May chu tinh canCancel (ke ca huy don da tra truoc khi shop xu ly, ADR-038); du lieu cu thi suy ra.
+  const canCancel = order?.canCancel ?? (pending || codPending);
+  const cancelPrompt = order?.cancelRefunds
+    ? `Hủy đơn và hoàn ${formatPrice(order.totalAmount)} về ${gatewayLabel}? Thời gian tiền về tài khoản tùy ngân hàng.`
+    : 'Hủy đơn này? Sản phẩm vẫn còn trong giỏ để đặt lại sau.';
   return (
     <div className={styles.page}>
       <Link className={styles.back} to="/tai-khoan/don-hang">
@@ -154,6 +161,32 @@ export function OrderPage() {
                 <p className={styles.statusText}>
                   Cảm ơn bạn! Shop đã nhận tiền và sẽ chuẩn bị hàng. Bạn có thể theo dõi đơn trong
                   mục Đơn hàng của tôi.
+                  {order.cancelRefunds &&
+                    ' Trước khi shop bắt đầu xử lý, bạn vẫn hủy được và nhận hoàn tiền tự động.'}
+                </p>
+              )}
+              {(order.status === 'PROCESSING' || order.status === 'SHIPPED') && (
+                <p className={styles.statusText}>
+                  {isCod
+                    ? `Shop đã xác nhận và đang giao. Chuẩn bị ${formatPrice(order.totalAmount)} tiền mặt khi nhận hàng.`
+                    : 'Shop đang đóng gói và giao hàng. Đơn không còn hủy trực tuyến được; cần hỗ trợ thì liên hệ shop kèm mã đơn.'}
+                </p>
+              )}
+              {order.status === 'DELIVERED' && (
+                <p className={styles.statusText}>
+                  Đơn đã giao thành công. Cảm ơn bạn đã mua sắm tại cửa hàng!
+                </p>
+              )}
+              {(order.status === 'REFUNDED' || order.status === 'PARTIALLY_REFUNDED') && (
+                <p className={styles.statusText}>
+                  Shop đã hoàn {formatPrice(String(refunded))} về {gatewayLabel}. Thời gian tiền về
+                  tài khoản tùy ngân hàng hoặc ví.
+                </p>
+              )}
+              {order.refundPending && (
+                <p className={styles.notice} role="status">
+                  Đang xử lý hoàn tiền với {gatewayLabel}. Shop sẽ đối soát và cập nhật đơn; bạn
+                  không cần làm gì thêm.
                 </p>
               )}
               {order.status === 'PAYMENT_REVIEW' && (
@@ -175,13 +208,19 @@ export function OrderPage() {
                   toán" để dùng phương thức khác, hoặc "Hủy đơn".
                 </p>
               )}
-              {order.status === 'CANCELLED' && (
-                <p className={styles.statusText}>
-                  Hàng đã được nhả. Sản phẩm vẫn ở giỏ để bạn kiểm tra giá, tồn và đặt lại. Nếu đã
-                  bị trừ tiền, hệ thống tự đối soát và chuyển đơn sang trạng thái cần shop xử lý;
-                  liên hệ shop kèm mã đơn để được hỗ trợ sớm.
-                </p>
+              {order.status === 'CANCELLED' && isCod && latestPayment?.status === 'FAILED' && (
+                <p className={styles.statusText}>Đơn được hủy vì giao hàng không thành công.</p>
               )}
+              {order.status === 'CANCELLED' &&
+                !order.refundPending &&
+                refunded === 0 &&
+                !(isCod && latestPayment?.status === 'FAILED') && (
+                  <p className={styles.statusText}>
+                    Hàng đã được nhả. Sản phẩm vẫn ở giỏ để bạn kiểm tra giá, tồn và đặt lại. Nếu đã
+                    bị trừ tiền, hệ thống tự đối soát và chuyển đơn sang trạng thái cần shop xử lý;
+                    liên hệ shop kèm mã đơn để được hỗ trợ sớm.
+                  </p>
+                )}
             </section>
 
             {order.items.length > 0 && (
@@ -251,6 +290,12 @@ export function OrderPage() {
               <span>Tổng thanh toán</span>
               <strong>{formatPrice(order.totalAmount)}</strong>
             </p>
+            {refunded > 0 && (
+              <p className={styles.row}>
+                <span>Đã hoàn</span>
+                <span>−{formatPrice(order.refundedAmount!)}</span>
+              </p>
+            )}
             {order.payments.length > 0 && (
               <ul className={styles.payments} aria-label="Lần thanh toán">
                 {order.payments.map((payment) => (
@@ -261,7 +306,9 @@ export function OrderPage() {
                     <span>
                       {payment.gateway === 'COD' && payment.status === 'PENDING'
                         ? 'Thu khi nhận hàng'
-                        : (paymentStatuses[payment.status] ?? 'Chờ cổng xác nhận')}
+                        : payment.gateway === 'COD' && payment.status === 'FAILED'
+                          ? 'Giao không thành công'
+                          : (paymentStatuses[payment.status] ?? 'Chờ cổng xác nhận')}
                     </span>
                   </li>
                 ))}
@@ -287,21 +334,24 @@ export function OrderPage() {
                   Thử lại thanh toán
                 </button>
               )}
-              {order.status === 'CANCELLED' && (
+              {order.status === 'CANCELLED' && refunded === 0 && !order.refundPending && (
                 <Link className={styles.cta} to="/gio-hang">
                   Đặt lại từ giỏ hàng
                 </Link>
               )}
-              {(pending || codPending) && (
+              {canCancel && (
                 <button
                   className={styles.textButton}
                   disabled={action.isPending}
                   onClick={() => {
-                    if (window.confirm('Hủy đơn này? Sản phẩm vẫn còn trong giỏ để đặt lại sau.'))
-                      action.mutate({ name: 'cancel' });
+                    if (window.confirm(cancelPrompt)) action.mutate({ name: 'cancel' });
                   }}
                 >
-                  Hủy đơn
+                  {action.isPending && action.variables?.name === 'cancel'
+                    ? 'Đang hủy…'
+                    : order.cancelRefunds
+                      ? 'Hủy đơn và hoàn tiền'
+                      : 'Hủy đơn'}
                 </button>
               )}
             </div>
