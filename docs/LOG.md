@@ -747,3 +747,28 @@ Thực tế: 2026-11-01 · `npx vitest run --project http test/cod.http.spec.ts 
 
 ### Điều kiện xem lại
 Số liệu bom thật cho thấy 3 quá rộng hoặc quá chặt; có hãng vận chuyển xác nhận đơn tự động.
+
+<a id="adr-041"></a>
+## 2026-11-01 · ADR-041 — Nhánh `feature/ph-NN-*` giữ lại sau khi gộp, chỉ xoá khi chủ dòng việc yêu cầu
+
+**Loại:** quyết định · **Phạm vi:** cả nhóm, [shared/git.md](shared/git.md) mục cây nhánh và luật gộp; thay một phần luật xoá nhánh ở mục 25/09 · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- `shared/git.md` bắt xoá `feature/ph-NN-*` ngay sau khi gộp vào `develop` ([git.md:80 tại 38cfcdc](https://github.com/F-R-E-Y-A/fashion-shop/blob/38cfcdc/docs/shared/git.md#L80)), và chỉ `feature/platform` được giữ dài hạn.
+- PH-11 gộp nhánh cha ở #50/#51 rồi xoá, sau đó còn nhiều việc nhỏ. Không còn nhánh cha để treo `task/`, agent mở nhánh lớn và pull request riêng cho từng việc: #54 `feature/ph-11-hardening`, #55 `bugfix/ph-11-payment-review`, #56 `feature/ph-11-momo-refund` (thêm một hàm hoàn tiền MoMo). `develop` có thêm merge commit lặt vặt, mỗi việc nhỏ phải chờ CI riêng.
+- Kho còn nhiều nhánh `feature/` cũ trên remote (`git branch -r` ngày 01/11), nên luật xoá ngay vốn chưa được theo đều.
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Giữ luật xoá; còn việc thì tạo lại nhánh cùng tên từ `develop` | Không đổi luật | Phải nhớ tạo lại; dễ trượt sang mở nhánh mới tên khác như #54–#56 | Được |
+| **B. Giữ `feature/ph-NN-*` sau khi gộp, chỉ xoá khi chủ dòng việc yêu cầu (chọn)** | Việc nhỏ luôn có nhánh cha để đi `task/`; lịch sử mỗi dòng việc nằm trên một nhánh | Phải gộp `develop` ngược lại trước khi làm tiếp; danh sách nhánh remote dài hơn | Được: quay lại luật xoá, xoá các nhánh đã gộp |
+
+**Chọn B** (Bảo chọn ngày 01/11: "chỉ khi tôi chủ động xóa feature thì mới xóa, còn lại giữ"). `task/` và `bugfix/` vẫn xoá sau khi gộp như cũ. Gộp `task/` vào nhánh feature không có CI (CI chỉ chạy cho pull request vào `develop`/`main`), nên chạy `npm run check` tay trước khi gộp. Áp dụng ngay cho PH-11: tạo lại `feature/ph-11-payment` từ `develop` tại `38cfcdc`.
+
+### Kết quả mong đợi → thực tế
+Mong đợi: việc nhỏ còn lại của PH-11 đi `task/` vào `feature/ph-11-payment`, gom pull request vào `develop` theo mốc; không còn nhánh `feature/` mới cho một việc nhỏ.
+Thực tế: (điền sau mốc gộp đầu tiên).
+
+### Điều kiện xem lại
+Danh sách nhánh remote dài tới mức khó tìm; nhánh giữ lâu bị lệch `develop` gây xung đột lớn khi gộp lại.
