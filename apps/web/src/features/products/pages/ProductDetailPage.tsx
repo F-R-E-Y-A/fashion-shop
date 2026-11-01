@@ -3,6 +3,7 @@ import { type CSSProperties, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 
 import { ApiError, formatPrice, pageTitle } from '@/core';
+import { AddToCartButton } from '@/features/cart';
 import { ErrorNote, SkeletonDetail } from '@/ui';
 
 import { getProductDetail, getRelatedProducts, productKeys } from '../api/index.js';
@@ -263,10 +264,20 @@ export function ProductDetailPage() {
               ))}
             </fieldset>
           )}
-          <button className={styles.cart} type="button" disabled>
-            Thêm vào giỏ
-          </button>
-          <small>Giỏ hàng sắp ra mắt.</small>
+          {variant &&
+            variant.availableQuantity !== null &&
+            variant.availableQuantity !== undefined && (
+              <p role="status">
+                {variant.availableQuantity === 0
+                  ? 'Hết hàng'
+                  : `Còn ${variant.availableQuantity} sản phẩm`}
+              </p>
+            )}
+          <AddToCartButton
+            className={styles.cart}
+            variantId={variant?.id}
+            availableQuantity={variant?.availableQuantity}
+          />
           {data.description && <p className={styles.description}>{data.description}</p>}
           {data.material && <p>Chất liệu: {data.material}</p>}
           {data.careInstructions && <p>Bảo quản: {data.careInstructions}</p>}

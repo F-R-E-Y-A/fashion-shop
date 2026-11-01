@@ -17,6 +17,7 @@ import {
   VerifyEmailPage,
 } from '@/features/account';
 import { CartPage } from '@/features/cart';
+import { CheckoutPage, OrderPage, OrdersPage } from '@/features/checkout';
 import {
   AdminProductsPage,
   CategoryPage,
@@ -34,9 +35,20 @@ import { StoreLayout } from './StoreLayout.js';
 
 function NotFoundPage() {
   return (
-    <div className="state">
-      <h1>Không tìm thấy trang</h1>
-      <Link to="/">Về trang chủ</Link>
+    <div className="page-state">
+      <div>
+        <p className="eyebrow">Lỗi 404</p>
+        <h1>Không tìm thấy trang</h1>
+        <p>Đường dẫn có thể đã đổi hoặc sản phẩm không còn bán.</p>
+        <div className="page-state-actions">
+          <Link className="button-primary" to="/">
+            Về trang chủ
+          </Link>
+          <Link className="button-secondary" to="/tim-kiem">
+            Tìm sản phẩm
+          </Link>
+        </div>
+      </div>
     </div>
   );
 }
@@ -55,7 +67,13 @@ export function AppRoutes() {
     <>
       <ScrollManager />
 
-      <Suspense fallback={<Loading />}>
+      <Suspense
+        fallback={
+          <div className="page-state">
+            <Loading />
+          </div>
+        }
+      >
         <Routes>
           <Route element={<StoreLayout />}>
             <Route index element={<HomePage />} />
@@ -68,10 +86,15 @@ export function AppRoutes() {
             <Route path="gio-hang" element={<CartPage />} />
 
             <Route element={<RequireAuth />}>
+              <Route path="thanh-toan" element={<CheckoutPage />} />
+              <Route path="thanh-toan/ket-qua" element={<OrderPage />} />
+              <Route path="don-hang" element={<Navigate to="/tai-khoan/don-hang" replace />} />
+              <Route path="don-hang/:id" element={<OrderPage />} />
               <Route path="tai-khoan" element={<AccountLayout />}>
                 <Route index element={<Navigate to="ho-so" replace />} />
                 <Route path="ho-so" element={<ProfilePage />} />
                 <Route path="dia-chi" element={<AddressPage />} />
+                <Route path="don-hang" element={<OrdersPage />} />
                 <Route path="doi-mat-khau" element={<ChangePasswordPage />} />
               </Route>
             </Route>

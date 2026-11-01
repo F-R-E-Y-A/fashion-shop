@@ -61,7 +61,7 @@ Muốn thêm chỉ mục trên bảng người khác thì đề xuất kèm số
 5. Chép `modules/products`, đổi tên, giữ `index.ts` làm cửa. Đăng ký vào `app.module.ts`.
 6. Chép `features/products`, đổi tên. Thêm `Route` trong `app/routes.tsx`.
 7. Viết kiểm thử: một bài đơn vị cho service, một bài HTTP cho đường dẫn, một bài cho trang.
-8. Cập nhật tài liệu của feature trong `docs/features/<module>/`: `README.md` (trạng thái hôm nay), `use-cases.md` nếu nghiệp vụ đổi, `LOG.md` nếu có quyết định. Chép khung từ `docs/shared/templates/`. Thêm dòng sở hữu vào `.github/CODEOWNERS`.
+8. Cập nhật tài liệu của feature trong `docs/features/<module>/`: `README.md` (trạng thái hôm nay), `use-cases.md` nếu nghiệp vụ đổi, `LOG.md` nếu có quyết định. Chép khung từ `docs/shared/templates/`.
 9. `npm run check`, rồi mở pull request vào `develop`. Điền danh sách kiểm, và **viết `Closes #<số phiếu>` vào phần thân** để gộp xong phiếu tự đóng.
 
 ## Điều kiện hoàn thành

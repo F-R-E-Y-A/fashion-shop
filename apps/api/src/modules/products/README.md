@@ -38,8 +38,8 @@ export interface VariantForCart {
   isActive: boolean; // false khi san pham hoac bien the ngung ban: gio hang bao "het ban"
 }
 
-getVariantForCart(variantId: string): Promise<VariantForCart | null>; // null khi khong co bien the do
-getVariantsForCart(variantIds: string[]): Promise<VariantForCart[]>; // mot truy van cho ca gio
+getVariantForCart(variantId: string, transaction?: Prisma.TransactionClient): Promise<VariantForCart | null>;
+getVariantsForCart(variantIds: string[], transaction?: Prisma.TransactionClient): Promise<VariantForCart[]>;
 
 /** Mot san pham Tai nap tu staging (HT-03). Chay lai bao nhieu lan cung khong sinh ban trung. */
 export interface ImportProductRow {
@@ -90,6 +90,10 @@ Luật của `importProducts`, theo mô hình M2 ([erd.md](../../../../../docs/f
 | 6 | **Mỗi dòng một giao dịch**; dòng lỗi không kéo dòng khác. Hàm không ghi bảng `staging` | Tài đánh dấu `IMPORTED` cho dòng `created`, `updated` trong giao dịch của mình. Nếu chết giữa hai bước thì chạy lại: luật 1 làm lần sau thành cập nhật, không sinh bản trùng |
 
 Đổi chữ ký một hàm đã công bố thì báo ở buổi chốt Thứ Tư và ghi một mục vào `docs/features/products/LOG.md`.
+
+PH-11 bổ sung transaction tuỳ chọn cho hai hàm đọc biến thể: Cart truyền transaction đang giữ khoá owner để đọc Catalog, ghi giỏ và dựng phản hồi cùng giao dịch; không truyền thì giữ cách gọi cũ. Lỗi truy vấn được truyền về caller, không tạo sản phẩm hay giá giả. Xem [ADR-026](../../../../../docs/LOG.md#adr-026).
+
+Catalog đọc tồn khả dụng qua cửa `inventory/index.ts`. Danh sách, tìm kiếm, gợi ý, sản phẩm liên quan và chi tiết nhận trạng thái tồn; chi tiết có tồn từng biến thể. Thiếu bản ghi Inventory nghĩa là chưa biết tồn, không đồng nghĩa hết hàng. SSE chỉ gửi revision công khai; Swagger là nguồn hình dạng HTTP.
 
 ## Tìm kiếm, lọc và gợi ý (PH-01 đợt 2)
 

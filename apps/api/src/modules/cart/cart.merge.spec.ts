@@ -4,8 +4,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { Prisma } from '../../generated/prisma/client.js';
 import type { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { CartService } from './cart.service.js';
+import { cartReadStubs } from './test-support.js';
 
 function fixture() {
+  const { products, inventory } = cartReadStubs();
   const transaction = {
     $executeRaw: vi.fn(async () => 1),
     cart: {
@@ -16,7 +18,9 @@ function fixture() {
     },
     cartItem: {
       findMany: vi.fn(async ({ where }: { where: { cartId: string } }) =>
-        where.cartId === 'guest' ? [{ productVariantId: 'variant', quantity: 2 }] : [],
+        where.cartId === 'guest'
+          ? [{ productVariantId: 'variant', quantity: 2, isSelected: false }]
+          : [],
       ),
       findUnique: vi.fn(async () => null as { quantity: number } | null),
       upsert: vi.fn(async () => ({})),
@@ -28,7 +32,7 @@ function fixture() {
   return {
     transaction,
     prisma,
-    service: new CartService(prisma as unknown as PrismaService),
+    service: new CartService(prisma as unknown as PrismaService, products, inventory),
   };
 }
 
@@ -43,7 +47,7 @@ describe('PH-02 regression: atomic guest cart merge', () => {
     );
     expect(tx.cartItem.upsert).toHaveBeenCalledWith({
       where: { cartId_productVariantId: { cartId: 'account', productVariantId: 'variant' } },
-      create: { cartId: 'account', productVariantId: 'variant', quantity: 2 },
+      create: { cartId: 'account', productVariantId: 'variant', quantity: 2, isSelected: false },
       update: { quantity: { increment: 2 } },
     });
     expect(tx.cart.deleteMany).toHaveBeenCalledWith({ where: { id: 'guest', userId: null } });

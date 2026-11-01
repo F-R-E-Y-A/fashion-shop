@@ -30,11 +30,25 @@
   gap: 26px;
   border-bottom: 1px solid var(--line);
   margin-bottom: 28px;
+  /* Bon tab tren man hep: cuon ngang, khong gay chu thanh hai dong. */
+  overflow-x: auto;
+  scrollbar-width: none;
 }
 
 .tabs a {
+  flex: none;
   padding: 12px 0;
   color: var(--muted);
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .tabs {
+    gap: 16px;
+  }
+  .tabs a {
+    font-size: var(--s-1);
+  }
 }
 
 .tabs a:hover,

@@ -35,3 +35,11 @@ Giới hạn idempotency theo nguồn và request guest đến sau merge đượ
 
 
 Kiểm cuối ngày 17/10, trên working tree chưa commit từ baseline trên: `npm run check` PASS (API 311, web 253, crawler 50 pass và 1 skip có sẵn; lint 0 lỗi, 6 warning cũ). `npm run test:http -w apps/api -- cart-merge.http.spec.ts` với URL trỏ tới cluster tạm vừa tạo PASS 12/12, không skip; đây là suite Cart/JWT/PostgreSQL, không phải AuthService/Redis/SMTP tích hợp. `node tools/docs/lint.mjs docs/features/cart` và `git diff --check` PASS. Không stage, commit, push hoặc thay dữ liệu đang sử dụng. Nguồn chuẩn UC/AC Cart chưa có trong local (index vẫn là khuôn), nên tên bài regression dùng dòng việc PH-02, chưa tự gán mã AC.
+
+## 2026-10-18 · PH-11 giỏ động, chưa giữ hàng; khuyến mãi để trống
+
+**Loại:** thay đổi mã · **Phạm vi:** Cart–Catalog–Inventory và web · **Commit:** chưa commit, nền `e7d419437ccfaba8016336b614d9ba820735d518` (đã gộp PR #40).
+
+Giỏ dùng giá Catalog và tồn khả dụng Inventory trong transaction hiện có, bỏ fallback mock/299000. Dòng hết hàng/ngừng bán được giữ và lưu bỏ chọn, restock không tự chọn; thiếu tồn giữ nguyên quantity và chặn tính tiền dòng đó. Tính tổng các dòng đã chọn, đủ điều kiện; discount bằng 0. Gộp giỏ giữ trạng thái chọn của guest trên dòng mới, giữ các khoá ownership đã có ([cart.service.ts:67](../../../apps/api/src/modules/cart/cart.service.ts#L67), [merge:204](../../../apps/api/src/modules/cart/cart.service.ts#L204)).
+
+Bảo chọn SSE và yêu cầu chờ module khuyến mãi của Duy. Frontend có checkbox, thông báo tồn, promo trống và nút thêm vào giỏ trên trang sản phẩm. Cart không ghi reservation, checkout/payment chưa triển khai. Quyết định và giới hạn ở [ADR-031](../../LOG.md#adr-031); bài PostgreSQL [cart-live.http.spec.ts](../../../apps/api/test/cart-live.http.spec.ts) kiểm cả rollback khi đọc Catalog lỗi sau ghi giỏ.

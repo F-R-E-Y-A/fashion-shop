@@ -1,7 +1,15 @@
 export { AdminUserDetailPage } from './admin/AdminUserDetailPage.js';
 export { AdminUsersPage } from './admin/AdminUsersPage.js';
 export { hasAdminRole } from './admin/user-labels.js';
+export {
+  type Address,
+  addressKeys,
+  createAddress,
+  type CreateAddressInput,
+  listAddresses,
+} from './api/profile-address.api.js';
 export { AuthProvider, useAuth } from './AuthProvider.js';
+export { AddressForm } from './components/AddressForm.js';
 export { AccountLayout } from './pages/AccountLayout.js';
 export { AddressPage } from './pages/AddressPage.js';
 export { ChangePasswordPage } from './pages/ChangePasswordPage.js';

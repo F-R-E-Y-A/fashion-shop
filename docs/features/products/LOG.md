@@ -368,3 +368,11 @@ Sau mốc check baseline, đọc lại `core/brand.ts:2`, `:5` thấy F.R.E.Y.A.
 Khach loc `colors=xanh-duong` nhung the hien anh mac dinh cua san pham (vi du Ao Polo Nu Pima: anh sort 0-4 la Hong, anh Xanh duong bat dau sort 5) nen thay "loc xanh duong ma ra ao vang, ao hong". Thuat toan loc dung san: moi ket qua deu co bien the thuoc ho mau do (kiem tra DB 11/10). Nguyen nhan la `storefront.ts` luon lay `images[0]`/`images[1]`, khong biet bo loc dang chon mau nao.
 
 Sua: `storefrontProductInclude.images` kem ten mau va nho lay 12 anh; `toProductResponse` nhan `preferFamily` — khi bo loc chon dung MOT ho mau (ca mau do query understanding chi ra qua `interpretation.colorFamilies`), anh chinh va anh re chuot lay tu anh cua ho mau do, khong co thi ve anh mac dinh. `preferredFamilyOf` chi nhan dung mot gia tri hop le, hai ho tro len khong doan thay nguoi dung. Chi ap dung tren duong tim kiem/loc (catalog-search); danh sach thuong giu nhu cu.
+
+## 2026-10-18 · PH-11 dùng hợp đồng Catalog trong transaction giỏ và cập nhật qua SSE
+
+**Loại:** thay đổi mã · **Phạm vi:** Products–Cart–Inventory · **Commit:** chưa commit, nền `e7d419437ccfaba8016336b614d9ba820735d518`.
+
+Hai hàm public đọc biến thể nhận thêm transaction tuỳ chọn để Cart không phải đọc bằng connection riêng sau commit; caller cũ không truyền tham số vẫn tương thích ([products.service.ts:343](../../../apps/api/src/modules/products/products.service.ts#L343)). Giá list/sale hiện tại được dùng cả ở thẻ sản phẩm và bộ máy tìm kiếm. Catalog đọc tồn qua Inventory; chưa ghép điều kiện tồn vào bộ lọc cỡ ND-14.
+
+Trang chi tiết đã gọi Cart khi chọn được biến thể. SSE chỉ gửi revision để frontend tải lại các query đang mở; background refetch kết quả tìm kiếm không ghi thêm lượt tìm của khách. Phương án và trade-off ở [ADR-031](../../LOG.md#adr-031). Không tích hợp PR #41 hoặc giả lập tồn kho trên database cửa hàng.

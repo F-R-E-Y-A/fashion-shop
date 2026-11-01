@@ -12,6 +12,12 @@ import { TokenService } from '../../src/modules/auth/token.service.js';
 import { CartController } from '../../src/modules/cart/cart.controller.js';
 import { CartService } from '../../src/modules/cart/cart.service.js';
 import { OptionalAuthGuard } from '../../src/modules/cart/optional-auth.guard.js';
+import { InventoryService } from '../../src/modules/inventory/index.js';
+import { CatalogEventsService } from '../../src/modules/products/catalog-events.service.js';
+import { ProductsService } from '../../src/modules/products/index.js';
+import { ProductsController } from '../../src/modules/products/products.controller.js';
+import { CatalogSearchService } from '../../src/modules/products/search/catalog-search.service.js';
+import { SearchDictionaryService } from '../../src/modules/products/search/search-dictionary.service.js';
 
 /** Cart + PostgreSQL + JWT that; khong khoi dong Redis/SMTP hay tao phien auth ngoai pham vi test. */
 export async function createCartTestApp(): Promise<{
@@ -22,9 +28,14 @@ export async function createCartTestApp(): Promise<{
 }> {
   const config = new ConfigService(validateEnv(process.env));
   const module = await Test.createTestingModule({
-    controllers: [CartController],
+    controllers: [CartController, ProductsController],
     providers: [
       CartService,
+      ProductsService,
+      InventoryService,
+      CatalogEventsService,
+      CatalogSearchService,
+      SearchDictionaryService,
       OptionalAuthGuard,
       AuthGuard,
       PrismaService,

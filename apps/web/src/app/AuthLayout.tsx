@@ -37,7 +37,7 @@ export function AuthLayout() {
         <ul className={styles.perks}>
           <li>Miễn phí vận chuyển cho đơn từ 500.000₫</li>
           <li>Đổi trả trong 30 ngày</li>
-          <li>Thanh toán khi nhận hàng toàn quốc</li>
+          <li>Thanh toán trực tuyến an toàn qua VNPAY</li>
         </ul>
       </aside>
       <main className={styles.formSide}>

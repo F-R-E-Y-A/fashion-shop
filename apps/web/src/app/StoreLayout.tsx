@@ -131,6 +131,9 @@ function AccountMenu({
           <NavLink className={styles.menuLink} to="/tai-khoan/ho-so" onClick={close}>
             Hồ sơ cá nhân
           </NavLink>
+          <NavLink className={styles.menuLink} to="/tai-khoan/don-hang" onClick={close}>
+            Đơn hàng của tôi
+          </NavLink>
           <NavLink className={styles.menuLink} to="/tai-khoan/doi-mat-khau" onClick={close}>
             Đổi mật khẩu
           </NavLink>

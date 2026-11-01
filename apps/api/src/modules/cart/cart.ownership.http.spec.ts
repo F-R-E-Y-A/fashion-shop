@@ -8,9 +8,12 @@ import { AllExceptionsFilter } from '../../common/filters/all-exceptions.filter.
 import { Prisma, UserStatus } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { AuthGuard } from '../auth/index.js';
+import { InventoryService } from '../inventory/index.js';
+import { ProductsService } from '../products/index.js';
 import { CartController } from './cart.controller.js';
 import { CartService } from './cart.service.js';
 import { OptionalAuthGuard } from './optional-auth.guard.js';
+import { cartReadStubs } from './test-support.js';
 
 type Cart = { id: string; userId: string | null; guestToken: string | null };
 type Item = { cartId: string; productVariantId: string; quantity: number };
@@ -139,6 +142,7 @@ describe('PH-02 regression: Cart ownership (HTTP, mocked persistence)', () => {
   };
 
   beforeAll(async () => {
+    const { products, inventory } = cartReadStubs();
     const guard = new AuthGuard(
       prisma as unknown as PrismaService,
       {
@@ -152,6 +156,8 @@ describe('PH-02 regression: Cart ownership (HTTP, mocked persistence)', () => {
         OptionalAuthGuard,
         { provide: AuthGuard, useValue: guard },
         { provide: PrismaService, useValue: database },
+        { provide: ProductsService, useValue: products },
+        { provide: InventoryService, useValue: inventory },
       ],
     })
       .overrideGuard(AuthGuard)

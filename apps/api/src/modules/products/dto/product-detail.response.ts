@@ -26,6 +26,8 @@ export class ProductVariantResponse {
   @ApiProperty() sizeCode!: string;
   @ApiProperty() price!: string;
   @ApiPropertyOptional({ nullable: true }) listPrice!: string | null;
+  @ApiProperty({ nullable: true, description: 'Ton kha dung; null khi chua co du lieu kho' })
+  availableQuantity!: number | null;
 }
 
 export class ProductDetailResponse extends ProductResponse {

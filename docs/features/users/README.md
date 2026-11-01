@@ -146,12 +146,7 @@ nhập lại để cập nhật menu và guard.
 
 ## Trạng thái hôm nay (24/10/2026)
 
-Admin.3 đã gộp qua PR #47 (`47576d4`). Issue #48 (tìm, lọc, thao tác nhanh) đang ở nhánh
-`feature/ph-03-admin-users-tools` trên nền `47576d4`, đã kiểm thử local và mở [PR #49](https://github.com/F-R-E-Y-A/fashion-shop/pull/49) vào `develop`; đang chờ review, chưa gộp. Admin.1 và Admin.2 đã gộp vào `develop`
-(pull request #24, `aee345e`). API hồ sơ, khu vực hành chính, sổ địa chỉ và giao diện hồ sơ/địa chỉ đã có trong
-`develop` qua các PR ghi ở bảng Dòng việc. Dữ liệu
-tỉnh/xã thật (34 tỉnh, 3321 xã) đã nạp vào CSDL dev, chưa nạp staging hay production; avatar và tích hợp checkout
-ngoài phạm vi giao diện này.
+Admin.1 và Admin.2 đã gộp vào `develop` (pull request #24, `aee345e`). Admin.3 (giao diện quản trị người dùng) đã gộp qua PR #47 (`47576d4`). Issue #48 (tìm, lọc, thao tác nhanh) đã gộp qua [PR #49](https://github.com/F-R-E-Y-A/fashion-shop/pull/49) (`fdf4d62`). API hồ sơ, khu vực hành chính, sổ địa chỉ và giao diện hồ sơ/địa chỉ đã có trong `develop` qua các PR ghi ở bảng Dòng việc. Dữ liệu tỉnh/xã thật (34 tỉnh, 3321 xã) đã nạp vào CSDL dev, chưa nạp staging hay production trong PH-11. Checkout local đã dùng địa chỉ lưu qua public `CheckoutAddressService.get(userId, id, tx?)` ([checkout-address.service.ts:11](../../../apps/api/src/modules/users/checkout-address.service.ts#L11)); trả snapshot của đúng chủ và xã/tỉnh hoạt động. Avatar vẫn ngoài phạm vi.
 
 ## Còn mở
 

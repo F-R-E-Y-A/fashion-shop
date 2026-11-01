@@ -11,6 +11,7 @@ export {
   apiPost,
   apiRequest,
   type ApiRequestOptions,
+  openEventStream,
   type Page,
   type QueryParams,
   setAccessTokenGetter,

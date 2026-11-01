@@ -1,6 +1,6 @@
 ---
 title: Nhật ký quyết định toàn hệ thống
-updated: 2026-09-24
+updated: 2026-10-28
 status: đang dùng
 owner: Bảo
 ---
@@ -450,3 +450,210 @@ Thực tế: 18/10/2026, nhánh `feature/ph-03-admin-users-web` chưa commit · 
 ### Điều kiện xem lại
 
 Khi nhóm đổi quy ước URL của cửa hàng, hoặc khi có màn quản trị cần URL công khai cho người ngoài.
+
+<a id="adr-031"></a>
+## 2026-10-18 · ADR-031 — Giỏ dùng giá/tồn hiện tại, cập nhật website qua SSE trước khi giữ hàng
+
+**Loại:** quyết định · **Phạm vi:** Catalog, Cart, Inventory, web · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** chưa commit, nền `e7d419437ccfaba8016336b614d9ba820735d518`.
+
+### Hiện trạng
+
+Bảo yêu cầu luồng tham chiếu Shopee: không giữ hàng khi duyệt/thêm giỏ; hết hàng vẫn giữ dòng; chỉ giữ hàng khi chuyển sang payment. Khuyến mãi chờ Duy sửa PR #41, mặc định để trống và giảm 0. Trong phiên, Bảo chọn SSE để cập nhật một chiều bằng thư viện hiện có.
+
+Cart nay gọi hợp đồng Catalog và Inventory trong transaction đang khoá owner ([cart.service.ts:67](../apps/api/src/modules/cart/cart.service.ts#L67)). Giá bán lấy từ biến thể, không dùng giá giả; thiếu dữ liệu kho trả trạng thái chưa biết ([inventory.service.ts:15](../apps/api/src/modules/inventory/inventory.service.ts#L15)). Nguồn code trước thay đổi là commit nền nêu trên.
+
+### Phương án
+
+| Phương án | Được gì | Mất gì |
+|---|---|---|
+| Poll từ mỗi trình duyệt | Đơn giản | Mỗi tab gửi query lặp ngay cả không có thay đổi |
+| **SSE (chọn)** | EventSource, Nest và RxJS sẵn có; tự kết nối lại; một probe chung mỗi API process | Cần stream dài và cấu hình proxy không buffer; cập nhật theo nhịp probe |
+| WebSocket | Giao tiếp hai chiều | Thêm quản lý protocol/kết nối cho nhu cầu hiện chỉ server đẩy revision |
+
+Probe theo nhịp trong [catalog-events.service.ts:29](../apps/api/src/modules/products/catalog-events.service.ts#L29), heartbeat ở dòng 45. Chỉ gửi hash công khai; browser refetch query đang mở. Probe dùng polling DB, nên không cam kết tức thời bằng transaction commit. Dừng probe khi không còn subscriber, giữ revision để reconnect sau heartbeat không mất cập nhật.
+
+Cart truyền transaction tuỳ chọn qua public service thay vì gọi connection riêng sau commit: lỗi đọc Catalog rollback thao tác giỏ, tránh client retry cộng lần nữa. Vẫn giữ ownership/advisory lock từ PR #40. Tồn/giá trên giao diện chỉ phục vụ trước checkout; bước đặt đơn cần đọc lại và giữ hàng nguyên tử.
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: giá list/sale đúng; hết hàng không mất dòng; restock không tự chọn; chỉ tính dòng đã chọn và đủ điều kiện; không tạo reservation; SSE phục hồi sau lỗi; ô khuyến mãi trống. Các trường hợp kiểm tại [cart-live.http.spec.ts](../apps/api/test/cart-live.http.spec.ts), [catalog-events.service.spec.ts](../apps/api/src/modules/products/catalog-events.service.spec.ts), [CartPage.test.tsx](../apps/web/src/features/cart/pages/CartPage.test.tsx) và [StorefrontLiveUpdates.test.tsx](../apps/web/src/app/StorefrontLiveUpdates.test.tsx).
+
+Thực tế: có implementation local; lệnh kiểm, output và SHA của working tree được giữ trong nhật ký phiên ngoài kho mã. Luồng tạo đơn/reservation/payment triển khai tiếp ở [ADR-032](#adr-032); khuyến mãi vẫn chờ Duy.
+
+### Điều kiện xem lại
+
+Khi dữ liệu hoặc tải tăng làm probe chậm, chuyển nguồn sự kiện sang notification/outbox; khi deploy qua proxy cần nghiệm thu buffering và timeout. ADR-025 hiện thuộc PR #41, giữ số này để tránh trùng lúc gộp.
+
+<a id="adr-032"></a>
+## 2026-10-18 · ADR-032 — Checkout điều phối đơn/giữ hàng nguyên tử, VNPAY xác nhận tiền qua IPN và query
+
+**Loại:** quyết định · **Phạm vi:** Cart, Orders, Inventory, Payments, Users, Shipping và web · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** chưa commit, nền `e7d419437ccfaba8016336b614d9ba820735d518`.
+
+### Hiện trạng
+
+Bảo chốt checkout phải đăng nhập; uỷ quyền chọn deadline/ship; yêu cầu làm toàn bộ luồng và tiếp tục bằng fake gateway trên database riêng khi chưa có merchant key. Cart trước đó không giữ hàng. Bảng Order/Payment/Reservation/StockMovement đã tồn tại; migration PH-11 chỉ mở rộng cột/chỉ mục/trạng thái ([migration](../apps/api/prisma/migrations/20261018090000_ph11_checkout_payment/migration.sql)).
+
+### Phương án
+
+| Phương án | Được gì | Mất gì |
+|---|---|---|
+| Orders gọi Payments, Payments gọi lại Orders | Ít module ban đầu | Vòng phụ thuộc và khó xác định transaction |
+| **Checkout orchestrator + service sở hữu bảng (chọn)** | Chung SQL transaction; public boundary; kiểm được tranh mua và rollback | Thêm module điều phối; mọi caller ghi kho phải tuân thứ tự lock |
+| Giữ transaction mở tới lúc khách trả tiền | Ý tưởng commit toàn luồng trong một lần | Không phù hợp ngân hàng ngoài DB và thời gian khách thao tác |
+
+Giữ Cart → Order → Inventory, variant được sắp xếp; idempotency tạo đơn lấy khoá key trước Cart. Preview không giữ hàng; fingerprint gồm giá/lượng/địa chỉ/ship, thay đổi phải xác nhận lại ([checkout.service.ts:27](../apps/api/src/modules/checkout/checkout.service.ts#L27), [create:75](../apps/api/src/modules/checkout/checkout.service.ts#L75)).
+
+Giữ hàng 15 phút từ xác nhận sang payment, không gia hạn refresh/retry. Phí nội địa mặc định 30.000đ, miễn từ 500.000đ tiền hàng sau giảm giá; đây là chính sách Freya theo uỷ quyền, không khẳng định giống nội bộ Shopee. Promo tạm trống/giảm 0. Seed dùng zone/rate đã có, không tự nạp tồn kho giả.
+
+VNPAY REST/JSON trước; không thêm SOAP khi chưa có yêu cầu interoperability/rubric cụ thể. URL ký local; callback/query ngoài transaction SQL xác thực HMAC và identity trước settlement. Thành công chốt kho một lần, dọn đúng lượng giỏ; hết hạn nhả hold. Nhận tiền muộn hoặc nhiều lần vào PAYMENT_REVIEW, giữ sự thật tài chính và không tự bán vượt tồn ([settlement.service.ts:41](../apps/api/src/modules/checkout/settlement.service.ts#L41)).
+
+Worker quét từ DB, claim query có điều kiện để các replica không gọi dồn; không cần thêm Job/Outbox khi các bước ghi hiện nằm cùng PostgreSQL transaction. Query nền trong 24h, đơn cũ có thao tác đối soát; chưa có refund tự động hoặc dashboard xử lý ngoại lệ ([payments.service.ts:90](../apps/api/src/modules/payments/payments.service.ts#L90)).
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: tranh đơn vị cuối một người giữ được; request/IPN lặp không ghi thu/trừ kho lặp; lỗi giữa chừng rollback; timeout không charge mới; restart phục hồi bằng query; return URL không tự nhận tiền. [HTTP PostgreSQL](../apps/api/test/checkout-payment.http.spec.ts), [web](../apps/web/src/features/checkout/checkout.test.tsx), [adapter](../apps/api/src/modules/payments/vnpay.service.spec.ts).
+
+Thực tế: implementation local và test fixture có; lệnh/output/SHA trong nhật ký ngoài repo. Chưa có merchant key nên chưa nghiệm thu VNPAY thật. Hướng dẫn [setup](features/payments/setup.md).
+
+### Điều kiện xem lại
+
+Khi ghép voucher/carrier, thay ngưỡng/fí hoặc cần refund tự động, cập nhật quote/state machine và kiểm hồi quy. Khi tải tăng hoặc cần worker luôn chạy dù API ngủ, tách scheduler vận hành; vẫn dùng dữ liệu/claim bền vững và không giữ DB transaction qua HTTP.
+
+## 2026-10-18 · PH-11 — buộc UTC cho PostgreSQL session khi dùng PrismaPg
+
+**Loại:** sửa lỗi hạ tầng · **Phạm vi:** API, seed, script, crawler · **Commit:** chưa commit, nền `e7d419437ccfaba8016336b614d9ba820735d518`.
+
+Đối chiếu SQL trực tiếp trong nghiệm thu browser phát hiện hold nhìn qua Prisma còn hạn nhưng epoch thật trong PostgreSQL đã hết. Adapter đang cài định dạng Date bằng giờ UTC không kèm offset, và đọc timestamptz bằng thay offset thành UTC (`node_modules/@prisma/adapter-pg/dist/index.mjs:274`, `:353`); Docker đặt timezone Asia/Ho_Chi_Minh (`docker-compose.yml:16`). Có báo cáo cùng cơ chế ở [Prisma issue 28629](https://github.com/prisma/orm/issues/28629).
+
+Buộc `timezone=UTC` qua connection startup options ở [connection.ts:2](../apps/api/src/infra/prisma/connection.ts#L2), dùng chung cho mọi PrismaPg constructor. Giữ các option khác của URL; thêm UTC cuối để không bị option timezone trước đó ghi đè. Không đổi timezone hiển thị của web hoặc định dạng GMT+7 gửi VNPAY. Docker runtime chép helper source để seed chạy bằng tsx vẫn dùng được.
+
+Bài HTTP tạo đơn so sánh `EXTRACT(EPOCH FROM expires_at - CURRENT_TIMESTAMP)` với deadline thực, không chỉ roundtrip Date qua Prisma ([checkout-payment.http.spec.ts](../apps/api/test/checkout-payment.http.spec.ts)). Timestamp legacy không tự sửa khi chưa biết nguồn; theo [ND-16](TECH_DEBT.md). Không dùng ALTER DATABASE hoặc chỉnh toàn bộ dữ liệu để che lỗi kết nối.
+
+<a id="adr-033"></a>
+## 2026-10-18 · ADR-033 — Hai payment adapter chung settlement, HTTPS tunnel cho nghiệm thu local
+
+**Loại:** quyết định · **Phạm vi:** Payments, Checkout, web và công cụ dev · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** chưa commit, nền `e7d419437ccfaba8016336b614d9ba820735d518`.
+
+### Hiện trạng
+
+Bảo yêu cầu chuẩn bị cả VNPAY/MoMo và chọn HTTPS tunnel để thử local trước. VNPAY tạo URL bằng chữ ký local; MoMo cần POST tạo giao dịch. SQL transaction không bao trùm máy chủ gateway bên ngoài. Contract hiện tại ở [payment-gateway.ts:23](../apps/api/src/modules/payments/payment-gateway.ts#L23), MoMo network ở [momo.adapter.ts:98](../apps/api/src/modules/payments/momo.adapter.ts#L98).
+
+### Phương án
+
+| Phương án | Được gì | Mất gì | Đảo ngược |
+|---|---|---|---|
+| Nhánh if theo gateway trong mọi bước checkout | Ít lớp khởi đầu | Lặp xác thực/settlement, đổi gateway chạm nghiệp vụ kho | Có, cần gom logic |
+| **Strategy contract + Adapter + Registry (chọn)** | Chuẩn hoá event, chia sẻ kho/đơn/đối soát; thêm cổng có ranh giới rõ | Thêm adapter và registry; phải kiểm contract từng cổng | Có |
+| Tách payment thành service ngoài / thêm SOAP | Ranh giới deployment riêng | Thêm network/ops, chưa giải quyết atomicity ngoài PostgreSQL | Tốn công tích hợp lại |
+
+Chọn contract chung để giữ settlement một nơi; adapter chịu trách nhiệm chữ ký, identity và protocol của từng gateway. VNPAY giữ HMAC-SHA512; MoMo IPN dùng HMAC-SHA256; query MoMo trả event sau HTTPS allowlist và correlation checks vì hợp đồng query không công bố chữ ký response. Chỉ resultCode 0 chốt thành công, 9000 còn chờ ([registry:7](../apps/api/src/modules/payments/gateway-registry.ts#L7), [MoMo query:187](../apps/api/src/modules/payments/momo.adapter.ts#L187), [settlement:71](../apps/api/src/modules/checkout/settlement.service.ts#L71)).
+
+Persist init intent trong PaymentTransaction hiện có cùng đơn/hold; sau commit mới gọi MoMo. Timeout giữ PENDING; replay cùng payload/requestId/reference, kể cả cấu hình URL đã đổi. Claim hạn chế gọi đồng thời, worker/query phục hồi khi mất IPN. Không thêm bảng hoặc dependency ([payments.service.ts:63](../apps/api/src/modules/payments/payments.service.ts#L63), [launchLatest:142](../apps/api/src/modules/payments/payments.service.ts#L142)). Đổi gateway trên một đơn đang chờ bị từ chối để tránh hai cổng cùng thu tiền.
+
+Một Quick Tunnel tới Vite, proxy `/api` tới API; cùng public origin cho login và return. Script kiểm SHA256 binary cloudflared chính thức, lưu state ngoài repo và cập nhật URL `.env` nhưng giữ key. Chấp nhận URL thay đổi và không có SLA. [Cloudflare](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/) không hỗ trợ SSE ở Quick Tunnel; web fallback polling, localhost vẫn SSE ([vite.config.ts:26](../apps/web/vite.config.ts#L26), [payment-tunnel.mjs:82](../tools/dev/payment-tunnel.mjs#L82), [fallback:42](../apps/web/src/app/StorefrontLiveUpdates.tsx#L42)).
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: cả hai cổng dùng cùng giữ hàng/settlement; MoMo HTTP ngoài SQL, callback lặp không bán hai lần, timeout replay nhất quán và query phục hồi. Các ca ở [HTTP MoMo](../apps/api/test/checkout-momo.http.spec.ts), [adapter MoMo](../apps/api/src/modules/payments/momo.adapter.spec.ts), [checkout web](../apps/web/src/features/checkout/checkout.test.tsx), [SSE fallback](../apps/web/src/app/StorefrontLiveUpdates.test.tsx). Lệnh/output/SHA lưu trong nhật ký ngoài repo; chưa có key để nghiệm thu gateway thật.
+
+### Điều kiện xem lại
+
+Khi cần domain cố định/SSE public hoặc staging ổn định, chuyển sang named tunnel hoặc deployment thật. Khi thêm gateway mới, mở rộng code/DTO/registry và contract tests; không nhân bản settlement. Khi cần refund/đối soát vận hành, thiết kế nghiệp vụ riêng trước khi quảng bá sẵn sàng production.
+
+<a id="adr-034"></a>
+## 2026-10-19 · ADR-034 — Mỗi khách một đơn giữ hàng, link cổng hết hạn trước hold 3 phút, tồn nhập bằng CSV kiểm kê
+
+**Loại:** quyết định · **Phạm vi:** Checkout, Orders, Payments, Inventory, web · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** chưa commit, nền `e7d419437ccfaba8016336b614d9ba820735d518`.
+
+### Hiện trạng
+
+Rà soát end-to-end PH-11 ngày 19/10 thấy ba chỗ hở. (1) Chống trùng đơn chỉ so fingerprint, nên đổi địa chỉ hoặc số lượng là tạo được đơn chờ thứ hai cùng giữ hàng; trả cả hai thì mua trùng. (2) VNPAY URL hết hạn đúng lúc hold hết hạn ([vnpay.service.ts:73](../apps/api/src/modules/payments/vnpay.service.ts#L73)): trả tiền ở phút cuối mà IPN đến trễ thì rơi vào `PAYMENT_REVIEW`, phải hoàn tiền tay. (3) `select count(*) from inventory` trên `fashion_shop` trả `0`, và mã không có đường nào ghi `quantityOnHand` ngoài SALE, nên trên app thật không checkout được. Kèm theo: filter lỗi chỉ lấy mã từ field `error` ([all-exceptions.filter.ts:46](../apps/api/src/common/filters/all-exceptions.filter.ts#L46)); `QUOTE_CHANGED` viết vào `code` nên bị mất.
+
+### Phương án
+
+| Phương án | Được gì | Mất gì | Đảo ngược |
+|---|---|---|---|
+| Tạo đơn mới thì tự huỷ đơn chờ cũ | Khách không phải thao tác | VNPAY URL tạo local, không biết khách đang trả đơn cũ hay không; huỷ xong tiền vẫn về thì sinh `PAYMENT_REVIEW` | Có |
+| **Chặn đơn thứ hai, chỉ dẫn về đơn chờ (chọn)** | Không bao giờ hai đơn cùng giữ hàng và cùng thu tiền | Khách phải tự tiếp tục hoặc huỷ đơn cũ | Có |
+| **Link cổng hết hạn sớm 3 phút so với hold (chọn)** | IPN/query trễ vẫn chốt được khi hàng còn giữ | Khách còn 12 thay vì 15 phút để trả | Có, đổi một hằng số |
+| **Script CSV kiểm kê `sku,quantity` (chọn)** | Dùng được ngay; ghi ADJUSTMENT truy vết; cùng khoá variant với Checkout | Chưa có UI quản trị kho | Có |
+| Seed số tồn mẫu | Demo nhanh | Trái luật module Inventory: không sinh tồn giả trên DB đang dùng | Có, nhưng làm bẩn dữ liệu |
+
+**Chọn chặn + đệm + CSV.** `orders.pending()` trả đơn chờ còn hạn của khách ([orders.service.ts:51](../apps/api/src/modules/orders/orders.service.ts#L51)). Cùng fingerprint và cùng cổng thì trả lại đơn đó như cũ; khác thì 409 `PENDING_ORDER_EXISTS` ([checkout.service.ts:117](../apps/api/src/modules/checkout/checkout.service.ts#L117)). Preview trả `pendingOrder` để web khoá nút xác nhận và dẫn về đơn ([CheckoutPage.tsx:157](../apps/web/src/features/checkout/CheckoutPage.tsx#L157)). Khoá Cart của khách đã tuần tự hoá các request tạo đơn, nên không cần khoá mới.
+
+`Payment.expiresAt` = hold trừ 3 phút, dùng cho cả `vnp_ExpireDate` lẫn việc ẩn link; thử lại khi còn dưới 1 phút trả 409 ([payments.service.ts:45](../apps/api/src/modules/payments/payments.service.ts#L45)). Web đếm ngược theo hạn link. MoMo chưa truyền hạn sang cổng; vẫn ẩn link theo `expiresAt`, phải kiểm lại khi có key.
+
+`npm run stock:import -w apps/api -- --file=<csv> [--dry-run]` gọi `applyStockCounts`: tất cả hoặc không dòng nào, từ chối SKU lạ hoặc số nhỏ hơn lượng đang giữ ([stock-count.ts:54](../apps/api/src/modules/inventory/stock-count.ts#L54)). Mã lỗi `QUOTE_CHANGED` chuyển sang field `error` để tới được client.
+
+Nghiệm thu trên app ngày 19/10 lộ thêm một chỗ: QueryDR lỗi đường truyền vẫn bị tính là đã query, nên đơn đã trả tiền phải chờ thêm 305 giây. Nay lỗi đường truyền chỉ lùi claim 30 giây ([settlement.service.ts:124](../apps/api/src/modules/checkout/settlement.service.ts#L124)); mã phản hồi QueryDR không dùng được được ghi log.
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: [checkout-payment.http.spec.ts](../apps/api/test/checkout-payment.http.spec.ts) có hai ca mới (đệm hạn, một đơn chờ kể cả 5 request đua); [inventory-stock-count.http.spec.ts](../apps/api/test/inventory-stock-count.http.spec.ts), [stock-count.spec.ts](../apps/api/src/modules/inventory/stock-count.spec.ts) và [checkout.test.tsx](../apps/web/src/features/checkout/checkout.test.tsx) xanh.
+Thực tế: điền khi có commit; lệnh và output của phiên lưu ngoài repo.
+
+### Điều kiện xem lại
+
+Duy làm UI/API nhập kho thì `applyStockCounts` thành lõi dùng chung hoặc bị thay. Đo được IPN VNPAY trễ hơn 3 phút thì tăng đệm. Có guest checkout hoặc giỏ nhiều đơn song song thì xét lại luật một đơn chờ.
+
+<a id="adr-035"></a>
+## 2026-10-20 · ADR-035 — Nhả hold thì chọn lại món của đơn trong giỏ; preview chỉ ra đơn đang chờ
+
+**Loại:** quyết định · **Phạm vi:** Checkout (Bảo), Cart (Duy) · **Trạng thái:** đề xuất · **Người quyết:** Bảo, Duy review Cart · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+
+Hold của đơn chờ trừ vào tồn khả dụng, kể cả với chính khách giữ hàng. Giữ đơn vị cuối thì mọi lần đọc giỏ thấy `OUT_OF_STOCK` và lưu bỏ chọn bền vững ([cart.service.ts:137](../apps/api/src/modules/cart/cart.service.ts#L137)). Kiểm trên Chrome ngày 20/10 với DB E2E: hủy đơn xong, món vẫn bị bỏ chọn, Checkout báo "Chọn sản phẩm đủ tồn kho" và không có lối ra; còn lúc đơn đang chờ thì preview báo đúng câu đó thay vì chỉ ra đơn chờ.
+
+### Phương án
+
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Cart trừ reservation của chính chủ giỏ khỏi tồn khả dụng | Gốc rễ: giỏ không báo hết hàng với người đang giữ | Cart phải biết đơn/reservation của chủ, đổi hợp đồng Inventory, chạm nhiều test của Duy | Được, nhưng tốn |
+| **B. Nhả hold thì `cart.reselectReleased`; preview có đơn chờ mà giỏ không đặt được thì 409 `PENDING_ORDER_EXISTS` kèm mã đơn (chọn)** | Hai điểm khách thật sự gặp được sửa, cùng transaction và khoá giỏ hiện có | Trong lúc giữ, trang giỏ vẫn hiện hết hàng với chính khách | Được: bỏ một lời gọi và một nhánh catch |
+| Không làm gì | Không đổi mã | Khách hủy đơn phải tự tick lại; Checkout cụt đường khi đang giữ đơn vị cuối | — |
+
+**Chọn B** vì sửa đúng hai đường cụt đã thấy trên trình duyệt mà không đổi hợp đồng Inventory của Duy. Trade-off chấp nhận: trạng thái hết hàng giả trên trang giỏ trong lúc giữ vẫn còn, ghi trong [README Cart](features/cart/README.md).
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: test HTTP `hủy đơn giữ đơn vị cuối thì món được chọn lại trong giỏ` xanh; trên Chrome hủy đơn xong món được chọn, Checkout có đơn chờ hiện mã đơn và link "Xem đơn đang chờ".
+Thực tế: điền khi có commit; lệnh và output của phiên lưu ngoài repo.
+
+### Điều kiện xem lại
+
+Duy làm phương án A trong Cart/Inventory thì bỏ `reselectReleased` và nhánh 409 của preview.
+
+<a id="bo-gan-nguoi-duyet"></a>
+## 2026-10-24 · Bỏ gán người duyệt theo CODEOWNERS; duyệt pull request thành tự nguyện
+
+**Loại:** thay đổi cách làm việc · **Phạm vi:** `shared/git.md` mục Luật gộp, `README.md`, `CONTRIBUTING.md`, `README docs` mục 6, `README platform` · **Người quyết:** Bảo, 24/10
+
+Sau PH-11, ba người cùng chấm nhiều phân hệ đan xen (checkout chạm cart/orders/inventory/shipping) nên gán người duyệt cứng theo thư mục dồn mỗi pull request vào một người và làm chậm tính năng. Bỏ ba mảnh của cơ chế: `.github/CODEOWNERS`, workflow `pr-reviewers.yml`, script `tools/github/request-reviewers.mjs`. Điều kiện gộp còn lại: CI xanh sáu chặng và một người duyệt bất kỳ tự nguyện, tác giả không tự duyệt pull request của mình. Luật "một phân hệ một người làm trọn" và "không ghi bảng người khác" vẫn do ESLint boundaries ép, không đổi. `github-setup.md` mục 6 giữ làm biên bản lịch sử cách dựng cơ chế cũ.
+
+Điều kiện xem lại: trước bản nộp chính thức, nếu giảng viên yêu cầu bằng chứng duyệt chéo theo ownership, khôi phục cơ chế từ lịch sử git tại commit bỏ này.
+
+<a id="adr-037"></a>
+## 2026-10-28 · ADR-037 — Revision SSE đọc từ sequence do trigger tăng, không quét catalog
+
+**Loại:** quyết định · **Phạm vi:** Products (SSE `/api/products/events`), Inventory, PH-11; bổ sung cách probe của [ADR-031](#adr-031) · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- Probe mỗi 2 giây của mỗi API process đọc toàn bộ sản phẩm, biến thể, ảnh rồi băm ([catalog-events.service.ts:48-73 tại 8bc5672](https://github.com/F-R-E-Y-A/fashion-shop/blob/8bc5672/apps/api/src/modules/products/catalog-events.service.ts#L48-L73)); revision tồn đọc mọi dòng `inventory` và cộng dồn mọi giữ hàng ([inventory.service.ts:103-109 tại 8bc5672](https://github.com/F-R-E-Y-A/fashion-shop/blob/8bc5672/apps/api/src/modules/inventory/inventory.service.ts#L103-L109)). Chi phí tỉ lệ với cỡ catalog: ổn với 87 sản phẩm, không ổn với mục tiêu 100k (suy luận, chưa đo ở 100k).
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Đếm và `max(updated_at)` mỗi bảng | Không migration | Vẫn quét bảng; `@updatedAt` do Prisma ghi, SQL tay bỏ sót | Được |
+| B. Một hàng đếm do trigger tăng | Đọc một dòng | Mọi checkout cùng khoá một hàng tới khi commit, thành điểm nghẽn | Được |
+| **C. Sequence do trigger mức câu lệnh tăng (chọn)** | Đọc một dòng; sequence không theo transaction nên không có hàng nóng; bắt cả SQL tay | Transaction rollback cũng tăng số, client tải lại thừa; thêm trigger viết tay | Được: xoá trigger và sequence |
+| D. Outbox phát version | Đúng hướng lâu dài | Chưa có dispatcher (việc 11) | — |
+
+**Chọn C** làm cầu nối tới outbox. Hai sequence theo chủ module: `catalog_revision_seq` cho sản phẩm/biến thể/ảnh/danh mục/màu/cỡ, `inventory_revision_seq` cho tồn và giữ hàng. Giữ hàng hết hạn không sinh ghi nào, nên revision tồn kèm hạn sớm nhất còn hiệu lực. Trade-off chấp nhận: sự kiện thừa khi rollback.
+
+### Kết quả mong đợi → thực tế
+Mong đợi: revision đổi khi ghi, đứng yên khi chỉ đọc, đổi khi qua mốc hết hạn giữ hàng; Prisma không báo drift.
+Thực tế: 2026-10-28 · [catalog-revision.http.spec.ts](../apps/api/test/catalog-revision.http.spec.ts) 2/2 và 6 tệp HTTP cart/catalog/checkout 101/101 đạt trên DB test; `prisma migrate diff --from-config-datasource --to-schema prisma/schema` với DB test → `This is an empty migration.`; `EXPLAIN ANALYZE` revision tồn: một Index Scan trên `inventory_reservations_expires_at_idx` có Limit, 0,093 ms trên DB test.
+
+### Điều kiện xem lại
+Có outbox và dispatcher (việc 11) thì phát version từ outbox, bỏ trigger; nếu đo thấy trigger làm chậm ghi khi nhập kho hàng loạt.

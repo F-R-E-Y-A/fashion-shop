@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { CartService } from './cart.service.js';
+import { cartReadStubs } from './test-support.js';
 
 // Unit: Prisma gia, khong ket noi hay thay doi CSDL.
 describe('PH-02 regression: Cart ownership (unit)', () => {
@@ -23,7 +24,8 @@ describe('PH-02 regression: Cart ownership (unit)', () => {
     $executeRaw: vi.fn(async () => 1),
     $transaction: vi.fn(async (run: (client: unknown) => Promise<unknown>) => run(database)),
   };
-  const service = new CartService(database as unknown as PrismaService);
+  const { products, inventory } = cartReadStubs();
+  const service = new CartService(database as unknown as PrismaService, products, inventory);
   const uniqueError = () =>
     new Prisma.PrismaClientKnownRequestError('unique', {
       code: 'P2002',

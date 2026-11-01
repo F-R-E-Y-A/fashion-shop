@@ -8,25 +8,10 @@ import { Decimal } from 'decimal.js';
 
 import type { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
-import { cartOwnerKey, cartTransaction } from './cart-transaction.js';
-import { CartItemResponse, CartResponse, VariantForCart } from './dto/cart.response.js';
-
-/**
- * Lay thong tin bien the san pham de hien thi trong gio.
- * Tam thoi dung du lieu gia cho den khi Bao them ProductsService.getVariantForCart().
- * Doi: thay ham nay bang goi ProductsService that (tiem ProductsModule).
- */
-function getMockVariant(variantId: string): VariantForCart {
-  return {
-    variantId,
-    productId: '00000000-0000-0000-0000-000000000001',
-    name: '[Mock] San pham mau',
-    variantLabel: 'M / Den',
-    price: '299000',
-    imageUrl: null,
-    isActive: true,
-  };
-}
+import { InventoryService } from '../inventory/index.js';
+import { ProductsService } from '../products/index.js';
+import { cartOwnerKey, cartTransaction, lockCartOwners } from './cart-transaction.js';
+import { CartItemResponse, CartResponse } from './dto/cart.response.js';
 
 /** Tinh tong tien cua gio hang, tra ve chuoi de tranh mat do chinh xac. */
 export function calcTotal(items: { price: string; quantity: number }[]): string {
@@ -42,7 +27,55 @@ export function calcSubtotal(price: string, quantity: number): string {
 
 @Injectable()
 export class CartService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly products: ProductsService,
+    private readonly inventory: InventoryService,
+  ) {}
+
+  lockForCheckout(userId: string, tx: Prisma.TransactionClient) {
+    return lockCartOwners(tx, [cartOwnerKey(userId)]);
+  }
+
+  async checkoutSelection(userId: string, tx: Prisma.TransactionClient) {
+    await this.lockForCheckout(userId, tx);
+    const cart = await this.findOrCreateCart(tx, userId);
+    return (await this.readCart(tx, cart)).items.filter((item) => item.isSelected);
+  }
+
+  async consumePurchased(
+    userId: string,
+    items: { variantId: string; quantity: number }[],
+    tx: Prisma.TransactionClient,
+  ) {
+    await this.lockForCheckout(userId, tx);
+    const cart = await tx.cart.findUnique({ where: { userId } });
+    if (!cart) return;
+    for (const item of items) {
+      const where = {
+        cartId_productVariantId: { cartId: cart.id, productVariantId: item.variantId },
+      };
+      const current = await tx.cartItem.findUnique({ where });
+      if (!current) continue;
+      if (current.quantity <= item.quantity) await tx.cartItem.delete({ where });
+      else await tx.cartItem.update({ where, data: { quantity: { decrement: item.quantity } } });
+    }
+  }
+
+  /**
+   * Don huy/het han nha hang: chon lai cac mon cua don con trong gio. Luc dang giu, doc gio thay
+   * het hang (hang dang giu cho chinh khach) va da bo chon ben vung; khong chon lai thi khach phai
+   * tu tick lai moi dat duoc.
+   */
+  async reselectReleased(userId: string, variantIds: string[], tx: Prisma.TransactionClient) {
+    await this.lockForCheckout(userId, tx);
+    const cart = await tx.cart.findUnique({ where: { userId } });
+    if (!cart || !variantIds.length) return;
+    await tx.cartItem.updateMany({
+      where: { cartId: cart.id, productVariantId: { in: variantIds } },
+      data: { isSelected: true },
+    });
+  }
 
   /** Chi goi sau khi transaction da khoa chu so huu. */
   private async findOrCreateCart(
@@ -74,61 +107,54 @@ export class CartService {
     });
   }
 
-  /** Lay thong tin bien the: doc tu CSDL that, fallback ve mock neu chua co */
-  private async getVariantInfo(
-    transaction: Prisma.TransactionClient,
-    variantId: string,
-  ): Promise<VariantForCart> {
-    try {
-      const row = await transaction.productVariant.findUnique({
-        where: { id: variantId },
-        include: {
-          product: { include: { images: { take: 1 } } },
-          color: true,
-          size: true,
-        },
-      });
-
-      if (row) {
-        return {
-          variantId: row.id,
-          productId: row.productId,
-          name: row.product.name,
-          variantLabel: `${row.color.name} / ${row.size.code}`,
-          price: String(row.salePrice ?? 299000),
-          imageUrl: row.product.images[0]?.url ?? null,
-          isActive: row.isActive,
-        };
-      }
-    } catch {
-      // Khi CSDL chua co hoac dang chay unit test
-    }
-
-    return getMockVariant(variantId);
-  }
-
   /** Doc snapshot giu cung khoa voi thao tac vua ghi, khong mo transaction long nhau. */
   private async readCart(
     transaction: Prisma.TransactionClient,
     cart: { id: string },
   ): Promise<CartResponse> {
     const dbItems = await transaction.cartItem.findMany({ where: { cartId: cart.id } });
-
-    // Mot transaction dung mot ket noi PostgreSQL; doc lan luot thay vi xep nhieu query dong thoi.
+    const ids = dbItems.map((item) => item.productVariantId);
+    const variants = new Map(
+      (await this.products.getVariantsForCart(ids, transaction)).map((v) => [v.variantId, v]),
+    );
+    const quantities = await this.inventory.getAvailableQuantities(ids, transaction);
     const items: CartItemResponse[] = [];
     for (const item of dbItems) {
-      const variant = await this.getVariantInfo(transaction, item.productVariantId);
+      const variant = variants.get(item.productVariantId);
+      if (!variant)
+        throw new ConflictException('Không đọc được sản phẩm trong giỏ. Vui lòng thử lại.');
+      const availableQuantity = quantities.get(item.productVariantId) ?? null;
+      const availability = !variant.isActive
+        ? 'INACTIVE'
+        : availableQuantity === null
+          ? 'UNKNOWN'
+          : availableQuantity === 0
+            ? 'OUT_OF_STOCK'
+            : item.quantity > availableQuantity
+              ? 'INSUFFICIENT_STOCK'
+              : 'AVAILABLE';
+      // Het hang/ngung ban bo chon ben vung; co hang lai khong tu dong mua thay khach.
+      const unavailable = availability === 'OUT_OF_STOCK' || availability === 'INACTIVE';
+      if (unavailable && item.isSelected) {
+        await transaction.cartItem.update({ where: { id: item.id }, data: { isSelected: false } });
+      }
       items.push({
         ...variant,
         quantity: item.quantity,
         subtotal: calcSubtotal(variant.price, item.quantity),
+        availableQuantity,
+        availability,
+        isSelected: unavailable ? false : item.isSelected,
+        canCheckout: availability === 'AVAILABLE',
       });
     }
-
+    const selected = items.filter((item) => item.isSelected && item.canCheckout);
     return {
       cartId: cart.id,
       items,
-      total: calcTotal(items.map((i) => ({ price: i.price, quantity: i.quantity }))),
+      total: calcTotal(selected),
+      discountAmount: '0.00',
+      selectedItemCount: selected.reduce((sum, item) => sum + item.quantity, 0),
       itemCount: items.reduce((sum, i) => sum + i.quantity, 0),
     };
   }
@@ -146,8 +172,32 @@ export class CartService {
     guestToken?: string,
   ): Promise<CartResponse> {
     return this.withCart(userId, guestToken, async (transaction, cart) => {
-      const variant = await this.getVariantInfo(transaction, variantId);
+      const variant = await this.products.getVariantForCart(variantId, transaction);
+      if (!variant) throw new NotFoundException('Không tìm thấy biến thể sản phẩm.');
       if (!variant.isActive) throw new BadRequestException('Biến thể sản phẩm này đã ngừng bán.');
+      const available = (await this.inventory.getAvailableQuantities([variantId], transaction)).get(
+        variantId,
+      );
+      if (available === 0) throw new ConflictException('Sản phẩm hiện đã hết hàng.');
+      const existing = await transaction.cartItem.findUnique({
+        where: { cartId_productVariantId: { cartId: cart.id, productVariantId: variantId } },
+      });
+      if (
+        quantity < 1 ||
+        !Number.isInteger(quantity) ||
+        quantity + (existing?.quantity ?? 0) > 2_147_483_647
+      ) {
+        throw new BadRequestException('Số lượng vượt giới hạn hỗ trợ.');
+      }
+      if (
+        available !== null &&
+        available !== undefined &&
+        quantity + (existing?.quantity ?? 0) > available
+      ) {
+        throw new ConflictException(
+          `Chỉ còn ${available} sản phẩm. Vui lòng kiểm tra lại số lượng.`,
+        );
+      }
       await transaction.cartItem.upsert({
         where: { cartId_productVariantId: { cartId: cart.id, productVariantId: variantId } },
         create: { cartId: cart.id, productVariantId: variantId, quantity },
@@ -159,10 +209,13 @@ export class CartService {
 
   async updateItem(
     variantId: string,
-    quantity: number,
+    quantity: number | undefined,
     userId?: string,
     guestToken?: string,
+    isSelected?: boolean,
   ): Promise<CartResponse> {
+    if (quantity === undefined && isSelected === undefined)
+      throw new BadRequestException('Cần số lượng hoặc trạng thái chọn.');
     return this.withCart(userId, guestToken, async (transaction, cart) => {
       const key = { cartId: cart.id, productVariantId: variantId };
       if (!(await transaction.cartItem.findUnique({ where: { cartId_productVariantId: key } }))) {
@@ -170,7 +223,7 @@ export class CartService {
       }
       await transaction.cartItem.update({
         where: { cartId_productVariantId: key },
-        data: { quantity },
+        data: { quantity, isSelected },
       });
       return this.readCart(transaction, cart);
     });
@@ -219,7 +272,7 @@ export class CartService {
           }
           await transaction.cartItem.upsert({
             where: { cartId_productVariantId: key },
-            create: { ...key, quantity: item.quantity },
+            create: { ...key, quantity: item.quantity, isSelected: item.isSelected },
             update: { quantity: { increment: item.quantity } },
           });
         }

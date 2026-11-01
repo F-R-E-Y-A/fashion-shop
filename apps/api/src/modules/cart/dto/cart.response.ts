@@ -11,6 +11,7 @@ export interface VariantForCart {
 export interface CartItemResponse {
   variantId: string;
   productId: string;
+  productSlug: string;
   name: string;
   variantLabel: string;
   price: string;
@@ -18,6 +19,10 @@ export interface CartItemResponse {
   quantity: number;
   isActive: boolean;
   subtotal: string;
+  availableQuantity: number | null;
+  availability: 'AVAILABLE' | 'OUT_OF_STOCK' | 'INSUFFICIENT_STOCK' | 'INACTIVE' | 'UNKNOWN';
+  isSelected: boolean;
+  canCheckout: boolean;
 }
 
 export interface CartResponse {
@@ -26,4 +31,6 @@ export interface CartResponse {
   /** Tong tien tinh theo gia hien tai, khong luu cung. */
   total: string;
   itemCount: number;
+  selectedItemCount: number;
+  discountAmount: string;
 }

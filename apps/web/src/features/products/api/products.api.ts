@@ -18,6 +18,7 @@ export interface Product {
   /** Ma mau (hex) cua toi da 4 ho mau; rong khi san pham khong co mau. */
   colorSwatches: string[];
   colorCount: number;
+  stockStatus?: 'IN_STOCK' | 'OUT_OF_STOCK' | 'UNKNOWN';
 }
 export interface CategoryCrumb {
   name: string;
@@ -40,6 +41,7 @@ export interface ProductVariant {
   sizeCode: string;
   price: string;
   listPrice: string | null;
+  availableQuantity?: number | null;
 }
 export interface ProductDetail extends Product {
   material: string | null;

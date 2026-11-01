@@ -1,6 +1,7 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 
 import { Prisma, PrismaClient } from '../../../../apps/api/src/generated/prisma/client.ts';
+import { prismaConnection } from '../../../../apps/api/src/infra/prisma/connection.ts';
 import type { NormalizedCandidateOutput } from '../contracts/normalized-product.ts';
 import type { RawProductEnvelope } from '../contracts/raw-product.ts';
 import type {
@@ -102,7 +103,7 @@ export class PrismaStagingStore implements StagingStore {
   readonly client: PrismaClient;
 
   constructor(connectionString: string) {
-    this.client = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+    this.client = new PrismaClient({ adapter: new PrismaPg(prismaConnection(connectionString)) });
   }
 
   async connect(): Promise<void> {

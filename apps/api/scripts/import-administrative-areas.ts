@@ -19,6 +19,7 @@ import {
   seedAdministrativeAreas,
 } from '../prisma/seed/administrative-areas.seed.js';
 import { PrismaClient } from '../src/generated/prisma/client.js';
+import { prismaConnection } from '../src/infra/prisma/connection.js';
 
 const repositoryRoot = fileURLToPath(new URL('../../../', import.meta.url));
 loadEnv({ path: resolve(repositoryRoot, '.env'), quiet: true });
@@ -34,7 +35,7 @@ async function main(): Promise<void> {
   if (!connectionString) throw new Error('Thieu DATABASE_URL');
 
   console.log(`CSDL dich: ${describeTarget(connectionString)}`);
-  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+  const prisma = new PrismaClient({ adapter: new PrismaPg(prismaConnection(connectionString)) });
   try {
     const result = await seedAdministrativeAreas(prisma);
     console.log(
