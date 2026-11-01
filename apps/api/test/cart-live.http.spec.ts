@@ -22,7 +22,14 @@ describe('PH-11: Cart doc gia/ton that, khong giu hang', () => {
   beforeEach(async () => {
     vi.restoreAllMocks();
     await resetDatabase(t.prisma);
-    id = (await t.prisma.productVariant.findFirstOrThrow({ orderBy: { id: 'asc' } })).id;
+    // Co dinh san pham: id la gen_random_uuid() moi lan reset, chon theo id thi moi luot mot san pham
+    // khac, ma tim theo ten khong dau cua vai fixture ("Quan jean ong suong") khong ra chinh no.
+    id = (
+      await t.prisma.productVariant.findFirstOrThrow({
+        where: { product: { slug: 'ao-polo-cotton-pique' } },
+        orderBy: { sku: 'asc' },
+      })
+    ).id;
     await t.prisma.productVariant.update({
       where: { id },
       data: { listPrice: '449000', salePrice: null },
