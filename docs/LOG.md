@@ -657,3 +657,35 @@ Thực tế: 2026-10-28 · [catalog-revision.http.spec.ts](../apps/api/test/cata
 
 ### Điều kiện xem lại
 Có outbox và dispatcher (việc 11) thì phát version từ outbox, bỏ trigger; nếu đo thấy trigger làm chậm ghi khi nhập kho hàng loạt.
+
+<a id="adr-039"></a>
+## 2026-10-31 · ADR-039 — Màn quản trị dùng chung khung `ui/AdminKit`, `ConfirmDialog` ở `ui/`, nhóm lỗi HTTP ở `core/`
+
+**Loại:** quyết định · **Phạm vi:** web, `ui/` và `core/` (Bảo); màn quản trị người dùng (Tài: `features/account/admin`); màn quản trị đơn (Bảo: `features/checkout/admin`) · **Trạng thái:** đề xuất · **Người quyết:** Bảo, cần Tài đồng ý · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- Màn quản trị thứ hai (`/admin/orders`, ADR-038) chép lại khoảng 20 class của [AdminUsers.module.css tại fdf4d62](https://github.com/F-R-E-Y-A/fashion-shop/blob/fdf4d62/apps/web/src/features/account/admin/AdminUsers.module.css) (685 dòng) với giá trị lệch nhẹ, bảng không thành thẻ ở 720px, nhãn và thông báo khác kiểu, in thẳng `error.message` thay vì nhóm lỗi như [admin-errors.ts:28-56 tại fdf4d62](https://github.com/F-R-E-Y-A/fashion-shop/blob/fdf4d62/apps/web/src/features/account/admin/admin-errors.ts#L28-L56).
+- `checkout` phải lấy `ConfirmDialog` qua `@/features/account` dù hộp không biết gì về tài khoản; [design.md](shared/design.md) đã có luật "hai feature trở lên cần thì đưa vào `ui/`".
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Chỉ sửa CSS phía đơn hàng cho khớp | Không đụng mã của Tài | Hai bản CSS trôi dần; màn thứ ba lại chép | Được |
+| **B. Khung chung `ui/AdminKit.module.css` lấy qua `composes`; `ConfirmDialog` sang `ui/`; nhóm lỗi HTTP sang `core/request-errors.ts` (chọn)** | Một nguồn cho trang, bảng (thành thẻ ở 720px), panel, nút, ô nhập, nhãn, thông báo; TSX của Tài không đổi tên class | Sửa tệp của Tài; `composes` đi đường tương đối vào `ui/` mà ESLint không kiểm | Được: chép lại khai báo vào từng tệp |
+| B'. Xuất `admin` từ `ui/index.ts` như `layout`, TSX dùng `admin.table` | Đi qua cửa `index` | Sửa mọi `className` trong TSX của Tài; vẫn phải trộn hai object class | Được |
+| Không làm gì | — | Hai màn quản trị nhìn và báo lỗi khác nhau | — |
+
+**Chọn B** (Bảo chọn ngày 31/10). Luật đi kèm:
+- Giá trị trong kit lấy nguyên từ màn người dùng, nên màn đó không đổi giao diện (suy luận: chưa xem bằng trình duyệt). Một chỗ biết trước: hover của dòng đặt sau `@media` để màn hẹp vẫn tô như cũ. Class của Tài vẫn còn tên cũ, chỉ thay thân bằng `composes`.
+- Bản build đặt CSS kit **sau** CSS feature (đo bằng `vite build` ngày 31/10: khối kit ở byte 24241, `.emailCell` ở 14072, `.tabs` của đơn hàng ở 18526 trong `index-*.css`). Khi cùng độ ưu tiên thì kit thắng, nên feature chỉ ghi đè thuộc tính kit đã đặt bằng bộ chọn mạnh hơn; ghi ở đầu [AdminKit.module.css](../apps/web/src/ui/AdminKit.module.css).
+- `core/request-errors.ts` chỉ biết `ApiError` và mã HTTP; lỗi riêng feature (đổi phiên của `account`) feature kiểm trước rồi mới gọi. `classifyAdminError` giữ chữ ký cũ.
+- Thao tác tiền gặp 5xx hay mất mạng báo "chưa xác định được kết quả" và đọc lại đơn, không tự thử lại.
+
+Trade-off chấp nhận: nhãn trạng thái của Tài vẫn tô màu theo `data-status` riêng, kit tô theo `data-tone`; gộp khi Tài chạm lại `UserBadges`.
+
+### Kết quả mong đợi → thực tế
+Mong đợi: test `features/account` đạt mà không sửa test nào; `npm run check` xanh; xem hai màn ở 1280px và 375px thấy cùng khung.
+Thực tế: 2026-10-31 · `npx vitest run src/features/account` → 189/189 trước khi sửa phía đơn hàng; `npx vitest run src/features/checkout src/features/account src/ui src/core` → 13 tệp, 219 test đạt (trước khi thêm 2 test lỗi 5xx/409 của màn đơn); `npm run check` exit 0 (API 355, web 379, lint 0 lỗi); `vite build` đạt, kit xuất một lần. Xem bằng trình duyệt sau đó (Chrome, 1440px và 375px): `/admin/users` và `/admin/orders` cùng khung, ở 375px cả hai thành thẻ, không tràn ngang. Hai lỗi tìm ra và đã sửa: `ConfirmDialog` mở mới trong StrictMode tự đóng ngay (sự kiện `close` xếp hàng từ cleanup lượt effect trước) — thêm `ui/ConfirmDialog.test.tsx`; email cột Khách bị ngắt giữa chữ trên màn rộng. Sau sửa `npm run check` exit 0 trên cây gồm cả màn đơn hàng (API 355, web 381, lint 0 lỗi).
+
+### Điều kiện xem lại
+Có màn quản trị thứ ba cần thứ kit chưa có; Vite đổi thứ tự CSS; nhóm muốn ESLint kiểm cả đường `composes`.

@@ -1,0 +1,475 @@
+/*
+ * Khung trang quan tri dung chung (LOG#adr-039). Gia tri lay nguyen tu man nguoi dung (PH-03).
+ * Feature lay qua `composes: <ten> from '<duong dan>/ui/AdminKit.module.css'` trong module CSS cua
+ * minh, nen TSX van chi doc `styles.<ten>`.
+ * Ban build dat tep nay SAU CSS cua feature (do 31/10 tren vite build), nen khi cung do uu tien
+ * thi kit thang. Feature muon doi mot thuoc tinh kit da dat thi dung bo chon manh hon
+ * (vd `.table td.right`), con thuoc tinh kit chua dat thi them thang vao class cua minh.
+ */
+.page {
+  display: grid;
+  gap: 1.5rem;
+  max-width: 70rem;
+}
+
+.header {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--s-1);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.headingRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1.5rem;
+}
+
+.title {
+  margin: 0;
+  font-size: var(--s3);
+  line-height: 1.15;
+}
+
+.count {
+  margin: 0;
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.numeric {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.mono {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: var(--s-1);
+  overflow-wrap: anywhere;
+}
+
+.back {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--ink-2);
+  font-weight: 600;
+}
+
+.back:hover {
+  color: var(--accent);
+}
+
+/* --- bang danh sach: tren man hep thanh danh sach the, nhan cot lay tu data-label --- */
+.tableWrap {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow-x: auto;
+  transition: opacity 0.2s var(--ease);
+}
+
+.tableWrap[aria-busy='true'] {
+  opacity: 0.6;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--s0);
+}
+
+.table th {
+  padding: 0.75rem 0.7rem;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: var(--s-1);
+  font-weight: 600;
+  letter-spacing: var(--tracking-caps);
+  text-align: left;
+  text-transform: uppercase;
+  vertical-align: bottom;
+}
+
+.table td {
+  padding: 0.75rem 0.7rem;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table tbody tr {
+  transition: background-color 0.15s var(--ease);
+}
+
+/* --- huy hieu trang thai: data-tone = accent | danger | pending | muted --- */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--ink-2);
+  font-size: var(--s-1);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badgeDot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--muted);
+}
+
+.badge[data-tone='accent'] .badgeDot {
+  background: var(--accent);
+}
+
+.badge[data-tone='danger'] {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.badge[data-tone='danger'] .badgeDot {
+  background: var(--danger);
+}
+
+.badge[data-tone='pending'] {
+  border-style: dashed;
+}
+
+.badge[data-tone='muted'] {
+  background: var(--stone);
+}
+
+/* --- chi tiet --- */
+.detailGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.panel {
+  display: grid;
+  gap: 1rem;
+  padding: clamp(1.1rem, 3vw, 1.5rem);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: var(--s1);
+}
+
+.panelText {
+  margin: 0;
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+.facts {
+  display: grid;
+  gap: 0;
+  margin: 0;
+}
+
+.facts > div {
+  display: grid;
+  grid-template-columns: 9.5rem minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.facts > div:last-child {
+  border-bottom: 0;
+}
+
+.facts dt {
+  color: var(--muted);
+  font-size: var(--s-1);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.facts dd {
+  margin: 0;
+  color: var(--ink);
+}
+
+/* --- nut: dang xu ly dung aria-disabled de nut van nhan focus --- */
+.dangerButton,
+.primaryButton,
+.secondary {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0 1.25rem;
+  border-radius: var(--radius);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 0.2s var(--ease),
+    color 0.2s var(--ease);
+}
+
+.dangerButton {
+  border: 1px solid var(--danger);
+  background: transparent;
+  color: var(--danger);
+}
+
+.dangerButton:hover:not([aria-disabled='true']) {
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+}
+
+.primaryButton {
+  border: 1px solid var(--espresso);
+  background: var(--espresso);
+  color: var(--on-dark);
+}
+
+.primaryButton:hover:not([aria-disabled='true']) {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.secondary {
+  border: 1px solid var(--ink-2);
+  background: transparent;
+  color: var(--ink);
+}
+
+.secondary:hover {
+  background: var(--stone);
+}
+
+.dangerButton[aria-disabled='true'],
+.primaryButton[aria-disabled='true'] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* --- tim kiem va truong nhap --- */
+.controls {
+  display: grid;
+  gap: 1rem;
+  padding: clamp(1rem, 3vw, 1.25rem);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.searchForm {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.searchLabel,
+.field > span {
+  color: var(--ink-2);
+  font-size: var(--s-1);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.searchRow {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.searchInput,
+.field select,
+.field input,
+.field textarea {
+  min-height: 44px;
+  padding: 0 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  transition: border-color 0.2s var(--ease);
+}
+
+.field textarea {
+  padding-block: 0.55rem;
+  resize: vertical;
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+}
+
+.searchInput:focus,
+.field select:focus,
+.field input:focus,
+.field textarea:focus {
+  border-color: var(--accent);
+}
+
+.searchButton,
+.clearButton {
+  min-height: 44px;
+  padding: 0 1.1rem;
+  border-radius: var(--radius);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s var(--ease);
+}
+
+.searchButton {
+  border: 1px solid var(--espresso);
+  background: var(--espresso);
+  color: var(--on-dark);
+}
+
+.searchButton:hover {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.clearButton {
+  border: 1px solid var(--ink-2);
+  background: transparent;
+  color: var(--ink);
+}
+
+.clearButton:hover {
+  background: var(--stone);
+}
+
+.field {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.field select {
+  width: 100%;
+  min-width: 0;
+}
+
+/* --- thong bao ket qua: data-tone = success (mac dinh) | error | warning --- */
+.notice {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.notice p {
+  margin: 0;
+}
+
+.notice[data-tone='error'] {
+  border-left-color: var(--danger);
+}
+
+.notice[data-tone='warning'] {
+  border-left-color: var(--amber-glow);
+}
+
+@media (max-width: 720px) {
+  .detailGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .facts > div {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+
+  .dangerButton,
+  .primaryButton,
+  .secondary {
+    justify-self: stretch;
+  }
+
+  .tableWrap {
+    border: 0;
+    background: transparent;
+    overflow: visible;
+  }
+
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+
+  .table,
+  .table tbody,
+  .table tr,
+  .table td {
+    display: block;
+  }
+
+  .table tbody {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .table tbody tr {
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+
+  .table td {
+    display: grid;
+    grid-template-columns: 7.5rem minmax(0, 1fr);
+    align-items: center;
+    justify-items: start;
+    gap: 0.5rem;
+    padding: 0.3rem 0;
+    border: 0;
+  }
+
+  .table td[data-label]::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: var(--s-1);
+    font-weight: 600;
+  }
+}
+
+/*
+ * Hover dat SAU @media de van to dong tren man hep (the co nen --surface cung do uu tien). :where()
+ * ha do uu tien de feature to mau dong rieng (vd dong dang roi danh sach) ma khong tranh.
+ */
+.table tbody tr:where(:hover) {
+  background: color-mix(in srgb, var(--stone) 45%, transparent);
+}

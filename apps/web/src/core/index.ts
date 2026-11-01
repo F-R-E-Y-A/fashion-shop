@@ -17,3 +17,10 @@ export {
   setAccessTokenGetter,
 } from './http.js';
 export { queryClient } from './queryClient.js';
+export {
+  classifyRequestError,
+  requestErrorCode,
+  type RequestErrorKind,
+  type RequestTarget,
+  shouldRetryRequest,
+} from './request-errors.js';

@@ -9,6 +9,10 @@ import {
 
 import styles from './ConfirmDialog.module.css';
 
+/** O nhap trong children (ly do, so tien) cung nam trong vong Tab cua hop. */
+const FOCUSABLE =
+  'button:not([disabled]), a[href], input:not([disabled]), textarea:not([disabled]), select:not([disabled])';
+
 interface ConfirmDialogProps {
   open: boolean;
   title: string;
@@ -73,7 +77,11 @@ export function ConfirmDialog({
     cancelRef.current?.focus();
 
     // Trinh duyet co the tu dong hop (vd Chrome bo qua preventDefault khi Esc lap lai): bao cha.
-    const onNativeClose = () => onCloseRef.current();
+    // Su kien `close` duoc trinh duyet xep hang, nen close() o cleanup cua lan effect truoc (StrictMode
+    // chay effect hai lan khi mount) toi SAU khi hop da mo lai: hop con mo thi bo qua.
+    const onNativeClose = () => {
+      if (!dialog.open) onCloseRef.current();
+    };
     dialog.addEventListener('close', onNativeClose);
 
     return () => {
@@ -88,7 +96,7 @@ export function ConfirmDialog({
   function onKeyDown(event: KeyboardEvent<HTMLDialogElement>) {
     if (event.key !== 'Tab') return;
     const focusables = Array.from(
-      dialogRef.current?.querySelectorAll<HTMLElement>('button:not([disabled]), a[href]') ?? [],
+      dialogRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [],
     );
     const first = focusables[0];
     const last = focusables.at(-1);

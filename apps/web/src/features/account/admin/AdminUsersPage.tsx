@@ -2,14 +2,13 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 
-import { Empty, ErrorNote, Loading, Pager } from '@/ui';
+import { ConfirmDialog, Empty, ErrorNote, Loading, Pager } from '@/ui';
 
 import { ADMIN_MESSAGES, classifyAdminError, shouldRetryAdminQuery } from './admin-errors.js';
 import { formatAdminDate, formatCount, useAdminActor, useAdminForbidden } from './admin-hooks.js';
 import { type AdminUser, adminUserKeys, listAdminUsers } from './admin-users.api.js';
 import { AdminForbidden } from './AdminForbidden.js';
 import styles from './AdminUsers.module.css';
-import { ConfirmDialog } from './ConfirmDialog.js';
 import {
   DEFAULT_USER_LIST_QUERY,
   hasUserListFilters,
