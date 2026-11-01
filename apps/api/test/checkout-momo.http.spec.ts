@@ -57,6 +57,8 @@ describe('PH-11 MoMo: HTTP gateway outside PostgreSQL transaction', () => {
   let queryState = 1000;
   let committedAtGateway = false;
   const creates: Record<string, unknown>[] = [];
+  const refunds: Record<string, unknown>[] = [];
+  let refundState = 0;
   const auth = () => ({ Authorization: `Bearer ${token}` });
   const preview = () => t.http.post('/api/checkout/preview').set(auth()).send({ addressId });
   const post = (fingerprint: string, idempotencyKey = randomUUID(), gateway = 'MOMO') =>
@@ -106,6 +108,20 @@ describe('PH-11 MoMo: HTTP gateway outside PostgreSQL transaction', () => {
             payUrl: `http://127.0.0.1:${port}/pay?ref=${data.orderId}`,
           }),
         );
+      } else if (req.url === '/refund') {
+        refunds.push(data);
+        res.end(
+          JSON.stringify({
+            partnerCode: partner,
+            orderId: data.orderId,
+            requestId: data.requestId,
+            amount: data.amount,
+            transId: 99887766,
+            resultCode: refundState,
+            message: 'refund',
+            responseTime: Date.now(),
+          }),
+        );
       } else {
         res.end(
           JSON.stringify({
@@ -140,6 +156,8 @@ describe('PH-11 MoMo: HTTP gateway outside PostgreSQL transaction', () => {
   beforeEach(async () => {
     await resetDatabase(t.prisma);
     creates.length = 0;
+    refunds.length = 0;
+    refundState = 0;
     failCreate = false;
     queryState = 1000;
     committedAtGateway = false;
@@ -304,5 +322,31 @@ describe('PH-11 MoMo: HTTP gateway outside PostgreSQL transaction', () => {
       'PAYMENT_REVIEW',
     );
     expect(await t.prisma.stockMovement.count({ where: { movementType: 'SALE' } })).toBe(0);
+  });
+  it('khách hủy đơn đã trả MoMo: trả kho, hoàn theo transId lúc thu, đơn REFUNDED', async () => {
+    const order = await place();
+    await ipn(signed(order)).expect(204);
+    const after = (await t.http.post(`/api/orders/${order.id}/cancel`).set(auth()).expect(201))
+      .body as View & { refundPending: boolean };
+    expect(after.status).toBe('REFUNDED');
+    expect(after.refundPending).toBe(false);
+    expect(refunds).toHaveLength(1);
+    expect(refunds[0]).toMatchObject({ partnerCode: partner, amount: 230000, transId: 12345678 });
+    expect(refunds[0]!.orderId).not.toBe(order.payments[0]!.reference);
+    expect(
+      (await t.prisma.inventory.findUniqueOrThrow({ where: { productVariantId: variantId } }))
+        .quantityOnHand,
+    ).toBe(10);
+  });
+  it('MoMo từ chối hoàn: đơn vẫn hủy, lệnh hoàn giữ chờ admin, không hoàn lần hai khi bấm lại', async () => {
+    refundState = 1080;
+    const order = await place();
+    await ipn(signed(order)).expect(204);
+    const after = (await t.http.post(`/api/orders/${order.id}/cancel`).set(auth()).expect(201))
+      .body as View & { refundPending: boolean };
+    expect(after.status).toBe('CANCELLED');
+    expect(after.refundPending).toBe(true);
+    await t.http.post(`/api/orders/${order.id}/cancel`).set(auth()).expect(201);
+    expect(refunds).toHaveLength(1);
   });
 });

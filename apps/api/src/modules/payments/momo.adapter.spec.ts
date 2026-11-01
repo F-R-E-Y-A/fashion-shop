@@ -89,4 +89,68 @@ describe('PH-11 MoMo contract', () => {
     );
     expect(await adapter().query('PTEST', null)).toBeNull();
   });
+  const refundInput = {
+    reference: 'PTEST',
+    checkoutUrl: 'https://test-payment.momo.vn/pay',
+    amount: '230000.00',
+    actor: 'admin',
+    full: true,
+    transactionNo: '4088878653',
+  };
+  const echo = (override: Record<string, unknown> = {}) => {
+    const fetch = vi.fn(async (_url: string, init: { body: string }) => {
+      const body = JSON.parse(init.body) as Record<string, unknown>;
+      return Response.json({
+        partnerCode: 'TESTMERCHANT',
+        orderId: body.orderId,
+        requestId: body.requestId,
+        amount: body.amount,
+        transId: 4088878999,
+        resultCode: 0,
+        message: 'Thành công.',
+        responseTime: 1730000000000,
+        ...override,
+      });
+    });
+    vi.stubGlobal('fetch', fetch);
+    return fetch;
+  };
+  it('refund: ký đúng các trường tài liệu, orderId mới khác đơn gốc, hoàn theo transId lúc thu', async () => {
+    const fetch = echo();
+    const result = await adapter().refund(refundInput);
+    const [url, init] = fetch.mock.calls[0]!;
+    const body = JSON.parse(init.body) as Record<string, string | number>;
+    expect(url).toBe('http://127.0.0.1:3102/refund');
+    expect(body).toMatchObject({
+      amount: 230000,
+      transId: 4088878653,
+      partnerCode: 'TESTMERCHANT',
+    });
+    expect(body.orderId).not.toBe('PTEST');
+    expect(body.requestId).toBe(result.requestId);
+    const raw = `accessKey=test-access&amount=230000&description=Hoan tien PTEST&orderId=${body.orderId}&partnerCode=TESTMERCHANT&requestId=${body.requestId}&transId=4088878653`;
+    expect(body.signature).toBe(
+      createHmac('sha256', settings.MOMO_SECRET_KEY).update(raw).digest('hex'),
+    );
+    expect(result.payload.resultCode).toBe('0');
+  });
+  it('refund: mã khác 0, phản hồi lệch lệnh hoặc thiếu transId đều ném lỗi để lệnh giữ chờ đối soát', async () => {
+    echo({ resultCode: 1080 });
+    await expect(adapter().refund(refundInput)).rejects.toThrow('mã 1080');
+    echo({ requestId: 'other-request' });
+    await expect(adapter().refund(refundInput)).rejects.toThrow('không hợp lệ');
+    echo({ amount: 1000 });
+    await expect(adapter().refund(refundInput)).rejects.toThrow('không hợp lệ');
+    const fetch = echo();
+    await expect(adapter().refund({ ...refundInput, transactionNo: undefined })).rejects.toThrow(
+      'transId',
+    );
+    await expect(adapter().refund({ ...refundInput, amount: '1000.50' })).rejects.toThrow(
+      'số tiền nguyên',
+    );
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it('MOMO_ATM dùng chung Refund API với ví MoMo', () => {
+    expect(new MomoAtmAdapter(new ConfigService({ ...settings })).refund).toBeTypeOf('function');
+  });
 });
