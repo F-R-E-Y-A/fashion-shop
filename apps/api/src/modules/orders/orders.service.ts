@@ -104,15 +104,19 @@ export class OrdersService {
   }
 
   /** Don dang giu hang cua chu (cho tra tien con han hoac cho xac nhan COD); moi khach mot don. */
+  /** Don tra truoc con han thanh toan: moi khach mot don, tranh tra tien hai lan (ADR-034). */
   pending(userId: string, tx?: Prisma.TransactionClient) {
     return (tx ?? this.prisma).order.findFirst({
-      where: {
-        userId,
-        OR: [
-          { status: 'PENDING_PAYMENT', paymentDueAt: { gt: new Date() } },
-          { status: 'PENDING_CONFIRMATION' },
-        ],
-      },
+      where: { userId, status: 'PENDING_PAYMENT', paymentDueAt: { gt: new Date() } },
+      include: details,
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /** Don COD cho shop xac nhan: khong co tien de tra trung, gioi han bang tran so don (ADR-040). */
+  pendingCod(userId: string, tx?: Prisma.TransactionClient) {
+    return (tx ?? this.prisma).order.findMany({
+      where: { userId, status: 'PENDING_CONFIRMATION' },
       include: details,
       orderBy: { createdAt: 'desc' },
     });

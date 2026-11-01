@@ -77,8 +77,13 @@ export class CheckoutService {
     const failed = await db.payment.count({
       where: { gateway: 'COD', status: 'FAILED', order: { userId } },
     });
-    return failed >= limit
-      ? `Tài khoản có ${failed} đơn COD giao không thành công, vui lòng thanh toán trước.`
+    if (failed >= limit)
+      return `Tài khoản có ${failed} đơn COD giao không thành công, vui lòng thanh toán trước.`;
+    // ADR-040: don COD cho xac nhan khong chan don moi nhu don tra truoc, nhung co tran.
+    const maxPending = this.config.get('COD_MAX_PENDING_ORDERS', { infer: true });
+    const pending = await db.order.count({ where: { userId, status: 'PENDING_CONFIRMATION' } });
+    return pending >= maxPending
+      ? `Bạn đang có ${pending} đơn COD chờ shop xác nhận. Chờ shop xác nhận hoặc thanh toán trước cho đơn mới.`
       : null;
   }
 
@@ -146,10 +151,17 @@ export class CheckoutService {
         };
       } catch (error) {
         // Don cho dang giu don vi cuoi nen gio thay het hang: chi ra don do, khong bao khach chon lai gio.
-        if (pending && error instanceof UnprocessableEntityException)
+        if (!(error instanceof UnprocessableEntityException)) throw error;
+        if (pending)
           throw new ConflictException({
             error: 'PENDING_ORDER_EXISTS',
             message: `Bạn còn đơn ${pending.orderCode} đang chờ thanh toán và đang giữ hàng trong giỏ. Tiếp tục hoặc hủy đơn đó trước khi đặt đơn mới.`,
+          });
+        const [cod] = await this.orders.pendingCod(userId, tx);
+        if (cod)
+          throw new ConflictException({
+            error: 'PENDING_ORDER_EXISTS',
+            message: `Đơn COD ${cod.orderCode} đang chờ shop xác nhận và giữ hàng trong giỏ. Bỏ chọn món đó trong giỏ để đặt đơn mới, hoặc hủy đơn COD.`,
           });
         throw error;
       }
@@ -182,21 +194,26 @@ export class CheckoutService {
             throw new ConflictException('Mã yêu cầu đã sử dụng cho nội dung khác.');
           return this.view(prior);
         }
-        // Mot don giu hang moi khach: don thu hai co the bi tra tien cung luc va mua trung.
+        // Gui lai cung gio voi key moi: tra don dang cho thay vi tao don trung.
         const pending = await this.orders.pending(user.id, tx);
-        if (pending) {
-          if (pending.checkoutFingerprint !== input.fingerprint)
-            throw new ConflictException({
-              error: 'PENDING_ORDER_EXISTS',
-              message:
-                'Bạn còn một đơn đang chờ thanh toán. Tiếp tục hoặc hủy đơn đó trước khi đặt đơn mới.',
-            });
-          if (pending.payments[0]?.gateway !== code)
+        const same = [pending, ...(await this.orders.pendingCod(user.id, tx))].find(
+          (order) => order?.checkoutFingerprint === input.fingerprint,
+        );
+        if (same) {
+          if (same.payments[0]?.gateway !== code)
             throw new ConflictException(
               'Đơn chờ đang dùng cổng khác. Tiếp tục đơn đó hoặc hủy trước khi đổi cổng.',
             );
-          return this.view(pending);
+          return this.view(same);
         }
+        // Mot don tra truoc moi khach: don thu hai co the bi tra tien cung luc va mua trung. Don
+        // COD cho xac nhan khong chan o day; tran so don COD nam trong codBlock (ADR-040).
+        if (pending)
+          throw new ConflictException({
+            error: 'PENDING_ORDER_EXISTS',
+            message:
+              'Bạn còn một đơn đang chờ thanh toán. Tiếp tục hoặc hủy đơn đó trước khi đặt đơn mới.',
+          });
         const quote = await this.quote(user.id, input.addressId, tx);
         if (quote.fingerprint !== input.fingerprint)
           throw new ConflictException({
