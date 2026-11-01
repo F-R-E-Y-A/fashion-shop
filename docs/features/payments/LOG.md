@@ -80,3 +80,13 @@ Thực tế: 2026-10-28 · `npx vitest run test/checkout-refund.http.spec.ts tes
 
 Bằng chứng: `npx vitest run src/modules/payments test/checkout-refund.http.spec.ts` → 4 tệp, 26 test đạt, gồm ca so chữ ký với chuỗi viết tay theo trang 23. Chưa thử Refund API sandbox thật: lần thử đầu là nghiệm thu cần làm.
 
+
+## 2026-11-01 · PH-11 — hoàn tiền MoMo qua Refund API, mở hủy và hoàn cho đơn trả MoMo
+
+**Loại:** thay đổi mã · **Phạm vi:** Payments, Checkout · **Commit:** (điền khi gộp)
+
+[ADR-038](../../LOG.md#adr-038) chỉ mở "hủy và hoàn" khi cổng có Refund API, nên đơn trả MoMo không hủy được ở cả trang khách lẫn trang quản trị, và tiền MoMo về muộn trên đơn đã hủy nằm ở `PAYMENT_REVIEW` không có nút xử lý. `MomoAdapter.refund` gọi `/v2/gateway/api/refund`, ký `accessKey, amount, description, orderId, partnerCode, requestId, transId` theo thứ tự chữ cái, hoàn theo `transId` đã ghi làm receipt lúc thu; `MomoAtmAdapter` kế thừa. Luồng ba bước và fail closed của [ADR-036](LOG.md#adr-036) giữ nguyên: mã khác 0, phản hồi lệch lệnh hay không tới được cổng đều giữ lệnh `RECEIVED` chờ ADMIN chốt.
+
+Chưa đối chiếu được trang đặc tả: `developers.momo.vn` trả 403 cho công cụ đọc; thứ tự trường ký lấy từ kết quả tìm kiếm trên trang [Reverse & Refund](https://developers.momo.vn/v3/docs/payment/api/payment-api/refund/) (suy luận, cần mở trang bằng trình duyệt để xác nhận). Phản hồi refund không kiểm chữ ký, giống `query`: chỉ nhận từ allowlist HTTPS và khớp `partnerCode`, `orderId`, `requestId`, `amount`. Chưa thử MoMo sandbox thật.
+
+Bằng chứng: `npx vitest run src/modules/payments/momo.adapter.spec.ts` → 8 test đạt; `npx vitest run --project http test/checkout-momo.http.spec.ts test/checkout-refund.http.spec.ts` → 2 tệp, 19 test đạt, gồm khách hủy đơn trả MoMo ra `REFUNDED` và MoMo từ chối thì đơn vẫn hủy, lệnh giữ chờ, bấm lại không gửi lệnh thứ hai. Tài liệu đã sửa theo: [README.md](README.md) mục hoàn tiền.

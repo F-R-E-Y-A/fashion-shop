@@ -21,7 +21,7 @@ export interface RefundRequest {
   actor: string;
   /** Hoan dung toan bo so tien da thu, lan dau: VNPAY 02; con lai la 03. */
   full: boolean;
-  /** Ma giao dich cua cong luc thu tien (VNPAY vnp_TransactionNo), neu da ghi nhan. */
+  /** Ma giao dich cua cong luc thu tien (VNPAY vnp_TransactionNo, MoMo transId), neu da ghi nhan. */
   transactionNo?: string;
 }
 export interface PaymentGateway {
@@ -36,6 +36,6 @@ export interface PaymentGateway {
   notification(raw: Record<string, unknown>): PaymentEvent | null;
   matches(event: PaymentEvent, reference: string, amount: string): boolean;
   query(reference: string, checkoutUrl: string | null): Promise<PaymentEvent | null>;
-  /** Hoan tien phia cong; tung adapter tu quyet dinh ho tro hay khong (VNPAY Refund API). */
+  /** Hoan tien phia cong; tung adapter tu quyet dinh ho tro hay khong (VNPAY, MoMo Refund API). */
   refund?(input: RefundRequest): Promise<{ requestId: string; payload: Record<string, string> }>;
 }

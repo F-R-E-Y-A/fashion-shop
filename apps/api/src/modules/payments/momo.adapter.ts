@@ -17,6 +17,7 @@ import type {
   PaymentEvent,
   PaymentGateway,
   PaymentInput,
+  RefundRequest,
 } from './payment-gateway.js';
 
 const finalFailures = new Set([
@@ -89,7 +90,7 @@ export class MomoAdapter implements PaymentGateway {
       throw new ServiceUnavailableException('Cần cấu hình IPN HTTPS cho MoMo.');
     return null;
   }
-  private async post(action: 'create' | 'query', body: Record<string, unknown>) {
+  private async post(action: 'create' | 'query' | 'refund', body: Record<string, unknown>) {
     const base =
       this.config.get<string>('MOMO_API_URL') || 'https://test-payment.momo.vn/v2/gateway/api';
     const response = await fetch(this.trustedUrl(`${base.replace(/\/$/u, '')}/${action}`), {
@@ -208,6 +209,62 @@ export class MomoAdapter implements PaymentGateway {
     )
       return null;
     return this.event(result);
+  }
+  /**
+   * Refund API v2 (/v2/gateway/api/refund): hoan theo transId cua giao dich thu tien, orderId
+   * moi cho moi lenh hoan; cho hoan mot phan nhieu lan nen khong dung `full`. Chi ghi nhan khi
+   * resultCode 0 va phan hoi khop lenh; ma khac hay khong toi duoc thi nem loi de lenh giu
+   * RECEIVED cho admin doi soat (cung che do fail-closed voi VNPAY).
+   */
+  async refund(input: RefundRequest) {
+    const { partner, access, secret } = this.credentials();
+    const amount = new Decimal(input.amount);
+    if (!amount.isInteger() || amount.lt(1000))
+      throw new ServiceUnavailableException('MoMo chỉ hoàn số tiền nguyên từ 1.000đ.');
+    if (!/^\d+$/u.test(input.transactionNo ?? ''))
+      throw new ServiceUnavailableException('Chưa có mã giao dịch MoMo (transId) để hoàn tiền.');
+    const requestId = randomUUID();
+    const data = {
+      amount: amount.toFixed(0),
+      description: `Hoan tien ${input.reference}`,
+      orderId: requestId,
+      partnerCode: partner,
+      requestId,
+      transId: input.transactionNo!,
+    };
+    const signature = momoHash(
+      secret,
+      momoData(access, data, [
+        'amount',
+        'description',
+        'orderId',
+        'partnerCode',
+        'requestId',
+        'transId',
+      ]),
+    );
+    const result = await this.post('refund', {
+      ...data,
+      amount: Number(data.amount),
+      transId: Number(data.transId),
+      lang: 'vi',
+      signature,
+    });
+    // Nhu query: khong dua vao chu ky phan hoi; chi nhan tu HTTPS allowlist va khop lenh/merchant.
+    if (
+      !result ||
+      result.partnerCode !== partner ||
+      result.orderId !== requestId ||
+      result.requestId !== requestId ||
+      !/^\d+$/u.test(result.amount ?? '') ||
+      !new Decimal(result.amount!).eq(amount)
+    )
+      throw new ServiceUnavailableException('Phản hồi hoàn tiền MoMo không hợp lệ.');
+    if (result.resultCode !== '0')
+      throw new ServiceUnavailableException(
+        `Cổng từ chối hoàn tiền (mã ${result.resultCode ?? 'n/a'}).`,
+      );
+    return { requestId, payload: result };
   }
   private event(raw: Record<string, string>): PaymentEvent {
     const code = raw.resultCode ?? '';
