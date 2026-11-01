@@ -1,6 +1,6 @@
 ---
 title: Chuẩn giao diện chung
-updated: 2026-10-18
+updated: 2026-10-31
 status: đang dùng, nhận diện F.R.E.Y.A. đã chốt
 owner: Bảo
 ---
@@ -22,6 +22,7 @@ Hệ màu và phông **đã chốt theo bộ nhận diện F.R.E.Y.A. (04/10)**:
 |---|---|---|
 | Token, reset, khung cửa hàng | `apps/web/src/styles.css` | Bảo |
 | Khung quản trị (thanh bên Espresso, vùng nội dung) | `apps/web/src/app/AdminLayout.module.css` | Bảo |
+| Trang quản trị dùng chung (bảng, panel, nút, ô nhập, nhãn, thông báo), lấy bằng `composes` | `apps/web/src/ui/AdminKit.module.css` ([LOG#adr-039](../LOG.md#adr-039), đề xuất) | Bảo |
 | Kiểu của thành phần dùng chung | `apps/web/src/ui/<Tên>.module.css`, cạnh thành phần | Bảo |
 | Kiểu riêng của một feature | `apps/web/src/features/<x>/**/<Tên>.module.css`, cạnh thành phần dùng nó | Chủ feature |
 
@@ -33,6 +34,8 @@ Kiểu mới viết bằng **CSS Modules**: `import styles from './ProductCard.m
 |---|---|---|
 | `Loading`, `ErrorNote`, `Empty` | [ui/Feedback.tsx](../../apps/web/src/ui/Feedback.tsx) | Ba trạng thái của mọi trang tải dữ liệu |
 | `Pager` | [ui/Pager.tsx](../../apps/web/src/ui/Pager.tsx) | Mọi danh sách có phân trang |
+| `ConfirmDialog` | [ui/ConfirmDialog.tsx](../../apps/web/src/ui/ConfirmDialog.tsx) | Thao tác khó đảo ngược cần xác nhận (khóa tài khoản, hoàn tiền) |
+| `classifyRequestError`, `shouldRetryRequest` | [core/request-errors.ts](../../apps/web/src/core/request-errors.ts) | Chọn câu báo theo nhóm lỗi thay vì in `error.message`; POST lỗi 5xx là "chưa xác định kết quả" |
 | `formatPrice`, `formatDateTime` | [core/format.ts](../../apps/web/src/core/format.ts) | Hiện tiền và ngày giờ |
 
 Thành phần nào hai feature trở lên cần thì đưa vào `ui/`; một feature cần thì để trong feature đó.

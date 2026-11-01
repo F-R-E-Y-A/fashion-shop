@@ -5,7 +5,13 @@ import { ApiError } from '@/core';
 import { SessionChangedError } from '../session-sync.js';
 import { classifyAdminError, shouldRetryAdminQuery } from './admin-errors.js';
 import { adminUserKeys } from './admin-users.api.js';
-import { MAX_PAGE_PARAM, parsePageParam, readListReturn, usersListPath } from './page-param.js';
+import {
+  DEFAULT_USER_LIST_QUERY,
+  MAX_PAGE_PARAM,
+  parsePageParam,
+  readListReturn,
+  usersListPath,
+} from './list-query.js';
 import { hasAdminRole, statusLabel, userActionFor } from './user-labels.js';
 
 const apiError = (statusCode: number, code = 'X') =>
@@ -30,8 +36,8 @@ describe('UC-02.1 Quản trị tài khoản: luật thuần của giao diện', 
     for (const raw of ['', '0', '-1', '01', '1.5', '1e3', 'abc', ' 2', '2 ', '0x2', '1000001']) {
       expect(parsePageParam(raw), raw).toBeUndefined();
     }
-    expect(usersListPath(1)).toBe('/admin/users');
-    expect(usersListPath(3)).toBe('/admin/users?page=3');
+    expect(usersListPath()).toBe('/admin/users');
+    expect(usersListPath({ page: 3 })).toBe('/admin/users?page=3');
   });
 
   it('UC-02.1/AC2 ngữ cảnh quay lại danh sách chỉ giữ ?page hợp lệ', () => {
@@ -98,8 +104,9 @@ describe('UC-02.1 Quản trị tài khoản: luật thuần của giao diện', 
   });
 
   it('UC-02.1/AC8 query key gắn actorId, nhánh gốc chung để AuthProvider xóa khi đổi phiên', () => {
-    expect(adminUserKeys.list('a', 2)).toEqual(['admin-users', 'a', 'list', 2]);
+    const page2 = { ...DEFAULT_USER_LIST_QUERY, page: 2 };
+    expect(adminUserKeys.list('a', page2)).toEqual(['admin-users', 'a', 'list', '', 2]);
     expect(adminUserKeys.detail('a', 'u')).toEqual(['admin-users', 'a', 'detail', 'u']);
-    expect(adminUserKeys.list('a', 1)[1]).not.toBe(adminUserKeys.list('b', 1)[1]);
+    expect(adminUserKeys.list('a', page2)[1]).not.toBe(adminUserKeys.list('b', page2)[1]);
   });
 });

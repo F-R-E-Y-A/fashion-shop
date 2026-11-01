@@ -7,9 +7,11 @@ import {
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Decimal } from 'decimal.js';
 
 import type { OrderStatus, Prisma } from '../../generated/prisma/client.js';
+import type { Env } from '../../infra/config/env.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { CartService } from '../cart/index.js';
 import { InventoryService } from '../inventory/index.js';
@@ -17,20 +19,28 @@ import { type OrderDetails, OrdersService } from '../orders/index.js';
 import { type GatewayCode, PaymentsService, SETTLEMENT_BUFFER_MINUTES } from '../payments/index.js';
 import { ShippingService } from '../shipping/index.js';
 import { CheckoutAddressService } from '../users/index.js';
+import {
+  REFUND_IN_FLIGHT_MS,
+  REFUND_INTENT,
+  refundedAmountOf,
+  refundSummary,
+} from './refund-ledger.js';
 
 const HOLD_MINUTES = 15;
 /** COD khong co han thanh toan: giu hang cho cua so van hanh, qua han nay worker tu huy. */
 const COD_HOLD_DAYS = 3;
-/** Don da thu tien, ke ca da hoan mot phan, moi duoc hoan tiep. */
-const REFUNDABLE: OrderStatus[] = [
+/**
+ * Don da thu tien, ke ca da hoan mot phan, moi duoc hoan tiep. CANCELLED: khach tu huy don da tra
+ * (ADR-038); refundPayment van doi payment SUCCEEDED nen don huy chua thu tien khong lot vao.
+ */
+export const REFUNDABLE: OrderStatus[] = [
   'CONFIRMED',
   'PAYMENT_REVIEW',
   'DELIVERED',
   'PARTIALLY_REFUNDED',
+  'CANCELLED',
 ];
-const REFUND_INTENT = 'REFUND-INTENT:';
-/** Lon hon timeout goi Refund API (8 giay) de lenh treo do sap process van chot duoc. */
-const REFUND_IN_FLIGHT_MS = 60_000;
+const CUSTOMER_CANCEL_REASON = 'Khách hủy đơn trước khi shop xử lý.';
 
 const intentKey = (gateway: string, externalTransactionId: string) => ({
   gateway_externalTransactionId: { gateway, externalTransactionId },
@@ -52,7 +62,25 @@ export class CheckoutService {
     readonly payments: PaymentsService,
     private readonly addresses: CheckoutAddressService,
     private readonly shipping: ShippingService,
+    private readonly config: ConfigService<Env, true>,
   ) {}
+
+  /**
+   * Chong bom COD (ADR-038): don vuot tran hoac khach da co du so lan giao COD that bai thi chi
+   * nhan tra truoc. Tra ve ly do de checkout hien cho khach; null la duoc dung COD.
+   */
+  async codBlock(userId: string, total: string, db: Prisma.TransactionClient) {
+    const max = this.config.get('COD_MAX_AMOUNT', { infer: true });
+    if (new Decimal(total).gt(max))
+      return `Đơn trên ${new Intl.NumberFormat('vi-VN').format(max)}đ cần thanh toán trước.`;
+    const limit = this.config.get('COD_MAX_FAILED_DELIVERIES', { infer: true });
+    const failed = await db.payment.count({
+      where: { gateway: 'COD', status: 'FAILED', order: { userId } },
+    });
+    return failed >= limit
+      ? `Tài khoản có ${failed} đơn COD giao không thành công, vui lòng thanh toán trước.`
+      : null;
+  }
 
   async quote(userId: string, addressId: string, tx: Prisma.TransactionClient) {
     const items = (await this.cart.checkoutSelection(userId, tx)).sort((a, b) =>
@@ -68,6 +96,7 @@ export class CheckoutService {
       .toFixed(2);
     const shipping = await this.shipping.quote(address.administrativeAreaId, subtotalAmount, tx);
     const totalAmount = new Decimal(subtotalAmount).plus(shipping.fee).toFixed(2);
+    const codBlocked = await this.codBlock(userId, totalAmount, tx);
     const fingerprint = createHash('sha256')
       .update(
         JSON.stringify({
@@ -94,7 +123,13 @@ export class CheckoutService {
       shippingRateId: shipping.rateId,
       totalAmount,
       paymentConfigured: this.payments.gateways.list().some((gateway) => gateway.configured),
-      gateways: this.payments.gateways.list(),
+      gateways: this.payments.gateways
+        .list()
+        .map((gateway) =>
+          gateway.code === 'COD' && codBlocked
+            ? { ...gateway, configured: false, unavailableReason: codBlocked }
+            : gateway,
+        ),
       holdMinutes: HOLD_MINUTES,
       payMinutes: HOLD_MINUTES - SETTLEMENT_BUFFER_MINUTES,
     };
@@ -169,6 +204,12 @@ export class CheckoutService {
             message: 'Giá, giỏ hàng hoặc địa chỉ đã đổi. Kiểm tra và xác nhận lại.',
           });
         const cod = code === 'COD';
+        const codGateway = quote.gateways.find((gateway) => gateway.code === 'COD');
+        if (cod && codGateway && 'unavailableReason' in codGateway)
+          throw new ConflictException({
+            error: 'COD_UNAVAILABLE',
+            message: codGateway.unavailableReason,
+          });
         const due = new Date(Date.now() + (cod ? COD_HOLD_DAYS * 24 * 60 : HOLD_MINUTES) * 60_000);
         const order = await this.orders.create(
           {
@@ -216,7 +257,24 @@ export class CheckoutService {
     return this.view(await this.orders.get(result.id, user.id));
   }
 
+  /**
+   * Thanh toan online da thu tien, chua hoan dong nao, cong hoan duoc tu dong: khach tu huy don
+   * CONFIRMED (shop chua bat dau xu ly) va nhan hoan tu dong (ADR-038).
+   */
+  selfRefundablePayment(order: OrderDetails) {
+    if (order.status !== 'CONFIRMED') return null;
+    const payment = order.payments.find((row) => row.status === 'SUCCEEDED');
+    if (!payment?.gateway || payment.gateway === 'COD') return null;
+    const adapter = this.payments.gateways.get(payment.gateway as GatewayCode);
+    const ledger = refundSummary(payment.transactions);
+    return adapter.refund && adapter.configured() && ledger.refunded.isZero() && !ledger.pending
+      ? payment
+      : null;
+  }
+
   view(order: OrderDetails) {
+    const ledgers = order.payments.map((payment) => refundSummary(payment.transactions));
+    const selfRefund = !!this.selfRefundablePayment(order);
     return {
       id: order.id,
       orderCode: order.orderCode,
@@ -249,6 +307,13 @@ export class CheckoutService {
             ? payment.checkoutUrl
             : null,
       })),
+      refundedAmount: ledgers
+        .reduce((sum, ledger) => sum.plus(ledger.refunded), new Decimal(0))
+        .toFixed(2),
+      refundPending: ledgers.some((ledger) => !!ledger.pending),
+      canCancel:
+        order.status === 'PENDING_PAYMENT' || order.status === 'PENDING_CONFIRMATION' || selfRefund,
+      cancelRefunds: selfRefund,
     };
   }
 
@@ -274,13 +339,44 @@ export class CheckoutService {
     }));
   }
 
+  /**
+   * Huy don online da tra ma shop chua xu ly (ADR-038), dung chung cho khach va ADMIN: duoi khoa
+   * don tra hang ve kho va chuyen CANCELLED, roi goi hoan toan bo ngoai transaction. Cong khong
+   * xac nhan thi don van huy, lenh hoan nam o tab "Can xu ly" cho ADMIN doi soat.
+   */
+  async cancelAndRefund(id: string, ownerId: string, actor: string, reason: string) {
+    const paymentId = await this.withOrder(id, ownerId, async (order, tx) => {
+      const paid = this.selfRefundablePayment(order);
+      if (!paid)
+        throw new ConflictException(
+          'Đơn không hủy và hoàn tự động được: shop đã xử lý, đơn đã hoàn hoặc cổng chưa hỗ trợ hoàn tự động. Liên hệ shop kèm mã đơn.',
+        );
+      await this.inventory.restock(id, this.stockItems(order), tx);
+      await this.orders.transition(id, 'CANCELLED', tx, actor);
+      return paid.id;
+    });
+    try {
+      await this.refundPayment(paymentId, actor, { reason });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.warn(`Order ${id} cancelled, refund not confirmed: ${message}`);
+    }
+  }
+
+  /** Huy don cua khach. Don cho tra/cho xac nhan COD: nha hang giu; don da tra: cancelAndRefund. */
   async cancel(id: string, userId: string, expired = false) {
+    if (!expired && (await this.orders.get(id, userId)).status === 'CONFIRMED') {
+      await this.cancelAndRefund(id, userId, userId, CUSTOMER_CANCEL_REASON);
+      return this.view(await this.orders.get(id, userId));
+    }
     await this.withOrder(id, userId, async (order, tx) => {
       const cancellable =
         order.status === 'PENDING_PAYMENT' || order.status === 'PENDING_CONFIRMATION';
       if (!cancellable) {
         if (!expired && order.status !== 'CANCELLED')
-          throw new ConflictException('Đơn đã ghi nhận thanh toán, không thể hủy tại đây.');
+          throw new ConflictException(
+            'Shop đã xử lý đơn, không thể hủy tại đây. Liên hệ shop kèm mã đơn.',
+          );
         return;
       }
       if (expired && order.paymentDueAt && order.paymentDueAt > new Date()) return;
@@ -295,35 +391,6 @@ export class CheckoutService {
       await this.orders.transition(id, 'CANCELLED', tx, expired ? undefined : userId);
     });
     return this.view(await this.orders.get(id, userId));
-  }
-
-  /**
-   * COD: nhan vien da giao va thu tien mat — chot giong IPN thanh toan online:
-   * payment SUCCEEDED, commit kho mot lan, don CONFIRMED, gio chi tru dung luong mua.
-   */
-  async codCollected(id: string, actorUserId: string) {
-    const initial = await this.orders.get(id);
-    if (!initial.userId) throw new ConflictException('Đơn không có chủ sở hữu.');
-    if (initial.status !== 'PENDING_CONFIRMATION' || initial.payments[0]?.gateway !== 'COD')
-      throw new ConflictException('Chỉ chốt thu tiền cho đơn COD đang chờ xử lý.');
-    await this.withOrder(id, initial.userId, async (order, tx) => {
-      if (order.status !== 'PENDING_CONFIRMATION')
-        throw new ConflictException('Đơn đã được xử lý.');
-      const payment = order.payments[0]!;
-      await this.payments.record(
-        payment.id,
-        'SUCCEEDED',
-        `COD:${order.orderCode}:${randomUUID().slice(0, 8)}`,
-        { collectedAt: new Date().toISOString(), actor: actorUserId },
-        tx,
-      );
-      const items = this.stockItems(order);
-      if (!(await this.inventory.commit(id, items, tx)))
-        throw new ConflictException('Hàng giữ cho đơn không còn hợp lệ.');
-      await this.orders.transition(id, 'CONFIRMED', tx, actorUserId);
-      await this.cart.consumePurchased(order.userId!, items, tx);
-    });
-    return this.view(await this.orders.get(id, initial.userId));
   }
 
   /**
@@ -482,14 +549,7 @@ export class CheckoutService {
     });
     const refunded = rows
       .filter((row) => row.externalTransactionId.startsWith('REFUND:'))
-      .reduce((sum, row) => {
-        const payload = row.payload as { refundedAmount?: string; vnp_Amount?: string } | null;
-        // Ban ghi truoc so hoan chi co vnp_Amount (don vi x100) cua VNPAY.
-        const amount = payload?.refundedAmount
-          ? new Decimal(payload.refundedAmount)
-          : new Decimal(payload?.vnp_Amount ?? '0').div(100);
-        return sum.plus(amount);
-      }, new Decimal(0));
+      .reduce((sum, row) => sum.plus(refundedAmountOf(row)), new Decimal(0));
     return {
       refunded,
       pending: rows.find((row) => row.externalTransactionId.startsWith(REFUND_INTENT)),

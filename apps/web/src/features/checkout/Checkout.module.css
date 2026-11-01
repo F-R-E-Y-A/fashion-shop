@@ -465,10 +465,13 @@
   border-radius: var(--radius);
   background: var(--paper);
 }
-.statusCard[data-status='CONFIRMED'] {
+.statusCard[data-status='CONFIRMED'],
+.statusCard[data-status='DELIVERED'] {
   border-left-color: var(--success);
 }
-.statusCard[data-status='CANCELLED'] {
+.statusCard[data-status='CANCELLED'],
+.statusCard[data-status='REFUNDED'],
+.statusCard[data-status='PARTIALLY_REFUNDED'] {
   border-left-color: var(--muted);
 }
 .statusCard[data-status='PAYMENT_REVIEW'] {
@@ -559,18 +562,24 @@
   border-radius: 50%;
   background: var(--amber-glow);
 }
-.badge[data-status='CONFIRMED'] {
+.badge[data-status='CONFIRMED'],
+.badge[data-status='DELIVERED'] {
   background: var(--success-soft);
   color: var(--success);
 }
-.badge[data-status='CONFIRMED']::before {
+.badge[data-status='CONFIRMED']::before,
+.badge[data-status='DELIVERED']::before {
   background: var(--success);
 }
-.badge[data-status='CANCELLED'] {
+.badge[data-status='CANCELLED'],
+.badge[data-status='REFUNDED'],
+.badge[data-status='PARTIALLY_REFUNDED'] {
   background: var(--stone);
   color: var(--muted);
 }
-.badge[data-status='CANCELLED']::before {
+.badge[data-status='CANCELLED']::before,
+.badge[data-status='REFUNDED']::before,
+.badge[data-status='PARTIALLY_REFUNDED']::before {
   background: var(--muted);
 }
 .badge[data-status='PAYMENT_REVIEW'] {

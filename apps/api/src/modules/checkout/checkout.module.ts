@@ -9,6 +9,7 @@ import { PaymentsModule } from '../payments/index.js';
 import { ShippingModule } from '../shipping/index.js';
 import { UsersModule } from '../users/index.js';
 import {
+  AdminOrdersController,
   AdminPaymentsController,
   CheckoutController,
   MomoController,
@@ -17,6 +18,7 @@ import {
 } from './checkout.controller.js';
 import { CheckoutService } from './checkout.service.js';
 import { CheckoutRateLimitService } from './checkout-rate-limit.service.js';
+import { OrderAdminService } from './order-admin.service.js';
 import { SettlementService } from './settlement.service.js';
 @Module({
   imports: [
@@ -29,13 +31,14 @@ import { SettlementService } from './settlement.service.js';
     ShippingModule,
     UsersModule,
   ],
-  providers: [CheckoutService, CheckoutRateLimitService, SettlementService],
+  providers: [CheckoutService, CheckoutRateLimitService, SettlementService, OrderAdminService],
   controllers: [
     CheckoutController,
     OrdersController,
     VnpayController,
     MomoController,
     AdminPaymentsController,
+    AdminOrdersController,
   ],
 })
 export class CheckoutModule {}

@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { seedShipping } from '../prisma/seed/shipping.seed.js';
 import { grantAdminRole } from '../src/modules/auth/grant-admin-role.js';
+import { OrdersService } from '../src/modules/orders/index.js';
 import { createTestApp, type TestApp } from './helpers/create-test-app.js';
 import { resetDatabase } from './helpers/db.js';
 
@@ -140,23 +141,43 @@ describe('PH-11 COD: tao don, giu hang, thu tien khi giao (PostgreSQL)', () => {
     expect(second.status).toBe('PENDING_CONFIRMATION');
   });
 
-  it('thu tien khi giao: chi ADMIN chot, xong don CONFIRMED, SALE dung luong, gio tru mon', async () => {
+  const admin = (path: string, body?: object) =>
+    t.http
+      .post(`/api/admin/orders/${path}`)
+      .set({ Authorization: `Bearer ${adminToken}` })
+      .send(body ?? {});
+  const stock = async () =>
+    (await t.prisma.inventory.findUniqueOrThrow({ where: { productVariantId: variantId } }))
+      .quantityOnHand;
+  const codGateway = async () =>
+    (await preview().expect(201)).body.gateways.find(
+      (gateway: { code: string }) => gateway.code === 'COD',
+    );
+  async function failDelivery() {
+    const order = await createCod();
+    await admin(`${order.id}/confirm-cod`).expect(201);
+    await admin(`${order.id}/delivery-failed`, { reason: 'Khách không nhận hàng' }).expect(201);
+    await t.http.post('/api/cart/items').set(auth()).send({ variantId, quantity: 2 }).expect(201);
+    return order;
+  }
+
+  it('ADR-038 xác nhận COD: chỉ ADMIN, chốt kho, trừ giỏ, hết tự hủy; khách không hủy được nữa', async () => {
     const order = await createCod();
     const outsider = await t.prisma.user.create({
       data: { email: 'khach@fixture.test', passwordHash: 'x', status: 'ACTIVE' },
     });
     const outsiderToken = await t.app.get(JwtService).signAsync({ sub: outsider.id, ver: 0 });
     await t.http
-      .post(`/api/orders/${order.id}/collect-cod`)
+      .post(`/api/admin/orders/${order.id}/confirm-cod`)
       .set({ Authorization: `Bearer ${outsiderToken}` })
       .expect(403);
-    const collected = (
-      await t.http
-        .post(`/api/orders/${order.id}/collect-cod`)
-        .set({ Authorization: `Bearer ${adminToken}` })
-        .expect(201)
-    ).body;
-    expect(collected.status).toBe('CONFIRMED');
+    const confirmed = (await admin(`${order.id}/confirm-cod`).expect(201)).body;
+    expect(confirmed).toMatchObject({
+      status: 'PROCESSING',
+      canCancel: false,
+      actions: { confirmCod: false, markDelivered: true, deliveryFailed: true },
+    });
+    expect(confirmed.payments[0].status).toBe('PENDING');
     const sale = await t.prisma.stockMovement.findFirstOrThrow({
       where: { orderId: order.id, movementType: 'SALE' },
     });
@@ -164,13 +185,110 @@ describe('PH-11 COD: tao don, giu hang, thu tien khi giao (PostgreSQL)', () => {
     expect(
       await t.prisma.inventoryReservation.count({ where: { orderId: order.id, releasedAt: null } }),
     ).toBe(0);
-    const cart = await t.http.get('/api/cart').set(auth()).expect(200);
-    expect(cart.body.items).toHaveLength(0);
-    // Chot hai lan bi tu choi.
+    expect((await t.http.get('/api/cart').set(auth()).expect(200)).body.items).toHaveLength(0);
+    // Loi cu: worker huy don COD dang giao sau 3 ngay. Don PROCESSING khong con trong hang het han.
+    await t.prisma.order.update({ where: { id: order.id }, data: { paymentDueAt: new Date(0) } });
+    expect(await t.app.get(OrdersService).due()).toHaveLength(0);
+    await t.http.post(`/api/orders/${order.id}/cancel`).set(auth()).expect(409);
+    await admin(`${order.id}/confirm-cod`).expect(409);
+  });
+
+  it('giao thành công: DELIVERED, payment COD SUCCEEDED; bấm lại 409', async () => {
+    const order = await createCod();
+    await admin(`${order.id}/confirm-cod`).expect(201);
+    const delivered = (await admin(`${order.id}/delivered`).expect(201)).body;
+    expect(delivered.status).toBe('DELIVERED');
+    expect(delivered.payments[0].status).toBe('SUCCEEDED');
+    await admin(`${order.id}/delivered`).expect(409);
+    await admin(`${order.id}/delivery-failed`, { reason: 'x' }).expect(409);
+  });
+
+  it('giao thất bại: hàng về kho đúng một lần, payment FAILED, đơn CANCELLED', async () => {
+    expect(await stock()).toBe(10);
+    const order = await failDelivery();
+    expect(await stock()).toBe(10);
+    const returned = await t.prisma.stockMovement.findFirstOrThrow({
+      where: { orderId: order.id, movementType: 'RETURN' },
+    });
+    expect(returned.quantityDelta).toBe(2);
+    const detail = (
+      await t.http
+        .get(`/api/admin/orders/${order.id}`)
+        .set({ Authorization: `Bearer ${adminToken}` })
+        .expect(200)
+    ).body;
+    expect(detail.status).toBe('CANCELLED');
+    expect(detail.payments[0].status).toBe('FAILED');
+    expect(detail.history.map((row: { status: string }) => row.status)).toEqual([
+      'PENDING_CONFIRMATION',
+      'PROCESSING',
+      'CANCELLED',
+    ]);
+    await admin(`${order.id}/delivery-failed`, { reason: 'lần hai' }).expect(409);
+    expect(await stock()).toBe(10);
+  });
+
+  it('chống bom: đủ 2 lần giao thất bại thì COD tắt kèm lý do, tạo đơn COD bị 409', async () => {
+    await failDelivery();
+    expect(await codGateway()).toMatchObject({ configured: true });
+    await failDelivery();
+    const cod = await codGateway();
+    expect(cod).toMatchObject({ configured: false });
+    expect(cod.unavailableReason).toContain('2 đơn COD');
+    const quote = await preview().expect(201);
+    const blocked = await t.http.post('/api/checkout/orders').set(auth()).send({
+      addressId,
+      fingerprint: quote.body.fingerprint,
+      idempotencyKey: randomUUID(),
+      gateway: 'COD',
+    });
+    expect(blocked.status).toBe(409);
+    expect(JSON.stringify(blocked.body)).toContain('COD_UNAVAILABLE');
+  });
+
+  it('chống bom: đơn vượt trần COD (mặc định 2.000.000đ) chỉ nhận trả trước', async () => {
+    await t.prisma.productVariant.update({
+      where: { id: variantId },
+      data: { listPrice: '1500000' },
+    });
+    const cod = await codGateway();
+    expect(cod).toMatchObject({ configured: false });
+    expect(cod.unavailableReason).toContain('2.000.000');
+  });
+
+  it('danh sách quản trị: mọi khách, lọc trạng thái, tìm mã đơn; khách thường 403', async () => {
+    const order = await createCod();
+    const other = await t.prisma.user.create({
+      data: { email: 'khach2@fixture.test', passwordHash: 'x', status: 'ACTIVE' },
+    });
+    const otherToken = await t.app.get(JwtService).signAsync({ sub: other.id, ver: 0 });
     await t.http
-      .post(`/api/orders/${order.id}/collect-cod`)
+      .get('/api/admin/orders')
+      .set({ Authorization: `Bearer ${otherToken}` })
+      .expect(403);
+    await t.http.get('/api/admin/orders').expect(401);
+    const list = async (query: string) =>
+      (
+        await t.http
+          .get(`/api/admin/orders?${query}`)
+          .set({ Authorization: `Bearer ${adminToken}` })
+          .expect(200)
+      ).body;
+    const pending = await list('status=PENDING_CONFIRMATION,PROCESSING');
+    expect(pending).toMatchObject({ total: 1, page: 1 });
+    expect(pending.items[0]).toMatchObject({
+      id: order.id,
+      gateway: 'COD',
+      customerEmail: 'cod@fixture.test',
+      itemCount: 2,
+    });
+    expect((await list('status=DELIVERED')).total).toBe(0);
+    const found = await list(`q=${order.orderCode.slice(-6).toLowerCase()}`);
+    expect(found.items.map((row: { id: string }) => row.id)).toEqual([order.id]);
+    await t.http
+      .get('/api/admin/orders?status=NOPE')
       .set({ Authorization: `Bearer ${adminToken}` })
-      .expect(409);
+      .expect(400);
   });
 
   it('qua 10 lan tao don moi phut mot tai khoan thi 429 kem Retry-After, khong tao them gi', async () => {

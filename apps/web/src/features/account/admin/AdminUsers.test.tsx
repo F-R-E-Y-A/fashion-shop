@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { adminUserKeys } from './admin-users.api.js';
-import { ADMIN_ACTION_TIMEOUT_MS } from './AdminUserDetailPage.js';
+import { DEFAULT_USER_LIST_QUERY } from './list-query.js';
 import {
   adminA,
   apiError,
@@ -17,6 +17,7 @@ import {
   type RecordedRequest,
   renderAdminApp,
 } from './test-support/admin-harness.js';
+import { ADMIN_ACTION_TIMEOUT_MS } from './user-status-action.js';
 
 vi.mock('@/features/products', () => ({
   CategoryMenu: () => <nav aria-label="Danh mục" />,
@@ -105,7 +106,7 @@ describe('UC-02.1 Quản trị tài khoản — cổng ADMIN và đường dẫn
     expect(location()).toHaveAttribute('data-navigation', 'REPLACE');
 
     const links = within(nav() as HTMLElement).getAllByRole('link');
-    expect(links.map((link) => link.textContent)).toEqual(['Tổng quan', 'Người dùng']);
+    expect(links.map((link) => link.textContent)).toEqual(['Tổng quan', 'Người dùng', 'Đơn hàng']);
     expect(screen.getByRole('link', { name: 'Tổng quan' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: '← Về cửa hàng' })).toHaveAttribute('href', '/');
   });
@@ -205,6 +206,7 @@ describe('UC-02.1 Quản trị tài khoản — danh sách và chi tiết', () =
       'Trạng thái',
       'Xác thực email',
       'Ngày tạo',
+      'Thao tác',
     ]);
   });
 
@@ -344,7 +346,7 @@ describe('UC-02.1 Quản trị tài khoản — khóa, mở khóa và hộp xác
     // Danh sach da cache doi ngay, truoc khi lan tai lai (dang bi giu) tra ve.
     const listGate = backend.hold((request) => request.path.startsWith('/api/admin/users?'));
     const cached = queryClient.getQueryData<{ items: { id: string; status: string }[] }>(
-      adminUserKeys.list(adminA.id, 1),
+      adminUserKeys.list(adminA.id, DEFAULT_USER_LIST_QUERY),
     );
     expect(cached?.items.find((item) => item.id === target.id)?.status).toBe('LOCKED');
     fireEvent.click(screen.getByRole('link', { name: '← Danh sách người dùng' }));
@@ -399,7 +401,7 @@ describe('UC-02.1 Quản trị tài khoản — khóa, mở khóa và hộp xác
     );
     fireEvent.click(within(dialog).getByRole('button', { name: 'Đóng' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(screen.getByText('Đang khóa…', { selector: 'p' })).toBeInTheDocument();
+    expect(screen.getByText(/^Đang khóa…/u, { selector: 'p' })).toBeInTheDocument();
 
     gate.resolve();
     expect(await screen.findByText(/Đã khóa tài khoản/u)).toBeInTheDocument();
@@ -584,7 +586,7 @@ describe('UC-02.1 Quản trị tài khoản — kết quả đến muộn (revie
         adminUserKeys.detail(adminA.id, target.id),
       );
       const listData = queryClient.getQueryData<{ items: { id: string; status: string }[] }>(
-        adminUserKeys.list(adminA.id, 1),
+        adminUserKeys.list(adminA.id, DEFAULT_USER_LIST_QUERY),
       );
       expect(detailData?.status).toBe(to);
       expect(listData?.items.find((item) => item.id === target.id)?.status).toBe(to);

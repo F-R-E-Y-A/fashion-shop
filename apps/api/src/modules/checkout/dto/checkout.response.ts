@@ -27,9 +27,11 @@ export class CheckoutItemResponse {
   @ApiProperty() canCheckout!: boolean;
 }
 export class GatewayResponse {
-  @ApiProperty({ enum: ['VNPAY', 'MOMO', 'MOMO_ATM'] }) code!: string;
+  @ApiProperty({ enum: ['VNPAY', 'MOMO', 'MOMO_ATM', 'COD'] }) code!: string;
   @ApiProperty() label!: string;
   @ApiProperty() configured!: boolean;
+  @ApiProperty({ required: false, description: 'Ly do COD bi tat cho don/khach nay (ADR-038)' })
+  unavailableReason?: string;
 }
 export class PendingOrderResponse {
   @ApiProperty() id!: string;
@@ -86,6 +88,11 @@ export class OrderResponse {
   @ApiProperty() totalAmount!: string;
   @ApiProperty({ type: [OrderItemResponse] }) items!: OrderItemResponse[];
   @ApiProperty({ type: [PaymentResponse] }) payments!: PaymentResponse[];
+  @ApiProperty({ description: 'Tong da hoan (REFUND:* da xac nhan)' }) refundedAmount!: string;
+  @ApiProperty({ description: 'Co lenh hoan dang cho cong/doi soat' }) refundPending!: boolean;
+  @ApiProperty({ description: 'Khach huy duoc don luc nay' }) canCancel!: boolean;
+  @ApiProperty({ description: 'Huy luc nay se hoan tien tu dong (ADR-038)' })
+  cancelRefunds!: boolean;
 }
 export class IpnResponse {
   @ApiProperty() RspCode!: string;

@@ -32,6 +32,20 @@ describe('buoc chuyen trang thai don', () => {
     expect(ORDER_TRANSITIONS.REFUNDED).not.toContain('PARTIALLY_REFUNDED');
   });
 
+  it('ADR-038: COD xac nhan thi giao, giao that bai thi huy; don da huy chi di tiep sang hoan tien', () => {
+    expect(ORDER_TRANSITIONS.PENDING_CONFIRMATION).toContain('PROCESSING');
+    expect(ORDER_TRANSITIONS.PROCESSING).toEqual(
+      expect.arrayContaining(['DELIVERED', 'CANCELLED']),
+    );
+    expect(ORDER_TRANSITIONS.CONFIRMED).toContain('CANCELLED');
+    expect(ORDER_TRANSITIONS.CANCELLED.filter((to) => to !== 'PAYMENT_REVIEW').sort()).toEqual([
+      'PARTIALLY_REFUNDED',
+      'REFUNDED',
+    ]);
+    // Da giao thi khong quay ve huy: hoan sau khi giao thuoc luong doi tra.
+    expect(ORDER_TRANSITIONS.DELIVERED).not.toContain('CANCELLED');
+  });
+
   it('tien ve bat thuong o moi trang thai deu vao duoc PAYMENT_REVIEW, settlement khong bi chan', () => {
     const all = Object.keys(ORDER_TRANSITIONS) as OrderStatus[];
     expect(statusesLeadingTo('PAYMENT_REVIEW').sort()).toEqual(

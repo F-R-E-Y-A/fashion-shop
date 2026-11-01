@@ -29,6 +29,13 @@ import {
 import { CheckoutService } from './checkout.service.js';
 import { CheckoutRateLimitService } from './checkout-rate-limit.service.js';
 import {
+  AdminOrderPageResponse,
+  AdminOrderResponse,
+  CancelRefundDto,
+  DeliveryFailedDto,
+  ListAdminOrdersQuery,
+} from './dto/admin-orders.dto.js';
+import {
   CreateCheckoutDto,
   PreviewDto,
   ReconcileDto,
@@ -37,6 +44,7 @@ import {
   RetryPaymentDto,
 } from './dto/checkout.dto.js';
 import { IpnResponse, OrderResponse, QuoteResponse } from './dto/checkout.response.js';
+import { OrderAdminService } from './order-admin.service.js';
 import { SettlementService } from './settlement.service.js';
 
 @ApiTags('checkout')
@@ -122,13 +130,6 @@ export class OrdersController {
     return this.checkout.retry(id, user.id, input.idempotencyKey, ip);
   }
   @ApiCreatedResponse({ type: OrderResponse })
-  @Post(':id/collect-cod')
-  @RequireRoles(RoleCode.ADMIN)
-  @Header('Cache-Control', 'no-store')
-  collectCod(@CurrentUser() user: CurrentUserType, @Param('id', ParseUUIDPipe) id: string) {
-    return this.checkout.codCollected(id, user.id);
-  }
-  @ApiCreatedResponse({ type: OrderResponse })
   @Post(':id/reconcile')
   @Header('Cache-Control', 'no-store')
   async reconcile(
@@ -199,5 +200,71 @@ export class AdminPaymentsController {
     @Body() input: ResolveRefundDto,
   ) {
     return this.checkout.resolveRefund(id, user.id, input);
+  }
+}
+
+/** Man quan tri don hang (ADR-038): danh sach moi khach va cac buoc shop bam tay. */
+@ApiTags('admin-orders')
+@ApiBearerAuth()
+@UseGuards(AuthGuard)
+@RequireRoles(RoleCode.ADMIN)
+@Controller('admin/orders')
+export class AdminOrdersController {
+  constructor(private readonly admin: OrderAdminService) {}
+  @ApiOkResponse({ type: AdminOrderPageResponse })
+  @Get()
+  @Header('Cache-Control', 'no-store')
+  list(@Query() query: ListAdminOrdersQuery) {
+    return this.admin.list({
+      statuses: query.status,
+      attention: query.attention,
+      q: query.q,
+      page: query.page,
+      pageSize: query.pageSize,
+    });
+  }
+  @ApiOkResponse({ type: AdminOrderResponse })
+  @Get(':id')
+  @Header('Cache-Control', 'no-store')
+  detail(@Param('id', ParseUUIDPipe) id: string) {
+    return this.admin.detail(id);
+  }
+  @ApiCreatedResponse({ type: AdminOrderResponse })
+  @Post(':id/confirm-cod')
+  @Header('Cache-Control', 'no-store')
+  confirmCod(@CurrentUser() user: CurrentUserType, @Param('id', ParseUUIDPipe) id: string) {
+    return this.admin.confirmCod(id, user.id);
+  }
+  @ApiCreatedResponse({ type: AdminOrderResponse })
+  @Post(':id/start-processing')
+  @Header('Cache-Control', 'no-store')
+  startProcessing(@CurrentUser() user: CurrentUserType, @Param('id', ParseUUIDPipe) id: string) {
+    return this.admin.startProcessing(id, user.id);
+  }
+  @ApiCreatedResponse({ type: AdminOrderResponse })
+  @Post(':id/cancel-refund')
+  @Header('Cache-Control', 'no-store')
+  cancelRefund(
+    @CurrentUser() user: CurrentUserType,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() input: CancelRefundDto,
+  ) {
+    return this.admin.cancelRefund(id, user.id, input.reason);
+  }
+  @ApiCreatedResponse({ type: AdminOrderResponse })
+  @Post(':id/delivered')
+  @Header('Cache-Control', 'no-store')
+  delivered(@CurrentUser() user: CurrentUserType, @Param('id', ParseUUIDPipe) id: string) {
+    return this.admin.markDelivered(id, user.id);
+  }
+  @ApiCreatedResponse({ type: AdminOrderResponse })
+  @Post(':id/delivery-failed')
+  @Header('Cache-Control', 'no-store')
+  deliveryFailed(
+    @CurrentUser() user: CurrentUserType,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() input: DeliveryFailedDto,
+  ) {
+    return this.admin.deliveryFailed(id, user.id, input.reason);
   }
 }

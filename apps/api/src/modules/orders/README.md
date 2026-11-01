@@ -4,11 +4,13 @@ Import qua `index.ts`. OrdersService chỉ ghi Order/OrderItem/OrderStatusHistor
 
 - `get(id, userId?, tx?)`: snapshot đầy đủ; khi có userId bắt buộc thuộc chủ đó; caller hệ thống không truyền principal chỉ trong settlement đã xác minh.
 - `list(userId)`: tối đa 50 đơn mới nhất của chủ.
+- `adminList({ statuses?, attention?, q?, page, pageSize })`: mọi khách, cho màn quản trị; `attention` là `PAYMENT_REVIEW`, lệnh hoàn `RECEIVED` hoặc đơn hủy có payment `SUCCEEDED` ([ADR-038](../../../../../docs/LOG.md#adr-038)).
+- Snapshot `get` kèm các dòng `REFUND*` của payment để Checkout tính sổ hoàn không cần query thêm.
 - `byKey(key, tx)`: idempotency cho Checkout đã giữ khoá Cart.
 - `pending(userId, tx?)`: đơn chờ trả tiền còn hạn của chủ. Checkout dùng để giữ luật một đơn giữ hàng mỗi khách ([ADR-029](../../../../../docs/LOG.md#adr-029)).
 - `lock(id, tx)`: advisory lock của đơn; lấy sau khoá Cart, trước khoá Inventory.
 - `create(input, tx)`, `transition(id, status, tx, actor?)`: chỉ orchestrator gọi trong transaction chung. Mã đơn `FR` + `yymmdd` giờ Việt Nam + 8 ký tự base32 Crockford, 16 ký tự để khách đọc qua điện thoại; cột unique chặn trùng ([newOrderCode](orders.service.ts#L16)). Đơn tạo trước đổi này giữ mã 34 ký tự cũ.
 - `transition` chỉ đi theo bảng `ORDER_TRANSITIONS` ([orders.service.ts](orders.service.ts)): update có điều kiện trạng thái nguồn, sai bước thì 409 và không ghi lịch sử. Tiền về bất thường ở mọi trạng thái đều vào được `PAYMENT_REVIEW`, nên settlement không bị chặn.
-- `due()`: đơn chờ trả tiền quá deadline để recovery xử lý; không tự nhả kho bằng query này.
+- `due()`: đơn `PENDING_PAYMENT`/`PENDING_CONFIRMATION` quá deadline để recovery xử lý; đơn COD đã xác nhận (`PROCESSING`) không còn trong danh sách; không tự nhả kho bằng query này.
 
 Không import Payments ngược vào Orders. Snapshot tiền dùng Decimal/string. [ADR-027](../../../../../docs/LOG.md#adr-027).

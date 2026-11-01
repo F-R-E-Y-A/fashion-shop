@@ -10,6 +10,7 @@ Phân hệ khác import qua `index.ts`. Cart/Catalog chỉ đọc; Checkout dùn
 - `reserve(orderId, items, expiresAt, tx)`: khoá variant theo thứ tự, kiểm lại khả dụng rồi tạo hold nguyên tử.
 - `release(orderId, items, tx)`: nhả hold chưa released; không thay quantityOnHand.
 - `commit(orderId, items, tx)`: chỉ chốt hold còn hạn/đúng lượng/chưa released; trừ kho và ghi SALE duy nhất theo order/variant/type. Trả false khi hold không hợp lệ để Checkout chuyển đối soát.
+- `restock(orderId, items, tx)`: hàng đã SALE nhưng chưa rời tay shop (khách hủy trước xử lý, COD giao thất bại) cộng lại kho một lần, ghi `RETURN` unique theo order/variant; đơn chưa SALE hoặc đã RETURN thì trả false ([ADR-038](../../../../../docs/LOG.md#adr-038)). Hàng đã giao trả lại đi luồng đổi trả.
 
 - `parseStockCsv(text)`, `applyStockCounts(prisma, counts, { dryRun })`: đặt tồn vật lý theo file kiểm kê `sku,quantity`, tất cả hoặc không dòng nào. Khoá variant như Checkout; từ chối SKU lạ và số nhỏ hơn lượng đang giữ; mỗi chênh lệch ghi một StockMovement `ADJUSTMENT`. Gọi qua `npm run stock:import -w apps/api -- --file=<csv> [--dry-run]` ([ADR-029](../../../../../docs/LOG.md#adr-029)).
 

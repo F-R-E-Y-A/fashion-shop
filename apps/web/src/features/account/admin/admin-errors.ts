@@ -1,61 +1,30 @@
-import { ApiError } from '@/core';
+import {
+  classifyRequestError,
+  requestErrorCode,
+  type RequestErrorKind,
+  type RequestTarget,
+  shouldRetryRequest,
+} from '@/core';
 
 import { SessionChangedError } from '../session-sync.js';
 
 /**
- * Nhom loi cua man quan tri. Moi nhom mot cach xu ly, khong tu doan theo chuoi message:
- * - session: phien da doi giua chung, ket qua bi bo, khong bao gi;
- * - forbidden: may chu noi khong con vai ADMIN (khong dang xuat ca tai khoan);
- * - unknown: POST da gui nhung khong biet may chu co thuc hien chua (het gio, mat mang, 5xx).
+ * Nhom loi cua man quan tri: cac nhom HTTP chung o core/request-errors (LOG#adr-039), them
+ * 'session' = phien da doi giua chung, ket qua bi bo, khong bao gi.
  */
-export type AdminErrorKind =
-  | 'session'
-  | 'unauthenticated'
-  | 'forbidden'
-  | 'not-found'
-  | 'invalid'
-  | 'conflict'
-  | 'rejected'
-  | 'unknown'
-  | 'unavailable';
+export type AdminErrorKind = 'session' | RequestErrorKind;
 
-function isAbortLike(error: unknown): boolean {
-  return (
-    error instanceof DOMException && (error.name === 'AbortError' || error.name === 'TimeoutError')
-  );
-}
-
-export function classifyAdminError(
-  error: unknown,
-  target: 'list' | 'detail' | 'mutation',
-): AdminErrorKind {
+export function classifyAdminError(error: unknown, target: RequestTarget): AdminErrorKind {
   if (error instanceof SessionChangedError) return 'session';
-  if (error instanceof ApiError) {
-    const status = error.body.statusCode;
-    if (status === 401) return 'unauthenticated';
-    if (status === 403) return 'forbidden';
-    if (status === 404) return 'not-found';
-    // Id sai dang UUID tra 400: voi chi tiet, nguoi dung chi can biet "khong tim thay".
-    if (status === 400) return target === 'list' ? 'invalid' : 'not-found';
-    if (status === 409) return 'conflict';
-    if (status >= 400 && status < 500) return 'rejected';
-    // 5xx sau mot POST (502/504 qua proxy) khong chung minh may chu chua ghi.
-    return target === 'mutation' ? 'unknown' : 'unavailable';
-  }
-  if (target === 'mutation' && (isAbortLike(error) || error instanceof TypeError)) return 'unknown';
-  return target === 'mutation' ? 'unknown' : 'unavailable';
+  return classifyRequestError(error, target);
 }
 
-/** Query chi thu lai mot lan voi loi tam thoi (5xx, mang); khong bao gio voi 4xx hay doi phien. */
 export function shouldRetryAdminQuery(failureCount: number, error: unknown): boolean {
-  if (error instanceof SessionChangedError || isAbortLike(error)) return false;
-  if (error instanceof ApiError && error.body.statusCode < 500) return false;
-  return failureCount < 1;
+  if (error instanceof SessionChangedError) return false;
+  return shouldRetryRequest(failureCount, error);
 }
 
-export function adminErrorCode(error: unknown): string | undefined {
-  return error instanceof ApiError ? error.body.code : undefined;
-}
+export const adminErrorCode = requestErrorCode;
 
 export const ADMIN_MESSAGES = {
   unauthenticated: 'Phiên đăng nhập đã hết. Vui lòng đăng nhập lại.',

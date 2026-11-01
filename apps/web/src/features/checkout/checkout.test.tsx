@@ -436,4 +436,70 @@ describe('PH-11 checkout UI', () => {
       '/gio-hang',
     );
   });
+  it('ADR-038: đơn đã trả chưa xử lý có nút hủy và hoàn tiền; xong hiện số đã hoàn', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const paid = {
+      ...order('CONFIRMED'),
+      payments: [
+        { id: 'p1', gateway: 'VNPAY', reference: 'REF1', status: 'SUCCEEDED', checkoutUrl: null },
+      ],
+      canCancel: true,
+      cancelRefunds: true,
+      refundedAmount: '0.00',
+    };
+    request.mockImplementation(async (path: string) =>
+      path === '/orders/o1/cancel'
+        ? {
+            ...paid,
+            status: 'REFUNDED',
+            canCancel: false,
+            cancelRefunds: false,
+            refundedAmount: '230000.00',
+          }
+        : paid,
+    );
+    show('/don-hang/o1');
+    expect(await screen.findByText(/vẫn hủy được và nhận hoàn tiền tự động/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Hủy đơn và hoàn tiền' }));
+    expect(confirm.mock.calls[0]![0]).toContain('hoàn 230.000');
+    expect(await screen.findByRole('heading', { name: 'Đã hoàn tiền' })).toBeInTheDocument();
+    expect(screen.getByText('Đã hoàn')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Hủy đơn/ })).not.toBeInTheDocument();
+    confirm.mockRestore();
+  });
+  it('ADR-038: lệnh hoàn chưa có kết quả thì báo đang xử lý, không mời đặt lại', async () => {
+    request.mockResolvedValue({ ...order('CANCELLED'), refundPending: true, canCancel: false });
+    show('/don-hang/o1');
+    expect(await screen.findByText(/Đang xử lý hoàn tiền/)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Đặt lại từ giỏ hàng' })).not.toBeInTheDocument();
+  });
+  it('ADR-038: shop đang giao thì không còn nút hủy; COD nhắc chuẩn bị tiền mặt', async () => {
+    request.mockResolvedValue({
+      ...order('PROCESSING'),
+      payments: [
+        { id: 'c1', gateway: 'COD', reference: 'C1', status: 'PENDING', checkoutUrl: null },
+      ],
+      canCancel: false,
+    });
+    show('/don-hang/o1');
+    expect(await screen.findByText(/Chuẩn bị 230.000 ₫ tiền mặt/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Hủy đơn/ })).not.toBeInTheDocument();
+  });
+  it('ADR-038: COD bị tắt vẫn hiện kèm lý do, không chọn được', async () => {
+    request.mockResolvedValue({
+      ...quote,
+      gateways: [
+        { code: 'VNPAY', label: 'VNPAY', configured: true },
+        {
+          code: 'COD',
+          label: 'COD — thanh toán khi nhận hàng',
+          configured: false,
+          unavailableReason: 'Đơn trên 2.000.000đ cần thanh toán trước.',
+        },
+      ],
+    });
+    show();
+    expect(await screen.findByRole('radio', { name: /COD/ })).toBeDisabled();
+    expect(screen.getByText('Đơn trên 2.000.000đ cần thanh toán trước.')).toBeInTheDocument();
+  });
 });
