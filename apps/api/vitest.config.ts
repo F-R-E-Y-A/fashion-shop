@@ -39,6 +39,19 @@ export default defineConfig({
           fileParallelism: false,
         },
       },
+      {
+        // Chay tay (npm run test:load), khong thuoc CI: test/load/*.load.ts dung CSDL kiem thu.
+        extends: true,
+        test: {
+          name: 'load',
+          environment: 'node',
+          include: ['test/load/**/*.load.ts'],
+          setupFiles: ['./test/setup-env.ts'],
+          testTimeout: 600_000,
+          hookTimeout: 300_000,
+          fileParallelism: false,
+        },
+      },
     ],
     coverage: {
       provider: 'v8',

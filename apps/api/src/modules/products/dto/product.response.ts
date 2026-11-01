@@ -10,6 +10,8 @@ import { SearchInterpretationResponse } from '../search/dto/search-interpretatio
  * gia thap nhat cua phien ban dang ban va anh dau tien theo thu tu hien thi.
  */
 export class ProductResponse {
+  @ApiProperty({ enum: ['IN_STOCK', 'OUT_OF_STOCK', 'UNKNOWN'] }) stockStatus?:
+    'IN_STOCK' | 'OUT_OF_STOCK' | 'UNKNOWN';
   @ApiProperty() id!: string;
   @ApiProperty() name!: string;
   @ApiProperty() slug!: string;

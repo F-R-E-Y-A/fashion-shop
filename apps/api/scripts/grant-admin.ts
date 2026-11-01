@@ -14,6 +14,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { config as loadEnv } from 'dotenv';
 
 import { PrismaClient } from '../src/generated/prisma/client.js';
+import { prismaConnection } from '../src/infra/prisma/connection.js';
 import { grantAdminRole } from '../src/modules/auth/grant-admin-role.js';
 
 const repositoryRoot = fileURLToPath(new URL('../../../', import.meta.url));
@@ -50,7 +51,7 @@ async function main(): Promise<void> {
   if (!connectionString) throw new Error('Thieu DATABASE_URL');
 
   console.log(`CSDL dich: ${describeTarget(connectionString)}`);
-  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+  const prisma = new PrismaClient({ adapter: new PrismaPg(prismaConnection(connectionString)) });
   try {
     const result = await grantAdminRole(prisma, email);
     if (result.outcome === 'GRANTED' || result.outcome === 'ALREADY_ADMIN') {

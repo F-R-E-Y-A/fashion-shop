@@ -9,7 +9,9 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { config as loadEnv } from 'dotenv';
 
 import { PrismaClient } from '../src/generated/prisma/client.js';
+import { prismaConnection } from '../src/infra/prisma/connection.js';
 import type { PrismaService } from '../src/infra/prisma/prisma.service.js';
+import { InventoryService } from '../src/modules/inventory/index.js';
 import type { ImportProductRow } from '../src/modules/products/import/import.types.js';
 import { ProductsService } from '../src/modules/products/products.service.js';
 
@@ -133,10 +135,11 @@ async function main(): Promise<void> {
   }
 
   const rows = await readCandidates(options.input);
-  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+  const prisma = new PrismaClient({ adapter: new PrismaPg(prismaConnection(connectionString)) });
   try {
     await prisma.$connect();
-    const products = new ProductsService(prisma as unknown as PrismaService);
+    const database = prisma as unknown as PrismaService;
+    const products = new ProductsService(database, new InventoryService(database));
     const staged = await prisma.$queryRaw<StagedStatus[]>`
       SELECT raw.source_product_id AS "sourceProductId",
         candidate.normalization_status::text AS status

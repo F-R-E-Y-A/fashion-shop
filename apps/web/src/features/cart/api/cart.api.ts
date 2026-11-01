@@ -3,6 +3,7 @@ import { apiDel, apiGet, apiPatch, apiPost } from '@/core';
 export interface CartItem {
   variantId: string;
   productId: string;
+  productSlug: string;
   name: string;
   variantLabel: string;
   price: string;
@@ -10,6 +11,10 @@ export interface CartItem {
   quantity: number;
   isActive: boolean;
   subtotal: string;
+  availableQuantity: number | null;
+  availability: 'AVAILABLE' | 'OUT_OF_STOCK' | 'INSUFFICIENT_STOCK' | 'INACTIVE' | 'UNKNOWN';
+  isSelected: boolean;
+  canCheckout: boolean;
 }
 
 export interface Cart {
@@ -17,6 +22,8 @@ export interface Cart {
   items: CartItem[];
   total: string;
   itemCount: number;
+  selectedItemCount: number;
+  discountAmount: string;
 }
 
 /** Lay headers dinh danh gio hang cho khach vang lai tu localStorage (neu co). */
@@ -39,9 +46,9 @@ export const cartKeys = {
   current: () => [...cartKeys.all, 'current'] as const,
 };
 
-export const getCart = (): Promise<Cart> => {
+export const getCart = ({ signal }: { signal?: AbortSignal } = {}): Promise<Cart> => {
   ensureGuestToken();
-  return apiGet<Cart>('/cart', {}, { headers: cartHeaders() });
+  return apiGet<Cart>('/cart', {}, { headers: cartHeaders(), signal });
 };
 
 export const addToCart = (variantId: string, quantity = 1): Promise<Cart> => {
@@ -51,6 +58,9 @@ export const addToCart = (variantId: string, quantity = 1): Promise<Cart> => {
 
 export const updateCartItem = (variantId: string, quantity: number): Promise<Cart> =>
   apiPatch<Cart>(`/cart/items/${variantId}`, { quantity }, cartHeaders());
+
+export const selectCartItem = (variantId: string, isSelected: boolean): Promise<Cart> =>
+  apiPatch<Cart>(`/cart/items/${variantId}`, { isSelected }, cartHeaders());
 
 export const removeCartItem = (variantId: string): Promise<Cart> =>
   apiDel<Cart>(`/cart/items/${variantId}`, cartHeaders());

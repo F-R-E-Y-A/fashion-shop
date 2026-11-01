@@ -48,8 +48,8 @@ Sau review PR #41 từ Bảo:
 3. DTO cập nhật khuyến mãi: Bổ sung class `UpdatePromotionDto extends PartialType(CreatePromotionDto)` để ValidationPipe hoạt động đúng metatype ở runtime, chặn các trường lạ và enum không hợp lệ.
 4. Bổ sung `apps/api/test/promotions.http.spec.ts` kiểm thử cạnh tranh 2 transaction đồng thời cho quota và các ca hồi quy HTTP validation.
 
-<a id="adr-026"></a>
-## 2026-10-27 · ADR-026 — Động cơ khuyến mãi động, phân khúc khách hàng và các mẫu thiết kế
+<a id="adr-041"></a>
+## 2026-10-27 · ADR-041 — Động cơ khuyến mãi động, phân khúc khách hàng và các mẫu thiết kế
 
 **Loại:** quyết định · **Phạm vi:** Phân hệ Khuyến mãi (`apps/api/src/modules/promotions/engine`) · **Trạng thái:** đề xuất · **Người quyết:** Duy · **Commit:** (điền khi thi hành)
 

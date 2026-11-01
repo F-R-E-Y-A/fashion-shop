@@ -1,0 +1,248 @@
+/* Man quan tri don hang (ADR-038): khung chung lay tu ui/AdminKit (LOG#adr-039), o day chi phan rieng. */
+.page {
+  composes: page from '../../../ui/AdminKit.module.css';
+}
+
+.header {
+  composes: header from '../../../ui/AdminKit.module.css';
+}
+
+.eyebrow {
+  composes: eyebrow from '../../../ui/AdminKit.module.css';
+}
+
+.headingRow {
+  composes: headingRow from '../../../ui/AdminKit.module.css';
+}
+
+.title {
+  composes: title from '../../../ui/AdminKit.module.css';
+  overflow-wrap: anywhere;
+}
+
+.count {
+  composes: count from '../../../ui/AdminKit.module.css';
+}
+
+.muted {
+  composes: muted from '../../../ui/AdminKit.module.css';
+  margin: 0;
+}
+
+.numeric {
+  composes: numeric from '../../../ui/AdminKit.module.css';
+}
+
+.back {
+  composes: back from '../../../ui/AdminKit.module.css';
+}
+
+/* --- tab trang thai: cuon ngang tren man hep, khong vo dong --- */
+.tabs {
+  display: flex;
+  gap: 0.4rem;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.tab {
+  flex: none;
+  min-height: 40px;
+  padding: 0 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--s-1);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s var(--ease);
+}
+
+.tab:hover {
+  background: var(--stone);
+}
+
+.tab[aria-pressed='true'] {
+  border-color: var(--espresso);
+  background: var(--espresso);
+  color: var(--on-dark);
+}
+
+/* --- tim kiem --- */
+.controls {
+  composes: controls from '../../../ui/AdminKit.module.css';
+}
+
+.searchForm {
+  composes: searchForm from '../../../ui/AdminKit.module.css';
+}
+
+.searchLabel {
+  composes: searchLabel from '../../../ui/AdminKit.module.css';
+}
+
+.searchRow {
+  composes: searchRow from '../../../ui/AdminKit.module.css';
+}
+
+.searchInput {
+  composes: searchInput from '../../../ui/AdminKit.module.css';
+}
+
+.searchButton {
+  composes: searchButton from '../../../ui/AdminKit.module.css';
+}
+
+.clearButton {
+  composes: clearButton from '../../../ui/AdminKit.module.css';
+}
+
+/* --- bang --- */
+.tableWrap {
+  composes: tableWrap from '../../../ui/AdminKit.module.css';
+}
+
+.table {
+  composes: table from '../../../ui/AdminKit.module.css';
+}
+
+.table th.right,
+.table td.right {
+  text-align: right;
+}
+
+.code {
+  color: var(--accent);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+}
+
+.sub {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: var(--s-1);
+}
+
+/* Cung be rong voi cot email man nguoi dung: email ngan khong bi ngat giua chu tren man rong. */
+.email {
+  min-width: 16rem;
+  overflow-wrap: anywhere;
+}
+
+.flag {
+  display: block;
+  margin-top: 4px;
+  color: var(--danger);
+  font-size: var(--s-1);
+  font-weight: 600;
+}
+
+.badge {
+  composes: badge from '../../../ui/AdminKit.module.css';
+}
+
+.badgeDot {
+  composes: badgeDot from '../../../ui/AdminKit.module.css';
+}
+
+.notice {
+  composes: notice from '../../../ui/AdminKit.module.css';
+}
+
+/* --- chi tiet --- */
+.detailGrid {
+  composes: detailGrid from '../../../ui/AdminKit.module.css';
+}
+
+.column {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.panel {
+  composes: panel from '../../../ui/AdminKit.module.css';
+}
+
+.panelTitle {
+  composes: panelTitle from '../../../ui/AdminKit.module.css';
+}
+
+.facts {
+  composes: facts from '../../../ui/AdminKit.module.css';
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.items,
+.timeline {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.items li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.timeline li {
+  padding-left: 0.9rem;
+  border-left: 2px solid var(--line);
+}
+
+.field {
+  composes: field from '../../../ui/AdminKit.module.css';
+  margin-bottom: 0.75rem;
+}
+
+.choices {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  border: 0;
+}
+
+.choices legend {
+  margin-bottom: 0.35rem;
+  color: var(--ink-2);
+  font-size: var(--s-1);
+  font-weight: 600;
+}
+
+.primaryButton {
+  composes: primaryButton from '../../../ui/AdminKit.module.css';
+}
+
+.dangerButton {
+  composes: dangerButton from '../../../ui/AdminKit.module.css';
+}
+
+.secondary {
+  composes: secondary from '../../../ui/AdminKit.module.css';
+}
+
+@media (max-width: 720px) {
+  /* Bang thanh the o kit: cot tien canh trai nhu moi o khac. */
+  .table td.right {
+    text-align: left;
+  }
+
+  .table td.email {
+    min-width: 0;
+  }
+
+  .actions > * {
+    flex: 1 1 100%;
+  }
+}

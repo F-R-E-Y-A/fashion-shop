@@ -3,9 +3,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { skipOf, toPage } from '../../../common/pagination/page.response.js';
 import type { Prisma } from '../../../generated/prisma/client.js';
 import { PrismaService } from '../../../infra/prisma/prisma.service.js';
+import { InventoryService } from '../../inventory/index.js';
 import type { ListProductsQuery } from '../dto/list-products.query.js';
 import type { ProductListResponse } from '../dto/product.response.js';
+import { withProductStock } from '../stock.js';
 import {
+  currentPriceFrom,
   DEFAULT_COLOR_CODE,
   preferredFamilyOf,
   storefrontProductInclude,
@@ -86,7 +89,7 @@ function toCatalogRow(p: CatalogProduct): CatalogRow {
   return {
     id: p.id,
     name: p.name,
-    price: Number(p.priceFrom),
+    price: Number(currentPriceFrom(p)),
     cat: p.category.slug,
     catName: p.category.name,
     root: parent?.slug ?? p.category.slug,
@@ -126,6 +129,7 @@ export class CatalogSearchService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly dictionary: SearchDictionaryService,
+    private readonly inventory: InventoryService,
   ) {}
 
   async list(query: ListProductsQuery): Promise<ProductListResponse> {
@@ -140,7 +144,8 @@ export class CatalogSearchService {
       return row ? [toProductResponse(row, { preferFamily })] : [];
     });
 
-    const response: ProductListResponse = toPage(items, result.total, query);
+    const enriched = await withProductStock(items, [...catalog.byId.values()], this.inventory);
+    const response: ProductListResponse = toPage(enriched, result.total, query);
     if (query.search !== undefined) {
       response.interpretation = describeIntent(result.intent);
       response.relaxed = result.relaxed;
@@ -175,7 +180,7 @@ export class CatalogSearchService {
       interpretation: describeIntent(result.intent),
       total: result.total,
       relaxed: result.relaxed,
-      products,
+      products: await withProductStock(products, [...catalog.byId.values()], this.inventory),
       categories,
       queries: this.completions(q, catalog.products, dict),
     };

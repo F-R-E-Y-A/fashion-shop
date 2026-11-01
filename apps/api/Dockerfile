@@ -42,6 +42,7 @@ COPY --from=build /app/apps/api/dist ./apps/api/dist
 # Prisma Client sinh ra o src/generated, va tep seed tro thang vao duong dan do.
 # Khong chep thi SEED_ON_START se loi khong tim thay module.
 COPY --from=build /app/apps/api/src/generated ./apps/api/src/generated
+COPY --from=build /app/apps/api/src/infra/prisma/connection.ts ./apps/api/src/infra/prisma/connection.ts
 COPY apps/api/prisma ./apps/api/prisma
 COPY apps/api/prisma.config.ts apps/api/package.json ./apps/api/
 COPY package.json ./

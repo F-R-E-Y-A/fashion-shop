@@ -9,6 +9,10 @@
   --accent: #925d3b;
   --accent-bright: #af7642;
   --danger: #b42318;
+  --danger-soft: #fdf1f0;
+  --success: #2e6b4f;
+  --success-soft: #edf5f0;
+  --paper: #ffffff;
   --radius: 2px;
   --font-display: 'Playfair Display', Georgia, serif;
   --font-body: 'Be Vietnam Pro', system-ui, sans-serif;
@@ -116,26 +120,7 @@ h2 {
   text-decoration: underline;
 }
 
-/* --- khung quan tri --- */
-.admin {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  min-height: 100vh;
-}
-.admin__side {
-  border-right: 1px solid var(--line);
-  padding: 1.25rem;
-}
-.admin__nav {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 1.5rem;
-  font-size: 0.9rem;
-}
-.admin__main {
-  padding: 1.5rem;
-}
+/* --- o so lieu cua trang Tong quan quan tri (khung quan tri o app/AdminLayout.module.css) --- */
 .tiles {
   display: flex;
   gap: 1rem;
@@ -255,6 +240,69 @@ button:disabled {
 .state {
   color: var(--muted);
 }
+/* Trang trang thai dung rieng (cho phien, 404): nam giua khung cua hang, khong dinh mep. */
+.page-state {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  min-height: 46vh;
+  align-content: center;
+  padding: clamp(48px, 10vw, 112px) var(--gutter);
+  text-align: center;
+  color: var(--muted);
+}
+.page-state h1 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--s3);
+}
+.page-state p {
+  margin: 0;
+}
+.page-state > div {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+}
+.page-state .eyebrow {
+  font-size: var(--s-1);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.page-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+.page-state-actions a {
+  padding: 12px 26px;
+  border: 1px solid var(--espresso);
+  border-radius: var(--radius);
+  font-size: var(--s-1);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition:
+    background-color 0.2s var(--ease),
+    color 0.2s var(--ease);
+}
+.page-state-actions .button-primary {
+  background: var(--espresso);
+  color: var(--on-dark);
+}
+.page-state-actions .button-primary:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.page-state-actions .button-secondary {
+  color: var(--ink);
+}
+.page-state-actions .button-secondary:hover {
+  background: var(--espresso);
+  color: var(--on-dark);
+}
 .state--error {
   color: var(--danger);
 }
@@ -342,9 +390,6 @@ button:disabled {
 }
 
 @media (max-width: 720px) {
-  .admin {
-    grid-template-columns: 1fr;
-  }
   .detail {
     grid-template-columns: 1fr;
   }

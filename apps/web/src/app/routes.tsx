@@ -1,19 +1,29 @@
 import { Suspense } from 'react';
-import { Link, Navigate, Route, Routes } from 'react-router-dom';
+import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import {
   AccountLayout,
   AddressPage,
+  AdminUserDetailPage,
+  AdminUsersPage,
   ChangePasswordPage,
   ForgotPasswordPage,
   LoginPage,
   ProfilePage,
   RegisterPage,
+  RequireAdmin,
   RequireAuth,
   ResetPasswordPage,
   VerifyEmailPage,
 } from '@/features/account';
 import { CartPage } from '@/features/cart';
+import {
+  AdminOrderDetailPage,
+  AdminOrdersPage,
+  CheckoutPage,
+  OrderPage,
+  OrdersPage,
+} from '@/features/checkout';
 import {
   AdminProductsPage,
   CategoryPage,
@@ -31,11 +41,31 @@ import { StoreLayout } from './StoreLayout.js';
 
 function NotFoundPage() {
   return (
-    <div className="state">
-      <h1>Không tìm thấy trang</h1>
-      <Link to="/">Về trang chủ</Link>
+    <div className="page-state">
+      <div>
+        <p className="eyebrow">Lỗi 404</p>
+        <h1>Không tìm thấy trang</h1>
+        <p>Đường dẫn có thể đã đổi hoặc sản phẩm không còn bán.</p>
+        <div className="page-state-actions">
+          <Link className="button-primary" to="/">
+            Về trang chủ
+          </Link>
+          <Link className="button-secondary" to="/tim-kiem">
+            Tìm sản phẩm
+          </Link>
+        </div>
+      </div>
     </div>
   );
+}
+
+/**
+ * Duong cu /quan-tri: chuyen han sang /admin, giu query va hash. Chi doi pathname co dinh nen
+ * khong mo ra dich ngoai trang; khong dung noi dung quan tri nao truoc RequireAdmin.
+ */
+function LegacyAdminRedirect() {
+  const { search, hash } = useLocation();
+  return <Navigate to={{ pathname: '/admin', search, hash }} replace />;
 }
 
 export function AppRoutes() {
@@ -43,7 +73,13 @@ export function AppRoutes() {
     <>
       <ScrollManager />
 
-      <Suspense fallback={<Loading />}>
+      <Suspense
+        fallback={
+          <div className="page-state">
+            <Loading />
+          </div>
+        }
+      >
         <Routes>
           <Route element={<StoreLayout />}>
             <Route index element={<HomePage />} />
@@ -56,10 +92,15 @@ export function AppRoutes() {
             <Route path="gio-hang" element={<CartPage />} />
 
             <Route element={<RequireAuth />}>
+              <Route path="thanh-toan" element={<CheckoutPage />} />
+              <Route path="thanh-toan/ket-qua" element={<OrderPage />} />
+              <Route path="don-hang" element={<Navigate to="/tai-khoan/don-hang" replace />} />
+              <Route path="don-hang/:id" element={<OrderPage />} />
               <Route path="tai-khoan" element={<AccountLayout />}>
                 <Route index element={<Navigate to="ho-so" replace />} />
                 <Route path="ho-so" element={<ProfilePage />} />
                 <Route path="dia-chi" element={<AddressPage />} />
+                <Route path="don-hang" element={<OrdersPage />} />
                 <Route path="doi-mat-khau" element={<ChangePasswordPage />} />
               </Route>
             </Route>
@@ -83,8 +124,18 @@ export function AppRoutes() {
             <Route path="dat-lai-mat-khau" element={<ResetPasswordPage />} />
           </Route>
 
-          <Route path="quan-tri" element={<AdminLayout />}>
-            <Route index element={<AdminProductsPage />} />
+          {/* Khu quan tri dung URL tieng Anh (ngoai le cua quy uoc duong dan tieng Viet, xem
+              docs/shared/code.md). RequireAdmin dat NGOAI AdminLayout: dang khoi phuc phien hay
+              khong du quyen thi khong dung khung va khong goi API quan tri. */}
+          <Route path="quan-tri" element={<LegacyAdminRedirect />} />
+          <Route path="admin" element={<RequireAdmin />}>
+            <Route element={<AdminLayout />}>
+              <Route index element={<AdminProductsPage />} />
+              <Route path="users" element={<AdminUsersPage />} />
+              <Route path="users/:id" element={<AdminUserDetailPage />} />
+              <Route path="orders" element={<AdminOrdersPage />} />
+              <Route path="orders/:id" element={<AdminOrderDetailPage />} />
+            </Route>
           </Route>
         </Routes>
       </Suspense>

@@ -32,3 +32,21 @@ export async function lockUserForSession(
   `;
   return rows[0] ?? null;
 }
+
+/**
+ * Khoa dong `users` (FOR NO KEY UPDATE) trong transaction KET THUC mot phien (logout), truoc khi thu
+ * hoi refresh token cua family. Khoa nay xung dot voi FOR SHARE cua login/refresh, nen hai ben xep hang:
+ *  - refresh dang xoay chay truoc: logout doi no commit, roi lenh thu hoi (cau lenh moi, snapshot moi)
+ *    thay ca token vua tao;
+ *  - logout chay truoc: refresh doi, doc lai token thay da thu hoi va tra 401.
+ * Chi FOR SHARE thi khong du: UPDATE cua logout co the khong thay token ma refresh vua chen (Issue #43).
+ * Thu tu khoa giong moi luong khac: `users` truoc, `refresh_tokens` sau, nen khong co vong cho.
+ */
+export async function lockUserForSessionEnd(
+  transaction: Prisma.TransactionClient,
+  userId: string,
+): Promise<void> {
+  await transaction.$queryRaw`
+    SELECT 1 FROM "users" WHERE "id" = ${userId}::uuid FOR NO KEY UPDATE
+  `;
+}

@@ -38,14 +38,19 @@ export const resetPassword = (
     body: { email, code, newPassword },
   });
 
-export const login = (credentials: Credentials): Promise<AuthResponse> =>
-  apiRequest<AuthResponse>('/auth/login', { method: 'POST', body: credentials, ...cookieRequest });
+export const login = (credentials: Credentials, signal?: AbortSignal): Promise<AuthResponse> =>
+  apiRequest<AuthResponse>('/auth/login', {
+    method: 'POST',
+    body: credentials,
+    signal,
+    ...cookieRequest,
+  });
 
-export const refresh = (): Promise<AuthResponse> =>
-  apiRequest<AuthResponse>('/auth/refresh', { method: 'POST', ...cookieRequest });
+export const refresh = (signal?: AbortSignal): Promise<AuthResponse> =>
+  apiRequest<AuthResponse>('/auth/refresh', { method: 'POST', signal, ...cookieRequest });
 
-export const logout = (): Promise<void> =>
-  apiRequest<void>('/auth/logout', { method: 'POST', ...cookieRequest });
+export const logout = (signal?: AbortSignal): Promise<void> =>
+  apiRequest<void>('/auth/logout', { method: 'POST', signal, ...cookieRequest });
 
 export const getCurrentUser = (accessToken: string): Promise<AuthenticatedUser> =>
   apiRequest<AuthenticatedUser>('/auth/me', { accessToken });

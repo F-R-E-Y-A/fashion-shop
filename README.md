@@ -96,7 +96,7 @@ fashion-shop/
 ├── docs/                         tài liệu: README (đọc trước), LOG, shared/, features/
 ├── infra/compose.prod.yml        chạy cả cụm như môi trường thật
 ├── tools/                        luật lint, hook git, script minh chứng
-├── .github/                      CODEOWNERS, mẫu PR, mẫu phiếu, CI và CD
+├── .github/                      mẫu PR, mẫu phiếu, CI và CD
 ├── docker-compose.yml            PostgreSQL, Redis, Mailpit cho phát triển
 └── .env.example
 ```
@@ -110,8 +110,7 @@ fashion-shop/
 5. Chép thư mục `apps/web/src/features/products`, đổi tên. Thêm một dòng `Route` trong `app/routes.tsx`.
 6. Viết kiểm thử: một bài đơn vị cho service, một bài HTTP cho đường dẫn, một bài cho trang.
 7. Cập nhật tài liệu của feature trong `docs/features/<module>/` theo mẫu ở `docs/shared/templates/`.
-8. Thêm dòng sở hữu của mình vào `.github/CODEOWNERS`.
-9. `npm run check`, rồi mở pull request vào `develop`.
+8. `npm run check`, rồi mở pull request vào `develop`.
 
 Ba luật không được phá, chi tiết ở [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md):
 

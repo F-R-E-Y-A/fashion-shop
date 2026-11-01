@@ -6,6 +6,7 @@ import { queryClient } from '@/core';
 import { AuthProvider } from '@/features/account';
 
 import { ErrorBoundary } from './ErrorBoundary.js';
+import { StorefrontLiveUpdates } from './StorefrontLiveUpdates.js';
 
 /** Cay provider viet mot lan. Mot QueryClient cho ca trang nen hai trang cung du lieu dung chung bo dem. */
 export function AppProviders({ children }: { children: ReactNode }) {
@@ -13,6 +14,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
+          <StorefrontLiveUpdates />
           <BrowserRouter>{children}</BrowserRouter>
         </AuthProvider>
       </QueryClientProvider>

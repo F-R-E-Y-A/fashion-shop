@@ -1,6 +1,7 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query, Sse } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+import { CatalogEventsService } from './catalog-events.service.js';
 import { ListProductsQuery } from './dto/list-products.query.js';
 import { ProductListResponse, ProductResponse } from './dto/product.response.js';
 import { ProductDetailResponse } from './dto/product-detail.response.js';
@@ -25,7 +26,14 @@ export class ProductsController {
   constructor(
     private readonly products: ProductsService,
     private readonly catalog: CatalogSearchService,
+    private readonly events: CatalogEventsService,
   ) {}
+
+  @Sse('events')
+  @ApiOperation({ summary: 'Theo doi thay doi gia va ton kha dung (SSE)' })
+  stream() {
+    return this.events.events;
+  }
 
   @Get()
   @ApiOperation({

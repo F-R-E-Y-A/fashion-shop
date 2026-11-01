@@ -2,9 +2,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import react from '@vitejs/plugin-react';
+import { loadEnv } from 'vite';
 import { defineConfig } from 'vitest/config';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const localEnv = loadEnv('development', path.resolve(here, '../..'), '');
+const apiPort = process.env.API_PORT || localEnv.API_PORT || '3001';
 
 export default defineConfig({
   plugins: [react()],
@@ -18,6 +21,9 @@ export default defineConfig({
     // 5173 la cong mac dinh cua Vite, tren may nay dang bi du an khac chiem, nen chot 5174.
     port: 5174,
     strictPort: true,
+    proxy: {
+      '/api': { target: `http://127.0.0.1:${apiPort}`, changeOrigin: true, xfwd: true },
+    },
   },
   build: {
     sourcemap: true,
@@ -39,6 +45,8 @@ export default defineConfig({
     },
   },
   test: {
+    // Fixture fetch dung URL tuyet doi co dinh, khong phu thuoc .env tunnel cua nguoi chay.
+    env: { VITE_API_URL: 'http://localhost:3001/api' },
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],

@@ -14,6 +14,7 @@
     "test:watch": "vitest --project unit",
     "test:cov": "vitest run --project unit --coverage",
     "test:http": "vitest run --project http",
+    "test:load": "vitest run --project load",
     "test:http:cov": "vitest run --project http --coverage --coverage.reportsDirectory=coverage-http",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
@@ -23,7 +24,8 @@
     "db:studio": "prisma studio",
     "catalog:refresh": "tsx scripts/refresh-approved-catalog.ts",
     "admin:grant": "tsx scripts/grant-admin.ts",
-    "areas:import": "tsx scripts/import-administrative-areas.ts"
+    "areas:import": "tsx scripts/import-administrative-areas.ts",
+    "stock:import": "tsx scripts/import-stock.ts"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

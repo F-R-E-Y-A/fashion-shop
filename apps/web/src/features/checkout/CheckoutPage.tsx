@@ -1,0 +1,392 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+
+import { ApiError, formatPrice } from '@/core';
+import {
+  AddressForm,
+  addressKeys,
+  createAddress,
+  type CreateAddressInput,
+  listAddresses,
+  useAuth,
+} from '@/features/account';
+
+import styles from './Checkout.module.css';
+import {
+  checkoutKey,
+  checkoutKeys,
+  type GatewayCode,
+  type OrderView,
+  type Quote,
+} from './types.js';
+
+const gatewayHints: Record<GatewayCode, string> = {
+  VNPAY: 'Thẻ ATM nội địa, thẻ quốc tế hoặc quét mã VNPAY-QR.',
+  MOMO: 'Thanh toán bằng ví MoMo.',
+  MOMO_ATM: 'Thẻ ATM nội địa hoặc thẻ quốc tế qua trang MoMo, không cần ví.',
+  COD: 'Nhân viên giao hàng thu tiền mặt khi bạn nhận hàng.',
+};
+
+export function CheckoutSteps({ current }: { current: 1 | 2 | 3 }) {
+  const steps = ['Giỏ hàng', 'Xác nhận', 'Thanh toán'];
+  return (
+    <ol className={styles.steps} aria-label="Các bước đặt hàng">
+      {steps.map((step, index) => (
+        <li
+          key={step}
+          data-step={index + 1}
+          aria-current={index + 1 === current ? 'step' : undefined}
+          className={
+            index + 1 === current ? styles.stepCurrent : index + 1 < current ? styles.stepDone : ''
+          }
+        >
+          {step}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+export function CheckoutPage() {
+  const { user, authenticatedRequest: request } = useAuth();
+  const navigate = useNavigate();
+  const client = useQueryClient();
+  const [selected, setSelected] = useState('');
+  const [preferredGateway, setGateway] = useState<GatewayCode | ''>('');
+  const [addingAddress, setAddingAddress] = useState(false);
+  const [addressNotice, setAddressNotice] = useState<string | null>(null);
+  const autoOpenedAddressForm = useRef(false);
+  const addresses = useQuery({
+    queryKey: addressKeys.list(user!.id),
+    queryFn: () => listAddresses(request),
+  });
+  const addressId =
+    selected || addresses.data?.find((a) => a.isDefault)?.id || addresses.data?.[0]?.id || '';
+  // Chua co dia chi thi mo san form them ngay tai cho; chi tu dong mo mot lan.
+  useEffect(() => {
+    if (!autoOpenedAddressForm.current && addresses.data?.length === 0) {
+      autoOpenedAddressForm.current = true;
+      setAddingAddress(true);
+    }
+  }, [addresses.data]);
+  const addAddress = useMutation({
+    mutationFn: (data: CreateAddressInput) => createAddress(request, data),
+    onSuccess: async (created) => {
+      setSelected(created.id);
+      setAddingAddress(false);
+      setAddressNotice('Đã thêm địa chỉ giao hàng.');
+      await client.invalidateQueries({ queryKey: addressKeys.list(user!.id) });
+    },
+  });
+  const key = checkoutKeys.preview(user!.id, addressId);
+  const preview = useQuery({
+    queryKey: key,
+    queryFn: () => request<Quote>('/checkout/preview', { method: 'POST', body: { addressId } }),
+    enabled: !!addressId,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+    gcTime: 0,
+  });
+  const submit = useMutation({
+    mutationKey: checkoutKeys.all,
+    mutationFn: () =>
+      request<OrderView>('/checkout/orders', {
+        method: 'POST',
+        body: {
+          addressId,
+          gateway,
+          fingerprint: preview.data!.fingerprint,
+          idempotencyKey: checkoutKey(user!.id, preview.data!.fingerprint, gateway),
+        },
+      }),
+    onSuccess: (order) => {
+      navigate(`/don-hang/${order.id}`, { replace: true });
+      const url = order.payments.find((p) => p.checkoutUrl)?.checkoutUrl;
+      if (url) window.location.assign(url);
+    },
+    onError: () => {
+      void client.invalidateQueries({ queryKey: key });
+    },
+  });
+  const quote = preview.data;
+  // 422: giỏ chưa có món được tick "Chọn mua" hoặc món hết hàng — dẫn về giỏ thay vì báo lỗi khô.
+  const selectionMissing =
+    preview.error instanceof ApiError && preview.error.body.statusCode === 422;
+  const offeredGateways = quote?.gateways ?? [
+    { code: 'VNPAY' as const, label: 'VNPAY', configured: quote?.paymentConfigured ?? false },
+  ];
+  // COD bi tat vi chong bom (ADR-038) van hien kem ly do, khong bien mat khong loi giai thich.
+  const gateways = offeredGateways.filter(
+    (item) => item.configured || item.code === 'VNPAY' || !!item.unavailableReason,
+  );
+  const gateway = preferredGateway || gateways.find((item) => item.configured)?.code || 'VNPAY';
+  const selectedGateway = gateways.find((item) => item.code === gateway);
+  const count = quote?.items.reduce((sum, item) => sum + item.quantity, 0) ?? 0;
+  return (
+    <div className={styles.page}>
+      <Link className={styles.back} to="/gio-hang">
+        ← Quay lại giỏ hàng
+      </Link>
+      <p className={styles.eyebrow}>Thanh toán</p>
+      <h1 className={styles.title}>Xác nhận đơn hàng</h1>
+      <p className={styles.lead}>
+        Giá và tồn được kiểm tra lại trước khi đặt. Hàng chỉ được giữ khi xác nhận sang thanh toán.
+      </p>
+      <CheckoutSteps current={2} />
+      <div className={styles.grid}>
+        <div className={styles.main}>
+          <section className={styles.section}>
+            <div className={styles.sectionHead}>
+              <h2 className={styles.sectionTitle}>Địa chỉ giao hàng</h2>
+              <div className={styles.sectionActions}>
+                {!addingAddress && (
+                  <button
+                    type="button"
+                    className={styles.sectionLink}
+                    onClick={() => setAddingAddress(true)}
+                  >
+                    + Thêm địa chỉ
+                  </button>
+                )}
+                <Link className={styles.sectionLink} to="/tai-khoan/dia-chi">
+                  Sổ địa chỉ
+                </Link>
+              </div>
+            </div>
+            {addresses.isPending && (
+              <p className={styles.muted} role="status">
+                Đang tải địa chỉ…
+              </p>
+            )}
+            {addresses.error && (
+              <p className={`${styles.notice} ${styles.noticeDanger}`} role="alert">
+                {addresses.error.message}
+              </p>
+            )}
+            {addresses.data?.length === 0 && (
+              <p className={styles.notice}>Chưa có địa chỉ giao hàng. Thêm địa chỉ để tiếp tục.</p>
+            )}
+            {addressNotice && (
+              <p className={`${styles.notice} ${styles.noticeSuccess}`} role="status">
+                {addressNotice}
+              </p>
+            )}
+            {addingAddress && (
+              <AddressForm
+                isSaving={addAddress.isPending}
+                onCancel={() => setAddingAddress(false)}
+                onSave={(data) => addAddress.mutateAsync(data).then(() => undefined)}
+              />
+            )}
+            <div className={styles.options}>
+              {addresses.data?.map((address) => (
+                <label className={styles.option} key={address.id}>
+                  <input
+                    type="radio"
+                    name="address"
+                    checked={addressId === address.id}
+                    onChange={() => setSelected(address.id)}
+                    disabled={submit.isPending}
+                  />
+                  <span>
+                    <span className={styles.optionTitle}>
+                      {address.recipientName} · {address.phone}
+                      {address.isDefault && <span className={styles.tag}>MẶC ĐỊNH</span>}
+                    </span>
+                    <span className={styles.optionText}>
+                      {address.detailAddress}, {address.administrativeArea.name},{' '}
+                      {address.administrativeArea.province?.name}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </section>
+
+          {preview.isFetching && !!addressId && !quote && (
+            <p className={styles.muted} role="status">
+              Đang cập nhật giá và phí vận chuyển…
+            </p>
+          )}
+          {preview.error && !submit.error && selectionMissing && (
+            <div className={styles.empty}>
+              <p className={styles.emptyTitle}>Chưa chọn sản phẩm để thanh toán</p>
+              <p className={styles.muted}>
+                Vào giỏ hàng tick ô "Chọn mua" cho sản phẩm còn hàng, rồi quay lại đây để đặt.
+              </p>
+              <Link className={styles.emptyCta} to="/gio-hang">
+                Về giỏ hàng chọn mua
+              </Link>
+            </div>
+          )}
+          {preview.error && !submit.error && !selectionMissing && (
+            <p className={`${styles.notice} ${styles.noticeDanger}`} role="alert">
+              {preview.error.message}{' '}
+              {preview.error instanceof ApiError &&
+              preview.error.body.code === 'PENDING_ORDER_EXISTS' ? (
+                <Link to="/tai-khoan/don-hang">Xem đơn đang chờ</Link>
+              ) : (
+                <Link to="/gio-hang">Về giỏ hàng để kiểm tra</Link>
+              )}
+            </p>
+          )}
+
+          {quote && (
+            <section className={styles.section}>
+              <div className={styles.sectionHead}>
+                <h2 className={styles.sectionTitle}>Sản phẩm đã chọn</h2>
+                <span className={styles.muted}>{count} món</span>
+              </div>
+              <ul className={styles.items}>
+                {quote.items.map((item) => (
+                  <li className={styles.item} key={item.variantId}>
+                    {item.imageUrl ? (
+                      <img className={styles.thumb} src={item.imageUrl} alt="" loading="lazy" />
+                    ) : (
+                      <span className={styles.thumb} aria-hidden="true" />
+                    )}
+                    <div>
+                      <p className={styles.itemName}>
+                        {item.productSlug ? (
+                          <Link to={`/san-pham/${item.productSlug}`}>{item.name}</Link>
+                        ) : (
+                          item.name
+                        )}
+                      </p>
+                      <p className={styles.itemMeta}>
+                        {item.variantLabel} · {formatPrice(item.price)} × {item.quantity}
+                      </p>
+                    </div>
+                    <p className={styles.itemTotal}>
+                      {formatPrice(item.subtotal ?? String(Number(item.price) * item.quantity))}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {quote && (
+            <section className={styles.section}>
+              <fieldset className={`${styles.options} ${styles.fieldset}`}>
+                <legend className={`${styles.sectionTitle} ${styles.legend}`}>
+                  Phương thức thanh toán
+                </legend>
+                {gateways.map((item) => (
+                  <label className={styles.option} key={item.code}>
+                    <input
+                      type="radio"
+                      name="payment-gateway"
+                      aria-label={item.label}
+                      value={item.code}
+                      checked={gateway === item.code}
+                      disabled={submit.isPending || !item.configured}
+                      onChange={() => setGateway(item.code)}
+                    />
+                    <span>
+                      <span className={styles.optionTitle}>
+                        {item.label}
+                        {!item.configured &&
+                          (item.unavailableReason
+                            ? ' — không áp dụng cho đơn này'
+                            : ' — chưa sẵn sàng')}
+                      </span>
+                      <span className={styles.optionText}>
+                        {item.unavailableReason ?? gatewayHints[item.code]}
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </fieldset>
+              <p className={styles.muted}>
+                {gateway === 'COD'
+                  ? 'Shop sẽ gọi xác nhận trong 3 ngày rồi giao hàng; thanh toán tiền mặt khi nhận hàng.'
+                  : `Thanh toán qua ${selectedGateway?.label} trong ${quote.payMinutes ?? quote.holdMinutes} phút; hàng được giữ ${quote.holdMinutes} phút để chờ cổng xác nhận. Tải lại trang hoặc thử lại không gia hạn.`}
+              </p>
+            </section>
+          )}
+        </div>
+
+        {quote && (
+          <aside className={styles.summary} aria-label="Tóm tắt đơn hàng">
+            <h2 className={styles.summaryTitle}>Tóm tắt đơn hàng</h2>
+            <p className={styles.row}>
+              <span>Tiền hàng ({count} món)</span>
+              <span>{formatPrice(quote.subtotalAmount)}</span>
+            </p>
+            <label className={styles.promotion}>
+              Khuyến mãi
+              <input
+                aria-label="Khuyến mãi"
+                value=""
+                readOnly
+                disabled
+                placeholder="Chưa áp dụng"
+              />
+            </label>
+            <p className={styles.row}>
+              <span>Giảm giá</span>
+              <span>{formatPrice(quote.discountAmount)}</span>
+            </p>
+            <p className={styles.row}>
+              <span>Phí vận chuyển</span>
+              <span>{formatPrice(quote.shippingFeeAmount)}</span>
+            </p>
+            <p className={styles.summaryNote}>
+              Phí giao hàng nội địa 30.000đ; miễn phí từ 500.000đ tiền hàng sau giảm giá.
+            </p>
+            <p className={styles.total}>
+              <span>Tổng thanh toán</span>
+              <strong>{formatPrice(quote.totalAmount)}</strong>
+            </p>
+            {quote.pendingOrder && (
+              <p className={styles.notice} role="alert">
+                Bạn còn đơn {quote.pendingOrder.orderCode} đang chờ thanh toán. Mỗi lần chỉ giữ hàng
+                cho một đơn:{' '}
+                <Link to={`/don-hang/${quote.pendingOrder.id}`}>tiếp tục hoặc hủy đơn đó</Link>{' '}
+                trước khi đặt đơn mới.
+              </p>
+            )}
+            {!selectedGateway?.configured && (
+              <p className={styles.notice} role="status">
+                Cổng {selectedGateway?.label} chưa sẵn sàng. Bạn có thể xem đơn dự kiến và quay lại
+                thanh toán sau.
+              </p>
+            )}
+            {submit.error && (
+              <p className={`${styles.notice} ${styles.noticeDanger}`} role="alert">
+                {submit.error.message} Kiểm tra lại thông tin rồi xác nhận lại.
+              </p>
+            )}
+            <button
+              className={styles.cta}
+              disabled={
+                !selectedGateway?.configured ||
+                !!quote.pendingOrder ||
+                preview.isFetching ||
+                preview.isError ||
+                submit.isPending
+              }
+              onClick={() => submit.mutate()}
+            >
+              {submit.isPending
+                ? 'Đang tạo đơn…'
+                : gateway === 'COD'
+                  ? 'Xác nhận đặt hàng (COD)'
+                  : `Xác nhận và sang ${selectedGateway?.label}`}
+            </button>
+            {preview.isFetching && (
+              <p className={styles.summaryNote} role="status">
+                Đang cập nhật giá và phí vận chuyển…
+              </p>
+            )}
+            <div className={styles.linkRow}>
+              <Link to="/tai-khoan/don-hang">Xem đơn hàng của tôi</Link>
+            </div>
+          </aside>
+        )}
+      </div>
+    </div>
+  );
+}

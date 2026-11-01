@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Prisma } from '../../generated/prisma/client.js';
 import type { PrismaService } from '../../infra/prisma/prisma.service.js';
+import type { InventoryService } from '../inventory/index.js';
 import { ListProductsQuery } from './dto/list-products.query.js';
 import { ProductsService } from './products.service.js';
 
@@ -51,7 +52,17 @@ function makePrisma() {
     productVariant: { findMany: vi.fn() },
     $transaction: vi.fn((operations: unknown[]) => Promise.all(operations)),
   };
-  return { prisma, service: new ProductsService(prisma as unknown as PrismaService) };
+  const inventory = {
+    getStockStatuses: vi.fn(async () => new Map()),
+    getAvailableQuantities: vi.fn(async () => new Map()),
+  };
+  return {
+    prisma,
+    service: new ProductsService(
+      prisma as unknown as PrismaService,
+      inventory as unknown as InventoryService,
+    ),
+  };
 }
 
 const query = (overrides: Partial<ListProductsQuery> = {}): ListProductsQuery =>

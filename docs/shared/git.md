@@ -73,8 +73,8 @@ git push -u origin feature/ph-01-product-catalog
 
 ## Luật gộp
 
-- Pull request vào `develop` cần **một người khác duyệt** và **CI xanh**.
-- Tệp `CODEOWNERS` tự gán người duyệt theo thư mục. Chạm vào thư mục người khác thì chính họ phải duyệt.
+- Pull request vào `develop` cần **CI xanh** và **một người duyệt bất kỳ, tự nguyện**; tác giả không tự duyệt pull request của mình.
+- Từ 24/10/2026 **bỏ gán người duyệt theo `CODEOWNERS`** ([LOG](../LOG.md#bo-gan-nguoi-duyet)): sau PH-11 ba người cùng chấm nhiều phân hệ đan xen, gán cứng theo thư mục làm dồn người duyệt và chậm tính năng. Ai hiểu ngữ cảnh thì duyệt; bản đồ sở hữu vùng làm việc vẫn ở [README docs](../README.md) mục 1.
 - Không đẩy thẳng vào `develop` và `main`. Hook `pre-push` chặn sẵn.
 - **Gộp bằng merge commit, không dùng squash.** Squash xoá mọi commit hằng ngày khỏi nhánh chính, mà lịch sử Git ở đồ án này là hồ sơ nộp kèm chứ không chỉ là công cụ. Lý do đầy đủ ở [LOG#adr-005](../LOG.md#adr-005).
 - Nhánh đã gộp thì xóa: `task/` sau khi gộp vào nhánh feature cha, `feature/ph-NN-*` và `bugfix/` sau khi gộp vào `develop`. An toàn, vì merge commit khiến mọi commit của nhánh thành tổ tiên của nhánh đích.
