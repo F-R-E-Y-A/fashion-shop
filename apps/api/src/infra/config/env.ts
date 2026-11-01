@@ -88,6 +88,9 @@ export const envSchema = z
     MOMO_API_URL: z.url().default('https://test-payment.momo.vn/v2/gateway/api'),
     MOMO_RETURN_URL: z.url().default('http://localhost:5174/thanh-toan/ket-qua'),
     MOMO_IPN_URL: z.union([z.literal(''), z.url()]).default(''),
+    /** Chong bom COD (ADR-038): don tren tran nay hoac khach da giao that bai du so lan thi phai tra truoc. */
+    COD_MAX_AMOUNT: z.coerce.number().positive().default(2_000_000),
+    COD_MAX_FAILED_DELIVERIES: z.coerce.number().int().positive().default(2),
     /** Ma commit dang chay: CI truyen GIT_SHA khi dung image; Render tu cap RENDER_GIT_COMMIT. */
     GIT_SHA: z.string().optional(),
     RENDER_GIT_COMMIT: z.string().optional(),

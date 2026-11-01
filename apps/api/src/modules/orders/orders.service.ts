@@ -2,14 +2,34 @@ import { randomBytes } from 'node:crypto';
 
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 
+import { skipOf } from '../../common/pagination/page.response.js';
 import type { OrderStatus, Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 
 const details = {
   items: { orderBy: { productVariantId: 'asc' as const } },
-  payments: { orderBy: { createdAt: 'desc' as const } },
+  payments: {
+    orderBy: { createdAt: 'desc' as const },
+    // So hoan tien (REFUND:*, REFUND-INTENT:*) de trang don hien so da hoan va lenh dang cho.
+    include: {
+      transactions: {
+        where: { externalTransactionId: { startsWith: 'REFUND' } },
+        orderBy: { createdAt: 'asc' as const },
+      },
+    },
+  },
   statusHistory: { orderBy: { createdAt: 'asc' as const } },
 };
+
+export interface AdminOrderQuery {
+  statuses?: OrderStatus[];
+  /** Don can shop ra tay: PAYMENT_REVIEW, lenh hoan chua chot, don huy da thu tien chua hoan. */
+  attention?: boolean;
+  /** Ma don hoac email khach, khong phan biet hoa thuong. */
+  q?: string;
+  page: number;
+  pageSize: number;
+}
 const CODE_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
 /**
@@ -19,13 +39,16 @@ const CODE_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
  */
 export const ORDER_TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
   PENDING_PAYMENT: ['CONFIRMED', 'PAYMENT_REVIEW', 'CANCELLED'],
-  PENDING_CONFIRMATION: ['CONFIRMED', 'PAYMENT_REVIEW', 'CANCELLED'],
+  // COD: shop goi xac nhan xong thi chot kho va giao (PROCESSING), tien thu sau (ADR-038).
+  PENDING_CONFIRMATION: ['CONFIRMED', 'PROCESSING', 'PAYMENT_REVIEW', 'CANCELLED'],
   PAYMENT_REVIEW: ['PARTIALLY_REFUNDED', 'REFUNDED'],
-  CONFIRMED: ['PROCESSING', 'PAYMENT_REVIEW', 'PARTIALLY_REFUNDED', 'REFUNDED'],
-  PROCESSING: ['SHIPPED', 'PAYMENT_REVIEW'],
-  SHIPPED: ['DELIVERED', 'PAYMENT_REVIEW'],
+  // CANCELLED: khach tu huy don da tra truoc khi shop xu ly, tien hoan sau do (ADR-038).
+  CONFIRMED: ['PROCESSING', 'PAYMENT_REVIEW', 'PARTIALLY_REFUNDED', 'REFUNDED', 'CANCELLED'],
+  // Chua noi hang van chuyen: shop danh dau da giao thang tu PROCESSING; CANCELLED = COD giao that bai.
+  PROCESSING: ['SHIPPED', 'DELIVERED', 'PAYMENT_REVIEW', 'CANCELLED'],
+  SHIPPED: ['DELIVERED', 'PAYMENT_REVIEW', 'CANCELLED'],
   DELIVERED: ['PAYMENT_REVIEW', 'PARTIALLY_REFUNDED', 'REFUNDED'],
-  CANCELLED: ['PAYMENT_REVIEW'],
+  CANCELLED: ['PAYMENT_REVIEW', 'PARTIALLY_REFUNDED', 'REFUNDED'],
   PARTIALLY_REFUNDED: ['PAYMENT_REVIEW', 'PARTIALLY_REFUNDED', 'REFUNDED'],
   REFUNDED: ['PAYMENT_REVIEW'],
 };
@@ -102,6 +125,47 @@ export class OrdersService {
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
+  }
+
+  /** Danh sach cho quan tri: moi khach, loc trang thai va ma don/email, moi nhat truoc. */
+  async adminList(query: AdminOrderQuery) {
+    const q = query.q?.trim();
+    const attention: Prisma.OrderWhereInput[] = [
+      { status: 'PAYMENT_REVIEW' },
+      {
+        payments: {
+          some: {
+            transactions: {
+              some: { externalTransactionId: { startsWith: 'REFUND-INTENT:' }, status: 'RECEIVED' },
+            },
+          },
+        },
+      },
+      { status: 'CANCELLED', payments: { some: { status: 'SUCCEEDED' } } },
+    ];
+    const where: Prisma.OrderWhereInput = {
+      ...(query.statuses?.length ? { status: { in: query.statuses } } : {}),
+      ...(query.attention ? { AND: [{ OR: attention }] } : {}),
+      ...(q
+        ? {
+            OR: [
+              { orderCode: { contains: q, mode: 'insensitive' } },
+              { customerEmail: { contains: q, mode: 'insensitive' } },
+            ],
+          }
+        : {}),
+    };
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.order.findMany({
+        where,
+        include: details,
+        orderBy: { createdAt: 'desc' },
+        skip: skipOf(query),
+        take: query.pageSize,
+      }),
+      this.prisma.order.count({ where }),
+    ]);
+    return { items, total };
   }
 
   async create(

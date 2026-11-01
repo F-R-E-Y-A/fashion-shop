@@ -7,6 +7,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { seedShipping } from '../prisma/seed/shipping.seed.js';
 import type { Env } from '../src/infra/config/env.js';
 import { grantAdminRole } from '../src/modules/auth/grant-admin-role.js';
+import { InventoryService } from '../src/modules/inventory/index.js';
 import {
   hmac,
   pipeString,
@@ -274,5 +275,112 @@ describe('PH-11 hoàn tiền: khoá đơn, sổ hoàn và đối soát tay (Post
     await resolve(paymentId, 'FAILED').expect(409);
     expect(await intents()).toHaveLength(0);
     expect(sent).toHaveLength(0);
+  });
+
+  describe('ADR-038: khách tự hủy đơn đã trả trước khi shop xử lý', () => {
+    /** Don da tra va da chot kho (SALE) nhu sau settlement that. */
+    async function soldOrder() {
+      const paid = await paidOrder();
+      const order = await t.prisma.order.findUniqueOrThrow({
+        where: { id: paid.orderId },
+        include: { items: true },
+      });
+      const items = order.items.map((item) => ({
+        variantId: item.productVariantId,
+        quantity: item.quantity,
+      }));
+      await t.prisma.$transaction(async (tx) => {
+        expect(await t.app.get(InventoryService).commit(order.id, items, tx)).toBe(true);
+      });
+      return { ...paid, variantId: items[0]!.variantId };
+    }
+    const stock = async (variantId: string) =>
+      (await t.prisma.inventory.findUniqueOrThrow({ where: { productVariantId: variantId } }))
+        .quantityOnHand;
+    const cancel = (orderId: string) => t.http.post(`/api/orders/${orderId}/cancel`).set(as(token));
+
+    it('hủy → hàng về kho một lần, hoàn toàn bộ (02), đơn CANCELLED rồi REFUNDED', async () => {
+      const { orderId, variantId } = await soldOrder();
+      expect(await stock(variantId)).toBe(9);
+      const view = (await t.http.get(`/api/orders/${orderId}`).set(as(token)).expect(200)).body;
+      expect(view).toMatchObject({ canCancel: true, cancelRefunds: true, refundedAmount: '0.00' });
+      const after = (await cancel(orderId).expect(201)).body;
+      expect(after).toMatchObject({
+        status: 'REFUNDED',
+        refundedAmount: '230000.00',
+        refundPending: false,
+        canCancel: false,
+      });
+      expect(sent).toHaveLength(1);
+      expect(sent[0]).toMatchObject({ vnp_Amount: '23000000', vnp_TransactionType: '02' });
+      expect(await stock(variantId)).toBe(10);
+      const history = await t.prisma.orderStatusHistory.findMany({
+        where: { orderId },
+        orderBy: { createdAt: 'asc' },
+      });
+      expect(history.map((row) => row.status).slice(-2)).toEqual(['CANCELLED', 'REFUNDED']);
+      // Hủy lại không trả kho lần hai, không gọi cổng lần hai.
+      await cancel(orderId).expect(409);
+      expect(await stock(variantId)).toBe(10);
+      expect(sent).toHaveLength(1);
+    });
+
+    it('cổng từ chối: đơn vẫn hủy, lệnh hoàn chờ đối soát và hiện ở tab cần xử lý của admin', async () => {
+      const { orderId, paymentId } = await soldOrder();
+      mode = 'reject';
+      const after = (await cancel(orderId).expect(201)).body;
+      expect(after).toMatchObject({ status: 'CANCELLED', refundPending: true, canCancel: false });
+      const page = (
+        await t.http.get('/api/admin/orders?attention=true').set(as(adminToken)).expect(200)
+      ).body;
+      expect(page.items.map((row: { id: string }) => row.id)).toContain(orderId);
+      const detail = (await t.http.get(`/api/admin/orders/${orderId}`).set(as(adminToken))).body;
+      expect(detail.ledgers[0]).toMatchObject({
+        paymentId,
+        refundableAmount: null,
+        pendingRefund: { resolvable: true },
+      });
+      await resolve(paymentId, 'FAILED').expect(201);
+      mode = 'ok';
+      await refund(paymentId).expect(201);
+      expect(await orderStatus(orderId)).toBe('REFUNDED');
+    });
+
+    it('admin hủy và hoàn đơn CONFIRMED: hàng về kho, REFUNDED; không có nút hoàn tay từng phần', async () => {
+      const { orderId, variantId } = await soldOrder();
+      const before = (
+        await t.http.get(`/api/admin/orders/${orderId}`).set(as(adminToken)).expect(200)
+      ).body;
+      expect(before.actions).toMatchObject({ cancelRefund: true, startProcessing: true });
+      expect(before.ledgers[0].refundableAmount).toBeNull();
+      await t.http
+        .post(`/api/admin/orders/${orderId}/cancel-refund`)
+        .set(as(token))
+        .send({ reason: 'x' })
+        .expect(403);
+      const after = (
+        await t.http
+          .post(`/api/admin/orders/${orderId}/cancel-refund`)
+          .set(as(adminToken))
+          .send({ reason: 'Khách gọi báo hủy' })
+          .expect(201)
+      ).body;
+      expect(after).toMatchObject({ status: 'REFUNDED', actions: { cancelRefund: false } });
+      expect(await stock(variantId)).toBe(10);
+      expect(sent[0]).toMatchObject({ vnp_TransactionType: '02' });
+    });
+
+    it('shop đã bắt đầu xử lý: khách không tự hủy được nữa', async () => {
+      const { orderId } = await soldOrder();
+      const started = (
+        await t.http
+          .post(`/api/admin/orders/${orderId}/start-processing`)
+          .set(as(adminToken))
+          .expect(201)
+      ).body;
+      expect(started).toMatchObject({ status: 'PROCESSING', canCancel: false });
+      await cancel(orderId).expect(409);
+      expect(sent).toHaveLength(0);
+    });
   });
 });

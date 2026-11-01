@@ -50,6 +50,33 @@ export class InventoryService {
     return commitStock(tx, orderId, items);
   }
 
+  /**
+   * Hang da chot (SALE) nhung chua roi tay khach — khach huy truoc khi shop xu ly hoac COD giao
+   * that bai — tro lai kho dung mot lan: dong RETURN unique theo (don, bien the) chan cong trung.
+   * Hang da giao roi tra lai thuoc luong doi tra, khong di qua day (ADR-038).
+   */
+  async restock(orderId: string, items: StockItem[], tx: Prisma.TransactionClient) {
+    await lockStock(tx, items);
+    const sold = await tx.stockMovement.count({ where: { orderId, movementType: 'SALE' } });
+    const returned = await tx.stockMovement.count({ where: { orderId, movementType: 'RETURN' } });
+    if (!sold || returned) return false;
+    for (const item of items) {
+      await tx.inventory.update({
+        where: { productVariantId: item.variantId },
+        data: { quantityOnHand: { increment: item.quantity } },
+      });
+      await tx.stockMovement.create({
+        data: {
+          orderId,
+          productVariantId: item.variantId,
+          movementType: 'RETURN',
+          quantityDelta: item.quantity,
+        },
+      });
+    }
+    return true;
+  }
+
   async getAvailableQuantities(
     variantIds: string[],
     transaction?: Prisma.TransactionClient,
