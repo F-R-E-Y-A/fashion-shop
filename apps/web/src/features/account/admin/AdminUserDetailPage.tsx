@@ -1,14 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useLocation, useParams } from 'react-router-dom';
 
-import { ErrorNote, Loading } from '@/ui';
+import { ConfirmDialog, ErrorNote, Loading } from '@/ui';
 
 import { ADMIN_MESSAGES, classifyAdminError, shouldRetryAdminQuery } from './admin-errors.js';
 import { formatAdminDateTime, useAdminActor, useAdminForbidden } from './admin-hooks.js';
 import { adminUserKeys, getAdminUser } from './admin-users.api.js';
 import { AdminForbidden } from './AdminForbidden.js';
 import styles from './AdminUsers.module.css';
-import { ConfirmDialog } from './ConfirmDialog.js';
 import { readListReturn } from './list-query.js';
 import { ACTION_UNAVAILABLE_REASON, userActionFor } from './user-labels.js';
 import {

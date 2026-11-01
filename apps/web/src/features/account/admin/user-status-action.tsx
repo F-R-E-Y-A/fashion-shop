@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { type ComponentProps, useEffect, useRef, useState } from 'react';
 
+import type { ConfirmDialog } from '@/ui';
+
 import { ADMIN_MESSAGES, adminErrorCode, classifyAdminError } from './admin-errors.js';
 import { adminAccessGeneration, useAdminActor } from './admin-hooks.js';
 import {
@@ -11,7 +13,6 @@ import {
   changeAdminUserStatus,
 } from './admin-users.api.js';
 import styles from './AdminUsers.module.css';
-import type { ConfirmDialog } from './ConfirmDialog.js';
 
 /** Het gio cho khoa/mo khoa. Het gio KHONG chung minh may chu chua ghi: chi cho kiem lai bang GET. */
 export const ADMIN_ACTION_TIMEOUT_MS = 15_000;
