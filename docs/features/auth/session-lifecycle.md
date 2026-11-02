@@ -1,6 +1,6 @@
 ---
 title: Tài khoản và xác thực — vòng đời phiên giữa các yêu cầu và các tab
-updated: 2026-10-18
+updated: 2026-11-02
 status: đang dùng
 owner: Tài
 ---
@@ -27,6 +27,28 @@ Sửa lỗi [Issue #43](https://github.com/F-R-E-Y-A/fashion-shop/issues/43). Ng
 | **Kênh** `BroadcastChannel('fashion-shop:auth')`, tin `{ type: 'session-changed' }`. Tin chỉ là tín hiệu "kiểm lại": tab còn giữ đúng dấu hiện tại thì bỏ qua | Tab khác giữ trạng thái của phiên đã kết thúc; tin đến muộn xóa nhầm phiên mới hơn | `holdsCurrentSession`, `session-sync.ts:94`; bên nhận `AuthProvider.tsx:189` |
 
 Dấu phiên và tin nhắn **không chứa token, id hay email**; bài kiểm thử AC8 kiểm cả hai.
+
+### Cache riêng của phiên — Issue #57, chưa merge
+
+[session-cache.ts:4](../../../apps/web/src/core/session-cache.ts#L4) định nghĩa gốc `session`;
+profile, addresses, checkout preview, đơn cá nhân và admin đặt khóa dưới gốc này. `AuthProvider`
+hủy/xóa gốc đó khi mở epoch mới ([AuthProvider.tsx:93](../../../apps/web/src/features/account/AuthProvider.tsx#L93));
+không xóa catalog hoặc địa giới công khai. Giỏ dùng chung khách vãng lai/tài khoản hiện có vòng đời riêng;
+Issue #57 không mở rộng sang cơ chế mutation của giỏ.
+
+Các trang admin tạo lại observer/state theo actor/epoch; placeholder chỉ dùng khi toàn bộ điều kiện
+giống nhau, trừ trang. 403 tăng thế hệ quyền và dọn cache admin của actor ngay trong promise qua
+[admin-hooks.ts:29](../../../apps/web/src/features/account/admin/admin-hooks.ts#L29), đồng bộ các màn qua
+`useSyncExternalStore`; không đăng xuất tài khoản khỏi cửa hàng. Response cũ không được thu hồi quyền
+hoặc ghi dữ liệu vào phiên mới. Lý do ở [ADR-041](../../LOG.md#adr-041).
+
+Mutation admin kiểm epoch/thế hệ quyền ngay trước khi phát request, không chỉ ở callback: POST bị
+TanStack hoãn lúc offline không được chạy bằng token của actor vừa đăng nhập sau đó. Hồi quy kiểm
+cả khóa, mở khóa người dùng và cập nhật đơn với `onlineManager` có kiểm soát.
+
+`admin-order-session.test.tsx` kiểm AuthProvider thật; `admin-order-races.test.tsx` kiểm thứ tự phản hồi,
+403 và chuyển phiên với backend giả. Các bài này mở rộng kiểm chứng AC6–AC7 và hợp đồng bảo vệ dùng
+chung của UC-02.1/AC6, AC8; không thay thế use case nghiệp vụ xử lý đơn hoặc HTTP test backend.
 
 ### Phân biệt sự kiện với phiên hiện tại
 

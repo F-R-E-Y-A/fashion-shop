@@ -1,18 +1,23 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '@/core';
 
-import type { AdminOrder } from './admin-orders.api.js';
+import { adminOrderKeys } from './admin-orders.api.js';
 import { AdminOrderDetailPage } from './AdminOrderDetailPage.js';
 import { AdminOrdersPage } from './AdminOrdersPage.js';
+import { base } from './test-support/order-fixture.js';
 
-const { request } = vi.hoisted(() => ({ request: vi.fn() }));
+const { request, epoch } = vi.hoisted(() => ({ request: vi.fn(), epoch: { value: 1 } }));
 vi.mock('@/features/account', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/features/account')>()),
-  useAuth: () => ({ user: { id: 'admin1' }, authenticatedRequest: request }),
+  useAuth: () => ({
+    user: { id: 'admin1' },
+    authenticatedRequest: request,
+    getSessionEpoch: () => epoch.value,
+  }),
 }));
 
 /** jsdom chua co HTMLDialogElement.showModal: stub toi thieu, khong chung minh top layer. */
@@ -29,6 +34,7 @@ beforeAll(() => {
 });
 beforeEach(() => {
   request.mockReset();
+  epoch.value = 1;
 });
 
 function show(path: string) {
@@ -45,64 +51,11 @@ function show(path: string) {
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  return client;
 }
 
 const apiError = (statusCode: number, message: string) =>
   new ApiError({ statusCode, code: 'TEST', message, path: '/x', timestamp: '' });
-
-const base: AdminOrder = {
-  id: 'o1',
-  orderCode: 'FR261031ABCD1234',
-  checkoutFingerprint: null,
-  status: 'DELIVERED',
-  paymentDueAt: null,
-  createdAt: '2026-10-31T03:00:00.000Z',
-  address: {
-    id: 'a1',
-    recipientName: 'Khách',
-    phone: '0901234567',
-    detailAddress: '1 Đường A',
-    commune: 'Phường B',
-    province: 'TP.HCM',
-  },
-  subtotalAmount: '200000.00',
-  discountAmount: '0.00',
-  shippingFeeAmount: '30000.00',
-  totalAmount: '230000.00',
-  items: [
-    {
-      variantId: 'v1',
-      quantity: 1,
-      price: '200000.00',
-      snapshot: { name: 'Áo thử', variantLabel: 'Đen / M', imageUrl: null, productSlug: 'ao' },
-    },
-  ],
-  payments: [
-    { id: 'p1', gateway: 'VNPAY', reference: 'R1', status: 'SUCCEEDED', checkoutUrl: null },
-  ],
-  userId: 'u1',
-  customerEmail: 'khach@example.test',
-  history: [{ status: 'DELIVERED', at: '2026-10-31T03:01:00.000Z', actorUserId: null }],
-  ledgers: [
-    {
-      paymentId: 'p1',
-      gateway: 'VNPAY',
-      status: 'SUCCEEDED',
-      amount: '230000.00',
-      refundedAmount: '0.00',
-      refundableAmount: '230000.00',
-      refunds: [],
-      pendingRefund: null,
-    },
-  ],
-  actions: {
-    confirmCod: false,
-    startProcessing: false,
-    cancelRefund: false,
-    markDelivered: false,
-    deliveryFailed: false,
-  },
-};
 
 describe('PH-11 quản trị đơn hàng (ADR-038)', () => {
   it('mặc định tab Cần xử lý; đổi tab gửi bộ lọc trạng thái và hiện từng dòng', async () => {
@@ -156,10 +109,13 @@ describe('PH-11 quản trị đơn hàng (ADR-038)', () => {
     });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Hoàn tiền' }));
     await waitFor(() =>
-      expect(request).toHaveBeenCalledWith('/admin/payments/p1/refund', {
-        method: 'POST',
-        body: { amount: '100000', reason: 'Thiếu phụ kiện' },
-      }),
+      expect(request).toHaveBeenCalledWith(
+        '/admin/payments/p1/refund',
+        expect.objectContaining({
+          method: 'POST',
+          body: { amount: '100000', reason: 'Thiếu phụ kiện' },
+        }),
+      ),
     );
     expect(await screen.findByText('Cổng đã xác nhận hoàn tiền.')).toBeInTheDocument();
   });
@@ -217,7 +173,7 @@ describe('PH-11 quản trị đơn hàng (ADR-038)', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Hoàn tiền VNPAY' }));
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Hoàn tiền' }));
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+    expect(await screen.findByRole('alert')).toHaveTextContent(
       /Chưa xác định được kết quả: thao tác có thể đã được thực hiện/,
     );
     expect(screen.queryByText(/Bad Gateway/)).not.toBeInTheDocument();
@@ -237,7 +193,82 @@ describe('PH-11 quản trị đơn hàng (ADR-038)', () => {
     const dialog = await screen.findByRole('dialog');
     fireEvent.click(within(dialog).getByRole('button', { name: 'Hoàn tiền' }));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent(
-      'Đang có lệnh hoàn chờ kết quả. Thông tin đơn đã được tải lại.',
+      'Đang có lệnh hoàn chờ kết quả. Hãy kiểm tra lại trạng thái đơn.',
     );
+  });
+});
+
+describe('UC-02.1/AC6, AC8 — bảo vệ dữ liệu admin dùng chung (#57)', () => {
+  it('không bắt đầu POST đã xếp hàng nếu epoch đổi trước khi mutationFn chạy', async () => {
+    request.mockResolvedValue({ ...base, actions: { ...base.actions, markDelivered: true } });
+    show('/admin/orders/o1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Đã giao' }));
+    const dialog = await screen.findByRole('dialog');
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Đã giao' }));
+      epoch.value += 1;
+    });
+    expect(request.mock.calls.filter(([, options]) => options?.method === 'POST')).toHaveLength(0);
+  });
+
+  it.each(['detail', 'list'] as const)(
+    'GET %s nhận 403 phải ẩn dữ liệu khách và xóa cache',
+    async (source) => {
+      const page = {
+        items: [
+          {
+            ...base,
+            itemCount: 1,
+            paymentStatus: 'SUCCEEDED',
+            gateway: 'VNPAY',
+            refundedAmount: '0',
+            refundPending: false,
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 20,
+        totalPages: 1,
+      };
+      request.mockResolvedValue(source === 'detail' ? base : page);
+      const client = show(source === 'detail' ? '/admin/orders/o1' : '/admin/orders');
+      await screen.findByText(base.customerEmail);
+      request.mockRejectedValue(apiError(403, 'Forbidden'));
+      await act(async () => {
+        await client.invalidateQueries({ queryKey: adminOrderKeys.all('admin1') });
+      });
+      expect(screen.queryByText(base.customerEmail)).not.toBeInTheDocument();
+      expect(
+        client
+          .getQueriesData({ queryKey: adminOrderKeys.all('admin1') })
+          .every(([, data]) => data === undefined),
+      ).toBe(true);
+      expect(screen.getByRole('heading', { name: 'Không đủ quyền truy cập' })).toBeInTheDocument();
+    },
+  );
+
+  it('UC-02.1/AC14 đổi tab không giữ dòng của tập cũ trong khi GET mới chờ', async () => {
+    request.mockResolvedValue({
+      items: [
+        {
+          ...base,
+          itemCount: 1,
+          paymentStatus: 'SUCCEEDED',
+          gateway: 'VNPAY',
+          refundedAmount: '0',
+          refundPending: false,
+        },
+      ],
+      total: 1,
+      page: 1,
+      pageSize: 20,
+      totalPages: 1,
+    });
+    show('/admin/orders?tab=delivered');
+    await screen.findByRole('link', { name: base.orderCode });
+    request.mockImplementation(() => new Promise(() => {}));
+    fireEvent.click(screen.getByRole('button', { name: 'Chờ xác nhận COD' }));
+    expect(screen.queryByRole('link', { name: base.orderCode })).not.toBeInTheDocument();
+    expect(screen.getByText('Đang tải đơn hàng…')).toBeInTheDocument();
   });
 });

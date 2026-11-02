@@ -1,9 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
-import { formatDateTime, formatPrice, shouldRetryRequest } from '@/core';
-import { useAuth } from '@/features/account';
+import { classifyRequestError, formatDateTime, formatPrice } from '@/core';
+import {
+  adminAccessGeneration,
+  AdminForbidden,
+  SessionChangedError,
+  shouldRetryAdminQuery,
+  useAdminForbidden,
+  useAuth,
+} from '@/features/account';
 import { ConfirmDialog, ErrorNote, Loading } from '@/ui';
 
 import { orderBadges, orderStatuses } from '../types.js';
@@ -26,55 +33,115 @@ type Dialog =
 
 /** /admin/orders/:id — chi tiet don va cac thao tac shop (ADR-036, ADR-038). */
 export function AdminOrderDetailPage() {
+  const { user, getSessionEpoch } = useAuth();
   const { id = '' } = useParams();
-  const { user, authenticatedRequest: request } = useAuth();
+  return <AdminOrderDetail key={`${user?.id}:${getSessionEpoch()}:${id}`} />;
+}
+
+function AdminOrderDetail() {
+  const { id = '' } = useParams();
+  const { user, authenticatedRequest: request, getSessionEpoch } = useAuth();
+  const actorId = user?.id ?? '';
+  const { forbidden, markForbidden, guardQuery } = useAdminForbidden(actorId, getSessionEpoch);
   const client = useQueryClient();
-  const key = adminOrderKeys.detail(user!.id, id);
+  const key = adminOrderKeys.detail(actorId, id);
   const result = useQuery({
     queryKey: key,
-    queryFn: () => request<AdminOrder>(`/admin/orders/${id}`),
-    retry: shouldRetryRequest,
+    queryFn: ({ signal }) =>
+      guardQuery(() => request<AdminOrder>(`/admin/orders/${id}`, { signal })),
+    enabled: Boolean(actorId) && !forbidden,
+    retry: shouldRetryAdminQuery,
   });
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [amount, setAmount] = useState('');
   const [text, setText] = useState('');
   const [outcome, setOutcome] = useState<'SUCCEEDED' | 'FAILED'>('FAILED');
   const [notice, setNotice] = useState('');
+  const [needsRecheck, setNeedsRecheck] = useState(false);
+  const submitting = useRef(false);
+  type Variables = { current: Dialog; epoch: number; access: number };
+  const stillCurrent = (variables: Variables) =>
+    getSessionEpoch() === variables.epoch &&
+    adminAccessGeneration(client, actorId) === variables.access;
+  const refresh = async (variables: Variables) => {
+    if (!stillCurrent(variables)) return;
+    await client.cancelQueries({ queryKey: adminOrderKeys.all(actorId) });
+    if (stillCurrent(variables))
+      await client.invalidateQueries({ queryKey: adminOrderKeys.all(actorId) });
+  };
   const action = useMutation({
-    mutationFn: (current: Dialog) => {
+    mutationFn: async (variables: Variables) => {
+      if (!stillCurrent(variables)) throw new SessionChangedError();
+      const { current } = variables;
+      const controller = new AbortController();
+      const timer = setTimeout(
+        () => controller.abort(new DOMException('Hết giờ chờ phản hồi', 'TimeoutError')),
+        15_000,
+      );
       const post = (path: string, body?: object) =>
-        request<unknown>(path, { method: 'POST', ...(body ? { body } : {}) });
-      switch (current.kind) {
-        case 'confirmCod':
-          return post(`/admin/orders/${id}/confirm-cod`);
-        case 'startProcessing':
-          return post(`/admin/orders/${id}/start-processing`);
-        case 'cancelRefund':
-          return post(`/admin/orders/${id}/cancel-refund`, { reason: text.trim() });
-        case 'markDelivered':
-          return post(`/admin/orders/${id}/delivered`);
-        case 'deliveryFailed':
-          return post(`/admin/orders/${id}/delivery-failed`, { reason: text.trim() });
-        case 'refund':
-          return post(`/admin/payments/${current.ledger.paymentId}/refund`, {
-            ...(amount.trim() ? { amount: amount.trim() } : {}),
-            ...(text.trim() ? { reason: text.trim() } : {}),
-          });
-        case 'resolve':
-          return post(`/admin/payments/${current.ledger.paymentId}/refund/resolve`, {
-            outcome,
-            note: text.trim(),
-          });
+        request<unknown>(path, {
+          method: 'POST',
+          signal: controller.signal,
+          ...(body ? { body } : {}),
+        });
+      try {
+        switch (current.kind) {
+          case 'confirmCod':
+            return await post(`/admin/orders/${id}/confirm-cod`);
+          case 'startProcessing':
+            return await post(`/admin/orders/${id}/start-processing`);
+          case 'cancelRefund':
+            return await post(`/admin/orders/${id}/cancel-refund`, { reason: text.trim() });
+          case 'markDelivered':
+            return await post(`/admin/orders/${id}/delivered`);
+          case 'deliveryFailed':
+            return await post(`/admin/orders/${id}/delivery-failed`, { reason: text.trim() });
+          case 'refund':
+            return await post(`/admin/payments/${current.ledger.paymentId}/refund`, {
+              ...(amount.trim() ? { amount: amount.trim() } : {}),
+              ...(text.trim() ? { reason: text.trim() } : {}),
+            });
+          case 'resolve':
+            return await post(`/admin/payments/${current.ledger.paymentId}/refund/resolve`, {
+              outcome,
+              note: text.trim(),
+            });
+        }
+      } finally {
+        clearTimeout(timer);
       }
     },
-    onSuccess: (_data, current) => {
-      setNotice(DONE[current.kind]);
+    retry: 0,
+    onSuccess: async (_data, variables) => {
+      await refresh(variables);
+      if (!stillCurrent(variables)) return;
+      setNeedsRecheck(client.getQueryState(key)?.status !== 'success');
+      setNotice(DONE[variables.current.kind]);
       setDialog(null);
     },
-    // Ke ca loi (vd cong khong tra loi nhung lenh da ghi): doc lai trang thai that tu may chu.
-    onSettled: () => void client.invalidateQueries({ queryKey: adminOrderKeys.all(user!.id) }),
+    onError: async (error, variables) => {
+      if (!stillCurrent(variables) || error instanceof SessionChangedError) return;
+      if (classifyRequestError(error, 'mutation') === 'forbidden') {
+        markForbidden();
+        setDialog(null);
+        return;
+      }
+      await refresh(variables);
+      if (!stillCurrent(variables)) return;
+      setNeedsRecheck(client.getQueryState(key)?.status !== 'success');
+      // Không giữ ảnh chụp ledger trong hộp cũ khi chưa biết POST đã ghi gì trên máy chủ.
+      if (
+        classifyRequestError(error, 'mutation') === 'unknown' ||
+        client.getQueryState(key)?.status !== 'success'
+      )
+        setDialog(null);
+    },
+    onSettled: () => {
+      submitting.current = false;
+    },
   });
   const open = (next: Dialog) => {
+    if (submitting.current || forbidden || needsRecheck) return;
     action.reset();
     setNotice('');
     setText('');
@@ -89,6 +156,28 @@ export function AdminOrderDetailPage() {
     dialog?.kind === 'cancelRefund'
       ? !text.trim()
       : false;
+
+  if (forbidden) return <AdminForbidden />;
+
+  const recheck = needsRecheck && (
+    <div className={styles.notice} data-tone="warning" role="alert">
+      <p>Chưa đọc lại được trạng thái đơn. Kiểm tra lại trước khi thao tác tiếp.</p>
+      <button
+        type="button"
+        className={styles.secondary}
+        disabled={result.isFetching}
+        onClick={async () => {
+          const variables = action.variables;
+          if (!variables) return;
+          await refresh(variables);
+          if (stillCurrent(variables) && client.getQueryState(key)?.status === 'success')
+            setNeedsRecheck(false);
+        }}
+      >
+        Kiểm tra lại trạng thái
+      </button>
+    </div>
+  );
 
   return (
     <div className={styles.page}>
@@ -128,6 +217,7 @@ export function AdminOrderDetailPage() {
               {adminOrderErrorText(action.error, 'mutation')}
             </p>
           )}
+          {!dialog && recheck}
 
           <div className={styles.detailGrid}>
             <div className={styles.column}>
@@ -140,6 +230,7 @@ export function AdminOrderDetailPage() {
                     <button
                       type="button"
                       className={styles.primaryButton}
+                      disabled={action.isPending || needsRecheck}
                       onClick={() => open({ kind: 'confirmCod' })}
                     >
                       Xác nhận và giao COD
@@ -149,6 +240,7 @@ export function AdminOrderDetailPage() {
                     <button
                       type="button"
                       className={styles.primaryButton}
+                      disabled={action.isPending || needsRecheck}
                       onClick={() => open({ kind: 'startProcessing' })}
                     >
                       Bắt đầu xử lý
@@ -158,6 +250,7 @@ export function AdminOrderDetailPage() {
                     <button
                       type="button"
                       className={styles.dangerButton}
+                      disabled={action.isPending || needsRecheck}
                       onClick={() => open({ kind: 'cancelRefund' })}
                     >
                       Hủy và hoàn tiền
@@ -167,6 +260,7 @@ export function AdminOrderDetailPage() {
                     <button
                       type="button"
                       className={styles.primaryButton}
+                      disabled={action.isPending || needsRecheck}
                       onClick={() => open({ kind: 'markDelivered' })}
                     >
                       {titleOf({ kind: 'markDelivered' }, order)}
@@ -176,6 +270,7 @@ export function AdminOrderDetailPage() {
                     <button
                       type="button"
                       className={styles.dangerButton}
+                      disabled={action.isPending || needsRecheck}
                       onClick={() => open({ kind: 'deliveryFailed' })}
                     >
                       Giao thất bại
@@ -187,6 +282,7 @@ export function AdminOrderDetailPage() {
                         <button
                           type="button"
                           className={styles.dangerButton}
+                          disabled={action.isPending || needsRecheck}
                           onClick={() => open({ kind: 'refund', ledger })}
                         >
                           Hoàn tiền {gatewayLabel(ledger.gateway)}
@@ -196,6 +292,7 @@ export function AdminOrderDetailPage() {
                         <button
                           type="button"
                           className={styles.secondary}
+                          disabled={action.isPending || needsRecheck}
                           onClick={() => open({ kind: 'resolve', ledger })}
                         >
                           Chốt lệnh hoàn
@@ -360,7 +457,13 @@ export function AdminOrderDetailPage() {
               pending={action.isPending}
               onClose={() => setDialog(null)}
               onConfirm={() => {
-                if (!needsText) action.mutate(dialog);
+                if (needsText || needsRecheck || submitting.current) return;
+                submitting.current = true;
+                action.mutate({
+                  current: dialog,
+                  epoch: getSessionEpoch(),
+                  access: adminAccessGeneration(client, actorId),
+                });
               }}
             >
               {dialog.kind === 'refund' && (

@@ -105,8 +105,23 @@ describe('UC-02.1 Quản trị tài khoản: luật thuần của giao diện', 
 
   it('UC-02.1/AC8 query key gắn actorId, nhánh gốc chung để AuthProvider xóa khi đổi phiên', () => {
     const page2 = { ...DEFAULT_USER_LIST_QUERY, page: 2 };
-    expect(adminUserKeys.list('a', page2)).toEqual(['admin-users', 'a', 'list', '', 2]);
-    expect(adminUserKeys.detail('a', 'u')).toEqual(['admin-users', 'a', 'detail', 'u']);
-    expect(adminUserKeys.list('a', page2)[1]).not.toBe(adminUserKeys.list('b', page2)[1]);
+    expect(adminUserKeys.list('a', page2)).toEqual([
+      'session',
+      'admin',
+      'users',
+      'a',
+      'list',
+      '',
+      2,
+    ]);
+    expect(adminUserKeys.detail('a', 'u')).toEqual([
+      'session',
+      'admin',
+      'users',
+      'a',
+      'detail',
+      'u',
+    ]);
+    expect(adminUserKeys.actor('a')).not.toEqual(adminUserKeys.actor('b'));
   });
 });

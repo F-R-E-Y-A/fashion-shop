@@ -1,9 +1,14 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { type FormEvent, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 
-import { formatDateTime, formatPrice, shouldRetryRequest } from '@/core';
-import { useAuth } from '@/features/account';
+import { formatDateTime, formatPrice, samePaginatedQuery } from '@/core';
+import {
+  AdminForbidden,
+  shouldRetryAdminQuery,
+  useAdminForbidden,
+  useAuth,
+} from '@/features/account';
 import { Empty, ErrorNote, Loading, Pager } from '@/ui';
 
 import { orderBadges } from '../types.js';
@@ -25,17 +30,28 @@ const isTab = (value: string | null): value is OrderTab =>
 
 /** /admin/orders: don moi khach theo tab trang thai, tim ma don/email, phan trang (ADR-038). */
 export function AdminOrdersPage() {
-  const { user, authenticatedRequest: request } = useAuth();
+  const { user, getSessionEpoch } = useAuth();
+  return <AdminOrders key={`${user?.id}:${getSessionEpoch()}`} />;
+}
+
+function AdminOrders() {
+  const { user, authenticatedRequest: request, getSessionEpoch } = useAuth();
+  const actorId = user?.id ?? '';
+  const { forbidden, guardQuery } = useAdminForbidden(actorId, getSessionEpoch);
   const [params, setParams] = useSearchParams();
   const tab: OrderTab = isTab(params.get('tab')) ? (params.get('tab') as OrderTab) : 'attention';
   const q = params.get('q') ?? '';
   const page = Math.max(1, Number(params.get('page')) || 1);
   const [draft, setDraft] = useState(q);
+  const key = adminOrderKeys.list(actorId, tab, q, page);
   const result = useQuery({
-    queryKey: adminOrderKeys.list(user!.id, tab, q, page),
-    queryFn: () => request<AdminOrderPage>(listPath(tab, q, page)),
-    placeholderData: keepPreviousData,
-    retry: shouldRetryRequest,
+    queryKey: key,
+    queryFn: ({ signal }) =>
+      guardQuery(() => request<AdminOrderPage>(listPath(tab, q, page), { signal })),
+    enabled: Boolean(actorId) && !forbidden,
+    placeholderData: (previous, previousQuery) =>
+      previousQuery && samePaginatedQuery(previousQuery.queryKey, key) ? previous : undefined,
+    retry: shouldRetryAdminQuery,
   });
   const update = (next: { tab?: OrderTab; q?: string; page?: number }) => {
     const merged = new URLSearchParams();
@@ -51,6 +67,7 @@ export function AdminOrdersPage() {
     update({ q: draft.trim() });
   };
   const data = result.data;
+  if (forbidden) return <AdminForbidden />;
   return (
     <div className={styles.page}>
       <header className={styles.header}>

@@ -18,11 +18,17 @@ import {
 import { RoleList, StatusBadge } from './UserBadges.js';
 
 export function AdminUserDetailPage() {
+  const { actorId, getSessionEpoch } = useAdminActor();
+  const { id = '' } = useParams();
+  return <AdminUserDetail key={`${actorId}:${getSessionEpoch()}:${id}`} />;
+}
+
+function AdminUserDetail() {
   const { id = '' } = useParams();
   const location = useLocation();
   const backTo = readListReturn(location.state);
-  const { actorId, request } = useAdminActor();
-  const { forbidden, markForbidden, guardQuery } = useAdminForbidden(actorId);
+  const { actorId, request, getSessionEpoch } = useAdminActor();
+  const { forbidden, markForbidden, guardQuery } = useAdminForbidden(actorId, getSessionEpoch);
   const action = useUserStatusAction({ actorId, markForbidden });
 
   const detail = useQuery({

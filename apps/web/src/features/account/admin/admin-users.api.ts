@@ -1,4 +1,4 @@
-import type { Page } from '@/core';
+import { type Page, sessionQueryKeys } from '@/core';
 
 import type { AuthenticatedRequest } from '../api/profile-address.api.js';
 import { userListApiParams, type UserListQuery, userListSignature } from './list-query.js';
@@ -23,7 +23,7 @@ export type AdminUserAction = 'lock' | 'unlock';
  * Key danh sach = actor + chu ky dieu kien da chuan hoa (moi tham so tru trang) + trang.
  */
 export const adminUserKeys = {
-  all: ['admin-users'] as const,
+  all: sessionQueryKeys.adminResource('users'),
   actor: (actorId: string) => [...adminUserKeys.all, actorId] as const,
   lists: (actorId: string) => [...adminUserKeys.actor(actorId), 'list'] as const,
   list: (actorId: string, query: UserListQuery) =>

@@ -1,3 +1,6 @@
+export { shouldRetryAdminQuery } from './admin/admin-errors.js';
+export { adminAccessGeneration, useAdminForbidden } from './admin/admin-hooks.js';
+export { AdminForbidden } from './admin/AdminForbidden.js';
 export { AdminUserDetailPage } from './admin/AdminUserDetailPage.js';
 export { AdminUsersPage } from './admin/AdminUsersPage.js';
 export { hasAdminRole } from './admin/user-labels.js';

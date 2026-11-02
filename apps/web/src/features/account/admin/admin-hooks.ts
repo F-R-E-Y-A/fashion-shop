@@ -1,9 +1,11 @@
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useState } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
+
+import { isAdminQueryForActor } from '@/core';
 
 import { useAuth } from '../AuthProvider.js';
+import { SessionChangedError } from '../session-sync.js';
 import { classifyAdminError } from './admin-errors.js';
-import { adminUserKeys } from './admin-users.api.js';
 
 /** Quan tri vien dang thao tac: id la phan cua moi query key, request di qua authenticatedRequest. */
 export function useAdminActor() {
@@ -17,45 +19,75 @@ export function useAdminActor() {
  * vua bi xoa. Nam ngoai React vi mutation giu closure luc bam va trang co the da unmount.
  */
 const accessGenerations = new WeakMap<QueryClient, Map<string, number>>();
+const forbiddenEpochs = new WeakMap<QueryClient, Map<string, number>>();
+const listeners = new WeakMap<QueryClient, Set<() => void>>();
 
 export function adminAccessGeneration(queryClient: QueryClient, actorId: string): number {
   return accessGenerations.get(queryClient)?.get(actorId) ?? 0;
 }
 
-function revokeAdminAccess(queryClient: QueryClient, actorId: string) {
+function revokeAdminAccess(queryClient: QueryClient, actorId: string, epoch: number) {
   const generations = accessGenerations.get(queryClient) ?? new Map<string, number>();
   generations.set(actorId, adminAccessGeneration(queryClient, actorId) + 1);
   accessGenerations.set(queryClient, generations);
+  const epochs = forbiddenEpochs.get(queryClient) ?? new Map<string, number>();
+  epochs.set(actorId, epoch);
+  forbiddenEpochs.set(queryClient, epochs);
+  const filters = {
+    predicate: (query: Parameters<typeof isAdminQueryForActor>[0]) =>
+      isAdminQueryForActor(query, actorId),
+  };
+  void queryClient.cancelQueries(filters);
+  queryClient.removeQueries(filters);
+  for (const notify of listeners.get(queryClient) ?? []) notify();
 }
 
 /**
  * May chu tra 403 giua phien (vai ADMIN vua bi go): ghi nho cho actor nay, ngung query va xoa moi
  * du lieu quan tri cua actor. Khong dang xuat tai khoan: chi khu quan tri bi dong.
  */
-export function useAdminForbidden(actorId: string) {
+export function useAdminForbidden(actorId: string, getSessionEpoch: () => number) {
   const queryClient = useQueryClient();
-  const [forbiddenFor, setForbiddenFor] = useState<string | null>(null);
+  const epoch = getSessionEpoch();
+  const subscribe = useCallback(
+    (notify: () => void) => {
+      const callbacks = listeners.get(queryClient) ?? new Set<() => void>();
+      callbacks.add(notify);
+      listeners.set(queryClient, callbacks);
+      return () => {
+        callbacks.delete(notify);
+      };
+    },
+    [queryClient],
+  );
+  const snapshot = () => forbiddenEpochs.get(queryClient)?.get(actorId) === epoch;
+  const forbidden = useSyncExternalStore(subscribe, snapshot, snapshot);
   const markForbidden = useCallback(() => {
-    revokeAdminAccess(queryClient, actorId);
-    setForbiddenFor(actorId);
-    void queryClient.cancelQueries({ queryKey: adminUserKeys.actor(actorId) });
-    queryClient.removeQueries({ queryKey: adminUserKeys.actor(actorId) });
-  }, [actorId, queryClient]);
+    if (getSessionEpoch() === epoch) revokeAdminAccess(queryClient, actorId, epoch);
+  }, [actorId, epoch, getSessionEpoch, queryClient]);
   // Chốt mất quyền ngay trong chuỗi promise, trước khi React kịp render/effect. Nếu chờ
   // effect đọc query.error, POST về sát 403 có thể xóa lỗi đó bằng setQueryData.
   const guardQuery = useCallback(
     async <T>(read: () => Promise<T>): Promise<T> => {
+      const access = adminAccessGeneration(queryClient, actorId);
+      const current = () =>
+        getSessionEpoch() === epoch && adminAccessGeneration(queryClient, actorId) === access;
+      if (!current() || forbiddenEpochs.get(queryClient)?.get(actorId) === epoch)
+        throw new SessionChangedError();
       try {
-        return await read();
+        const result = await read();
+        if (!current()) throw new SessionChangedError();
+        return result;
       } catch (error) {
+        if (!current()) throw new SessionChangedError();
         if (classifyAdminError(error, 'detail') === 'forbidden') markForbidden();
         throw error;
       }
     },
-    [markForbidden],
+    [actorId, epoch, getSessionEpoch, markForbidden, queryClient],
   );
   return {
-    forbidden: forbiddenFor !== null && forbiddenFor === actorId,
+    forbidden,
     markForbidden,
     guardQuery,
   };

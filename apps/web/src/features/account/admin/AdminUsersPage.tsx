@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 
+import { samePaginatedQuery } from '@/core';
 import { ConfirmDialog, Empty, ErrorNote, Loading, Pager } from '@/ui';
 
 import { ADMIN_MESSAGES, classifyAdminError, shouldRetryAdminQuery } from './admin-errors.js';
@@ -18,7 +19,6 @@ import {
   serializeUserListQuery,
   USER_PAGE_SIZES,
   type UserListQuery,
-  userListSignature,
   usersListPath,
 } from './list-query.js';
 import { ACTION_UNAVAILABLE_REASON, userActionFor } from './user-labels.js';
@@ -74,8 +74,13 @@ function RowAction({
 }
 
 export function AdminUsersPage() {
-  const { actorId, request } = useAdminActor();
-  const { forbidden, markForbidden, guardQuery } = useAdminForbidden(actorId);
+  const { actorId, getSessionEpoch } = useAdminActor();
+  return <AdminUsers key={`${actorId}:${getSessionEpoch()}`} />;
+}
+
+function AdminUsers() {
+  const { actorId, request, getSessionEpoch } = useAdminActor();
+  const { forbidden, markForbidden, guardQuery } = useAdminForbidden(actorId, getSessionEpoch);
   const action = useUserStatusAction({ actorId, markForbidden });
   const location = useLocation();
   const navigate = useNavigate();
@@ -89,7 +94,6 @@ export function AdminUsersPage() {
     setDraft(query.q);
   }
   const needsCanonical = canonical !== location.search;
-  const signature = userListSignature(query);
   const filtered = hasUserListFilters(query);
 
   const users = useQuery({
@@ -100,7 +104,8 @@ export function AdminUsersPage() {
     // Giu trang cu CHI khi cung actor va cung dieu kien, chi khac trang: doi bo loc thi hien dang tai,
     // khong de tap cu nhay duoi bo loc moi; khong bao gio muon du lieu cua actor khac.
     placeholderData: (previous, previousQuery) =>
-      previousQuery?.queryKey[1] === actorId && previousQuery.queryKey[3] === signature
+      previousQuery &&
+      samePaginatedQuery(previousQuery.queryKey, adminUserKeys.list(actorId, query))
         ? previous
         : undefined,
   });
