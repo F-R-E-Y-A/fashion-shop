@@ -1,4 +1,4 @@
-import { apiGet, type ApiRequestOptions } from '@/core';
+import { apiGet, type ApiRequestOptions, sessionQueryKeys } from '@/core';
 
 /** Dung authenticatedRequest cua AuthProvider de giu co che refresh khi access token het han. */
 export type AuthenticatedRequest = <T>(
@@ -56,12 +56,12 @@ export interface CreateAddressInput {
 export type UpdateAddressInput = Partial<CreateAddressInput>;
 
 export const profileKeys = {
-  all: ['profile'] as const,
+  all: sessionQueryKeys.scope('profile'),
   current: (userId: string) => [...profileKeys.all, userId] as const,
 };
 
 export const addressKeys = {
-  all: ['addresses'] as const,
+  all: sessionQueryKeys.scope('addresses'),
   list: (userId: string) => [...addressKeys.all, userId] as const,
 };
 

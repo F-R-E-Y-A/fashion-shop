@@ -3,6 +3,7 @@ import { type ComponentProps, useEffect, useRef, useState } from 'react';
 
 import type { ConfirmDialog } from '@/ui';
 
+import { SessionChangedError } from '../session-sync.js';
 import { ADMIN_MESSAGES, adminErrorCode, classifyAdminError } from './admin-errors.js';
 import { adminAccessGeneration, useAdminActor } from './admin-hooks.js';
 import {
@@ -119,7 +120,9 @@ export function useUserStatusAction({
   };
 
   const mutation = useMutation({
-    mutationFn: async ({ target }: ActionVariables) => {
+    mutationFn: async (variables: ActionVariables) => {
+      if (!stillCurrent(variables)) throw new SessionChangedError();
+      const { target } = variables;
       const controller = new AbortController();
       const timer = setTimeout(
         () => controller.abort(new DOMException('Het gio cho phan hoi', 'TimeoutError')),

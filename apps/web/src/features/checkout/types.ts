@@ -1,3 +1,5 @@
+import { sessionQueryKeys } from '@/core';
+
 export type GatewayCode = 'VNPAY' | 'MOMO' | 'MOMO_ATM' | 'COD';
 export interface GatewayOption {
   code: GatewayCode;
@@ -38,8 +40,13 @@ export interface Quote {
   pendingOrder?: { id: string; orderCode: string } | null;
 }
 export const checkoutKeys = {
-  all: ['checkout'] as const,
-  preview: (userId: string, addressId: string) => ['checkout', userId, addressId] as const,
+  all: sessionQueryKeys.scope('checkout'),
+  preview: (userId: string, addressId: string) => [...checkoutKeys.all, userId, addressId] as const,
+};
+export const orderKeys = {
+  all: sessionQueryKeys.scope('orders'),
+  detail: (userId: string, id: string) => [...orderKeys.all, userId, id] as const,
+  list: (userId: string) => [...orderKeys.all, userId, 'list'] as const,
 };
 export interface OrderView {
   checkoutFingerprint: string | null;
