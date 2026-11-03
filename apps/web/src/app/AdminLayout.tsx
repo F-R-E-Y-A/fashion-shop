@@ -38,6 +38,9 @@ export function AdminLayout() {
           <NavLink to="/admin" end className={navClass}>
             Tổng quan
           </NavLink>
+          <NavLink to="/admin/products" className={navClass}>
+            Sản phẩm
+          </NavLink>
           <NavLink to="/admin/users" className={navClass}>
             Người dùng
           </NavLink>

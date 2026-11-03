@@ -1,6 +1,6 @@
 ---
 title: Khám phá sản phẩm — bản đồ và kế hoạch PH-01
-updated: 2026-10-18
+updated: 2026-11-03
 status: đang làm
 owner: Bảo
 ---
@@ -52,7 +52,7 @@ Bảng dưới giữ kế hoạch của S2; trạng thái tích hợp hiện t�
 
 Sơ đồ, từng cột, ràng buộc và chỉ mục ở [erd.md](erd.md); lý do ở [ADR-007](LOG.md#adr-007). Tóm tắt: **biến thể là đơn vị bán**, mỗi biến thể một màu, một cỡ, một mã hàng, một giá; màu, cỡ, thương hiệu là bảng tra cứu; ảnh gắn với sản phẩm, có thể gắn với một màu; `products.price_from` giữ giá thấp nhất để sắp xếp theo giá. Giỏ hàng và tồn kho của Duy trỏ khoá ngoại vào `product_variants.id`.
 
-`prisma/seed/catalog.seed.ts:51` chỉ upsert danh mục, thương hiệu, màu và cỡ; sản phẩm giả dành cho kiểm thử nằm trong `apps/api/test/fixtures/catalog-products.ts` và `apps/web/src/features/products/test-support/catalog-fixtures.ts`. Dữ liệu thật đi qua staging và `importProducts`, theo mục bên dưới. Không coi `npm run setup` là bước nạp sản phẩm.
+`prisma/seed/catalog.seed.ts#L51` chỉ upsert danh mục, thương hiệu, màu và cỡ; sản phẩm giả dành cho kiểm thử nằm trong `apps/api/test/fixtures/catalog-products.ts` và `apps/web/src/features/products/test-support/catalog-fixtures.ts`. Dữ liệu thật đi qua staging và `importProducts`, theo mục bên dưới. Không coi `npm run setup` là bước nạp sản phẩm.
 
 ## API
 
@@ -167,11 +167,11 @@ Tên bài theo `UC-NN.m/ACk` ([testing.md](../../shared/testing.md)). Kiểm th�
 
 ## Trạng thái hôm nay (04/10/2026)
 
-**Đợt 2 đã vào `develop`** qua PR #28 tại `ee46445` ngày 03/10; Issue #23 đã đóng. Đã có tìm kiếm hiểu câu tiếng Việt bằng luật/từ điển, facets, gợi ý, trang `/tim-kiem`, bộ lọc chung và trang chủ mới (`apps/api/src/modules/products/search/catalog-search.service.ts:130`, `apps/web/src/app/routes.tsx:43`). Đây là query understanding theo luật; chưa cài embedding hoặc LLM runtime.
+**Đợt 2 đã vào `develop`** qua PR #28 tại `ee46445` ngày 03/10; Issue #23 đã đóng. Đã có tìm kiếm hiểu câu tiếng Việt bằng luật/từ điển, facets, gợi ý, trang `/tim-kiem`, bộ lọc chung và trang chủ mới (`apps/api/src/modules/products/search/catalog-search.service.ts#L130`, `apps/web/src/app/routes.tsx#L43`). Đây là query understanding theo luật; chưa cài embedding hoặc LLM runtime.
 
 **Kiểm chứng 04/10:** `npm.cmd run check` exit 0 tại `33f323c` (nhánh sửa header): API 259 pass, web 136 pass, crawler 50 pass/1 skip. Năm dòng stdout cuối: `ℹ fail 0` / `ℹ cancelled 0` / `ℹ skipped 1` / `ℹ todo 0` / `ℹ duration_ms 592.0993`. CI PR #28 trên `1809122` có 281 HTTP test pass trong 13 file; `gh pr checks 28 --json name,state,link` trả sáu gate `SUCCESS`. Không cộng các số này thành số test riêng của Bảo.
 
-**Còn mở:** PR #31 sửa header ở màn hẹp, hero và chữ thương hiệu; mã nằm ở `bugfix/header-brand-text@33f323c`, CI thành công nhưng chưa gộp ngày 04/10. Bộ nhận diện F.R.E.Y.A. đã được bàn giao ở workspace `work/branding/freya-brand-kit-v1/`. Cuối phiên 04/10 đã thấy asset trong `apps/web/public/images/brand/freya/` và thương hiệu/slogan mới tại `core/brand.ts:2`, `:5`, nối vào `StoreLayout.tsx:60`, `:108`; đây là thay đổi local chưa commit, cần nghiệm thu riêng. Kết quả check nêu trên được chạy trước các thay đổi nhận diện này. ADR-019 và ADR-020 vẫn **đề xuất**. Số đo hiệu năng/Lighthouse ngày 30/09 là mốc lịch sử, chưa đo lại ở commit hiện tại.
+**Còn mở:** PR #31 sửa header ở màn hẹp, hero và chữ thương hiệu; mã nằm ở `bugfix/header-brand-text@33f323c`, CI thành công nhưng chưa gộp ngày 04/10. Bộ nhận diện F.R.E.Y.A. đã được bàn giao ở workspace `work/branding/freya-brand-kit-v1/`. Cuối phiên 04/10 đã thấy asset trong `apps/web/public/images/brand/freya/` và thương hiệu/slogan mới tại `core/brand.ts#L2`, `:5`, nối vào `StoreLayout.tsx#L60`, `:108`; đây là thay đổi local chưa commit, cần nghiệm thu riêng. Kết quả check nêu trên được chạy trước các thay đổi nhận diện này. ADR-019 và ADR-020 vẫn **đề xuất**. Số đo hiệu năng/Lighthouse ngày 30/09 là mốc lịch sử, chưa đo lại ở commit hiện tại.
 
 ### Trạng thái 27/09/2026
 
@@ -189,3 +189,25 @@ Kiểm tra: `npm run check` exit 0 (API unit 28/28, web 27/27, crawler 50 pass, 
 | Có lưu "đã xem gần đây" không (câu 4) | Có, lưu ở trình duyệt, không cần bảng; có thể trượt S3 | Bảo |
 | Hiện tồn kho trên trang chi tiết | Chờ Duy công bố hàm đọc tồn kho theo `variantId` | Duy |
 | Hệ màu và thang chữ | Đề xuất ở [ADR-020](LOG.md#adr-020) | Bảo |
+
+
+## Quản trị catalog chỉ đọc — Issue #63
+
+Tài triển khai lát đọc UC-04.2 theo [đặc tả đề xuất](use-cases.md#uc-042--quản-lý-thông-tin-sản-phẩm--lát-đọc-issue-63).
+Bản triển khai trên nhánh `feature/ph-03-admin-catalog`, nền develop `8fe405e`;
+trạng thái review theo [Issue #63](https://github.com/F-R-E-Y-A/fashion-shop/issues/63).
+[AdminProductsController](../../../apps/api/src/modules/products/admin-products.controller.ts#L27)
+kiểm ADMIN qua AuthModule; [service](../../../apps/api/src/modules/products/admin-products.service.ts#L70)
+đọc cả bản ghi ẩn, tách khỏi storefront. Hình dạng HTTP theo Swagger nhóm `admin-products`.
+Không đổi schema, hợp đồng import/public index hoặc ghi bảng qua luồng đọc.
+
+[Danh sách](../../../apps/web/src/features/products/admin/AdminCatalogPage.tsx#L22) và
+[chi tiết](../../../apps/web/src/features/products/admin/AdminCatalogDetailPage.tsx#L16) giữ điều kiện URL,
+dùng authenticatedRequest/guardQuery và cache session/admin/products/actor.
+Tổng quan giữ AdminProductsPage cũ; route mới là `/admin/products` và `/admin/products/:id`.
+Danh sách có q tên/SKU, cờ hoạt động, sắp xếp, phân trang; không coi isActive là đảm bảo bán được.
+
+PR #60 shell chưa merge tại lúc bắt đầu; kiểm ghép UI riêng và đối chiếu lại sau merge.
+Check/build/HTTP/docs lint và QA được định danh bằng commit/patch trong báo cáo ở kho docs;
+không coi kết quả local là CI đã đạt. Quyết định [ADR-044](LOG.md#adr-044) vẫn đề xuất.
+Tạo/sửa/ngừng bán, biến thể/ảnh và danh mục thuộc đợt sau; Tài đã chọn giữ dữ liệu, không xóa cứng.

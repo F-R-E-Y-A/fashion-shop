@@ -376,3 +376,26 @@ Sua: `storefrontProductInclude.images` kem ten mau va nho lay 12 anh; `toProduct
 Hai hàm public đọc biến thể nhận thêm transaction tuỳ chọn để Cart không phải đọc bằng connection riêng sau commit; caller cũ không truyền tham số vẫn tương thích ([products.service.ts:343](../../../apps/api/src/modules/products/products.service.ts#L343)). Giá list/sale hiện tại được dùng cả ở thẻ sản phẩm và bộ máy tìm kiếm. Catalog đọc tồn qua Inventory; chưa ghép điều kiện tồn vào bộ lọc cỡ ND-14.
 
 Trang chi tiết đã gọi Cart khi chọn được biến thể. SSE chỉ gửi revision để frontend tải lại các query đang mở; background refetch kết quả tìm kiếm không ghi thêm lượt tìm của khách. Phương án và trade-off ở [ADR-031](../../LOG.md#adr-031). Không tích hợp PR #41 hoặc giả lập tồn kho trên database cửa hàng.
+
+
+<a id="adr-044"></a>
+## ADR-044 · API catalog quản trị chỉ đọc độc lập điều kiện storefront
+
+**Trạng thái:** đề xuất · **Ngày:** 2026-11-03 · **Người đề xuất:** Tài (AI hỗ trợ).
+
+**Bối cảnh:** Issue #63 cần xem sản phẩm/biến thể/danh mục ẩn. API công khai lọc theo điều kiện hiển thị;
+nới cùng API sẽ làm lộ dữ liệu ẩn. Actor MVP là ADMIN hiện có, không thêm STAFF từ bản nháp use case.
+
+**Phương án:** controller/service/DTO admin riêng trong module products, RequireRoles ở class,
+import AuthModule qua public index. Select allowlist, Decimal thành chuỗi; query tên HOẶC SKU dùng
+relation some để không trùng product. Escape LIKE wildcard và count/rows trong snapshot RepeatableRead.
+Giới hạn page 100000 để chặn skip quá lớn; pageSize tối đa 60 theo chuẩn.
+
+**Đánh đổi:** thêm hai DTO đọc và một luồng truy vấn riêng phải duy trì, nhưng public catalog/import
+không đổi hợp đồng. Không lấy stock/KPI hoặc ghi log tìm kiếm storefront; không thêm migration/index
+khi chưa có số đo. Frontend dùng session cache/403 chung, không tạo cơ chế phiên riêng.
+
+**Thực tế:** mã và test ở nhánh `feature/ph-03-admin-catalog`, nền `8fe405e`;
+trạng thái review và kiểm chứng theo [Issue #63](https://github.com/F-R-E-Y-A/fashion-shop/issues/63).
+PR #60 chưa merge; menu của shell chuyển sang AdminNavigation nên cần kiểm ghép và giải quyết
+điểm ráp menu sau merge. Người khác review và CI xanh trước khi coi hoàn thành; không tự chốt ADR.
