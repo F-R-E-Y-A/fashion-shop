@@ -223,9 +223,14 @@ function AdminUsers() {
                     <td role="cell" data-label="Trạng thái">
                       <StatusBadge status={item.status} />
                     </td>
-                    <td role="cell" data-label="Xác thực email" className={styles.numeric}>
+                    <td role="cell" data-label="Xác thực email" className={styles.verifiedCell}>
                       {item.emailVerifiedAt ? (
-                        formatAdminDate(item.emailVerifiedAt)
+                        <span>
+                          <span className={styles.verified}>Đã xác thực</span>
+                          <span className={styles.sub}>
+                            {formatAdminDate(item.emailVerifiedAt)}
+                          </span>
+                        </span>
                       ) : (
                         <span className={styles.muted}>Chưa xác thực</span>
                       )}
@@ -290,11 +295,11 @@ function AdminUsers() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <p className={styles.eyebrow}>Quản trị</p>
         <div className={styles.headingRow}>
           <h1 className={styles.title}>Người dùng</h1>
           {totalLabel && <p className={styles.count}>{totalLabel}</p>}
         </div>
+        <p className={styles.description}>Tra cứu tài khoản và quản lý trạng thái truy cập.</p>
       </header>
       <UserListControls
         navigationKey={location.key}
