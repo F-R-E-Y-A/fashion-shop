@@ -1,6 +1,6 @@
 ---
 title: Tài khoản người dùng — bản đồ
-updated: 2026-11-02
+updated: 2026-11-03
 status: đang làm
 owner: Tài
 ---
@@ -99,8 +99,8 @@ Anh cho khu quản trị: [LOG#adr-027](../../LOG.md#adr-027); quyết định r
 - **Guard chỉ là UX.** `RequireAdmin` đọc `roles` của phiên trong tab; quyền thật là `RequireRoles(ADMIN)` ở máy
   chủ. Vai bị gỡ giữa phiên thì trang vẫn mở tới yêu cầu kế tiếp, khi đó máy chủ trả 403 và giao diện hiện "Không
   đủ quyền", xóa dữ liệu quản trị đã tải.
-- **Cache theo actor và phiên.** [Issue #57](https://github.com/F-R-E-Y-A/fashion-shop/issues/57), đang triển
-  khai/chưa merge: query admin có gốc `session/admin/resource/actor` từ
+- **Cache theo actor và phiên.** [Issue #57](https://github.com/F-R-E-Y-A/fashion-shop/issues/57), đã merge qua
+  [PR #58](https://github.com/F-R-E-Y-A/fashion-shop/pull/58) tại `8fe405e`: query admin có gốc `session/admin/resource/actor` từ
   [session-cache.ts:4](../../../apps/web/src/core/session-cache.ts#L4); `AuthProvider` hủy/xóa gốc `session`
   khi đổi phiên. Không cần import query key của Orders vào Account. Kết quả khóa, mở khóa
   chỉ ghi khi số hiệu phiên (`getSessionEpoch`) **và** thế hệ quyền của actor còn nguyên: một lần 403 tăng thế
@@ -170,3 +170,11 @@ Admin.1 và Admin.2 đã gộp vào `develop` (pull request #24, `aee345e`). Adm
   còn quản trị viên nào hoạt động. Gỡ bằng `admin:grant` cho một tài khoản `ACTIVE` khác. Chưa có luật "quản
   trị viên hoạt động cuối cùng". Admin.3 chỉ **ẩn** nút khóa tài khoản `ADMIN` ở giao diện; gọi thẳng API vẫn
   khóa được. Đề xuất một Issue phía máy chủ riêng; chưa có quyết định chấp nhận hay hạn xử lý. [TBD — hỏi Tài]
+
+## Giao diện admin — Issue #59, chưa merge
+
+Danh sách/chi tiết dùng bảng/panel trắng, chữ và khoảng cách theo AdminKit. Bộ lọc mobile thu gọn trong
+[UserFilterDisclosure](../../../apps/web/src/features/account/admin/UserFilterDisclosure.tsx); giữ nguyên input DOM, debounce, URL và request.
+Khung có drawer, focus/Escape và đường về cửa hàng; chỉ dùng sáu trường API. Guard và các bảo vệ Issue #57 giữ nguyên.
+Không có thư viện, token, API/migration mới. PR #58 đã merge tại `8fe405e`; nhánh shell đã cập nhật nền này. Check/build/docs lint và QA đã đạt local;
+còn review và CI của PR Issue #59 trước merge.

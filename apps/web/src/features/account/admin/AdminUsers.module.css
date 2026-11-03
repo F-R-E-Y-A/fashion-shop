@@ -1,4 +1,4 @@
-/* Man quan tri nguoi dung: khung chung lay tu ui/AdminKit (LOG#adr-039), o day chi phan rieng. */
+/* Users: AdminKit dùng chung, chỉ giữ bố cục và trạng thái riêng ở đây. */
 .page {
   composes: page from '../../../ui/AdminKit.module.css';
 }
@@ -35,128 +35,26 @@
   composes: mono from '../../../ui/AdminKit.module.css';
 }
 
-.textLink {
-  color: var(--accent);
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.emptyPage {
-  display: grid;
-  gap: 0.75rem;
-  justify-items: start;
-}
-
-/* --- bang danh sach --- */
 .tableWrap {
   composes: tableWrap from '../../../ui/AdminKit.module.css';
 }
 
 .table {
   composes: table from '../../../ui/AdminKit.module.css';
+  table-layout: fixed;
 }
 
-.emailCell {
-  min-width: 16rem;
-}
-
-.emailLink {
-  color: var(--ink);
-  font-weight: 600;
-  overflow-wrap: anywhere;
-  text-decoration: underline;
-  text-decoration-color: var(--line);
-  text-underline-offset: 4px;
-  transition: text-decoration-color 0.15s var(--ease);
-}
-
-.emailLink:hover {
-  text-decoration-color: var(--accent);
-}
-
-.self {
-  display: inline-block;
-  margin-left: 0.5rem;
-  padding: 0.05rem 0.45rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  color: var(--ink-2);
-  font-size: var(--s-1);
-  vertical-align: middle;
-}
-
-/* --- huy hieu: hinh dang tu kit, mau theo trang thai tai khoan --- */
 .status {
   composes: badge from '../../../ui/AdminKit.module.css';
+  font-weight: 500;
 }
 
 .statusDot {
   composes: badgeDot from '../../../ui/AdminKit.module.css';
 }
 
-.status[data-status='ACTIVE'] .statusDot {
-  background: var(--accent);
-}
-
-.status[data-status='LOCKED'] {
-  border-color: var(--danger);
-  color: var(--danger);
-}
-
-.status[data-status='LOCKED'] .statusDot {
-  background: var(--danger);
-}
-
-.status[data-status='PENDING_VERIFICATION'] {
-  border-style: dashed;
-}
-
-.status[data-status='DISABLED'] {
-  background: var(--stone);
-}
-
-.roles {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.role {
-  padding: 0.1rem 0.5rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--bg);
-  color: var(--ink-2);
-  font-size: var(--s-1);
-  white-space: nowrap;
-}
-
-.role[data-role='ADMIN'] {
-  border-color: var(--accent);
-  color: var(--accent);
-  font-weight: 600;
-}
-
-/* --- chi tiet --- */
 .back {
   composes: back from '../../../ui/AdminKit.module.css';
-}
-
-.detailHeader {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.detailTitle {
-  overflow-wrap: anywhere;
-}
-
-.badges {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 0.75rem;
 }
 
 .detailGrid {
@@ -179,7 +77,6 @@
   composes: facts from '../../../ui/AdminKit.module.css';
 }
 
-/* --- nut --- */
 .dangerButton {
   composes: dangerButton from '../../../ui/AdminKit.module.css';
 }
@@ -192,7 +89,6 @@
   composes: secondary from '../../../ui/AdminKit.module.css';
 }
 
-/* --- tim kiem va bo loc (Issue #48) --- */
 .controls {
   composes: controls from '../../../ui/AdminKit.module.css';
 }
@@ -217,9 +113,9 @@
   composes: searchButton from '../../../ui/AdminKit.module.css';
 }
 
-/* justify-self doi theo man hinh nen o ca hai noi deu nam trong tep nay. */
 .clearButton {
   composes: clearButton from '../../../ui/AdminKit.module.css';
+  justify-self: start;
   justify-self: start;
 }
 
@@ -227,103 +123,123 @@
   composes: field from '../../../ui/AdminKit.module.css';
 }
 
-.filters {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr)) auto;
-  align-items: end;
-  gap: 0.75rem;
+.notice {
+  composes: notice from '../../../ui/AdminKit.module.css';
 }
 
-.pageSize {
-  display: grid;
-  grid-auto-flow: column;
-  align-items: center;
-  gap: 0.35rem;
+.detailTitle {
+  overflow-wrap: anywhere;
+}
+
+.description {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.emailCell {
   min-width: 0;
 }
 
-.pageSize > span {
+.emailLink {
   color: var(--ink-2);
-  font-size: var(--s-1);
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.self {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.textLink {
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.emptyPage {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+
+.roles {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.role {
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+.detailHeader {
+  display: grid;
+  gap: 8px;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: end;
+  gap: 16px;
+}
+
+.pageSize {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .pageSize select {
   min-height: 44px;
-  padding: 0 0.85rem;
-  border: 1px solid var(--line);
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--muted) 80%, var(--paper));
   border-radius: var(--radius);
-  background: var(--bg);
+  background: var(--paper);
   color: var(--ink);
   font: inherit;
-  transition: border-color 0.2s var(--ease);
-}
-
-.pageSize select:focus {
-  border-color: var(--accent);
 }
 
 .refreshing {
   margin: 0;
-  color: var(--ink-2);
-  font-size: var(--s-1);
-}
-
-/* --- thao tac nhanh tren dong --- */
-.actionCell {
-  white-space: nowrap;
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .rowDanger,
 .rowPrimary {
   min-height: 36px;
-  padding: 0 0.85rem;
+  max-width: 100%;
+  padding: 7px 8px;
+  border: 0;
   border-radius: var(--radius);
-  font: inherit;
-  font-size: var(--s-1);
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    background-color 0.2s var(--ease),
-    color 0.2s var(--ease);
-}
-
-.rowDanger {
-  border: 1px solid var(--danger);
   background: transparent;
-  color: var(--danger);
-}
-
-.rowDanger:hover:not([aria-disabled='true']) {
-  background: color-mix(in srgb, var(--danger) 8%, transparent);
-}
-
-.rowPrimary {
-  border: 1px solid var(--espresso);
-  background: var(--espresso);
-  color: var(--on-dark);
-}
-
-.rowPrimary:hover:not([aria-disabled='true']) {
-  border-color: var(--accent);
-  background: var(--accent);
-}
-
-.rowDanger[aria-disabled='true'],
-.rowPrimary[aria-disabled='true'] {
-  opacity: 0.6;
-  cursor: progress;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
 }
 
 .leavingNote {
-  color: var(--ink-2);
-  font-size: var(--s-1);
-  font-style: italic;
-}
-
-.table tbody tr[data-leaving] {
-  background: color-mix(in srgb, var(--stone) 55%, transparent);
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .listFooter {
@@ -331,75 +247,134 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem 1.5rem;
-}
-
-.listFooter > :first-child {
-  margin-top: 0;
-}
-
-/* --- thong bao ket qua --- */
-/* Vung thong bao rong van phai nam trong cay tiep can (live region); chi rut khoi luoi de khoi
-   tao them mot khoang gap. */
-.noticeSlot:not(:has(p)) {
-  position: absolute;
-}
-
-.noticeSlot:focus-visible {
-  outline-offset: 4px;
-}
-
-.notice {
-  composes: notice from '../../../ui/AdminKit.module.css';
+  gap: 16px;
 }
 
 .pendingLine {
   margin: 0;
-  color: var(--ink-2);
+  color: var(--muted);
 }
 
-@media (max-width: 720px) {
+.sub {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.verified {
+  color: var(--success);
+  font-size: 12px;
+}
+.emailLink:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.table th:nth-child(1) {
+  width: 28%;
+}
+.table th:nth-child(2) {
+  width: 13%;
+}
+.table th:nth-child(3) {
+  width: 18%;
+}
+.table th:nth-child(4) {
+  width: 16%;
+}
+.table th:nth-child(5) {
+  width: 13%;
+}
+.table th:nth-child(6) {
+  width: 12%;
+}
+.table th:last-child,
+.table td.actionCell {
+  text-align: right;
+}
+.table td.numeric {
+  white-space: normal;
+}
+.status[data-status='ACTIVE'] {
+  border-color: transparent;
+  background: var(--success-soft);
+  color: var(--success);
+}
+.status[data-status='LOCKED'] {
+  border-color: transparent;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.status[data-status='PENDING_VERIFICATION'] {
+  border-color: transparent;
+  background: var(--surface);
+  color: var(--accent);
+}
+.status[data-status='DISABLED'] {
+  color: var(--muted);
+}
+.rowDanger:hover:not([aria-disabled='true']),
+.rowPrimary:hover:not([aria-disabled='true']) {
+  background: var(--bg);
+}
+.rowDanger[aria-disabled='true'],
+.rowPrimary[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: progress;
+}
+.table tbody tr[data-leaving] {
+  background: var(--surface);
+}
+.noticeSlot:not(:has(p)) {
+  position: absolute;
+}
+.noticeSlot:focus-visible {
+  outline-offset: 4px;
+}
+.facts dd.numeric {
+  white-space: normal;
+}
+@media (max-width: 1100px) {
   .filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-
-  /* Nhan dai ("Chờ xác thực email", "Email A → Z") can tron hang de khong bi cat chu. */
-  .filters > .field:nth-child(1),
-  .filters > .field:nth-child(4) {
-    grid-column: 1 / -1;
+}
+@media (max-width: 720px) {
+  .filters {
+    grid-template-columns: minmax(0, 1fr);
   }
-
   .clearButton {
-    grid-column: 1 / -1;
-    justify-self: stretch;
+    width: 100%;
   }
-
   .rowDanger,
   .rowPrimary {
     min-height: 44px;
+    min-width: 100px;
+    font-size: 13px;
   }
-
-  .actionCell {
-    white-space: normal;
-  }
-
-  /* Bang thanh the o kit; o email can bo luoi nhan de tran ca hang. */
   .table .emailCell {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.35rem;
-    min-width: 0;
-    padding-bottom: 0.5rem;
+    display: block;
+    padding-bottom: 2px;
   }
-
   .emailLink {
     display: inline-flex;
     align-items: center;
     min-height: 44px;
   }
+  .table td.actionCell {
+    text-align: right;
+  }
+  .roles {
+    justify-content: flex-end;
+  }
+  .pageSize select {
+    font-size: 16px;
+  }
+}
 
-  .self {
-    margin-left: 0;
+@media (max-width: 720px) {
+  .table .emailCell {
+    text-align: left;
   }
 }

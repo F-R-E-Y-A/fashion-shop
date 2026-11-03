@@ -1,0 +1,54 @@
+.disclosure {
+  min-width: 0;
+}
+.toggle {
+  position: absolute;
+  top: 44px;
+  right: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 500;
+  list-style: none;
+  cursor: pointer;
+}
+.toggle::-webkit-details-marker {
+  display: none;
+}
+.toggle svg {
+  width: 16px;
+  height: 16px;
+}
+.toggle:hover {
+  background: var(--bg);
+}
+.body {
+  padding-top: 4px;
+}
+@media (max-width: 720px) {
+  .toggle {
+    position: static;
+    width: 100%;
+  }
+  .body {
+    padding-top: 16px;
+  }
+}
+
+@media (min-width: 721px) and (max-width: 1000px) {
+  .toggle {
+    position: static;
+    width: max-content;
+  }
+  .body {
+    padding-top: 16px;
+  }
+}

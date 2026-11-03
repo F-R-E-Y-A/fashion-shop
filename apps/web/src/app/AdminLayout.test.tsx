@@ -1,0 +1,121 @@
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { StrictMode } from 'react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+
+import { AdminLayout } from './AdminLayout.js';
+
+vi.mock('@/features/account', () => ({
+  useAuth: () => ({ user: { id: 'actor', email: 'admin@example.test', roles: ['ADMIN'] } }),
+}));
+beforeAll(() => {
+  HTMLDialogElement.prototype.showModal = function () {
+    this.setAttribute('open', '');
+  };
+  HTMLDialogElement.prototype.close = function () {
+    if (!this.open) return;
+    this.removeAttribute('open');
+    setTimeout(() => this.dispatchEvent(new Event('close')), 0);
+  };
+});
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+  document.documentElement.style.overflow = '';
+});
+function media() {
+  const listeners = new Set<() => void>();
+  const query = {
+    matches: true,
+    addEventListener: (_: string, fn: () => void) => listeners.add(fn),
+    removeEventListener: (_: string, fn: () => void) => listeners.delete(fn),
+  };
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn(() => query),
+  );
+  return (small: boolean) =>
+    act(() => {
+      query.matches = small;
+      listeners.forEach((fn) => fn());
+    });
+}
+function mount() {
+  return render(
+    <StrictMode>
+      <MemoryRouter initialEntries={['/admin/users']}>
+        <Routes>
+          <Route path="admin" element={<AdminLayout />}>
+            <Route index element={<h1>Tổng quan thật</h1>} />
+            <Route path="users" element={<h1>Danh sách hiện có</h1>} />
+            <Route path="orders" element={<h1>Đơn hiện có</h1>} />
+          </Route>
+          <Route path="/" element={<h1>Cửa hàng hiện có</h1>} />
+        </Routes>
+      </MemoryRouter>
+    </StrictMode>,
+  );
+}
+
+describe('UC-02.1/AC9 khung admin — Issue #59', () => {
+  it('drawer trong StrictMode giữ mở, Tab vòng kín và Escape trả focus/khôi phục cuộn', async () => {
+    media();
+    document.documentElement.style.overflow = 'scroll';
+    mount();
+    const user = userEvent.setup();
+    const opener = screen.getByRole('button', { name: 'Mở điều hướng quản trị' });
+    await user.click(opener);
+    const dialog = screen.getByRole('dialog', { name: 'Menu quản trị' });
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(dialog).toHaveAttribute('open');
+    const close = within(dialog).getByRole('button', { name: 'Đóng điều hướng' });
+    const last = within(dialog).getByRole('link', { name: /Về cửa hàng/ });
+    expect(close).toHaveFocus();
+    expect(document.documentElement.style.overflow).toBe('hidden');
+    fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true });
+    expect(last).toHaveFocus();
+    fireEvent.keyDown(dialog, { key: 'Tab' });
+    expect(close).toHaveFocus();
+    fireEvent(dialog, new Event('cancel', { bubbles: true, cancelable: true }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(opener).toHaveFocus();
+    expect(document.documentElement.style.overflow).toBe('scroll');
+  });
+  it('điều hướng trong drawer đóng hộp và giữ route hiện có', async () => {
+    media();
+    mount();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Mở điều hướng quản trị' }));
+    await user.click(within(screen.getByRole('dialog')).getByRole('link', { name: 'Đơn hàng' }));
+    expect(await screen.findByRole('heading', { name: 'Đơn hiện có' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Đơn hàng' })).toHaveAttribute('aria-current', 'page');
+    expect(document.documentElement.style.overflow).not.toBe('hidden');
+  });
+  it('đổi sang desktop và tháo layout đều dọn khóa cuộn, không giữ drawer mồ côi', async () => {
+    const resize = media();
+    const view = mount();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Mở điều hướng quản trị' }));
+    resize(false);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(document.documentElement.style.overflow).toBe('');
+    resize(true);
+    await user.click(screen.getByRole('button', { name: 'Mở điều hướng quản trị' }));
+    view.unmount();
+    expect(document.documentElement.style.overflow).toBe('');
+  });
+  it('chỉ có menu đã hoạt động và tài khoản từ phiên, không thêm chức năng mẫu', () => {
+    media();
+    mount();
+    const nav = within(screen.getByRole('complementary')).getByRole('navigation');
+    expect(
+      within(nav)
+        .getAllByRole('link')
+        .map((link) => link.getAttribute('href')),
+    ).toEqual(['/admin', '/admin/users', '/admin/orders']);
+    expect(screen.getByText('admin@example.test')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Cửa hàng/ })).toHaveAttribute('href', '/');
+  });
+});
