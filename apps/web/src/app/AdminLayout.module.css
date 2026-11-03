@@ -1,161 +1,304 @@
-/* Khung quan tri F.R.E.Y.A.: thanh ben Espresso, noi dung nen Ivory, diem nhan Copper.
-   Chu tren nen Espresso dung --on-dark/--on-dark-muted; --accent tren Espresso chi 3.3:1 nen
-   khong dung lam chu, chi lam vach chi bao muc dang chon. */
+/* Khung admin chỉ dùng token F.R.E.Y.A.; không ảnh hưởng khung cửa hàng. */
 .shell {
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
-  min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg);
+  font-family: var(--font-body);
+  font-size: 14px;
 }
-
 .side {
   position: sticky;
   top: 0;
   display: flex;
   flex-direction: column;
-  gap: 2rem;
-  height: 100vh;
-  padding: 1.75rem 1rem 1.5rem;
+  height: 100dvh;
+  min-width: 0;
+  padding: 30px 16px 20px;
   background: var(--espresso);
   color: var(--on-dark-muted);
 }
-
 .brand {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: 12px;
   min-height: 44px;
-  padding: 0 0.5rem;
+  margin-bottom: 46px;
+  padding: 0 12px;
   color: var(--on-dark);
+  text-decoration: none;
 }
-
 .symbol {
-  width: 2.25rem;
-  height: 2.5rem;
+  width: 34px;
+  height: 40px;
   flex: none;
 }
-
 .brandText {
   display: grid;
-  line-height: 1.15;
+  gap: 7px;
 }
-
 .brandName {
+  color: var(--on-dark);
   font-family: var(--font-display);
-  font-size: var(--s1);
-  letter-spacing: 0.04em;
+  font-size: 23px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
 }
-
 .brandRole {
   color: var(--on-dark-muted);
-  font-size: var(--s-1);
-  letter-spacing: var(--tracking-caps);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.navLabel {
+  margin: 0 0 12px;
+  padding: 0 14px;
+  color: var(--on-dark-muted);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
 }
-
 .nav {
   display: grid;
-  gap: 0.25rem;
+  gap: 6px;
 }
-
 .navLink {
   display: flex;
   align-items: center;
-  min-height: 44px;
-  padding: 0 0.75rem;
-  border-left: 3px solid transparent;
-  border-radius: var(--radius);
+  gap: 12px;
+  min-height: 46px;
+  padding: 10px 14px;
+  border-left: 2px solid transparent;
   color: var(--on-dark-muted);
   font-weight: 500;
-  transition:
-    color 0.15s var(--ease),
-    background-color 0.15s var(--ease);
+  text-decoration: none;
 }
-
+.navLink svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+}
 .navLink:hover {
   color: var(--on-dark);
-  background: color-mix(in srgb, var(--on-dark) 6%, transparent);
+  background: color-mix(in srgb, var(--on-dark) 5%, transparent);
 }
-
 .active {
   border-left-color: var(--accent-bright);
   color: var(--on-dark);
   background: color-mix(in srgb, var(--on-dark) 8%, transparent);
-  font-weight: 600;
 }
-
 .navLink:focus-visible,
 .brand:focus-visible,
-.store:focus-visible {
+.store:focus-visible,
+.drawer button:focus-visible {
   outline: 2px solid var(--amber-glow);
-  outline-offset: 2px;
+  outline-offset: 3px;
 }
-
+.account {
+  display: grid;
+  gap: 5px;
+  margin-top: auto;
+  padding: 18px 12px 0;
+  border-top: 1px solid color-mix(in srgb, var(--on-dark) 14%, transparent);
+  font-size: 11px;
+}
+.accountEmail {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.workspace {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 68px;
+  padding: 0 32px;
+  border-bottom: 1px solid var(--line);
+  background: var(--paper);
+}
+.topbarStart {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 12px;
+}
+.breadcrumb a {
+  color: var(--muted);
+  text-decoration: none;
+}
+.breadcrumb [aria-current] {
+  color: var(--ink-2);
+  font-weight: 500;
+}
+.storeLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: var(--ink-2);
+  font-size: 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.storeLink:hover {
+  color: var(--accent);
+}
+.main {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 32px;
+}
+.main:focus {
+  outline: none;
+}
+.footer {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding: 22px 32px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.footer span:first-child {
+  letter-spacing: 0.08em;
+}
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.iconButton svg {
+  width: 20px;
+  height: 20px;
+}
+.menuButton {
+  display: none;
+}
+.drawer {
+  width: min(320px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  min-height: 360px;
+  margin: 16px auto 16px 16px;
+  padding: 24px 16px;
+  overflow: auto;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--espresso);
+  color: var(--on-dark);
+}
+.drawer::backdrop {
+  background: color-mix(in srgb, var(--espresso) 45%, transparent);
+}
+.drawerHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 32px;
+}
+.drawerHeading .iconButton {
+  border-color: color-mix(in srgb, var(--on-dark) 20%, transparent);
+  background: transparent;
+  color: var(--on-dark);
+}
 .store {
   display: flex;
   align-items: center;
   min-height: 44px;
-  margin-top: auto;
-  padding: 0 0.75rem;
+  margin-top: 24px;
+  padding: 12px 14px;
   border-top: 1px solid color-mix(in srgb, var(--on-dark) 14%, transparent);
   color: var(--on-dark-muted);
-  font-size: var(--s-1);
+  font-size: 12px;
+  text-decoration: none;
 }
-
-.store:hover {
-  color: var(--on-dark);
+.skipLink {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 20;
+  padding: 12px;
+  background: var(--paper);
+  color: var(--ink);
+  transform: translateY(-200%);
 }
-
-.main {
-  min-width: 0;
-  padding: clamp(16px, 4vw, 40px);
+.skipLink:focus {
+  transform: translateY(0);
 }
-
+@media (max-width: 1100px) {
+  .shell {
+    grid-template-columns: 216px minmax(0, 1fr);
+  }
+  .main {
+    padding: 28px 24px;
+  }
+  .topbar {
+    padding-inline: 24px;
+  }
+}
 @media (max-width: 720px) {
   .shell {
-    grid-template-columns: 1fr;
+    display: block;
   }
-
   .side {
-    position: static;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 0.5rem 1rem;
-    height: auto;
-    padding: 0.75rem 16px;
+    display: none;
   }
+  .menuButton {
+    display: inline-flex;
+  }
+  .topbar {
+    min-height: 64px;
+    padding: 8px 16px;
+    gap: 8px;
+  }
+  .breadcrumb {
+    gap: 6px;
+  }
+  .breadcrumb a,
+  .breadcrumb > span[aria-hidden] {
+    display: none;
+  }
+  .main {
+    padding: 24px 16px;
+  }
+  .footer {
+    padding: 16px;
+    font-size: 10px;
+  }
+}
 
-  .brand {
-    padding: 0;
-  }
-
-  .symbol {
-    width: 1.75rem;
-    height: 2rem;
-  }
-
-  .nav {
-    display: flex;
-    order: 3;
-    width: 100%;
-    gap: 0.25rem;
-    overflow-x: auto;
-  }
-
-  .navLink {
-    flex: none;
-    border-left: 0;
-    border-bottom: 3px solid transparent;
-  }
-
-  .active {
-    border-bottom-color: var(--accent-bright);
-  }
-
-  .store {
-    margin: 0 0 0 auto;
-    padding: 0 0.25rem;
-    border-top: 0;
-  }
+.shell :where(a, button):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.side :where(a, button):focus-visible,
+.drawer :where(a, button):focus-visible {
+  outline-color: var(--amber-glow);
 }

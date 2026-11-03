@@ -1,6 +1,6 @@
 ---
 title: Checkout — luồng PH-11
-updated: 2026-11-02
+updated: 2026-11-03
 status: ưu tiên VNPAY sandbox, MoMo để sau
 owner: Bảo
 ---
@@ -20,7 +20,7 @@ Hình dạng HTTP thật ở Swagger `/api/docs`, sinh từ [DTO response](../..
 
 ## Phân chia trách nhiệm
 
-### Bảo vệ phiên của màn quản trị — Issue #57, chưa merge
+### Bảo vệ phiên của màn quản trị — Issue #57, đã merge PR #58
 
 - `/admin/orders` và chi tiết dùng cùng `useAdminForbidden` với Users qua public index Account;
   403 dọn các resource admin của actor, ẩn dữ liệu khách và ngừng query. Không thay guard backend.
@@ -67,3 +67,11 @@ Worker chỉ hoạt động khi API đang chạy; khởi động lại quét dea
 Theo phạm vi mới của Bảo, hiện cấu hình VNPAY; checkout ẩn MoMo khi chưa có key. VNPAY PAY/OTP/return và QueryDR có chữ ký đã được nghiệm thu trên HTTPS với DB riêng; IPN thử bằng replay payload hợp lệ, chưa xác minh VNPAY chủ động gọi IPN đã đăng ký. MoMo chưa nghiệm thu cổng thật. Ngày 19/10 chạy trọn luồng trên app với DB clone riêng: khách vãng lai thêm hàng → đăng nhập gộp giỏ → thêm địa chỉ → checkout 79.000đ → VNPAY NCB/OTP → worker QueryDR → `CONFIRMED`, tồn 5→4, một SALE, giỏ trừ đúng món. Tồn nạp bằng `stock:import`.
 
 `PAYMENT_REVIEW` yêu cầu khách không thanh toán lại, liên hệ shop kèm mã đơn; ADMIN hoàn trên màn `/admin/orders` ([payments/README.md](../payments/README.md)), chưa tự động hoàn. Khách tự hủy đơn online đã trả khi shop chưa bấm "Bắt đầu xử lý": hàng về kho, hoàn tiền tự động ([ADR-038](../../LOG.md#adr-038)); từ `PROCESSING` trở đi khách liên hệ shop. SOAP không thuộc luồng cơ bản này.
+
+## Giao diện quản trị — Issue #59, chưa merge
+
+AdminKit áp dụng panel/bảng trắng và nhãn trạng thái; chi tiết đặt sản phẩm/thanh toán/lịch sử bên trái, giao hàng/thao tác bên phải.
+Chỉ di chuyển JSX và đổi CSS: actions, ledger, tiền/kho/COD/refund, request và vòng đời phiên giữ nguyên.
+Dialog dùng lại ConfirmDialog; URL/Back của Orders chưa sửa, thuộc đợt riêng.
+PR #58 đã merge tại `8fe405e`; nhánh shell đã cập nhật nền này, check/build/docs lint và QA đã đạt local.
+Cần review app/ui, nghiệp vụ Orders và CI của PR Issue #59 trước merge.

@@ -194,7 +194,7 @@ Kiểm tra: `npm run check` exit 0 (API unit 28/28, web 27/27, crawler 50 pass, 
 ## Quản trị catalog chỉ đọc — Issue #63
 
 Tài triển khai lát đọc UC-04.2 theo [đặc tả đề xuất](use-cases.md#uc-042--quản-lý-thông-tin-sản-phẩm--lát-đọc-issue-63).
-Bản triển khai trên nhánh `feature/ph-03-admin-catalog`, nền develop `8fe405e`;
+Bản triển khai trên nhánh `feature/ph-03-admin-catalog`, đã tích hợp develop `63d9798` sau PR #60;
 trạng thái review theo [Issue #63](https://github.com/F-R-E-Y-A/fashion-shop/issues/63).
 [AdminProductsController](../../../apps/api/src/modules/products/admin-products.controller.ts#L27)
 kiểm ADMIN qua AuthModule; [service](../../../apps/api/src/modules/products/admin-products.service.ts#L70)
@@ -207,7 +207,9 @@ dùng authenticatedRequest/guardQuery và cache session/admin/products/actor.
 Tổng quan giữ AdminProductsPage cũ; route mới là `/admin/products` và `/admin/products/:id`.
 Danh sách có q tên/SKU, cờ hoạt động, sắp xếp, phân trang; không coi isActive là đảm bảo bán được.
 
-PR #60 shell chưa merge tại lúc bắt đầu; kiểm ghép UI riêng và đối chiếu lại sau merge.
+PR #60 đã merge; menu Sản phẩm dùng [AdminNavigation](../../../apps/web/src/app/AdminNavigation.tsx#L23),
+breadcrumb danh sách/chi tiết dùng [AdminLayout](../../../apps/web/src/app/AdminLayout.tsx#L19).
+Giữ nguyên drawer, focus và các bài kiểm thử của shell; bổ sung kiểm tra route catalog.
 Check/build/HTTP/docs lint và QA được định danh bằng commit/patch trong báo cáo ở kho docs;
 không coi kết quả local là CI đã đạt. Quyết định [ADR-044](LOG.md#adr-044) vẫn đề xuất.
 Tạo/sửa/ngừng bán, biến thể/ảnh và danh mục thuộc đợt sau; Tài đã chọn giữ dữ liệu, không xóa cứng.

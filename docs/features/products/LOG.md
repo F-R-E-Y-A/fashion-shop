@@ -395,7 +395,7 @@ Giới hạn page 100000 để chặn skip quá lớn; pageSize tối đa 60 the
 không đổi hợp đồng. Không lấy stock/KPI hoặc ghi log tìm kiếm storefront; không thêm migration/index
 khi chưa có số đo. Frontend dùng session cache/403 chung, không tạo cơ chế phiên riêng.
 
-**Thực tế:** mã và test ở nhánh `feature/ph-03-admin-catalog`, nền `8fe405e`;
+**Thực tế:** mã và test ở nhánh `feature/ph-03-admin-catalog`, tích hợp develop `63d9798` sau PR #60;
 trạng thái review và kiểm chứng theo [Issue #63](https://github.com/F-R-E-Y-A/fashion-shop/issues/63).
-PR #60 chưa merge; menu của shell chuyển sang AdminNavigation nên cần kiểm ghép và giải quyết
-điểm ráp menu sau merge. Người khác review và CI xanh trước khi coi hoàn thành; không tự chốt ADR.
+Menu Sản phẩm dùng AdminNavigation, breadcrumb nhận cả danh sách/chi tiết; giữ test shell và bổ sung
+kiểm tra route catalog. Người khác review và CI xanh trước khi coi hoàn thành; không tự chốt ADR.

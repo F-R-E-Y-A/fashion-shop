@@ -221,6 +221,143 @@ function AdminOrderDetail() {
 
           <div className={styles.detailGrid}>
             <div className={styles.column}>
+              <section className={styles.panel} aria-labelledby="items">
+                <h2 id="items" className={styles.panelTitle}>
+                  Sản phẩm
+                </h2>
+                <ul className={styles.items}>
+                  {order.items.map((item) => (
+                    <li key={item.variantId}>
+                      <span>
+                        {item.snapshot.name}
+                        <span className={styles.sub}>
+                          {item.snapshot.variantLabel} · {formatPrice(item.price)} × {item.quantity}
+                        </span>
+                      </span>
+                      <span className={styles.numeric}>
+                        {formatPrice(String(Number(item.price) * item.quantity))}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <dl className={styles.facts}>
+                  <div>
+                    <dt>Tiền hàng</dt>
+                    <dd>{formatPrice(order.subtotalAmount)}</dd>
+                  </div>
+                  <div>
+                    <dt>Vận chuyển</dt>
+                    <dd>{formatPrice(order.shippingFeeAmount)}</dd>
+                  </div>
+                  <div>
+                    <dt>Tổng</dt>
+                    <dd>
+                      <strong>{formatPrice(order.totalAmount)}</strong>
+                    </dd>
+                  </div>
+                </dl>
+              </section>
+
+              {order.ledgers.map((ledger) => (
+                <section
+                  key={ledger.paymentId}
+                  className={styles.panel}
+                  aria-label={`Thanh toán ${gatewayLabel(ledger.gateway)}`}
+                >
+                  <h2 className={styles.panelTitle}>Thanh toán {gatewayLabel(ledger.gateway)}</h2>
+                  <dl className={styles.facts}>
+                    <div>
+                      <dt>Trạng thái</dt>
+                      <dd>{paymentLabels[ledger.status] ?? ledger.status}</dd>
+                    </div>
+                    <div>
+                      <dt>Số tiền</dt>
+                      <dd>{formatPrice(ledger.amount)}</dd>
+                    </div>
+                    <div>
+                      <dt>Đã hoàn</dt>
+                      <dd>{formatPrice(ledger.refundedAmount)}</dd>
+                    </div>
+                  </dl>
+                  {ledger.refunds.length > 0 && (
+                    <ul className={styles.items} aria-label="Các lần hoàn">
+                      {ledger.refunds.map((refund) => (
+                        <li key={refund.id}>
+                          <span>
+                            Hoàn {formatPrice(refund.amount)}
+                            <span className={styles.sub}>
+                              {formatDateTime(refund.at)}
+                              {refund.reason ? ` · ${refund.reason}` : ''}
+                            </span>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {ledger.pendingRefund && (
+                    <p className={styles.notice} data-tone="warning" role="status">
+                      Lệnh hoàn{' '}
+                      {ledger.pendingRefund.amount ? formatPrice(ledger.pendingRefund.amount) : ''}{' '}
+                      gửi lúc {formatDateTime(ledger.pendingRefund.createdAt)} chưa có kết quả
+                      {ledger.pendingRefund.lastError
+                        ? `: ${ledger.pendingRefund.lastError}`
+                        : '.'}{' '}
+                      {ledger.pendingRefund.resolvable
+                        ? 'Đối chiếu trên trang quản trị của cổng rồi chốt kết quả.'
+                        : 'Cổng có thể vẫn đang xử lý; chờ ít phút trước khi chốt tay.'}
+                    </p>
+                  )}
+                </section>
+              ))}
+
+              <section className={styles.panel} aria-labelledby="history">
+                <h2 id="history" className={styles.panelTitle}>
+                  Lịch sử trạng thái
+                </h2>
+                <ol className={styles.timeline}>
+                  {order.history.map((row, index) => (
+                    <li key={`${row.status}-${index}`}>
+                      <span>{orderStatuses[row.status] ?? row.status}</span>
+                      <span className={styles.sub}>
+                        {formatDateTime(row.at)}
+                        {row.actorUserId === order.userId
+                          ? ' · khách'
+                          : row.actorUserId
+                            ? ' · quản trị'
+                            : ' · hệ thống'}
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+            </div>
+
+            <div className={styles.column}>
+              <section className={styles.panel} aria-labelledby="customer">
+                <h2 id="customer" className={styles.panelTitle}>
+                  Khách và giao hàng
+                </h2>
+                <dl className={styles.facts}>
+                  <div>
+                    <dt>Email</dt>
+                    <dd className={styles.email}>{order.customerEmail}</dd>
+                  </div>
+                  <div>
+                    <dt>Người nhận</dt>
+                    <dd>
+                      {order.address.recipientName} · {order.address.phone}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Địa chỉ</dt>
+                    <dd>
+                      {order.address.detailAddress}, {order.address.commune},{' '}
+                      {order.address.province}
+                    </dd>
+                  </div>
+                </dl>
+              </section>
+
               <section className={styles.panel} aria-labelledby="ops">
                 <h2 id="ops" className={styles.panelTitle}>
                   Thao tác
@@ -305,143 +442,6 @@ function AdminOrderDetail() {
                   <p className={styles.muted}>Không có thao tác nào cho trạng thái hiện tại.</p>
                 )}
               </section>
-
-              <section className={styles.panel} aria-labelledby="items">
-                <h2 id="items" className={styles.panelTitle}>
-                  Sản phẩm
-                </h2>
-                <ul className={styles.items}>
-                  {order.items.map((item) => (
-                    <li key={item.variantId}>
-                      <span>
-                        {item.snapshot.name}
-                        <span className={styles.sub}>
-                          {item.snapshot.variantLabel} · {formatPrice(item.price)} × {item.quantity}
-                        </span>
-                      </span>
-                      <span className={styles.numeric}>
-                        {formatPrice(String(Number(item.price) * item.quantity))}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                <dl className={styles.facts}>
-                  <div>
-                    <dt>Tiền hàng</dt>
-                    <dd>{formatPrice(order.subtotalAmount)}</dd>
-                  </div>
-                  <div>
-                    <dt>Vận chuyển</dt>
-                    <dd>{formatPrice(order.shippingFeeAmount)}</dd>
-                  </div>
-                  <div>
-                    <dt>Tổng</dt>
-                    <dd>
-                      <strong>{formatPrice(order.totalAmount)}</strong>
-                    </dd>
-                  </div>
-                </dl>
-              </section>
-
-              <section className={styles.panel} aria-labelledby="history">
-                <h2 id="history" className={styles.panelTitle}>
-                  Lịch sử trạng thái
-                </h2>
-                <ol className={styles.timeline}>
-                  {order.history.map((row, index) => (
-                    <li key={`${row.status}-${index}`}>
-                      <span>{orderStatuses[row.status] ?? row.status}</span>
-                      <span className={styles.sub}>
-                        {formatDateTime(row.at)}
-                        {row.actorUserId === order.userId
-                          ? ' · khách'
-                          : row.actorUserId
-                            ? ' · quản trị'
-                            : ' · hệ thống'}
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-              </section>
-            </div>
-
-            <div className={styles.column}>
-              <section className={styles.panel} aria-labelledby="customer">
-                <h2 id="customer" className={styles.panelTitle}>
-                  Khách và giao hàng
-                </h2>
-                <dl className={styles.facts}>
-                  <div>
-                    <dt>Email</dt>
-                    <dd className={styles.email}>{order.customerEmail}</dd>
-                  </div>
-                  <div>
-                    <dt>Người nhận</dt>
-                    <dd>
-                      {order.address.recipientName} · {order.address.phone}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Địa chỉ</dt>
-                    <dd>
-                      {order.address.detailAddress}, {order.address.commune},{' '}
-                      {order.address.province}
-                    </dd>
-                  </div>
-                </dl>
-              </section>
-
-              {order.ledgers.map((ledger) => (
-                <section
-                  key={ledger.paymentId}
-                  className={styles.panel}
-                  aria-label={`Thanh toán ${gatewayLabel(ledger.gateway)}`}
-                >
-                  <h2 className={styles.panelTitle}>Thanh toán {gatewayLabel(ledger.gateway)}</h2>
-                  <dl className={styles.facts}>
-                    <div>
-                      <dt>Trạng thái</dt>
-                      <dd>{paymentLabels[ledger.status] ?? ledger.status}</dd>
-                    </div>
-                    <div>
-                      <dt>Số tiền</dt>
-                      <dd>{formatPrice(ledger.amount)}</dd>
-                    </div>
-                    <div>
-                      <dt>Đã hoàn</dt>
-                      <dd>{formatPrice(ledger.refundedAmount)}</dd>
-                    </div>
-                  </dl>
-                  {ledger.refunds.length > 0 && (
-                    <ul className={styles.items} aria-label="Các lần hoàn">
-                      {ledger.refunds.map((refund) => (
-                        <li key={refund.id}>
-                          <span>
-                            Hoàn {formatPrice(refund.amount)}
-                            <span className={styles.sub}>
-                              {formatDateTime(refund.at)}
-                              {refund.reason ? ` · ${refund.reason}` : ''}
-                            </span>
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  {ledger.pendingRefund && (
-                    <p className={styles.notice} data-tone="warning" role="status">
-                      Lệnh hoàn{' '}
-                      {ledger.pendingRefund.amount ? formatPrice(ledger.pendingRefund.amount) : ''}{' '}
-                      gửi lúc {formatDateTime(ledger.pendingRefund.createdAt)} chưa có kết quả
-                      {ledger.pendingRefund.lastError
-                        ? `: ${ledger.pendingRefund.lastError}`
-                        : '.'}{' '}
-                      {ledger.pendingRefund.resolvable
-                        ? 'Đối chiếu trên trang quản trị của cổng rồi chốt kết quả.'
-                        : 'Cổng có thể vẫn đang xử lý; chờ ít phút trước khi chốt tay.'}
-                    </p>
-                  )}
-                </section>
-              ))}
             </div>
           </div>
 

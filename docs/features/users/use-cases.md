@@ -1,6 +1,6 @@
 ---
 title: UC-02 Quản trị tài khoản — đặc tả use case
-updated: 2026-10-20
+updated: 2026-11-03
 status: đề xuất
 owner: Tài
 ---
@@ -134,3 +134,14 @@ AC1–AC8 và AC11–AC15 ghi mã trong tên bài ở `apps/web/src/features/acc
 - Có cần chọn nhiều trạng thái hay vai cùng lúc không; API hiện từ chối tham số lặp. [TBD — hỏi Tài]
 - Máy chủ có nên từ chối khóa tài khoản `ADMIN`, hay giữ ít nhất một quản trị viên hoạt động? Đề xuất mở Issue
   riêng; chưa có quyết định hay hạn xử lý. [TBD — hỏi Tài]
+
+## Trình bày bổ sung cho AC9 — Issue #59, đề xuất
+
+- Khung admin có sidebar Espresso, nội dung Ivory và panel trắng; Copper cho nút/focus, giữ token/phông/radius hiện có.
+- Header có vị trí hiện tại và đường về cửa hàng; sidebar chỉ chứa Tổng quan, Người dùng, Đơn hàng đã hoạt động.
+- Mobile dùng drawer có focus đầu vào Đóng, Tab/Shift+Tab vòng kín, Escape/điều hướng đóng và trả focus.
+- Bộ lọc Users thu gọn trên mobile; đóng không xóa điều kiện, không tháo ô nhập đang debounce. Desktop mở mặc định.
+- Bảng chuyển thành hàng có nhãn tại 360px; email/ID dài xuống dòng; thao tác chạm tối thiểu 44px.
+- Kiểm thử widget hỗ trợ AC9; minh chứng trình duyệt, zoom và keyboard vẫn bắt buộc trước khi nghiệm thu.
+
+Không thay AC1–AC8/AC11–AC15, guard, cache hay policy backend. Đây là yêu cầu trình bày đang triển khai trên nhánh riêng.

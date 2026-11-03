@@ -1,6 +1,6 @@
 ---
 title: Nhật ký quyết định toàn hệ thống
-updated: 2026-11-02
+updated: 2026-11-03
 status: đang dùng
 owner: Bảo
 ---
@@ -792,3 +792,34 @@ check/build web/docs lint phù hợp đạt, có QA trình duyệt. Thực tế 
 
 Thêm resource admin, cache persistence hoặc QueryClient khác; auth epoch thay vòng đời; backend có
 quyền theo từng resource thay vì vai ADMIN chung. Khi đó cần đánh giá lại phạm vi purge của 403.
+
+<a id="adr-042"></a>
+## 2026-11-02 · ADR-042 — Khung quản trị và bề mặt dữ liệu F.R.E.Y.A.
+
+**Loại:** quyết định · **Phạm vi:** app, ui, Account và Checkout web · **Trạng thái:** đề xuất · **Người quyết:** Tài, Bảo/Duy review vùng liên quan · **Issue:** [#59](https://github.com/F-R-E-Y-A/fashion-shop/issues/59)
+
+### Hiện trạng
+
+Sidebar/menu đang hoạt động, Users/Orders có API và vòng đời riêng; bề mặt Sand, bảng dày và điều hướng mobile
+chưa theo bản mẫu đã trình. Tài giao tiếp tục triển khai từ mẫu TailAdmin × F.R.E.Y.A., giữ nghiệp vụ và token hiện có.
+Mẫu, QA và kế hoạch chi tiết ở kho docs; không dùng fixture của mẫu làm dữ liệu trong ứng dụng.
+
+### Phương án và quyết định đề xuất
+
+- Giữ AdminLayout/Outlet và RequireAdmin ngoài layout, thêm header/sidebar/drawer; không tạo app admin thứ hai.
+- Dùng AdminKit bằng CSS Modules, panel paper, Ivory nội dung, Copper nút/focus, Playfair H1, radius 2px.
+  Không đổi styles.css hay style public. Pager/Feedback được chỉnh hình thức bằng selector dưới gốc admin.
+- Drawer native dialog có focus trap, Escape, khóa cuộn và cleanup khi route/viewport/guard thay đổi.
+- Disclosure của bộ lọc chỉ một feature dùng nên giữ ở Account; không unmount input khi thu gọn, giữ debounce/draft.
+- Orders chỉ đổi vị trí khối trình bày; giữ nguyên cờ actions/ledger và callback mutation, không sửa chính sách tiền/kho.
+
+### Phụ thuộc và kiểm chứng
+
+PR #58 còn chờ review lúc bắt đầu; nhánh feature/ph-03-admin-shell kế thừa commit 50915d5 đã CI xanh.
+Thực tế ngày 03/11: PR #58 đã merge tại `8fe405e`; đã fetch và fast-forward nhánh shell lên develop này,
+giữ nguyên 24 tệp local. Check/build/docs lint và QA ghi tại minh chứng Issue #59 trong kho docs.
+Issue #59 chưa merge; CI và người duyệt còn là điều kiện phát hành. ADR vẫn đề xuất.
+
+### Điều kiện xem lại
+
+Thêm menu/resource admin, thay breakpoint/token hoặc chia quyền theo resource; thêm screen reader/browser hỗ trợ mới.

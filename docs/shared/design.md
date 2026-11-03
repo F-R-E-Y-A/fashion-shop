@@ -1,6 +1,6 @@
 ---
 title: Chuẩn giao diện chung
-updated: 2026-10-31
+updated: 2026-11-03
 status: đang dùng, nhận diện F.R.E.Y.A. đã chốt
 owner: Bảo
 ---
@@ -57,3 +57,16 @@ Thành phần nào hai feature trở lên cần thì đưa vào `ui/`; một fea
 | Hệ màu, thang chữ, khoảng cách | PH-01, tuần này, đề xuất trong [features/products/LOG.md](../features/products/LOG.md) | Bảo |
 | Khung ảnh xám khi tải (skeleton) dùng chung | Khi trang thứ hai cần | Bảo |
 | Kiểm tra độ tương phản tự động | Chưa xếp lịch | — |
+
+## Giao diện admin — Issue #59, chờ review
+
+Khung [AdminLayout](../../apps/web/src/app/AdminLayout.tsx) giữ sidebar Espresso, thêm header và drawer mobile;
+[AdminNavigation](../../apps/web/src/app/AdminNavigation.tsx) quản lý focus và khóa cuộn của drawer.
+[AdminKit](../../apps/web/src/ui/AdminKit.module.css) dùng paper cho bảng/panel, Copper cho nút/focus,
+Playfair H1 và Be Vietnam Pro cho nội dung/điều khiển; không thêm token hoặc đổi CSS cửa hàng.
+Bộ lọc thu gọn chỉ Users cần nên nằm trong feature Account, không đưa thành UI dùng chung.
+Pager/Feedback chung chỉ được chỉnh hình thức qua selector nằm dưới gốc page admin; API component giữ nguyên.
+
+PR #58 đã merge tại `8fe405e`; nhánh Issue #59 đã cập nhật theo develop đó.
+Check/build/docs lint và QA trình duyệt đã đạt ở bản local; minh chứng tại kho docs.
+Bảo review app/ui và Duy/Bảo review vùng Orders trước merge; quyết định [ADR-042](../LOG.md#adr-042) vẫn đề xuất.
