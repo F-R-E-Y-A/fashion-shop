@@ -1,6 +1,6 @@
 ---
 title: Checkout — nhật ký
-updated: 2026-10-30
+updated: 2026-11-03
 status: đang dùng
 owner: Bảo
 ---
@@ -69,3 +69,29 @@ Mục tiêu p95 tạo đơn dưới 800 ms ở 1000 khách **chưa đạt**. Poo
 Mục đo tải 30/10 ở trên kết luận số kết nối không phải nút thắt vì pool 30 không nhanh hơn pool 10. Kết luận đó chưa đứng được: trong bảng, lượt pool 30 chạy *trước* sửa lỗi `pg-pool` (45 lần 500, 182 lần 503), còn lượt pool 10 chạy *sau*; hai lượt không cùng mã. Thêm nữa, bộ đo gọi API bằng supertest trong cùng tiến trình Node, nên p95 gồm cả thời gian phía client tranh CPU với server (suy luận, chưa tách đo).
 
 Giữ nguyên: đúng đắn ở 1000 khách (50 đơn / 50 giữ hàng, không bán vượt) và mục tiêu p95 tạo đơn < 800 ms chưa đạt. Muốn kết luận về pool thì đo lại pool 10 và 30 trên cùng commit, client tải chạy ở tiến trình riêng, kèm CPU Node và `pg_stat_activity`.
+
+
+<a id="adr-043"></a>
+## 2026-11-03 · ADR-043 — Giữ điều kiện đơn hàng trong URL
+
+**Loại:** quyết định · **Phạm vi:** Orders/Checkout web · **Trạng thái:** đề xuất · **Người quyết:** Tài, Duy/Bảo review · **Issue:** [#61](https://github.com/F-R-E-Y-A/fashion-shop/issues/61)
+
+### Hiện trạng và phản biện
+
+Trên develop `8fe405e`, link detail/back bỏ điều kiện, draft chỉ khởi tạo một lần từ q, Number nhận page
+không phải số nguyên. 14 ca regression đỏ trước sửa ở kho docs; giữ nguyên guard/cache từ PR #58.
+Chỉ lưu return trong history state không bền khi mở tab mới; nhận URL return tự do cần thêm kiểm tra và dễ sai.
+
+### Phương án đề xuất
+
+Một codec tab/q/page cho canonical URL, query và request. Detail mang chính query đó; đường về luôn dựng
+`/admin/orders` từ allowlist, bỏ tham số lạ/lặp. Canonical dùng replace và chặn query tới khi URL hợp lệ.
+Đồng bộ draft theo navigation key như Users. Trang sau rỗng có link phục hồi theo totalPages của response thật,
+không tự redirect vì tập dữ liệu có thể tiếp tục đổi. PageSize 20, không thay API hoặc chính sách tiền/kho.
+
+### Thực tế và điều kiện xem lại
+
+Triển khai độc lập trên bugfix/admin-orders-navigation từ develop; PR #60 chưa merge lúc bắt đầu.
+Kiểm ghép với shell trước bàn giao, đối chiếu lại khi shell merge. Kết quả/check/QA và giới hạn tại kho docs.
+AC điều hướng ở orders/use-cases.md là phần đề xuất UC-12.1 từ PR #26, không coi đã được Duy chốt.
+Xem lại nếu thêm pageSize/filter, đổi tab backend, chia quyền resource hoặc muốn chia sẻ thêm ngữ cảnh detail.

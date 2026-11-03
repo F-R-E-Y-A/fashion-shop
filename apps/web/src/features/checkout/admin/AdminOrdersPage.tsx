@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { type FormEvent, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 
 import { formatDateTime, formatPrice, samePaginatedQuery } from '@/core';
 import {
@@ -24,9 +24,12 @@ import {
   paymentLabels,
 } from './admin-orders.api.js';
 import styles from './AdminOrders.module.css';
-
-const isTab = (value: string | null): value is OrderTab =>
-  ORDER_TABS.some((tab) => tab.key === value);
+import {
+  normalizeOrderSearch,
+  ORDER_QUERY_MAX,
+  orderListPath,
+  parseOrderListSearch,
+} from './order-list-query.js';
 
 /** /admin/orders: don moi khach theo tab trang thai, tim ma don/email, phan trang (ADR-038). */
 export function AdminOrdersPage() {
@@ -38,29 +41,36 @@ function AdminOrders() {
   const { user, authenticatedRequest: request, getSessionEpoch } = useAuth();
   const actorId = user?.id ?? '';
   const { forbidden, guardQuery } = useAdminForbidden(actorId, getSessionEpoch);
-  const [params, setParams] = useSearchParams();
-  const tab: OrderTab = isTab(params.get('tab')) ? (params.get('tab') as OrderTab) : 'attention';
-  const q = params.get('q') ?? '';
-  const page = Math.max(1, Number(params.get('page')) || 1);
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { query, canonical } = parseOrderListSearch(location.search);
+  const { tab, q, page } = query;
+  const needsCanonical = location.search !== canonical;
   const [draft, setDraft] = useState(q);
+  const [syncedNavigation, setSyncedNavigation] = useState(location.key);
+  if (syncedNavigation !== location.key) {
+    setSyncedNavigation(location.key);
+    setDraft(q);
+  }
   const key = adminOrderKeys.list(actorId, tab, q, page);
   const result = useQuery({
     queryKey: key,
     queryFn: ({ signal }) =>
       guardQuery(() => request<AdminOrderPage>(listPath(tab, q, page), { signal })),
-    enabled: Boolean(actorId) && !forbidden,
+    enabled: Boolean(actorId) && !forbidden && !needsCanonical,
     placeholderData: (previous, previousQuery) =>
       previousQuery && samePaginatedQuery(previousQuery.queryKey, key) ? previous : undefined,
     retry: shouldRetryAdminQuery,
   });
   const update = (next: { tab?: OrderTab; q?: string; page?: number }) => {
-    const merged = new URLSearchParams();
-    merged.set('tab', next.tab ?? tab);
-    const text = next.q ?? q;
-    if (text) merged.set('q', text);
-    const nextPage = next.page ?? 1;
-    if (nextPage > 1) merged.set('page', String(nextPage));
-    setParams(merged);
+    navigate(
+      orderListPath({
+        ...query,
+        ...next,
+        q: normalizeOrderSearch(next.q ?? q),
+        page: next.page ?? 1,
+      }),
+    );
   };
   const search = (event: FormEvent) => {
     event.preventDefault();
@@ -68,6 +78,10 @@ function AdminOrders() {
   };
   const data = result.data;
   if (forbidden) return <AdminForbidden />;
+  if (needsCanonical) return <Navigate to={orderListPath(query)} replace />;
+  const outOfRange = Boolean(
+    data && !result.isPlaceholderData && data.items.length === 0 && page > 1,
+  );
   return (
     <div className={styles.page}>
       <header className={styles.header}>
@@ -102,7 +116,7 @@ function AdminOrders() {
               id="admin-order-q"
               className={styles.searchInput}
               value={draft}
-              maxLength={254}
+              maxLength={ORDER_QUERY_MAX}
               onChange={(event) => setDraft(event.target.value)}
               placeholder="FR2610… hoặc khach@…"
             />
@@ -135,11 +149,21 @@ function AdminOrders() {
       {data && data.items.length === 0 && (
         <Empty
           label={
-            tab === 'attention' && !q
-              ? 'Không có đơn nào cần xử lý. Đơn cần đối soát, lệnh hoàn chưa chốt hoặc đơn hủy đã thu tiền sẽ hiện ở đây.'
-              : 'Không có đơn khớp bộ lọc.'
+            outOfRange
+              ? `Trang ${page} không có dữ liệu.`
+              : tab === 'attention' && !q
+                ? 'Không có đơn nào cần xử lý. Đơn cần đối soát, lệnh hoàn chưa chốt hoặc đơn hủy đã thu tiền sẽ hiện ở đây.'
+                : 'Không có đơn khớp bộ lọc.'
           }
         />
+      )}
+      {data && outOfRange && (
+        <Link
+          className={styles.secondary}
+          to={orderListPath({ ...query, page: Math.max(1, data.totalPages) })}
+        >
+          {data.totalPages > 0 ? 'Về trang cuối có dữ liệu' : 'Về trang đầu'}
+        </Link>
       )}
       {data && data.items.length > 0 && (
         <div className={styles.tableWrap} aria-busy={result.isFetching}>
@@ -161,7 +185,13 @@ function AdminOrders() {
                 <tr key={order.id}>
                   <td data-label="Mã đơn">
                     <div>
-                      <Link className={styles.code} to={`/admin/orders/${order.id}`}>
+                      <Link
+                        className={styles.code}
+                        to={{
+                          pathname: `/admin/orders/${encodeURIComponent(order.id)}`,
+                          search: canonical,
+                        }}
+                      >
                         {order.orderCode}
                       </Link>
                       <span className={styles.sub}>{order.itemCount} món</span>
@@ -206,7 +236,7 @@ function AdminOrders() {
           </table>
         </div>
       )}
-      {data && data.totalPages > 1 && (
+      {data && !outOfRange && data.totalPages > 1 && (
         <Pager
           page={data.page}
           totalPages={data.totalPages}

@@ -1,6 +1,6 @@
 ---
 title: Checkout — luồng PH-11
-updated: 2026-11-02
+updated: 2026-11-03
 status: ưu tiên VNPAY sandbox, MoMo để sau
 owner: Bảo
 ---
@@ -67,3 +67,12 @@ Worker chỉ hoạt động khi API đang chạy; khởi động lại quét dea
 Theo phạm vi mới của Bảo, hiện cấu hình VNPAY; checkout ẩn MoMo khi chưa có key. VNPAY PAY/OTP/return và QueryDR có chữ ký đã được nghiệm thu trên HTTPS với DB riêng; IPN thử bằng replay payload hợp lệ, chưa xác minh VNPAY chủ động gọi IPN đã đăng ký. MoMo chưa nghiệm thu cổng thật. Ngày 19/10 chạy trọn luồng trên app với DB clone riêng: khách vãng lai thêm hàng → đăng nhập gộp giỏ → thêm địa chỉ → checkout 79.000đ → VNPAY NCB/OTP → worker QueryDR → `CONFIRMED`, tồn 5→4, một SALE, giỏ trừ đúng món. Tồn nạp bằng `stock:import`.
 
 `PAYMENT_REVIEW` yêu cầu khách không thanh toán lại, liên hệ shop kèm mã đơn; ADMIN hoàn trên màn `/admin/orders` ([payments/README.md](../payments/README.md)), chưa tự động hoàn. Khách tự hủy đơn online đã trả khi shop chưa bấm "Bắt đầu xử lý": hàng về kho, hoàn tiền tự động ([ADR-038](../../LOG.md#adr-038)); từ `PROCESSING` trở đi khách liên hệ shop. SOAP không thuộc luồng cơ bản này.
+
+
+## Điều hướng quản trị — Issue #61, chờ review
+
+URL Orders dùng codec [order-list-query.ts:18](../../../apps/web/src/features/checkout/admin/order-list-query.ts#L18)
+cho tab/q/page đã chuẩn hóa; chỉ query sau canonical. Link chi tiết mang query và dựng đường về danh sách nội bộ,
+không dùng return URL tùy ý. Back/Forward đồng bộ draft; trang sau rỗng có link phục hồi, không tự redirect theo total.
+Không đổi API, CSS, tiền/kho hoặc mutation. [Đặc tả điều hướng UC-12.1 đề xuất](../orders/use-cases.md),
+[quyết định ADR-043](LOG.md#adr-043); Issue #61 tách từ develop `8fe405e`, PR shell #60 còn chờ review khi bắt đầu.
