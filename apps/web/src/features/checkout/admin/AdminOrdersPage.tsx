@@ -85,11 +85,11 @@ function AdminOrders() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <p className={styles.eyebrow}>Quản trị</p>
         <div className={styles.headingRow}>
           <h1 className={styles.title}>Đơn hàng</h1>
           {data && <p className={styles.count}>{data.total} đơn</p>}
         </div>
+        <p className={styles.description}>Theo dõi đơn và xử lý các bước vận hành.</p>
       </header>
 
       <nav className={styles.tabs} aria-label="Lọc theo trạng thái">
@@ -118,7 +118,7 @@ function AdminOrders() {
               value={draft}
               maxLength={ORDER_QUERY_MAX}
               onChange={(event) => setDraft(event.target.value)}
-              placeholder="FR2610… hoặc khach@…"
+              placeholder="Mã đơn hoặc email…"
             />
             <button type="submit" className={styles.searchButton}>
               Tìm

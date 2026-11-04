@@ -1,6 +1,6 @@
 ---
 title: Orders — snapshot và vòng đời thanh toán
-updated: 2026-11-03
+updated: 2026-11-04
 status: phục vụ checkout PH-11, chưa có quản trị giao vận
 owner: Duy
 ---
@@ -30,4 +30,5 @@ Xem đơn/danh sách và các thao tác trong [Checkout](../checkout/README.md),
 
 [Đặc tả phần điều hướng UC-12.1](use-cases.md) đang đề xuất, chờ Duy thống nhất mã/AC với PR #26.
 URL/Back/Forward/chi tiết và phục hồi trang rỗng được kiểm trong Checkout web; không thêm nghiệp vụ giao vận
-hay đổi quyền ghi OrdersService. README Checkout giữ trạng thái triển khai; minh chứng ở kho docs.
+hay đổi quyền ghi OrdersService. Nhánh điều hướng đã tích hợp develop `63d9798` có shell #60;
+PR #62 vẫn chờ review. README Checkout giữ trạng thái triển khai; minh chứng ở kho docs.

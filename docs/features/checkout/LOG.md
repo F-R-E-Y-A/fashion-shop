@@ -91,7 +91,7 @@ không tự redirect vì tập dữ liệu có thể tiếp tục đổi. PageSi
 
 ### Thực tế và điều kiện xem lại
 
-Triển khai độc lập trên bugfix/admin-orders-navigation từ develop; PR #60 chưa merge lúc bắt đầu.
-Kiểm ghép với shell trước bàn giao, đối chiếu lại khi shell merge. Kết quả/check/QA và giới hạn tại kho docs.
+Triển khai trên bugfix/admin-orders-navigation, đã fetch và tích hợp develop 63d9798 có PR #60 bằng merge commit.
+Giữ cả điều hướng và JSX/CSS shell; chạy lại kiểm chứng sau ghép. Kết quả/check/QA và giới hạn tại kho docs.
 AC điều hướng ở orders/use-cases.md là phần đề xuất UC-12.1 từ PR #26, không coi đã được Duy chốt.
 Xem lại nếu thêm pageSize/filter, đổi tab backend, chia quyền resource hoặc muốn chia sẻ thêm ngữ cảnh detail.
