@@ -1,6 +1,6 @@
 ---
 title: Kiểm thử — chạy thế nào, viết thế nào
-updated: 2026-09-24
+updated: 2026-11-05
 status: đang dùng
 owner: Bảo
 ---
@@ -27,12 +27,22 @@ npm run db:test:prepare
 
 Lệnh đó đọc `DATABASE_URL_TEST` trong `.env`, tạo cơ sở dữ liệu nếu chưa có, rồi áp migration lên đó. **Cơ sở dữ liệu kiểm thử bị xoá sạch trước mỗi lần chạy**, nên nó bắt buộc phải khác cơ sở dữ liệu thường ngày. Hai biến trùng nhau thì bộ kiểm thử từ chối chạy.
 
-## Hai loại bài, viết ở hai chỗ
+### Đầu cuối (E2E)
+
+```bash
+npx playwright install chromium   # lần đầu trên máy
+npm run test:e2e -w apps/web      # build và bật API :3101, web :5175, seed lại CSDL kiểm thử
+```
+
+Cần Postgres và Redis đang chạy (`npm run db:up`) và đã `db:test:prepare`. Bài nằm ở `apps/web/e2e/`; dữ liệu do `apps/api/test/e2e/seed.ts` nạp và in ra một dòng JSON mà bài đọc qua `fixture()`. Lỗi thì xem `apps/web/playwright-report/` hoặc `npx playwright show-trace <trace.zip>`. Lý do chọn cách này: [LOG#adr-046](../LOG.md#adr-046).
+
+## Ba loại bài, viết ở ba chỗ
 
 | Loại | Ở đâu | Chạy gì | Nhanh cỡ nào |
 |---|---|---|---|
 | Đơn vị | `apps/api/src/**/*.spec.ts`, `apps/web/src/**/*.test.tsx` | Prisma và `fetch` đều giả | vài chục ms |
 | Qua HTTP | `apps/api/test/**/*.spec.ts` | Cả ứng dụng thật, Postgres thật | vài giây |
+| Đầu cuối | `apps/web/e2e/*.spec.ts` | Trình duyệt thật, web và API thật, Postgres kiểm thử | vài chục giây |
 
 Nguyên tắc chọn: **logic nghiệp vụ thì viết bài đơn vị; đường đi giữa các tầng thì viết bài HTTP.** Bài HTTP kiểm được ba thứ mà bài đơn vị không thấy: kiểm tra dữ liệu vào, khuôn lỗi thống nhất, và tiền tố `/api`.
 

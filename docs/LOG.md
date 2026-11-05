@@ -848,3 +848,29 @@ Thực tế: (điền sau mốc gộp đầu tiên).
 
 ### Điều kiện xem lại
 Danh sách nhánh remote dài tới mức khó tìm; nhánh giữ lâu bị lệch `develop` gây xung đột lớn khi gộp lại.
+
+<a id="adr-046"></a>
+## 2026-11-05 · ADR-046 — Tầng E2E dùng Playwright trong `apps/web`, chạy trên CSDL kiểm thử với API và web ở cổng riêng
+
+**Loại:** quyết định · **Phạm vi:** cả nhóm: `apps/web` (thêm `@playwright/test`), `apps/api/test/e2e/seed.ts`, [shared/testing.md](shared/testing.md); tầng E2E trong [shared/test-strategy.md](shared/test-strategy.md) do Duy chủ trì · **Trạng thái:** đề xuất · **Người quyết:** Bảo đề xuất, Duy (chủ tầng E2E) và Tài review · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- Rubric mục Kiểm thử Mức 5 đòi đủ bốn tầng: unit, integration/API, E2E/UI, phi chức năng (đối chiếu rubric ngày 01/11, kho docs). Ngày 05/11 kho chưa có bài E2E nào: `grep -rl playwright --include=package.json .` không ra kết quả ngoài `node_modules`, không có nhánh hay pull request E2E.
+- [test-strategy.md](shared/test-strategy.md) chọn Playwright cho E2E và liệt kê E2E-01…E2E-06; chưa có luồng đặt hàng – thanh toán.
+- Các tầng khác đã có số: unit API 55,18% dòng (`npm run test:cov -w apps/api`), unit web 92,34% dòng (`npm run test:cov -w apps/web`), HTTP 91,26% dòng (artifact `coverage-http` của CI run `41668049279` tại `63d9798`).
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Gói E2E riêng `apps/e2e` | Tách hẳn phụ thuộc | Workspace mới lọt vào `npm run test --workspaces` nếu đặt tên script sai; thêm một package phải bảo trì | Được |
+| **B. Playwright trong `apps/web`, seed ở `apps/api/test/e2e/seed.ts` (chọn)** | Dùng lại Vite và cấu hình web; seed dùng lại `resetDatabase`, `seedShipping`, `grantAdminRole` của API | `apps/web` có thêm một devDependency; seed nằm khác gói với bài test | Được: xoá `e2e/`, `playwright.config.ts` và gỡ gói |
+| Không làm gì | Không thêm phụ thuộc | Tầng E2E vẫn trống, rubric Mức 5 không đạt | — |
+
+**Chọn B.** Cách chạy: `npm run test:e2e -w apps/web`. Playwright tự build và bật API ở cổng 3101 với `DATABASE_URL_TEST`, `NODE_ENV=test`, web Vite ở cổng 5175. Cổng riêng, không tái dùng máy chủ đang chạy, vì máy chủ dev 3001/5174 trỏ vào CSDL thật, còn seed E2E xoá sạch CSDL mà API đang dùng. Global setup chạy `npm run e2e:seed -w apps/api` và nhận một dòng JSON mô tả fixture, nên bài test không gõ lại hằng số của seed. Chưa gắn vào CI: đề xuất job chạy khi gộp `develop` như test-strategy ghi, Duy quyết.
+
+### Kết quả mong đợi → thực tế
+Mong đợi: bài đầu tiên `E2E-07` (luồng COD: khách thêm giỏ → đặt COD → admin xác nhận → ghi đã giao, đã thu tiền → khách thấy đơn đã giao, tồn giảm một) xanh ổn định khi chạy lặp.
+Thực tế: 2026-11-05 · `npx playwright test --repeat-each=3` trong `apps/web` → `3 passed (38.5s)`, mỗi lượt khoảng 6 giây · khớp. Khi viết bài này lộ ra lỗi giao diện: `CheckoutPage.tsx:114` coi mọi 422 của preview là "chưa chọn sản phẩm", kể cả 422 "Địa chỉ này chưa có biểu phí giao hàng."
+
+### Điều kiện xem lại
+Bài E2E chậm hoặc chập chờn tới mức chặn công việc; có môi trường staging ổn định để chạy E2E trên đó; nhóm chọn công cụ khác cho tầng UI.
