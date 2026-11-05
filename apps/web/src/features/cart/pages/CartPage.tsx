@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { formatPrice } from '@/core';
+import { BestPromotionBanner, PromotionField, useAppliedPromotion } from '@/features/promotions';
 
 import {
   Cart,
@@ -102,6 +103,7 @@ function CartItemRow({
 
 export function CartPage() {
   const navigate = useNavigate();
+  const { applied, applyEvaluatedPromotion } = useAppliedPromotion();
   const {
     data: cart,
     isLoading,
@@ -174,6 +176,19 @@ export function CartPage() {
         </div>
 
         <aside className={styles.summary} aria-label="Tóm tắt giỏ hàng">
+          <BestPromotionBanner
+            subtotal={cart.total}
+            itemCount={cart.selectedItemCount}
+            items={cart.items
+              .filter((item) => item.isSelected)
+              .map((item) => ({
+                variantId: item.variantId,
+                price: item.price,
+                quantity: item.quantity,
+              }))}
+            appliedPromotionId={applied?.kind === 'PROMOTION' ? applied.id : undefined}
+            onApplyBest={applyEvaluatedPromotion}
+          />
           <h2 className={styles.summaryTitle}>Tóm tắt</h2>
           <p className={styles.row}>
             <span>Tạm tính · {cart.selectedItemCount} sản phẩm đã chọn</span>
@@ -183,17 +198,29 @@ export function CartPage() {
             <span>Phí vận chuyển</span>
             <span>Tính khi thanh toán</span>
           </p>
-          <label className={styles.promotion}>
-            Khuyến mãi
-            <input aria-label="Khuyến mãi" value="" readOnly disabled placeholder="Chưa áp dụng" />
-          </label>
+          <PromotionField subtotal={cart.total} />
           <p className={styles.row}>
             <span>Giảm giá</span>
-            <span>{formatPrice(cart.discountAmount)}</span>
+            <span>
+              {applied && parseFloat(applied.discountAmount) > 0
+                ? `-${formatPrice(applied.discountAmount)}`
+                : formatPrice(cart.discountAmount)}
+            </span>
           </p>
           <p className={styles.total}>
             <span>Tiền hàng đã chọn</span>
-            <strong>{formatPrice(cart.total)}</strong>
+            <strong>
+              {formatPrice(
+                String(
+                  applied && parseFloat(applied.discountAmount) > 0
+                    ? Math.max(
+                        0,
+                        (parseFloat(cart.total) || 0) - parseFloat(applied.discountAmount),
+                      )
+                    : cart.total,
+                ),
+              )}
+            </strong>
           </p>
           <button
             type="button"
