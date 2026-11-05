@@ -87,7 +87,9 @@ describe('UC-02.1 Issue #48 — codec điều kiện danh sách', () => {
     expect(userListSignature({ ...base, page: 4 })).toBe(userListSignature(base));
     expect(userListSignature({ ...base, pageSize: 50 })).not.toBe(userListSignature(base));
     expect(adminUserKeys.list('a', { ...base, page: 2 })).toEqual([
-      'admin-users',
+      'session',
+      'admin',
+      'users',
       'a',
       'list',
       '?status=ACTIVE',

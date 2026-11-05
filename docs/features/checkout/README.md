@@ -1,6 +1,6 @@
 ---
 title: Checkout — luồng PH-11
-updated: 2026-11-01
+updated: 2026-11-03
 status: ưu tiên VNPAY sandbox, MoMo để sau
 owner: Bảo
 ---
@@ -19,6 +19,23 @@ owner: Bảo
 Hình dạng HTTP thật ở Swagger `/api/docs`, sinh từ [DTO response](../../../apps/api/src/modules/checkout/dto/checkout.response.ts). Web ở [checkout/index.ts](../../../apps/web/src/features/checkout/index.ts), bắt buộc Auth tại [routes.tsx](../../../apps/web/src/app/routes.tsx). Ba trang theo khung trang giỏ: xác nhận (`/thanh-toan`), kết quả đơn (`/don-hang/:id`, `/thanh-toan/ket-qua`) và danh sách đơn là tab `/tai-khoan/don-hang`; `/don-hang` chuyển hướng về tab đó. Đồng hồ trang đơn dùng `role="timer"` để trình đọc màn hình không đọc mỗi giây.
 
 ## Phân chia trách nhiệm
+
+### Bảo vệ phiên của màn quản trị — Issue #57, đã merge PR #58
+
+- `/admin/orders` và chi tiết dùng cùng `useAdminForbidden` với Users qua public index Account;
+  403 dọn các resource admin của actor, ẩn dữ liệu khách và ngừng query. Không thay guard backend.
+- Query truyền AbortSignal; cache đặt dưới gốc phiên. Đổi tab/q không dùng dòng của tập cũ làm placeholder.
+  Đổi epoch tạo lại observer và trạng thái cục bộ, kể cả đăng nhập lại cùng actor.
+- [AdminOrderDetailPage.tsx:62](../../../apps/web/src/features/checkout/admin/AdminOrderDetailPage.tsx#L62)
+  kiểm epoch/thế hệ quyền ở callback, hủy GET cũ trước khi đọc lại sau POST; không tự retry mutation.
+  Chờ POST tối đa 15 giây; timeout/mạng/5xx là kết quả chưa rõ. Nếu GET đối chiếu chưa thành công thì
+  chặn thao tác tiếp và cho kiểm lại bằng GET. Không giữ ledger cũ trong hộp sau kết quả không rõ.
+- Hồi quy tại [admin-order-races.test.tsx](../../../apps/web/src/features/checkout/admin/admin-order-races.test.tsx)
+  và [admin-order-session.test.tsx](../../../apps/web/src/features/checkout/admin/admin-order-session.test.tsx);
+  hợp đồng phiên theo UC-01.4/AC6–AC7 và bảo vệ admin dùng chung UC-02.1/AC6, AC8.
+  Chưa tự cấp mã use case mới cho luồng quản trị đơn; danh mục còn cần thống nhất với Duy.
+
+### Ranh giới ghi dữ liệu
 
 | Module | Sở hữu việc ghi |
 |---|---|
@@ -50,3 +67,11 @@ Worker chỉ hoạt động khi API đang chạy; khởi động lại quét dea
 Theo phạm vi mới của Bảo, hiện cấu hình VNPAY; checkout ẩn MoMo khi chưa có key. VNPAY PAY/OTP/return và QueryDR có chữ ký đã được nghiệm thu trên HTTPS với DB riêng; IPN thử bằng replay payload hợp lệ, chưa xác minh VNPAY chủ động gọi IPN đã đăng ký. MoMo chưa nghiệm thu cổng thật. Ngày 19/10 chạy trọn luồng trên app với DB clone riêng: khách vãng lai thêm hàng → đăng nhập gộp giỏ → thêm địa chỉ → checkout 79.000đ → VNPAY NCB/OTP → worker QueryDR → `CONFIRMED`, tồn 5→4, một SALE, giỏ trừ đúng món. Tồn nạp bằng `stock:import`.
 
 `PAYMENT_REVIEW` yêu cầu khách không thanh toán lại, liên hệ shop kèm mã đơn; ADMIN hoàn trên màn `/admin/orders` ([payments/README.md](../payments/README.md)), chưa tự động hoàn. Khách tự hủy đơn online đã trả khi shop chưa bấm "Bắt đầu xử lý": hàng về kho, hoàn tiền tự động ([ADR-038](../../LOG.md#adr-038)); từ `PROCESSING` trở đi khách liên hệ shop. SOAP không thuộc luồng cơ bản này.
+
+## Giao diện quản trị — Issue #59, chưa merge
+
+AdminKit áp dụng panel/bảng trắng và nhãn trạng thái; chi tiết đặt sản phẩm/thanh toán/lịch sử bên trái, giao hàng/thao tác bên phải.
+Chỉ di chuyển JSX và đổi CSS: actions, ledger, tiền/kho/COD/refund, request và vòng đời phiên giữ nguyên.
+Dialog dùng lại ConfirmDialog; URL/Back của Orders chưa sửa, thuộc đợt riêng.
+PR #58 đã merge tại `8fe405e`; nhánh shell đã cập nhật nền này, check/build/docs lint và QA đã đạt local.
+Cần review app/ui, nghiệp vụ Orders và CI của PR Issue #59 trước merge.

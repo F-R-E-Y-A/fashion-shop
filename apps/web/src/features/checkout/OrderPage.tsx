@@ -9,7 +9,7 @@ import { ConfirmDialog } from '@/ui';
 
 import styles from './Checkout.module.css';
 import { CheckoutSteps } from './CheckoutPage.js';
-import { forgetCheckout, orderBadges, orderStatuses, type OrderView } from './types.js';
+import { forgetCheckout, orderBadges, orderKeys, orderStatuses, type OrderView } from './types.js';
 
 const paymentStatuses: Record<string, string> = {
   SUCCEEDED: 'Đã nhận tiền',
@@ -31,7 +31,7 @@ export function OrderPage() {
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const cancelButton = useRef<HTMLButtonElement>(null);
   const reconciledReturn = useRef('');
-  const key = ['orders', user!.id, id || reference];
+  const key = orderKeys.detail(user!.id, id || reference || '');
   const result = useQuery({
     queryKey: key,
     queryFn: () =>
@@ -412,7 +412,7 @@ export function OrderPage() {
 export function OrdersPage() {
   const { user, authenticatedRequest: request } = useAuth();
   const result = useQuery({
-    queryKey: ['orders', user!.id, 'list'],
+    queryKey: orderKeys.list(user!.id),
     queryFn: () => request<OrderView[]>('/orders'),
     gcTime: 0,
   });

@@ -12,6 +12,7 @@ import {
   type UserListQuery,
 } from './list-query.js';
 import { roleLabel, statusLabel } from './user-labels.js';
+import { UserFilterDisclosure } from './UserFilterDisclosure.js';
 
 /** Thoi gian cho sau phim cuoi cung truoc khi tim: du ngan de thay ket qua, khong gui moi phim. */
 export const USER_SEARCH_DEBOUNCE_MS = 300;
@@ -105,7 +106,7 @@ export function UserListControls({
             maxLength={USER_QUERY_MAX}
             autoComplete="off"
             spellCheck={false}
-            placeholder="vd: nguyen@example.com"
+            placeholder="Nhập email…"
             onChange={(event) => {
               const value = event.target.value;
               setDraft(value);
@@ -119,75 +120,83 @@ export function UserListControls({
         </div>
       </form>
 
-      <div className={styles.filters}>
-        <label className={styles.field}>
-          <span>Trạng thái</span>
-          <select
-            value={query.status ?? ''}
-            onChange={(event) =>
-              changeFilter({ status: (event.target.value || null) as UserListQuery['status'] })
-            }
-          >
-            <option value="">Tất cả</option>
-            {USER_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {statusLabel(status)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={styles.field}>
-          <span>Vai</span>
-          <select
-            value={query.role ?? ''}
-            onChange={(event) =>
-              changeFilter({ role: (event.target.value || null) as UserListQuery['role'] })
-            }
-          >
-            <option value="">Tất cả</option>
-            {USER_ROLES.map((role) => (
-              <option key={role} value={role}>
-                {roleLabel(role)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className={styles.field}>
-          <span>Xác thực email</span>
-          <select
-            value={query.verified === null ? '' : String(query.verified)}
-            onChange={(event) =>
-              changeFilter({
-                verified: event.target.value === '' ? null : event.target.value === 'true',
-              })
-            }
-          >
-            <option value="">Tất cả</option>
-            <option value="true">Đã xác thực</option>
-            <option value="false">Chưa xác thực</option>
-          </select>
-        </label>
-        <label className={styles.field}>
-          <span>Sắp xếp</span>
-          <select
-            value={query.sort}
-            onChange={(event) =>
-              changeFilter({ sort: event.target.value as UserListQuery['sort'] })
-            }
-          >
-            {USER_SORTS.map((sort) => (
-              <option key={sort} value={sort}>
-                {SORT_LABELS[sort]}
-              </option>
-            ))}
-          </select>
-        </label>
-        {filtered && (
-          <button type="button" className={styles.clearButton} onClick={clearFilters}>
-            Xóa bộ lọc
-          </button>
-        )}
-      </div>
+      <UserFilterDisclosure
+        active={
+          [query.status, query.role, query.verified !== null, query.sort !== 'newest'].filter(
+            Boolean,
+          ).length
+        }
+      >
+        <div className={styles.filters}>
+          <label className={styles.field}>
+            <span>Trạng thái</span>
+            <select
+              value={query.status ?? ''}
+              onChange={(event) =>
+                changeFilter({ status: (event.target.value || null) as UserListQuery['status'] })
+              }
+            >
+              <option value="">Tất cả</option>
+              {USER_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {statusLabel(status)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className={styles.field}>
+            <span>Vai</span>
+            <select
+              value={query.role ?? ''}
+              onChange={(event) =>
+                changeFilter({ role: (event.target.value || null) as UserListQuery['role'] })
+              }
+            >
+              <option value="">Tất cả</option>
+              {USER_ROLES.map((role) => (
+                <option key={role} value={role}>
+                  {roleLabel(role)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className={styles.field}>
+            <span>Xác thực email</span>
+            <select
+              value={query.verified === null ? '' : String(query.verified)}
+              onChange={(event) =>
+                changeFilter({
+                  verified: event.target.value === '' ? null : event.target.value === 'true',
+                })
+              }
+            >
+              <option value="">Tất cả</option>
+              <option value="true">Đã xác thực</option>
+              <option value="false">Chưa xác thực</option>
+            </select>
+          </label>
+          <label className={styles.field}>
+            <span>Sắp xếp</span>
+            <select
+              value={query.sort}
+              onChange={(event) =>
+                changeFilter({ sort: event.target.value as UserListQuery['sort'] })
+              }
+            >
+              {USER_SORTS.map((sort) => (
+                <option key={sort} value={sort}>
+                  {SORT_LABELS[sort]}
+                </option>
+              ))}
+            </select>
+          </label>
+          {filtered && (
+            <button type="button" className={styles.clearButton} onClick={clearFilters}>
+              Xóa bộ lọc
+            </button>
+          )}
+        </div>
+      </UserFilterDisclosure>
     </div>
   );
 }

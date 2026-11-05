@@ -9,17 +9,21 @@ import {
   useState,
 } from 'react';
 
-import { ApiError, apiRequest, type ApiRequestOptions, setAccessTokenGetter } from '@/core';
+import {
+  ApiError,
+  apiRequest,
+  type ApiRequestOptions,
+  sessionQueryKeys,
+  setAccessTokenGetter,
+} from '@/core';
 import { cartKeys, mergeCart } from '@/features/cart';
 
-import { adminUserKeys } from './admin/admin-users.api.js';
 import {
   login as loginRequest,
   logout as logoutRequest,
   refresh,
   register as registerRequest,
 } from './api/index.js';
-import { addressKeys, profileKeys } from './api/profile-address.api.js';
 import {
   createAuthLock,
   holdsCurrentSession,
@@ -59,9 +63,6 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
-/** Cache cua tai khoan dang dang nhap: bo khi danh tinh doi, giu moi cache khac. */
-const ACCOUNT_QUERY_KEYS = [profileKeys.all, addressKeys.all, adminUserKeys.all];
-
 type RefreshOutcome =
   { status: 'ROTATED'; accessToken: string } | { status: 'FAILED' } | { status: 'SESSION_CHANGED' };
 
@@ -90,10 +91,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const channelRef = useRef<SessionChannel | null>(null);
 
   const purgeAccountData = useCallback(() => {
-    for (const queryKey of ACCOUNT_QUERY_KEYS) {
-      void queryClient?.cancelQueries({ queryKey });
-      queryClient?.removeQueries({ queryKey });
-    }
+    void queryClient?.cancelQueries({ queryKey: sessionQueryKeys.all });
+    queryClient?.removeQueries({ queryKey: sessionQueryKeys.all });
   }, [queryClient]);
 
   /** Mo mot epoch moi: huy moi request cua phien truoc va xoa cache tai khoan cua no. */

@@ -1,6 +1,6 @@
 ---
 title: Tài khoản và xác thực — bản đồ
-updated: 2026-10-24
+updated: 2026-11-02
 status: đang làm
 owner: Tài
 ---
@@ -15,6 +15,11 @@ owner: Tài
 | **Use case** | Đặc tả của Duy đã gộp qua pull request #9 tại [uc-ph01-tai-khoan-xac-thuc.md](../../shared/uc-ph01-tai-khoan-xac-thuc.md), còn theo mã cũ `PH-01.m` (đăng ký, đăng nhập, đặt lại mật khẩu, đăng xuất, hồ sơ, địa chỉ, vóc dáng) và chưa chuyển sang `UC-NN.m` hay về `docs/features/auth/use-cases.md`. Xác thực email OTP và đổi mật khẩu (PH3.1, PH3.3) chưa có use case riêng. Làm mới phiên và đăng xuất: UC-01.4 (mã đề xuất theo PR #26) ở [use-cases.md](use-cases.md) |
 
 ## Hợp đồng công bố
+
+[Issue #57](https://github.com/F-R-E-Y-A/fashion-shop/issues/57) đang triển khai trên nhánh sửa riêng,
+chưa merge: gốc cache theo phiên ở core và guard 403 dùng chung Users/Orders qua public index Account.
+Cơ chế, phạm vi và kiểm thử ở [session-lifecycle.md](session-lifecycle.md); nghiệp vụ ở
+[use-cases.md](use-cases.md), quyết định đề xuất [ADR-041](../../LOG.md#adr-041).
 
 Duy cần biết ai đang đăng nhập để gộp giỏ. Issue #8 hẹn công bố trước hết Thứ Ba 23/09:
 

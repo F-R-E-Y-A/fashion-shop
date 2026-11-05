@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
 
+import { samePaginatedQuery } from '@/core';
 import { ConfirmDialog, Empty, ErrorNote, Loading, Pager } from '@/ui';
 
 import { ADMIN_MESSAGES, classifyAdminError, shouldRetryAdminQuery } from './admin-errors.js';
@@ -18,7 +19,6 @@ import {
   serializeUserListQuery,
   USER_PAGE_SIZES,
   type UserListQuery,
-  userListSignature,
   usersListPath,
 } from './list-query.js';
 import { ACTION_UNAVAILABLE_REASON, userActionFor } from './user-labels.js';
@@ -74,8 +74,13 @@ function RowAction({
 }
 
 export function AdminUsersPage() {
-  const { actorId, request } = useAdminActor();
-  const { forbidden, markForbidden, guardQuery } = useAdminForbidden(actorId);
+  const { actorId, getSessionEpoch } = useAdminActor();
+  return <AdminUsers key={`${actorId}:${getSessionEpoch()}`} />;
+}
+
+function AdminUsers() {
+  const { actorId, request, getSessionEpoch } = useAdminActor();
+  const { forbidden, markForbidden, guardQuery } = useAdminForbidden(actorId, getSessionEpoch);
   const action = useUserStatusAction({ actorId, markForbidden });
   const location = useLocation();
   const navigate = useNavigate();
@@ -89,7 +94,6 @@ export function AdminUsersPage() {
     setDraft(query.q);
   }
   const needsCanonical = canonical !== location.search;
-  const signature = userListSignature(query);
   const filtered = hasUserListFilters(query);
 
   const users = useQuery({
@@ -100,7 +104,8 @@ export function AdminUsersPage() {
     // Giu trang cu CHI khi cung actor va cung dieu kien, chi khac trang: doi bo loc thi hien dang tai,
     // khong de tap cu nhay duoi bo loc moi; khong bao gio muon du lieu cua actor khac.
     placeholderData: (previous, previousQuery) =>
-      previousQuery?.queryKey[1] === actorId && previousQuery.queryKey[3] === signature
+      previousQuery &&
+      samePaginatedQuery(previousQuery.queryKey, adminUserKeys.list(actorId, query))
         ? previous
         : undefined,
   });
@@ -218,9 +223,14 @@ export function AdminUsersPage() {
                     <td role="cell" data-label="Trạng thái">
                       <StatusBadge status={item.status} />
                     </td>
-                    <td role="cell" data-label="Xác thực email" className={styles.numeric}>
+                    <td role="cell" data-label="Xác thực email" className={styles.verifiedCell}>
                       {item.emailVerifiedAt ? (
-                        formatAdminDate(item.emailVerifiedAt)
+                        <span>
+                          <span className={styles.verified}>Đã xác thực</span>
+                          <span className={styles.sub}>
+                            {formatAdminDate(item.emailVerifiedAt)}
+                          </span>
+                        </span>
                       ) : (
                         <span className={styles.muted}>Chưa xác thực</span>
                       )}
@@ -285,11 +295,11 @@ export function AdminUsersPage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <p className={styles.eyebrow}>Quản trị</p>
         <div className={styles.headingRow}>
           <h1 className={styles.title}>Người dùng</h1>
           {totalLabel && <p className={styles.count}>{totalLabel}</p>}
         </div>
+        <p className={styles.description}>Tra cứu tài khoản và quản lý trạng thái truy cập.</p>
       </header>
       <UserListControls
         navigationKey={location.key}
