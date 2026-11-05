@@ -233,7 +233,7 @@ describe('ProductDetailPage (UC-03.4)', () => {
     );
   });
 
-  it('404 có lối về trang chủ', async () => {
+  it('UC-03.4/AC5 404 có lối về trang chủ', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {

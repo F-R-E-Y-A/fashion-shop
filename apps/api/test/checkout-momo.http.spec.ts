@@ -197,7 +197,7 @@ describe('PH-11 MoMo: HTTP gateway outside PostgreSQL transaction', () => {
     await new Promise<void>((resolve) => server?.close(() => resolve()));
   });
 
-  it('exposes both gateways, commits hold before network and reuses the same order/request', async () => {
+  it('UC-08.1/AC1 exposes both gateways, commits hold before network and reuses the same order/request', async () => {
     const quote = await preview().expect(201);
     expect(quote.body.gateways).toEqual(
       expect.arrayContaining([
@@ -218,7 +218,7 @@ describe('PH-11 MoMo: HTTP gateway outside PostgreSQL transaction', () => {
     expect(await t.prisma.payment.count()).toBe(1);
     await post(quote.body.fingerprint, randomUUID(), 'VNPAY').expect(409);
   });
-  it('missing MoMo credentials rolls back the order and hold', async () => {
+  it('UC-08.1/AC2 missing MoMo credentials rolls back the order and hold', async () => {
     const config = t.app.get(ConfigService);
     const original = config.get.bind(config);
     const spy = vi
@@ -233,7 +233,7 @@ describe('PH-11 MoMo: HTTP gateway outside PostgreSQL transaction', () => {
       spy.mockRestore();
     }
   });
-  it('signed IPN commits stock/cart once; tampering, wrong amount and wrong gateway cannot settle', async () => {
+  it('UC-08.2/AC1,AC2 signed IPN commits stock/cart once; tampering, wrong amount and wrong gateway cannot settle', async () => {
     const order = await place();
     await ipn({ ...signed(order), amount: 1 }).expect(400);
     await ipn(signed(order, { amount: 1 })).expect(400);
@@ -252,7 +252,7 @@ describe('PH-11 MoMo: HTTP gateway outside PostgreSQL transaction', () => {
     expect(await t.prisma.cartItem.count()).toBe(0);
     expect(await t.prisma.paymentTransaction.count({ where: { status: 'PROCESSED' } })).toBe(1);
   });
-  it('lỗi khi chốt IPN trả 503 để MoMo gửi lại, không ghi gì; lần gửi lại chốt đúng một lần', async () => {
+  it('UC-08.2/AC4 lỗi khi chốt IPN trả 503 để MoMo gửi lại, không ghi gì; lần gửi lại chốt đúng một lần', async () => {
     const order = await place();
     const settlement = t.app.get(SettlementService);
     const log = vi.spyOn(settlement['logger'], 'error').mockImplementation(() => undefined);
@@ -276,7 +276,7 @@ describe('PH-11 MoMo: HTTP gateway outside PostgreSQL transaction', () => {
     );
     expect(await t.prisma.stockMovement.count({ where: { movementType: 'SALE' } })).toBe(1);
   });
-  it('an uncertain create is retried with the persisted payload even after callback configuration changes', async () => {
+  it('UC-08.1/AC9 an uncertain create is retried with the persisted payload even after callback configuration changes', async () => {
     failCreate = true;
     const order = await place();
     expect(order.payments[0]!.checkoutUrl).toBeNull();
@@ -307,7 +307,7 @@ describe('PH-11 MoMo: HTTP gateway outside PostgreSQL transaction', () => {
       spy.mockRestore();
     }
   });
-  it('query recovers a missing IPN and a later IPN does not sell twice', async () => {
+  it('UC-08.2/AC3,AC5 query recovers a missing IPN and a later IPN does not sell twice', async () => {
     const order = await place();
     queryState = 0;
     await unlockQuery(order);
@@ -316,7 +316,7 @@ describe('PH-11 MoMo: HTTP gateway outside PostgreSQL transaction', () => {
     await ipn(signed(order)).expect(204);
     expect(await t.prisma.stockMovement.count({ where: { movementType: 'SALE' } })).toBe(1);
   });
-  it('a failed attempt can retry without extending the reservation deadline', async () => {
+  it('UC-08.1/AC3 a failed attempt can retry without extending the reservation deadline', async () => {
     const order = await place();
     await ipn(signed(order, { resultCode: 1006, transId: 0 })).expect(204);
     const retry = await t.http
@@ -329,7 +329,7 @@ describe('PH-11 MoMo: HTTP gateway outside PostgreSQL transaction', () => {
     expect(retry.body.payments[0].gateway).toBe('MOMO');
     expect(retry.body.payments[0].checkoutUrl).toContain('/pay?ref=');
   });
-  it('cancel/expiry releases stock; late paid money goes to PAYMENT_REVIEW', async () => {
+  it('UC-07.4/AC1 UC-08.2/AC7 cancel/expiry releases stock; late paid money goes to PAYMENT_REVIEW', async () => {
     const order = await place();
     const past = new Date(Date.now() - 1000);
     await t.prisma.order.update({ where: { id: order.id }, data: { paymentDueAt: past } });
@@ -347,7 +347,7 @@ describe('PH-11 MoMo: HTTP gateway outside PostgreSQL transaction', () => {
     );
     expect(await t.prisma.stockMovement.count({ where: { movementType: 'SALE' } })).toBe(0);
   });
-  it('khách hủy đơn đã trả MoMo: trả kho, hoàn theo transId lúc thu, đơn REFUNDED', async () => {
+  it('UC-07.4/AC4 khách hủy đơn đã trả MoMo: trả kho, hoàn theo transId lúc thu, đơn REFUNDED', async () => {
     const order = await place();
     await ipn(signed(order)).expect(204);
     const after = (await t.http.post(`/api/orders/${order.id}/cancel`).set(auth()).expect(201))
@@ -362,7 +362,7 @@ describe('PH-11 MoMo: HTTP gateway outside PostgreSQL transaction', () => {
         .quantityOnHand,
     ).toBe(10);
   });
-  it('MoMo từ chối hoàn: đơn vẫn hủy, lệnh hoàn giữ chờ admin, không hoàn lần hai khi bấm lại', async () => {
+  it('UC-07.4/AC5 MoMo từ chối hoàn: đơn vẫn hủy, lệnh hoàn giữ chờ admin, không hoàn lần hai khi bấm lại', async () => {
     refundState = 1080;
     const order = await place();
     await ipn(signed(order)).expect(204);

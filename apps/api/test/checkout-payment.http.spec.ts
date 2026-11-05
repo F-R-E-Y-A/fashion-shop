@@ -157,7 +157,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   });
 
-  it('preview không giữ hàng; quote 30k ship/discount0, từ 500k freeship', async () => {
+  it('UC-07.1/AC1 preview không giữ hàng; quote 30k ship/discount0, từ 500k freeship', async () => {
     expect((await preview().expect(201)).body).toMatchObject({
       subtotalAmount: '200000.00',
       shippingFeeAmount: '30000.00',
@@ -176,7 +176,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
     expect((await preview().expect(201)).body.shippingFeeAmount).toBe('0.00');
   });
 
-  it('login và ownership địa chỉ/đơn, validation UUID, không nhận giá từ client', async () => {
+  it('UC-07.1/AC2 UC-07.3/AC2 login và ownership địa chỉ/đơn, validation UUID, không nhận giá từ client', async () => {
     await t.http.post('/api/checkout/preview').send({ addressId }).expect(401);
     const other = await t.prisma.user.create({
       data: { email: 'other@fixture.test', passwordHash: 'unused', status: 'ACTIVE' },
@@ -201,7 +201,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
       .expect(400);
   });
 
-  it('quote đổi trả409, không để đơn/hold/payment dở dang', async () => {
+  it('UC-07.1/AC3 quote đổi trả409, không để đơn/hold/payment dở dang', async () => {
     const quote = (await preview()).body;
     await t.prisma.productVariant.update({
       where: { id: variantId },
@@ -213,7 +213,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
     expect(await t.prisma.inventoryReservation.count()).toBe(0);
   });
 
-  it('thiếu credentials rollback, không giả lập thanh toán trong app', async () => {
+  it('UC-08.1/AC2 thiếu credentials rollback, không giả lập thanh toán trong app', async () => {
     const config = t.app.get(ConfigService);
     const original = config.get.bind(config);
     const quote = (await preview()).body;
@@ -229,7 +229,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
     }
   });
 
-  it('8 request cùng key tạo đúng một đơn, một hold, một payment; retry không gia hạn', async () => {
+  it('UC-07.1/AC4 8 request cùng key tạo đúng một đơn, một hold, một payment; retry không gia hạn', async () => {
     const quote = (await preview()).body;
     const key = randomUUID();
     const results = await Promise.all(
@@ -260,7 +260,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
     expect(await t.prisma.stockMovement.count()).toBe(0);
   });
 
-  it('hai khách tranh đơn vị cuối chỉ một người giữ được', async () => {
+  it('UC-07.1/AC5 hai khách tranh đơn vị cuối chỉ một người giữ được', async () => {
     await t.prisma.inventory.update({
       where: { productVariantId: variantId },
       data: { quantityOnHand: 1 },
@@ -306,7 +306,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
     expect(await t.prisma.order.count()).toBe(1);
   });
 
-  it('IPN sai chữ ký/tiền bị chặn; callback lặp chỉ thu/trừ kho một lần và giữ số lượng thêm mới', async () => {
+  it('UC-08.2/AC1,AC2,AC3 IPN sai chữ ký/tiền bị chặn; callback lặp chỉ thu/trừ kho một lần và giữ số lượng thêm mới', async () => {
     const order = await place();
     const valid = signed(order);
     expect((await ipn({ ...valid, vnp_Amount: '1' })).body.RspCode).toBe('97');
@@ -329,7 +329,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
     expect((await t.prisma.payment.findFirstOrThrow()).status).toBe('SUCCEEDED');
   });
 
-  it('thất bại cho retry cùng deadline; pending/timeout không mở attempt mới', async () => {
+  it('UC-08.1/AC3 thất bại cho retry cùng deadline; pending/timeout không mở attempt mới', async () => {
     const order = await place();
     await ipn(signed(order, false));
     const retry = (
@@ -353,7 +353,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
     expect(await t.prisma.payment.count()).toBe(2);
   });
 
-  it('hết hạn worker nhả hàng; IPN muộn nhận tiền nhưng không bán vượt tồn', async () => {
+  it('UC-08.2/AC7 hết hạn worker nhả hàng; IPN muộn nhận tiền nhưng không bán vượt tồn', async () => {
     const order = await place();
     await expire(order);
     await t.app.get(SettlementService).tick();
@@ -371,7 +371,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
     expect((await t.prisma.inventory.findFirstOrThrow()).quantityOnHand).toBe(10);
   });
 
-  it('hủy nhả hold, callback sau hủy vào đối soát; đơn đã thanh toán không được hủy', async () => {
+  it('UC-07.4/AC1 hủy nhả hold, callback sau hủy vào đối soát; đơn đã thanh toán không được hủy', async () => {
     const order = await place();
     await t.http.post(`/api/orders/${order.id}/cancel`).set(auth()).expect(201);
     await ipn(signed(order));
@@ -381,7 +381,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
     await t.http.post(`/api/orders/${order.id}/cancel`).set(auth()).expect(409);
   });
 
-  it('hủy đơn giữ đơn vị cuối thì món được chọn lại trong giỏ, đặt lại được ngay', async () => {
+  it('UC-07.4/AC2 hủy đơn giữ đơn vị cuối thì món được chọn lại trong giỏ, đặt lại được ngay', async () => {
     await t.prisma.inventory.update({
       where: { productVariantId: variantId },
       data: { quantityOnHand: 1 },
@@ -399,7 +399,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
     expect((await preview().expect(201)).body.pendingOrder).toBeNull();
   });
 
-  it('VNPAY không query nền sớm hoặc query lặp trong giới hạn 5 phút', async () => {
+  it('UC-08.2/AC6 VNPAY không query nền sớm hoặc query lặp trong giới hạn 5 phút', async () => {
     const order = await place();
     expect(
       (await t.app.get(PaymentsService).candidates()).some(
@@ -416,7 +416,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
     expect(queryRequests).toBe(2);
   });
 
-  it('QueryDR giao dịch hủy11 cho thử lại cùng đơn/deadline, không trừ kho', async () => {
+  it('UC-08.1/AC7 QueryDR giao dịch hủy11 cho thử lại cùng đơn/deadline, không trừ kho', async () => {
     const order = await place();
     queryResult = {
       ...signed(order, false),
@@ -445,7 +445,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
     expect(retried.body.payments[0].reference).not.toBe(order.payments[0]!.reference);
   });
 
-  it('mất IPN: query HTTP ký đúng phục hồi sau restart; query giả mạo không chốt đơn', async () => {
+  it('UC-08.2/AC5 mất IPN: query HTTP ký đúng phục hồi sau restart; query giả mạo không chốt đơn', async () => {
     const order = await place();
     queryResult = {
       ...signed(order),
@@ -478,7 +478,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
     expect(await t.prisma.stockMovement.count()).toBe(1);
   });
 
-  it('return URL giả success chỉ đọc trạng thái, không có nghiệp vụ nhận tiền', async () => {
+  it('UC-08.1/AC5 return URL giả success chỉ đọc trạng thái, không có nghiệp vụ nhận tiền', async () => {
     const order = await place();
     const response = await t.http
       .get(`/api/orders/by-payment/${order.payments[0]!.reference}?vnp_ResponseCode=00`)
@@ -488,7 +488,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
     expect(await t.prisma.stockMovement.count()).toBe(0);
   });
 
-  it('lỗi sau trừ kho rollback cả tiền/đơn/hold/giỏ, callback retry xử lý được', async () => {
+  it('UC-08.2/AC4 lỗi sau trừ kho rollback cả tiền/đơn/hold/giỏ, callback retry xử lý được', async () => {
     const order = await place();
     const inventory = t.app.get(InventoryService);
     const commit = inventory.commit.bind(inventory);
@@ -512,7 +512,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
     expect(await t.prisma.stockMovement.count()).toBe(1);
   });
 
-  it('hai attempt cùng nhận tiền ghi đủ giao dịch nhưng không trừ kho hai lần', async () => {
+  it('UC-08.2/AC7 hai attempt cùng nhận tiền ghi đủ giao dịch nhưng không trừ kho hai lần', async () => {
     const first = await place();
     await ipn(signed(first, false));
     const second = (
@@ -530,7 +530,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
     expect((await t.prisma.inventory.findFirstOrThrow()).quantityOnHand).toBe(9);
   });
 
-  it('link cổng hết hạn trước hold 3 phút; retry sát hạn bị từ chối, không mở attempt', async () => {
+  it('UC-08.1/AC4 link cổng hết hạn trước hold 3 phút; retry sát hạn bị từ chối, không mở attempt', async () => {
     const order = await place();
     const payment = order.payments[0]!;
     const gatewayDeadline = new Date(Date.parse(order.paymentDueAt) - 3 * 60_000);
@@ -555,7 +555,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
     expect(await t.prisma.payment.count()).toBe(1);
   });
 
-  it('mỗi khách một đơn chờ: đơn khác nội dung bị chặn, preview chỉ ra đơn chờ; hủy rồi đặt được', async () => {
+  it('UC-07.1/AC6 mỗi khách một đơn chờ: đơn khác nội dung bị chặn, preview chỉ ra đơn chờ; hủy rồi đặt được', async () => {
     const quote = (await preview().expect(201)).body;
     expect(quote.pendingOrder).toBeNull();
     const racing = await Promise.all(
@@ -584,7 +584,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
     expect(next.status).toBe('PENDING_PAYMENT');
   });
 
-  it('QueryDR mất kết nối không chiếm cả lượt 5 phút: lùi 30 giây rồi chốt được', async () => {
+  it('UC-08.2/AC6 QueryDR mất kết nối không chiếm cả lượt 5 phút: lùi 30 giây rồi chốt được', async () => {
     const order = await place();
     queryResult = {
       ...signed(order),
@@ -628,7 +628,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
       moves: await t.prisma.stockMovement.count(),
     });
 
-    it('chữ ký đúng, thành công: chốt đơn ngay; gửi lại return hoặc IPN không trừ kho lần hai', async () => {
+    it('UC-08.1/AC6 UC-08.2/AC3 chữ ký đúng, thành công: chốt đơn ngay; gửi lại return hoặc IPN không trừ kho lần hai', async () => {
       const order = await place();
       expect((await back(order, signed(order))).body.status).toBe('CONFIRMED');
       expect(await state(order)).toEqual({ order: 'CONFIRMED', payment: 'SUCCEEDED', moves: 1 });
@@ -638,7 +638,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
       expect(await state(order)).toEqual({ order: 'CONFIRMED', payment: 'SUCCEEDED', moves: 1 });
     });
 
-    it('khách hủy trên cổng (mã 24) có chữ ký: đóng lượt thanh toán, đơn vẫn giữ để thử lại', async () => {
+    it('UC-08.1/AC7 khách hủy trên cổng (mã 24) có chữ ký: đóng lượt thanh toán, đơn vẫn giữ để thử lại', async () => {
       const order = await place();
       await back(order, signed(order, false));
       expect(await state(order)).toEqual({ order: 'PENDING_PAYMENT', payment: 'FAILED', moves: 0 });
@@ -668,7 +668,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
           return { ...params, vnp_SecureHash: hmac('khoa-gia-mao', queryString(params)) };
         },
       ],
-    ])('%s: không nhận tiền, không trừ kho, đơn giữ nguyên', async (_case, build) => {
+    ])('UC-08.1/AC8 %s: không nhận tiền, không trừ kho, đơn giữ nguyên', async (_case, build) => {
       const order = await place();
       const before = await state(order);
       await back(order, build(order));

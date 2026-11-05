@@ -7,7 +7,7 @@ import { fixture, login } from './fixture.js';
  * xac nhan (chot kho, ADR-038) roi ghi da giao, da thu tien; khach thay don da giao va ton kho giam.
  * Nghiep vu tung buoc da co bai HTTP o apps/api/test/cod.http.spec.ts; bai nay kiem cac tang noi voi nhau.
  */
-test('E2E-07 COD: khách đặt hàng, admin xác nhận rồi ghi đã giao, khách thấy đơn đã giao', async ({
+test('E2E-07 UC-07.1/AC16 UC-12.1/AC9 UC-12.2/AC1 UC-07.3/AC6 COD: khách đặt hàng, admin xác nhận rồi ghi đã giao, khách thấy đơn đã giao', async ({
   browser,
 }) => {
   const fx = fixture();

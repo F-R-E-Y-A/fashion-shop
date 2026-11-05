@@ -35,7 +35,7 @@ Là một **khách vãng lai**, tôi muốn **duyệt sản phẩm theo nhóm (�
 | Bước | Tác nhân làm | Hệ thống đáp |
 |---|---|---|
 | 1 | Vào trang chủ hoặc chọn một danh mục từ menu | Hiện cây danh mục trên menu |
-| 2 | | Trả sản phẩm thuộc danh mục và các danh mục con, mỗi trang 20 sản phẩm |
+| 2 | | Trả sản phẩm thuộc danh mục và các danh mục con, mặc định 12 sản phẩm mỗi trang, tối đa 60 ([page.query.ts:24](../../../apps/api/src/common/pagination/page.query.ts#L24)) |
 | 3 | | Mỗi sản phẩm hiện: ảnh đại diện, tên, thương hiệu, giá bán thấp nhất; có giảm giá thì kèm giá niêm yết gạch ngang |
 | 4 | Chuyển trang | Hiện trang kế; số trang và sắp xếp nằm trên đường dẫn trang |
 
@@ -67,7 +67,7 @@ Là một **khách vãng lai**, tôi muốn **duyệt sản phẩm theo nhóm (�
 - **AC1** (thuận) `GET /api/products?categorySlug=<cha>` trả cả sản phẩm của danh mục con
 - **AC2** (âm) Sản phẩm ngừng bán, hoặc không còn biến thể nào đang bán, không xuất hiện
 - **AC3** (thuận) Mỗi phần tử có `id, name, slug, brandName, imageUrl, price, listPrice`; `listPrice` khác `null` chỉ khi đang giảm giá. Điểm đánh giá trung bình **chưa thuộc PH-01**, thêm khi có hàm công bố của feature đánh giá
-- **AC4** (biên) `?page=1&pageSize=20` trả đúng 20 dòng đầu; `total` khớp số sản phẩm thoả BR1
+- **AC4** (biên) Hai trang liền nhau không trùng sản phẩm; `total` khớp số sản phẩm thoả BR1; `page=0`, `page` không phải số, `pageSize` vượt 60 hoặc tham số lạ trả 400
 - **AC5** (âm) `GET /api/categories/<slug không có>` trả 404 `NOT_FOUND`
 
 ---
@@ -82,7 +82,7 @@ Là một **khách vãng lai**, tôi muốn **nhập từ khoá và thấy sản
 |---|---|---|
 | 1 | Nhập từ khoá, nhấn Enter hoặc bấm kính lúp | |
 | 2 | | Đọc câu thành danh mục, đối tượng, màu, cỡ, giá, dịp mặc rồi tìm phần chữ còn lại trong tên, danh mục, màu và mô tả ([ADR-019](LOG.md#adr-019)); chưa tìm theo thương hiệu vì 0 sản phẩm có thương hiệu |
-| 3 | | Trả sản phẩm khớp, mỗi trang 20, xếp theo độ liên quan, kèm các ý đã hiểu để khách bỏ từng ý |
+| 3 | | Trả sản phẩm khớp, phân trang như UC-03.1, xếp theo độ liên quan, kèm các ý đã hiểu để khách bỏ từng ý |
 | 4 | Sửa từ khoá | Cập nhật kết quả sau 300 ms ngừng gõ |
 
 ### Luồng phụ và ngoại lệ
@@ -140,6 +140,7 @@ Là một **khách vãng lai**, tôi muốn **lọc theo giá, màu, cỡ, thư�
 - **AC2** (thuận) `colors=xam,navy` trả sản phẩm có biến thể thuộc một trong hai họ màu
 - **AC3** (thuận) `sizes=M` chỉ trả sản phẩm có cỡ M — lọc theo biến thể đang bán, **chưa xét tồn kho** (chờ hàm của Duy, [ND-14](../../TECH_DEBT.md)); bài `UC-03.3/AC3` kiểm phần đã có
 - **AC4** (thuận) `sort=price_asc` xếp đúng chiều tăng dần theo giá
+- **AC5** (âm) Tham số lọc sai kiểu, sai giá trị hoặc không khai báo trả 400
 
 ---
 
@@ -191,6 +192,7 @@ Tồn kho còn, sắp hết, hết theo từng cỡ và tóm tắt đánh giá *
 - **AC3** (biên, chưa giao) Tồn kho khả dụng không âm — chưa thuộc PH-01
 - **AC4** (thuận, chưa giao) Biến thể hết hàng vẫn có trong kết quả, đánh dấu hết — chưa thuộc PH-01
 - **AC5** (âm) Slug không tồn tại trả 404 `NOT_FOUND`
+- **AC6** (biên) Slug dài hơn giới hạn của DTO trả 400
 
 ---
 

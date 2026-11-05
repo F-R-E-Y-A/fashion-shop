@@ -899,7 +899,8 @@ Bài E2E chậm hoặc chập chờn tới mức chặn công việc; có môi t
 
 ### Kết quả mong đợi → thực tế
 Mong đợi: các use case của Bảo (UC-03, UC-07.1/.3/.4, UC-08.1/.2, UC-12.1 phần nghiệp vụ, UC-12.2, UC-14.3) có mọi AC trong phạm vi được ít nhất một bài tự động, mỗi use case có ca âm và ca biên được kiểm; module cốt lõi gộp ≥ 70% dòng.
-Thực tế: 2026-11-06 trước khi gắn mã, tại `18e1e8b` · `node tools/evidence/traceability.mjs --uc UC-03,UC-07,UC-08,UC-12,UC-14` → 89 AC trong phạm vi (gồm 6 AC điều hướng UC-12.1 của Tài, chưa phân loại), 16 có bài (18,0%) · `node tools/evidence/coverage-modules.mjs --core products,checkout,payments,orders` → gộp module cốt lõi 93,72% trên 2548 dòng. (điền lại sau khi gắn mã)
+Thực tế: 2026-11-06 trước khi gắn mã, tại `18e1e8b` · `node tools/evidence/traceability.mjs --uc UC-03,UC-07,UC-08,UC-12,UC-14` → 89 AC trong phạm vi (gồm 6 AC điều hướng UC-12.1 của Tài, chưa phân loại), 16 có bài (18,0%) · `node tools/evidence/coverage-modules.mjs --core products,checkout,payments,orders` → gộp module cốt lõi 93,72% trên 2548 dòng.
+2026-11-06 sau khi gắn mã vào tên 121 bài (commit `test(ph-11): gan ma AC…`) · cùng lệnh trace → 91 AC, 88 có bài tự động (96,7%), 12/12 use case có ca âm và ca biên được kiểm, 0 mã treo. Còn thiếu UC-07.1/AC13 (lỗi 422, sửa ở nhánh bugfix riêng) và UC-12.1/AC5–AC6 phần điều hướng của Tài (chưa phân loại; AC6 là tiêu chí quy trình) · gần khớp mong đợi.
 
 ### Điều kiện xem lại
 Nhóm đổi danh mục use case khác bộ số PR #26; rubric đổi cách tính tỉ lệ tự động; tên bài dài tới mức khó đọc báo cáo Vitest.

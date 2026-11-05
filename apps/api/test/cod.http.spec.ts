@@ -91,14 +91,14 @@ describe('PH-11 COD: tao don, giu hang, thu tien khi giao (PostgreSQL)', () => {
     await t?.close();
   });
 
-  it('quote co COD luon san sang, dung duoc ngay ca khi khong co key online', async () => {
+  it('UC-07.1/AC8 quote co COD luon san sang, dung duoc ngay ca khi khong co key online', async () => {
     const body = (await preview().expect(201)).body;
     expect(body.gateways.find((gateway: { code: string }) => gateway.code === 'COD')).toMatchObject(
       { configured: true },
     );
   });
 
-  it('don COD: PENDING_CONFIRMATION, khong link, giu hang dai han, gui lai cung gio tra cung don', async () => {
+  it('UC-07.1/AC7 don COD: PENDING_CONFIRMATION, khong link, giu hang dai han, gui lai cung gio tra cung don', async () => {
     const order = await createCod();
     expect(order.status).toBe('PENDING_CONFIRMATION');
     expect(order.payments[0]).toMatchObject({
@@ -129,7 +129,7 @@ describe('PH-11 COD: tao don, giu hang, thu tien khi giao (PostgreSQL)', () => {
     expect(again.status).toBe(409);
   });
 
-  it('ADR-040: don COD cho xac nhan khong chan don moi; den tran COD_MAX_PENDING_ORDERS (3) thi tat COD', async () => {
+  it('UC-07.1/AC9 ADR-040: don COD cho xac nhan khong chan don moi; den tran COD_MAX_PENDING_ORDERS (3) thi tat COD', async () => {
     const setQuantity = (quantity: number) =>
       t.http.patch(`/api/cart/items/${variantId}`).set(auth()).send({ quantity }).expect(200);
     const first = await createCod();
@@ -165,7 +165,7 @@ describe('PH-11 COD: tao don, giu hang, thu tien khi giao (PostgreSQL)', () => {
     expect((await codGateway()).configured).toBe(true);
   });
 
-  it('huy don COD tra hang ve kho va cho dat lai', async () => {
+  it('UC-07.4/AC3 huy don COD tra hang ve kho va cho dat lai', async () => {
     const order = await createCod();
     const cancelled = (await t.http.post(`/api/orders/${order.id}/cancel`).set(auth()).expect(201))
       .body;
@@ -197,7 +197,7 @@ describe('PH-11 COD: tao don, giu hang, thu tien khi giao (PostgreSQL)', () => {
     return order;
   }
 
-  it('ADR-038 xác nhận COD: chỉ ADMIN, chốt kho, trừ giỏ, hết tự hủy; khách không hủy được nữa', async () => {
+  it('UC-12.1/AC9 UC-07.4/AC6 ADR-038 xác nhận COD: chỉ ADMIN, chốt kho, trừ giỏ, hết tự hủy; khách không hủy được nữa', async () => {
     const order = await createCod();
     const outsider = await t.prisma.user.create({
       data: { email: 'khach@fixture.test', passwordHash: 'x', status: 'ACTIVE' },
@@ -229,7 +229,7 @@ describe('PH-11 COD: tao don, giu hang, thu tien khi giao (PostgreSQL)', () => {
     await admin(`${order.id}/confirm-cod`).expect(409);
   });
 
-  it('giao thành công: DELIVERED, payment COD SUCCEEDED; bấm lại 409', async () => {
+  it('UC-12.2/AC1,AC2 giao thành công: DELIVERED, payment COD SUCCEEDED; bấm lại 409', async () => {
     const order = await createCod();
     await admin(`${order.id}/confirm-cod`).expect(201);
     const delivered = (await admin(`${order.id}/delivered`).expect(201)).body;
@@ -239,7 +239,7 @@ describe('PH-11 COD: tao don, giu hang, thu tien khi giao (PostgreSQL)', () => {
     await admin(`${order.id}/delivery-failed`, { reason: 'x' }).expect(409);
   });
 
-  it('giao thất bại: hàng về kho đúng một lần, payment FAILED, đơn CANCELLED', async () => {
+  it('UC-12.2/AC3 giao thất bại: hàng về kho đúng một lần, payment FAILED, đơn CANCELLED', async () => {
     expect(await stock()).toBe(10);
     const order = await failDelivery();
     expect(await stock()).toBe(10);
@@ -264,7 +264,7 @@ describe('PH-11 COD: tao don, giu hang, thu tien khi giao (PostgreSQL)', () => {
     expect(await stock()).toBe(10);
   });
 
-  it('chống bom: đủ 2 lần giao thất bại thì COD tắt kèm lý do, tạo đơn COD bị 409', async () => {
+  it('UC-07.1/AC10 chống bom: đủ 2 lần giao thất bại thì COD tắt kèm lý do, tạo đơn COD bị 409', async () => {
     await failDelivery();
     expect(await codGateway()).toMatchObject({ configured: true });
     await failDelivery();
@@ -282,7 +282,7 @@ describe('PH-11 COD: tao don, giu hang, thu tien khi giao (PostgreSQL)', () => {
     expect(JSON.stringify(blocked.body)).toContain('COD_UNAVAILABLE');
   });
 
-  it('chống bom: đơn vượt trần COD (mặc định 2.000.000đ) chỉ nhận trả trước', async () => {
+  it('UC-07.1/AC11 chống bom: đơn vượt trần COD (mặc định 2.000.000đ) chỉ nhận trả trước', async () => {
     await t.prisma.productVariant.update({
       where: { id: variantId },
       data: { listPrice: '1500000' },
@@ -292,7 +292,7 @@ describe('PH-11 COD: tao don, giu hang, thu tien khi giao (PostgreSQL)', () => {
     expect(cod.unavailableReason).toContain('2.000.000');
   });
 
-  it('danh sách quản trị: mọi khách, lọc trạng thái, tìm mã đơn; khách thường 403', async () => {
+  it('UC-12.1/AC7,AC8 danh sách quản trị: mọi khách, lọc trạng thái, tìm mã đơn; khách thường 403', async () => {
     const order = await createCod();
     const other = await t.prisma.user.create({
       data: { email: 'khach2@fixture.test', passwordHash: 'x', status: 'ACTIVE' },
@@ -327,7 +327,7 @@ describe('PH-11 COD: tao don, giu hang, thu tien khi giao (PostgreSQL)', () => {
       .expect(400);
   });
 
-  it('qua 10 lan tao don moi phut mot tai khoan thi 429 kem Retry-After, khong tao them gi', async () => {
+  it('UC-07.1/AC12 qua 10 lan tao don moi phut mot tai khoan thi 429 kem Retry-After, khong tao them gi', async () => {
     const quote = await preview().expect(201);
     const body = {
       addressId,
