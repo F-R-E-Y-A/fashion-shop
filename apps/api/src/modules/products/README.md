@@ -130,3 +130,11 @@ Thêm dịp mặc mà không sửa mã: chèn một dòng vào `search_configura
 - `triggers`: cụm khách gõ (có dấu hay không dấu) để nhận ra dịp; `label` hiện trong chip "Đã hiểu".
 - `terms`: các từ cần thấy trong tên, danh mục, màu hoặc mô tả sản phẩm; một dịp là HOẶC giữa các `terms`.
 - Kiểm thử: [catalog-search.http.spec.ts](../../../test/catalog-search.http.spec.ts) bài "dip mac them trong search_configurations".
+
+
+## Đọc quản trị — Issue #63
+
+AdminProductsService là nội bộ module, không xuất qua index. Controller riêng kiểm ADMIN qua
+AuthModule, đọc cả dữ liệu ẩn và trả DTO allowlist; Swagger `admin-products` giữ hợp đồng HTTP.
+Không dùng CatalogSearchService hoặc nới storefrontProductWhere cho admin. Không đổi chữ ký
+ProductsService/importProducts hoặc thêm quyền ghi cho phân hệ khác. Lát này không có mutation.

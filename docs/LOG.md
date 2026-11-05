@@ -1,6 +1,6 @@
 ---
 title: Nhật ký quyết định toàn hệ thống
-updated: 2026-10-28
+updated: 2026-11-03
 status: đang dùng
 owner: Bảo
 ---
@@ -749,7 +749,83 @@ Thực tế: 2026-11-01 · `npx vitest run --project http test/cod.http.spec.ts 
 Số liệu bom thật cho thấy 3 quá rộng hoặc quá chặt; có hãng vận chuyển xác nhận đơn tự động.
 
 <a id="adr-041"></a>
-## 2026-11-01 · ADR-041 — Nhánh `feature/ph-NN-*` giữ lại sau khi gộp, chỉ xoá khi chủ dòng việc yêu cầu
+## 2026-11-02 · ADR-041 — Cache theo phiên và mất quyền dùng chung cho admin
+
+**Loại:** quyết định · **Phạm vi:** Account, Checkout, core và UI web · **Trạng thái:** đề xuất · **Người quyết:** Tài, Bảo/Duy review vùng liên quan · **Issue:** [#57](https://github.com/F-R-E-Y-A/fashion-shop/issues/57)
+
+### Hiện trạng
+
+Trên develop `38cfcdc`, cache orders không thuộc danh sách purge của AuthProvider; GET 403 ở detail
+giữ dữ liệu khách; placeholder orders giữ dòng khi đổi tab. Harness độc lập ghi nhận 3 fail/5 pass;
+bản regression đưa vào dự án trước sửa mở rộng 403 ở cả list/detail ghi nhận 4 fail/5 pass.
+Log và mã tái hiện nằm ở kho docs `minh-chung/admin-audit-2026-11-02/` và `minh-chung/issue-57-admin-session/`.
+
+### Phương án
+
+| Phương án | Được gì | Mất gì |
+|---|---|---|
+| Nối thêm query key từng feature vào AuthProvider | Ít thay đổi lúc này | Account phải biết các feature mới và dễ bỏ sót gốc tiếp theo |
+| Chỉ đánh dấu bằng query metadata | Không đổi hình dạng key | Cache tạo qua setQueryData không có metadata mặc định; cần đăng ký đồng bộ |
+| Gốc cache phiên ở core, guard quyền công bố qua Account (đề xuất) | Purge bằng một gốc; không import ngược; cùng thế hệ quyền giữa Users/Orders | Cần chuyển key đang có và cập nhật các test giả định hình dạng key |
+
+### Quyết định đề xuất
+
+- Gốc `session` cho profile/addresses/checkout preview/đơn cá nhân/admin; không đặt catalog và địa giới công khai vào đó.
+  Khi epoch đổi, hủy/xóa gốc này. Cache giỏ dùng chung khách vãng lai/tài khoản có vòng đời riêng,
+  chưa mở rộng sang cơ chế mutation giỏ trong Issue #57.
+- Admin có khóa `session/admin/resource/actor/...`. 403 chỉ dọn admin của actor đó và ghi nhận epoch bị từ chối;
+  Account công bố guard/thế hệ quyền qua index, các trang dùng cùng trạng thái qua useSyncExternalStore.
+- Query kiểm epoch/thế hệ quyền trước và sau await, truyền AbortSignal. Mutation kiểm lại trước callback;
+  trước khi phát POST cũng kiểm lại, vì mutation hoãn khi offline có thể chạy sau khi actor đã đổi.
+  hủy GET cũ trước khi đọc trạng thái mới. Đổi phiên tạo lại observer/state để bỏ cả placeholder cũ.
+- Orders chặn gửi lặp đồng bộ; POST không tự retry, timeout là chưa rõ kết quả. Sau lỗi hoặc thành công,
+  GET đối chiếu thất bại thì đóng hộp giữ dữ liệu cũ và khóa thao tác tới khi đọc lại được;
+  chưa đổi bố cục/token, ConfirmDialog chung hoặc nghiệp vụ backend.
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: ba lỗi có regression xanh; thêm ca phiên thật, POST/GET muộn, 403 liên phân hệ và timeout;
+check/build web/docs lint phù hợp đạt, có QA trình duyệt. Thực tế và giới hạn ghi trong báo cáo Issue #57
+ở kho docs; mã trên nhánh `bugfix/admin-session-cache` của Issue #57, chưa đồng nghĩa đã merge hay được nhóm chốt ADR.
+
+### Điều kiện xem lại
+
+Thêm resource admin, cache persistence hoặc QueryClient khác; auth epoch thay vòng đời; backend có
+quyền theo từng resource thay vì vai ADMIN chung. Khi đó cần đánh giá lại phạm vi purge của 403.
+
+<a id="adr-042"></a>
+## 2026-11-02 · ADR-042 — Khung quản trị và bề mặt dữ liệu F.R.E.Y.A.
+
+**Loại:** quyết định · **Phạm vi:** app, ui, Account và Checkout web · **Trạng thái:** đề xuất · **Người quyết:** Tài, Bảo/Duy review vùng liên quan · **Issue:** [#59](https://github.com/F-R-E-Y-A/fashion-shop/issues/59)
+
+### Hiện trạng
+
+Sidebar/menu đang hoạt động, Users/Orders có API và vòng đời riêng; bề mặt Sand, bảng dày và điều hướng mobile
+chưa theo bản mẫu đã trình. Tài giao tiếp tục triển khai từ mẫu TailAdmin × F.R.E.Y.A., giữ nghiệp vụ và token hiện có.
+Mẫu, QA và kế hoạch chi tiết ở kho docs; không dùng fixture của mẫu làm dữ liệu trong ứng dụng.
+
+### Phương án và quyết định đề xuất
+
+- Giữ AdminLayout/Outlet và RequireAdmin ngoài layout, thêm header/sidebar/drawer; không tạo app admin thứ hai.
+- Dùng AdminKit bằng CSS Modules, panel paper, Ivory nội dung, Copper nút/focus, Playfair H1, radius 2px.
+  Không đổi styles.css hay style public. Pager/Feedback được chỉnh hình thức bằng selector dưới gốc admin.
+- Drawer native dialog có focus trap, Escape, khóa cuộn và cleanup khi route/viewport/guard thay đổi.
+- Disclosure của bộ lọc chỉ một feature dùng nên giữ ở Account; không unmount input khi thu gọn, giữ debounce/draft.
+- Orders chỉ đổi vị trí khối trình bày; giữ nguyên cờ actions/ledger và callback mutation, không sửa chính sách tiền/kho.
+
+### Phụ thuộc và kiểm chứng
+
+PR #58 còn chờ review lúc bắt đầu; nhánh feature/ph-03-admin-shell kế thừa commit 50915d5 đã CI xanh.
+Thực tế ngày 03/11: PR #58 đã merge tại `8fe405e`; đã fetch và fast-forward nhánh shell lên develop này,
+giữ nguyên 24 tệp local. Check/build/docs lint và QA ghi tại minh chứng Issue #59 trong kho docs.
+Issue #59 chưa merge; CI và người duyệt còn là điều kiện phát hành. ADR vẫn đề xuất.
+
+### Điều kiện xem lại
+
+Thêm menu/resource admin, thay breakpoint/token hoặc chia quyền theo resource; thêm screen reader/browser hỗ trợ mới.
+
+<a id="adr-045"></a>
+## 2026-11-01 · ADR-045 — Nhánh `feature/ph-NN-*` giữ lại sau khi gộp, chỉ xoá khi chủ dòng việc yêu cầu
 
 **Loại:** quyết định · **Phạm vi:** cả nhóm, [shared/git.md](shared/git.md) mục cây nhánh và luật gộp; thay một phần luật xoá nhánh ở mục 25/09 · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
 

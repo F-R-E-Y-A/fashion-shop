@@ -25,6 +25,8 @@ import {
   OrdersPage,
 } from '@/features/checkout';
 import {
+  AdminCatalogDetailPage,
+  AdminCatalogPage,
   AdminProductsPage,
   CategoryPage,
   HomePage,
@@ -131,6 +133,8 @@ export function AppRoutes() {
           <Route path="admin" element={<RequireAdmin />}>
             <Route element={<AdminLayout />}>
               <Route index element={<AdminProductsPage />} />
+              <Route path="products" element={<AdminCatalogPage />} />
+              <Route path="products/:id" element={<AdminCatalogDetailPage />} />
               <Route path="users" element={<AdminUsersPage />} />
               <Route path="users/:id" element={<AdminUserDetailPage />} />
               <Route path="orders" element={<AdminOrdersPage />} />

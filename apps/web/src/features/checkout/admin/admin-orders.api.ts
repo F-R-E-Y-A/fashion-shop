@@ -1,4 +1,4 @@
-import { ApiError, classifyRequestError, type RequestTarget } from '@/core';
+import { ApiError, classifyRequestError, type RequestTarget, sessionQueryKeys } from '@/core';
 
 import type { OrderView } from '../types.js';
 
@@ -69,10 +69,10 @@ export const ORDER_TABS = [
 export type OrderTab = (typeof ORDER_TABS)[number]['key'];
 
 export const adminOrderKeys = {
-  all: (actorId: string) => ['admin-orders', actorId] as const,
+  all: (actorId: string) => [...sessionQueryKeys.adminResource('orders'), actorId] as const,
   list: (actorId: string, tab: string, q: string, page: number) =>
-    ['admin-orders', actorId, 'list', tab, q, page] as const,
-  detail: (actorId: string, id: string) => ['admin-orders', actorId, 'detail', id] as const,
+    [...adminOrderKeys.all(actorId), 'list', tab, q, page] as const,
+  detail: (actorId: string, id: string) => [...adminOrderKeys.all(actorId), 'detail', id] as const,
 };
 
 export function listPath(tab: OrderTab, q: string, page: number) {
@@ -116,7 +116,7 @@ export const orderTones: Record<string, 'accent' | 'danger' | 'pending' | 'muted
 };
 
 const UNKNOWN_RESULT =
-  'Chưa xác định được kết quả: thao tác có thể đã được thực hiện. Thông tin đơn đã được tải lại, hãy kiểm tra trước khi thử tiếp.';
+  'Chưa xác định được kết quả: thao tác có thể đã được thực hiện. Hãy kiểm tra trạng thái đơn trước khi thử tiếp.';
 
 /**
  * Cau bao loi theo nhom (core/request-errors, LOG#adr-039), khong in message tho cua loi mang.
@@ -136,7 +136,7 @@ export function adminOrderErrorText(error: unknown, target: RequestTarget): stri
     case 'conflict':
     case 'rejected': {
       const text = error instanceof ApiError ? error.message : 'Máy chủ từ chối thao tác này.';
-      return kind === 'conflict' ? `${text} Thông tin đơn đã được tải lại.` : text;
+      return kind === 'conflict' ? `${text} Hãy kiểm tra lại trạng thái đơn.` : text;
     }
     case 'unknown':
       return UNKNOWN_RESULT;

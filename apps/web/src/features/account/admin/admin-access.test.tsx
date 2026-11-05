@@ -23,6 +23,8 @@ vi.mock('@/features/products', () => ({
   SearchPage: () => null,
   ProductListPage: () => null,
   ProductDetailPage: () => null,
+  AdminCatalogPage: () => null,
+  AdminCatalogDetailPage: () => null,
   AdminProductsPage: () => <p>Tổng quan</p>,
 }));
 vi.mock('@/features/cart', () => ({

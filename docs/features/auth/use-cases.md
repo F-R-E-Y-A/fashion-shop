@@ -1,6 +1,6 @@
 ---
 title: UC-01 Tài khoản và xác thực — đặc tả use case
-updated: 2026-10-18
+updated: 2026-11-02
 status: nháp
 owner: Tài
 ---
@@ -83,7 +83,9 @@ thúc phiên. Không thêm bảng hay cột.
   không bị ảnh hưởng.
 - [ ] **AC6** Yêu cầu gửi dưới một danh tính không bao giờ được gửi lại bằng token của danh tính khác; kết quả
   của nó bị bỏ khi phiên đã đổi.
-- [ ] **AC7** Đổi phiên hủy các yêu cầu đang chờ và xóa dữ liệu tài khoản đã cache của phiên trước.
+- [ ] **AC7** Đổi phiên hủy các yêu cầu đang chờ và xóa dữ liệu tài khoản đã cache của phiên trước,
+  gồm hồ sơ, địa chỉ, preview/đơn cá nhân và mọi phân hệ admin. Cùng tài khoản đăng nhập lại vẫn là
+  phiên mới; không giữ placeholder hoặc thông báo của phiên trước. Cache công khai vẫn được giữ.
 - [ ] **AC8** Tab phát hiện phiên đã đổi thì chỉ xóa trạng thái local, không tự nhận tài khoản khác, không đăng
   xuất phiên đó. Thông báo của sự kiện cũ hơn phiên hiện tại của tab bị bỏ qua; đăng xuất lỗi mạng vẫn báo
   các tab khác; tab đã bị thay phiên đăng xuất thì không báo.

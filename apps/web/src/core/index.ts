@@ -24,3 +24,4 @@ export {
   type RequestTarget,
   shouldRetryRequest,
 } from './request-errors.js';
+export { isAdminQueryForActor, samePaginatedQuery, sessionQueryKeys } from './session-cache.js';
