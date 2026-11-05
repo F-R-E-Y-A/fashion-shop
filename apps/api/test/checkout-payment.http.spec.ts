@@ -613,4 +613,67 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
     );
     expect(await t.prisma.stockMovement.count()).toBe(1);
   });
+
+  /**
+   * Trang ket qua gui lai toan bo tham so return URL cua cong (settlement.service.ts returnNotice).
+   * Day la du lieu khach cam trong tay nen chi tin khi chu ky, merchant, ma tham chieu va so tien
+   * deu khop; sai mot thu thi bo qua, de IPN/query quyet dinh nhu cu.
+   */
+  describe('return URL có chữ ký: POST /orders/:id/reconcile kèm params', () => {
+    const back = (order: View, params: VnpParams) =>
+      t.http.post(`/api/orders/${order.id}/reconcile`).set(auth()).send({ params }).expect(201);
+    const state = async (order: View) => ({
+      order: (await t.prisma.order.findUniqueOrThrow({ where: { id: order.id } })).status,
+      payment: (await t.prisma.payment.findFirstOrThrow({ where: { orderId: order.id } })).status,
+      moves: await t.prisma.stockMovement.count(),
+    });
+
+    it('chữ ký đúng, thành công: chốt đơn ngay; gửi lại return hoặc IPN không trừ kho lần hai', async () => {
+      const order = await place();
+      expect((await back(order, signed(order))).body.status).toBe('CONFIRMED');
+      expect(await state(order)).toEqual({ order: 'CONFIRMED', payment: 'SUCCEEDED', moves: 1 });
+
+      await back(order, signed(order));
+      expect((await ipn(signed(order))).body.RspCode).toBe('02');
+      expect(await state(order)).toEqual({ order: 'CONFIRMED', payment: 'SUCCEEDED', moves: 1 });
+    });
+
+    it('khách hủy trên cổng (mã 24) có chữ ký: đóng lượt thanh toán, đơn vẫn giữ để thử lại', async () => {
+      const order = await place();
+      await back(order, signed(order, false));
+      expect(await state(order)).toEqual({ order: 'PENDING_PAYMENT', payment: 'FAILED', moves: 0 });
+    });
+
+    it.each<[string, (order: View) => VnpParams]>([
+      ['sửa số tiền sau khi ký', (order) => ({ ...signed(order), vnp_Amount: '100' })],
+      ['ký đúng nhưng số tiền khác đơn', (order) => signed(order, true, { vnp_Amount: '100' })],
+      [
+        'ký đúng nhưng mã tham chiếu của giao dịch khác',
+        (order) => signed(order, true, { vnp_TxnRef: 'GIAO-DICH-KHAC' }),
+      ],
+      ['ký đúng nhưng merchant khác', (order) => signed(order, true, { vnp_TmnCode: 'KHAC' })],
+      // Nhanh that bai khong di qua settle(), nen chi buoc matches() cua returnNotice chan duoc.
+      [
+        'hủy trên cổng, ký đúng nhưng số tiền khác đơn',
+        (order) => signed(order, false, { vnp_Amount: '100' }),
+      ],
+      [
+        'hủy trên cổng, ký đúng nhưng merchant khác',
+        (order) => signed(order, false, { vnp_TmnCode: 'KHAC' }),
+      ],
+      [
+        'ký bằng khoá khác',
+        (order) => {
+          const { vnp_SecureHash: _ignored, ...params } = signed(order);
+          return { ...params, vnp_SecureHash: hmac('khoa-gia-mao', queryString(params)) };
+        },
+      ],
+    ])('%s: không nhận tiền, không trừ kho, đơn giữ nguyên', async (_case, build) => {
+      const order = await place();
+      const before = await state(order);
+      await back(order, build(order));
+      expect(await state(order)).toEqual(before);
+      expect(before).toMatchObject({ order: 'PENDING_PAYMENT', moves: 0 });
+    });
+  });
 });
