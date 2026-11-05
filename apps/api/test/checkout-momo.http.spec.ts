@@ -252,6 +252,30 @@ describe('PH-11 MoMo: HTTP gateway outside PostgreSQL transaction', () => {
     expect(await t.prisma.cartItem.count()).toBe(0);
     expect(await t.prisma.paymentTransaction.count({ where: { status: 'PROCESSED' } })).toBe(1);
   });
+  it('lỗi khi chốt IPN trả 503 để MoMo gửi lại, không ghi gì; lần gửi lại chốt đúng một lần', async () => {
+    const order = await place();
+    const settlement = t.app.get(SettlementService);
+    const log = vi.spyOn(settlement['logger'], 'error').mockImplementation(() => undefined);
+    const spy = vi.spyOn(settlement, 'settle').mockRejectedValueOnce(new Error('mat ket noi CSDL'));
+    try {
+      await ipn(signed(order)).expect(503);
+      expect(log).toHaveBeenCalledTimes(1);
+      expect(String(log.mock.calls[0]![0])).not.toContain('mat ket noi CSDL');
+    } finally {
+      spy.mockRestore();
+      log.mockRestore();
+    }
+    expect((await t.prisma.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe(
+      'PENDING_PAYMENT',
+    );
+    expect(await t.prisma.stockMovement.count()).toBe(0);
+
+    await ipn(signed(order)).expect(204);
+    expect((await t.prisma.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe(
+      'CONFIRMED',
+    );
+    expect(await t.prisma.stockMovement.count({ where: { movementType: 'SALE' } })).toBe(1);
+  });
   it('an uncertain create is retried with the persisted payload even after callback configuration changes', async () => {
     failCreate = true;
     const order = await place();
