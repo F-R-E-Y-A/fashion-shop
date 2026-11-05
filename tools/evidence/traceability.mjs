@@ -41,16 +41,20 @@ function readSpecs() {
   const ucs = new Map();
   for (const file of files) {
     let uc = null;
+    let level = 0;
     readFileSync(file, 'utf8')
       .split('\n')
       .forEach((text, index) => {
-        const heading = text.match(/^##\s+UC-(\d{2}\.\d+)\b\s*[·:—-]?\s*(.*)$/u);
+        // Heading UC o cap bat ky; heading khac cung cap hoac cao hon thi ket thuc use case do.
+        const heading = text.match(/^(#{1,3})\s+UC-(\d{2}\.\d+)\b\s*[·:—-]?\s*(.*)$/u);
         if (heading) {
-          uc = heading[1];
-          ucs.set(uc, { uc, title: heading[2].trim(), file });
+          level = heading[1].length;
+          uc = heading[2];
+          if (!ucs.has(uc)) ucs.set(uc, { uc, title: heading[3].trim(), file });
           return;
         }
-        if (/^##\s/u.test(text)) uc = null;
+        const other = text.match(/^(#{1,6})\s/u);
+        if (other && other[1].length <= level) uc = null;
         const ac =
           uc && text.match(/^\s*-\s+(?:\[[ xX]\]\s+)?\*\*AC(\d+)\*\*\s*(?:\(([^)]*)\))?\s*(.*)$/u);
         if (!ac) return;
