@@ -27,6 +27,8 @@ vi.mock('@/features/products', () => ({
   SearchPage: () => null,
   ProductListPage: () => null,
   ProductDetailPage: () => null,
+  AdminCatalogPage: () => null,
+  AdminCatalogDetailPage: () => null,
   AdminProductsPage: () => <p>Tổng quan sản phẩm của Bảo</p>,
 }));
 vi.mock('@/features/cart', () => ({
@@ -106,7 +108,12 @@ describe('UC-02.1 Quản trị tài khoản — cổng ADMIN và đường dẫn
     expect(location()).toHaveAttribute('data-navigation', 'REPLACE');
 
     const links = within(nav() as HTMLElement).getAllByRole('link');
-    expect(links.map((link) => link.textContent)).toEqual(['Tổng quan', 'Người dùng', 'Đơn hàng']);
+    expect(links.map((link) => link.textContent)).toEqual([
+      'Tổng quan',
+      'Sản phẩm',
+      'Người dùng',
+      'Đơn hàng',
+    ]);
     expect(screen.getByRole('link', { name: 'Tổng quan' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Cửa hàng' })).toHaveAttribute('href', '/');
   });

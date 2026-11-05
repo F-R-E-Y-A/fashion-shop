@@ -1,12 +1,12 @@
 ---
-title: UC-03 Khám phá sản phẩm — đặc tả use case
-updated: 2026-09-30
+title: Khám phá sản phẩm và lát đọc quản trị catalog — đặc tả use case
+updated: 2026-11-03
 status: đề xuất, chờ Bảo duyệt
 owner: Bảo
 ---
-# UC-03 · Khám phá sản phẩm
+# Khám phá sản phẩm và quản trị catalog
 
-**Chức năng:** Khách tìm và xem sản phẩm thế nào: luồng, ngoại lệ, luật nghiệp vụ và tiêu chí chấp nhận của năm use case UC-03.1 tới UC-03.5.
+**Chức năng:** Đặc tả khám phá sản phẩm và lát đọc quản trị catalog, gồm luồng, luật và tiêu chí nghiệm thu.
 
 | | |
 |---|---|
@@ -229,3 +229,50 @@ Là một **khách vãng lai**, tôi muốn **xem bảng hướng dẫn chọn c
 | "Phổ biến nhất" khi chưa có đơn thì xếp theo gì? | Mới nhất | Bảo |
 | Hồ sơ vóc dáng có gợi ý cỡ ở UC-03.4 tuần này? | Không; cần hàm công bố của Tài | Tài và Bảo |
 | Có lưu "đã xem gần đây"? | Có, lưu ở trình duyệt, không cần bảng; có thể trượt sang sprint sau | Bảo |
+
+
+## UC-04.2 · Quản lý thông tin sản phẩm — lát đọc, Issue #63
+
+**Trạng thái:** đề xuất, Tài thực hiện; Bảo/Duy review. Mã theo danh mục đề xuất PR #26;
+chưa tuyên bố hoàn tất các thao tác tạo/sửa/ngừng bán của use case này. Actor MVP là ADMIN, không thêm STAFF.
+
+### Luồng và luật nghiệp vụ
+
+ADMIN mở `/admin/products`, tìm tên/SKU, lọc cờ hoạt động, chọn sắp xếp/số dòng/trang rồi xem
+`/admin/products/:id`. URL mang đủ điều kiện để mở tab mới, reload và quay lại đúng tập dữ liệu.
+API quản trị độc lập với điều kiện hiển thị storefront; đọc cả sản phẩm/danh mục/biến thể ẩn.
+`isActive` chỉ là cờ sản phẩm, không đảm bảo còn hàng hay mua được. Không có mutation trong lát này.
+
+`q` trim, tối đa 120 ký tự, tìm chuỗi con trong tên HOẶC SKU mọi biến thể, không phân biệt hoa/thường,
+giữ phân biệt dấu; `%`, `_`, gạch chéo ngược là ký tự literal. Tìm trước phân trang, không nới truy vấn,
+không ghi log tìm kiếm storefront; sản phẩm khớp nhiều SKU vẫn chỉ có một dòng.
+`status=all|active|inactive` (mặc định all) theo Product.isActive;
+`sort=newest|name_asc` theo createdAt giảm/name tăng, id tăng phá hòa (collation DB).
+PageQuery áp dụng page 1–100000 (giới hạn skip), pageSize 1–60; UI chọn 12/24/60, mặc định 12.
+Tham số lặp/lạ/sai bị API từ chối; UI replace URL chuẩn trước fetch. Đổi điều kiện về trang 1.
+
+Bảng hiển thị ảnh đầu/name/slug/category/brand nullable/priceFrom/isActive/createdAt;
+chi tiết thêm description/material/careInstructions/isFeatured/audience/updatedAt,
+biến thể SKU/màu/cỡ/listPrice/salePrice/isActive và ảnh theo sortOrder.
+Giá là chuỗi Decimal, priceFrom là giá tổng hợp đang lưu; không suy diễn giá bán/tồn kho.
+Không trả attributes JSON chưa có hợp đồng, không bịa dữ liệu hoặc nút chức năng.
+API thực tế lấy hình dạng từ Swagger; không sao chép DTO vào đây.
+
+### Tiêu chí chấp nhận đề xuất
+
+- [ ] **AC1** Guard ngoài layout; chờ phiên/guest/CUSTOMER không gọi API admin; server kiểm 401/403/ADMIN.
+- [ ] **AC2** List/detail thấy cả bản ghi ẩn; public catalog giữ quy tắc cũ; ảnh/brand/giá nullable đúng, không lộ cột ngoài DTO.
+- [ ] **AC3** Tìm tên/SKU toàn dữ liệu, literal/hoa thường/dấu đúng, không trùng sản phẩm; total theo cùng bộ lọc với rows.
+- [ ] **AC4** Kết hợp status/sort/page/pageSize đúng, thứ tự ổn định; 400 input/query lặp/lạ/UUID sai, 404 UUID không tồn tại.
+- [ ] **AC5** Codec URL/query key/request nhất quán, Back/Forward/reload/detail return giữ điều kiện; trang vượt totalPages phục hồi được.
+- [ ] **AC6** Cache actor/epoch, AbortSignal; logout/đổi actor/đăng nhập lại cùng actor hủy/xóa dữ liệu; response muộn không phục hồi cache.
+- [ ] **AC7** 403 xóa mọi dữ liệu admin của actor và chặn query tiếp; success muộn không khôi phục dữ liệu; không đăng xuất vì 403.
+- [ ] **AC8** Đủ tải/lỗi/rỗng/no-results/403/404, không retry 4xx; đổi điều kiện không lộ tập cũ; không ghi DB qua luồng đọc.
+- [ ] **AC9** F.R.E.Y.A., CSS Modules, desktop/mobile 360px và keyboard; tên/SKU dài/null đọc được, giữ Tổng quan/Users/Orders/cửa hàng.
+- [ ] **AC10** DTO/Swagger/tests/docs và minh chứng thực tế đủ; check/build/docs lint/HTTP riêng đạt, CI và review trước merge.
+
+### Ngoài phạm vi và quyết định còn lại
+
+Tạo/sửa/ngừng bán, SKU/slug, upload/biến thể/danh mục thuộc Issue sau. Tài đã chọn chỉ ẩn/ngừng bán,
+giữ dữ liệu; SKU khi đã có đơn, tác động import và lưu trữ ảnh cần chốt trước mutation.
+Không thêm kho/KPI/bulk/export/STAFF. README giữ trạng thái triển khai, LOG chỉ thêm quyết định đề xuất.
