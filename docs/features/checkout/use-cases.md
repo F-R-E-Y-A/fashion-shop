@@ -44,8 +44,8 @@ Là một **khách hàng**, tôi muốn **xác nhận các món đã chọn tron
 | Mã | Tình huống | Hệ thống xử lý |
 |---|---|---|
 | E1 | Chưa đăng nhập | 401; web chuyển trang đăng nhập |
-| E2 | Không có món nào được chọn đủ tồn | 409 "Chọn sản phẩm đủ tồn kho trong giỏ trước khi thanh toán."; web dẫn về giỏ |
-| E3 | Địa chỉ thuộc xã chưa có biểu phí | 422 "Địa chỉ này chưa có biểu phí giao hàng." ([shipping.service.ts:24](../../../apps/api/src/modules/shipping/shipping.service.ts#L24)) |
+| E2 | Không có món nào được chọn đủ tồn | 422 `SELECTION_REQUIRED` "Chọn sản phẩm đủ tồn kho trong giỏ trước khi thanh toán." ([checkout.service.ts:94](../../../apps/api/src/modules/checkout/checkout.service.ts#L94)); web dẫn về giỏ. Mã riêng có từ bản sửa Issue #66; trước đó là `UNPROCESSABLE_ENTITY` |
+| E3 | Địa chỉ thuộc xã chưa có biểu phí | 422 `UNPROCESSABLE_ENTITY` "Địa chỉ này chưa có biểu phí giao hàng." ([shipping.service.ts:24](../../../apps/api/src/modules/shipping/shipping.service.ts#L24)) |
 | E4 | Giá, giỏ hoặc địa chỉ đổi sau preview | 409 `QUOTE_CHANGED` |
 | E5 | Còn một đơn trả trước đang chờ với giỏ khác | 409 `PENDING_ORDER_EXISTS` kèm mã đơn |
 | E6 | COD bị tắt theo BR4 | 409 `COD_UNAVAILABLE` kèm lý do |
