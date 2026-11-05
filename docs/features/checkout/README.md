@@ -1,6 +1,6 @@
 ---
 title: Checkout — luồng PH-11
-updated: 2026-11-04
+updated: 2026-11-06
 status: ưu tiên VNPAY sandbox, MoMo để sau
 owner: Bảo
 ---
@@ -41,7 +41,7 @@ Không đổi API, CSS, tiền/kho hoặc mutation. [Đặc tả điều hướn
 - Hồi quy tại [admin-order-races.test.tsx](../../../apps/web/src/features/checkout/admin/admin-order-races.test.tsx)
   và [admin-order-session.test.tsx](../../../apps/web/src/features/checkout/admin/admin-order-session.test.tsx);
   hợp đồng phiên theo UC-01.4/AC6–AC7 và bảo vệ admin dùng chung UC-02.1/AC6, AC8.
-  Chưa tự cấp mã use case mới cho luồng quản trị đơn; danh mục còn cần thống nhất với Duy.
+  Mã use case quản trị đơn: UC-12.1 phần nghiệp vụ và UC-12.2 ở [use-cases.md](use-cases.md), phần điều hướng UC-12.1 ở [orders/use-cases.md](../orders/use-cases.md).
 
 ### Ranh giới ghi dữ liệu
 

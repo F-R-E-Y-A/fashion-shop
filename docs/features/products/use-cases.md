@@ -1,6 +1,6 @@
 ---
 title: Khám phá sản phẩm và lát đọc quản trị catalog — đặc tả use case
-updated: 2026-11-03
+updated: 2026-11-05
 status: đề xuất, chờ Bảo duyệt
 owner: Bảo
 ---
@@ -16,7 +16,7 @@ owner: Bảo
 | **Tác nhân chính** | Khách vãng lai (Khách hàng thừa kế) |
 | **Dữ liệu** | Bảy bảng trong [erd.md](erd.md): `categories`, `brands`, `products`, `product_variants`, `product_images`, `colors`, `sizes` |
 
-Cách đọc: luồng, luật và tiêu chí chấp nhận là **nguồn nghiệp vụ**. Mục *Đường dẫn API* chỉ ghi tên đường dẫn và lỗi; hình dạng vào ra theo quy ước chung, chi tiết đề xuất ở [README](README.md) mục API, cài xong thì Swagger `/api/docs` là nguồn. Lỗi không tìm thấy trả `404` với `code: NOT_FOUND`; dữ liệu vào sai trả `400`. Số `AC` giữ nguyên như bản của Duy để bài kiểm thử và báo cáo trích dẫn không đổi; tiêu chí nào chưa thuộc PH-01 ghi rõ.
+Cách đọc: luồng, luật và tiêu chí chấp nhận là **nguồn nghiệp vụ**. Mục *Đường dẫn API* chỉ ghi tên đường dẫn và lỗi; hình dạng vào ra theo quy ước chung, chi tiết đề xuất ở [README](README.md) mục API, cài xong thì Swagger `/api/docs` là nguồn. Lỗi không tìm thấy trả `404` với `code: NOT_FOUND`; dữ liệu vào sai trả `400`. Số `AC` giữ nguyên như bản của Duy để bài kiểm thử và báo cáo trích dẫn không đổi. Mỗi AC mang loại `thuận`, `âm` hoặc `biên`; AC chờ module người khác ghi `chưa giao` ([LOG#adr-047](../../LOG.md#adr-047)). Bài nào kiểm AC nào không ghi tay: `npm run evidence:trace -- --uc UC-03` sinh ma trận từ tên bài.
 
 ---
 
@@ -64,11 +64,11 @@ Là một **khách vãng lai**, tôi muốn **duyệt sản phẩm theo nhóm (�
 Đọc `categories`, `products`, `product_variants`, `product_images`, `brands`. Không đọc bảng của người khác.
 
 ### Tiêu chí chấp nhận
-- [ ] **AC1** `GET /api/products?categorySlug=<cha>` trả cả sản phẩm của danh mục con
-- [ ] **AC2** Sản phẩm ngừng bán, hoặc không còn biến thể nào đang bán, không xuất hiện
-- [ ] **AC3** Mỗi phần tử có `id, name, slug, brandName, imageUrl, price, listPrice`; `listPrice` khác `null` chỉ khi đang giảm giá. Điểm đánh giá trung bình **chưa thuộc PH-01**, thêm khi có hàm công bố của feature đánh giá
-- [ ] **AC4** `?page=1&pageSize=20` trả đúng 20 dòng đầu; `total` khớp số sản phẩm thoả BR1
-- [ ] **AC5** `GET /api/categories/<slug không có>` trả 404 `NOT_FOUND`
+- **AC1** (thuận) `GET /api/products?categorySlug=<cha>` trả cả sản phẩm của danh mục con
+- **AC2** (âm) Sản phẩm ngừng bán, hoặc không còn biến thể nào đang bán, không xuất hiện
+- **AC3** (thuận) Mỗi phần tử có `id, name, slug, brandName, imageUrl, price, listPrice`; `listPrice` khác `null` chỉ khi đang giảm giá. Điểm đánh giá trung bình **chưa thuộc PH-01**, thêm khi có hàm công bố của feature đánh giá
+- **AC4** (biên) `?page=1&pageSize=20` trả đúng 20 dòng đầu; `total` khớp số sản phẩm thoả BR1
+- **AC5** (âm) `GET /api/categories/<slug không có>` trả 404 `NOT_FOUND`
 
 ---
 
@@ -103,10 +103,10 @@ Là một **khách vãng lai**, tôi muốn **nhập từ khoá và thấy sản
 Dùng chung `GET /api/products?search=`, không tạo `/api/products/search`: tránh hai đường liệt kê, và tránh chữ `search` bị hiểu thành một slug. Gợi ý cho ô tìm kiếm toàn cục: `GET /api/search/suggest?q=` (giới hạn 60 lần mỗi phút mỗi IP, `429` kèm `Retry-After`). Hình dạng phản hồi (`interpretation`, `relaxed`, `facets`) theo Swagger `/api/docs`.
 
 ### Tiêu chí chấp nhận
-- [x] **AC1** `?search=áo` trả sản phẩm liên quan — `test/catalog-search.http.spec.ts` (UC-03.2/AC1), `search/parse-query.spec.ts`, `search/catalog-engine.spec.ts`
-- [x] **AC2** `search` dưới 2 ký tự trả 400 — `test/catalog-search.http.spec.ts` (UC-03.2/AC2, E3)
-- [x] **AC3** Không có kết quả trả `items: []`, `total: 0` — `test/catalog-search.http.spec.ts` (UC-03.2/AC3)
-- [x] **AC4** Sản phẩm ngừng bán không xuất hiện — `test/catalog-search.http.spec.ts` (UC-03.2/AC4)
+- **AC1** (thuận) `?search=áo` trả sản phẩm liên quan
+- **AC2** (biên) `search` dưới 2 ký tự trả 400
+- **AC3** (âm) Không có kết quả trả `items: []`, `total: 0`
+- **AC4** (âm) Sản phẩm ngừng bán không xuất hiện
 
 ---
 
@@ -136,10 +136,10 @@ Là một **khách vãng lai**, tôi muốn **lọc theo giá, màu, cỡ, thư�
 `GET /api/products` có `sort=relevance|newest|price_asc|price_desc`, `minPrice`, `maxPrice`, `colors`, `sizes`, `categories`, `audience` (giá trị cách nhau bằng dấu phẩy) và `facets=true` để nhận số đếm mỗi lựa chọn; `brands` chưa giao.
 
 ### Tiêu chí chấp nhận
-- [x] **AC1** `minPrice=100000&maxPrice=500000` chỉ trả sản phẩm có giá trong khoảng — `test/catalog-search.http.spec.ts` (UC-03.3/AC1)
-- [x] **AC2** `colors=xam,navy` trả sản phẩm có biến thể thuộc một trong hai họ màu — `test/catalog-search.http.spec.ts` (UC-03.3/AC2); dùng **họ màu**, không phải `colors.code`
-- [ ] **AC3** `sizes=M` chỉ trả sản phẩm có cỡ M — lọc theo biến thể đang bán, **chưa xét tồn kho** (chờ hàm của Duy, [ND-14](../../TECH_DEBT.md)); bài `UC-03.3/AC3` kiểm phần đã có
-- [x] **AC4** `sort=price_asc` xếp đúng chiều tăng dần theo giá — `test/catalog-search.http.spec.ts` (UC-03.3/AC4), `test/products.http.spec.ts`
+- **AC1** (biên) `minPrice=100000&maxPrice=500000` chỉ trả sản phẩm có giá trong khoảng
+- **AC2** (thuận) `colors=xam,navy` trả sản phẩm có biến thể thuộc một trong hai họ màu
+- **AC3** (thuận) `sizes=M` chỉ trả sản phẩm có cỡ M — lọc theo biến thể đang bán, **chưa xét tồn kho** (chờ hàm của Duy, [ND-14](../../TECH_DEBT.md)); bài `UC-03.3/AC3` kiểm phần đã có
+- **AC4** (thuận) `sort=price_asc` xếp đúng chiều tăng dần theo giá
 
 ---
 
@@ -186,11 +186,11 @@ Tồn kho còn, sắp hết, hết theo từng cỡ và tóm tắt đánh giá *
 Đọc `products`, `product_variants`, `product_images`, `colors`, `sizes`, `brands`, `categories`.
 
 ### Tiêu chí chấp nhận
-- [ ] **AC1** `GET /api/products/:slug` trả tên, mô tả, chất liệu, thương hiệu, danh mục, ảnh (kèm màu), biến thể (màu, cỡ, mã hàng, giá)
-- [ ] **AC2** Sản phẩm ngừng bán trả 404
-- [ ] **AC3** Tồn kho khả dụng không âm — chưa thuộc PH-01
-- [ ] **AC4** Biến thể hết hàng vẫn có trong kết quả, đánh dấu hết — chưa thuộc PH-01
-- [ ] **AC5** Slug không tồn tại trả 404 `NOT_FOUND`
+- **AC1** (thuận) `GET /api/products/:slug` trả tên, mô tả, chất liệu, thương hiệu, danh mục, ảnh (kèm màu), biến thể (màu, cỡ, mã hàng, giá)
+- **AC2** (âm) Sản phẩm ngừng bán trả 404
+- **AC3** (biên, chưa giao) Tồn kho khả dụng không âm — chưa thuộc PH-01
+- **AC4** (thuận, chưa giao) Biến thể hết hàng vẫn có trong kết quả, đánh dấu hết — chưa thuộc PH-01
+- **AC5** (âm) Slug không tồn tại trả 404 `NOT_FOUND`
 
 ---
 
@@ -215,9 +215,9 @@ Là một **khách vãng lai**, tôi muốn **xem bảng hướng dẫn chọn c
 `GET /api/products/:slug/size-guide`: trả bảng hoặc `null`, không trả 404 khi thiếu bảng. Hai bảng `size_guides`, `size_guide_rows` thêm vào ERD khi use case này được giao.
 
 ### Tiêu chí chấp nhận
-- [ ] **AC1** Trả đúng bảng, ưu tiên theo thương hiệu rồi tới danh mục
-- [ ] **AC2** Không có bảng thì trả `null`, không trả 404
-- [ ] **AC3** Kết quả có đơn vị đo `cm` hoặc `inch`
+- **AC1** (thuận, chưa giao) Trả đúng bảng, ưu tiên theo thương hiệu rồi tới danh mục
+- **AC2** (âm, chưa giao) Không có bảng thì trả `null`, không trả 404
+- **AC3** (thuận, chưa giao) Kết quả có đơn vị đo `cm` hoặc `inch`
 
 ---
 

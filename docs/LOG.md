@@ -874,3 +874,32 @@ Thực tế: 2026-11-05 · `npx playwright test --repeat-each=3` trong `apps/web
 
 ### Điều kiện xem lại
 Bài E2E chậm hoặc chập chờn tới mức chặn công việc; có môi trường staging ổn định để chạy E2E trên đó; nhóm chọn công cụ khác cho tầng UI.
+
+<a id="adr-047"></a>
+## 2026-11-05 · ADR-047 — Truy vết kiểm thử tới tiêu chí chấp nhận: AC có loại, mã ở tên `it`, ma trận sinh từ mã
+
+**Loại:** quyết định · **Phạm vi:** cả nhóm: khuôn [shared/templates/use-case.md](shared/templates/use-case.md), mọi `docs/features/*/use-cases*.md`, tên bài kiểm thử, `tools/evidence/` · **Trạng thái:** đề xuất · **Người quyết:** Bảo đề xuất; Duy (chủ danh mục use case và test-strategy) và Tài review · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- Rubric V2-1 mục TC2.5 Mức 5 đòi: "Test case truy vết được tới acceptance criteria, bao phủ cả ca âm và ca biên", "Tỉ lệ test case tự động hóa ≥ 70%", "Độ phủ dòng lệnh của mô-đun cốt lõi ≥ 70%, có báo cáo coverage kèm theo".
+- Đặc tả đánh dấu AC đã kiểm bằng tay (`- [x]`) nên lệch mã: ngày 05/11 `products/use-cases.md` để trống UC-03.1 dù có bài `UC-03.1/AC1`, `UC-03.1/AC3`. Chưa AC nào ghi là ca âm hay ca biên, nên không đếm được vế thứ hai của rubric.
+- Checkout, payments, orders chưa có `use-cases.md`; `use-case-index.md` vẫn là khuôn sau khi PR #26 của Duy đóng chưa gộp.
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Giữ dấu tick tay và danh sách bài trong đặc tả | Không đổi gì | Lệch theo thời gian; không đo được tỉ lệ, ca âm, ca biên | — |
+| **B. AC ghi loại trong ngoặc, mã `UC-NN.m/ACk` ở tên `it`, ma trận sinh bằng công cụ (chọn)** | Một nguồn: đổi tên bài là ma trận đổi; đếm được AC thiếu bài, tỉ lệ tự động, ca âm/biên theo use case; chạy được trong CI bằng `--check` | Phải đổi tên bài cũ khi gắn mã; tên bài dài hơn | Được: xoá ngoặc loại, công cụ không ảnh hưởng mã chạy |
+| C. Công cụ quản lý test case ngoài kho (TestRail, sheet) | Giao diện sẵn | Lệch với mã, thêm chỗ phải đồng bộ tay | Được |
+
+**Chọn B.** Quy ước:
+1. Mỗi AC: `- **ACk** (thuận|âm|biên[, tay][, chưa giao]) <câu tự kiểm được>`. `tay` là chỉ kiểm thủ công, có kịch bản ngay trong đặc tả; `chưa giao` không tính vào mẫu số.
+2. Bài kiểm một AC ghi mã ở tên `it`/`test`: `it('UC-07.1/AC3 ...')`; một bài kiểm nhiều AC ghi `UC-07.1/AC3,AC4` hoặc nhiều mã cách nhau bằng dấu cách. Mã ở `describe` không tính.
+3. Minh chứng sinh bằng `npm run evidence:trace` (ma trận AC → bài), `npm run evidence:test-cases` (bảng test case), `npm run evidence:coverage` (độ phủ dòng theo module, gộp unit và HTTP). Không gõ tay số vào minh chứng.
+
+### Kết quả mong đợi → thực tế
+Mong đợi: các use case của Bảo (UC-03, UC-07.1/.3/.4, UC-08.1/.2, UC-12.1 phần nghiệp vụ, UC-12.2, UC-14.3) có mọi AC trong phạm vi được ít nhất một bài tự động, mỗi use case có ca âm và ca biên được kiểm; module cốt lõi gộp ≥ 70% dòng.
+Thực tế: 2026-11-06 trước khi gắn mã, tại `18e1e8b` · `node tools/evidence/traceability.mjs --uc UC-03,UC-07,UC-08,UC-12,UC-14` → 89 AC trong phạm vi (gồm 6 AC điều hướng UC-12.1 của Tài, chưa phân loại), 16 có bài (18,0%) · `node tools/evidence/coverage-modules.mjs --core products,checkout,payments,orders` → gộp module cốt lõi 93,72% trên 2548 dòng. (điền lại sau khi gắn mã)
+
+### Điều kiện xem lại
+Nhóm đổi danh mục use case khác bộ số PR #26; rubric đổi cách tính tỉ lệ tự động; tên bài dài tới mức khó đọc báo cáo Vitest.
