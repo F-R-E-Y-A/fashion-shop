@@ -1,6 +1,6 @@
 ---
 title: Chiến lược kiểm thử
-updated: 2026-09-26
+updated: 2026-11-06
 status: đã điền
 owner: Duy
 ---
@@ -19,7 +19,7 @@ owner: Duy
 |---|---|---|---|---|
 | **Đơn vị** (Unit) | Logic hàm thuần túy: tính giá, validate dữ liệu, BR nghiệp vụ, helper | **Vitest** | Người sở hữu phân hệ | Mỗi pull request (pre-commit + CI) |
 | **Tích hợp** (Integration) | API endpoint + DB thật (Postgres test container): request → response → side effects | **Vitest** + **Supertest** + **testcontainers** | Người sở hữu phân hệ | Mỗi pull request (CI) |
-| **Đầu cuối** (E2E) | Luồng người dùng hoàn chỉnh qua giao diện trình duyệt | **Playwright** | Phan Ngọc Duy | Khi gộp vào `develop`; hằng đêm (nightly) |
+| **Đầu cuối** (E2E) | Luồng người dùng hoàn chỉnh qua giao diện trình duyệt | **Playwright** (`apps/web/e2e`, [ADR-046](../LOG.md#adr-046)) | Người sở hữu luồng | Mỗi pull request: job `e2e` trong `.github/workflows/ci.yml` |
 | **Tải và đồng thời** (Load) | Chịu tải cao và race condition: bán vượt kho, thanh toán đồng thời | **k6** | Phan Ngọc Duy | Sprint 4, chạy trên môi trường staging |
 
 ---
@@ -28,7 +28,7 @@ owner: Duy
 
 | Phân hệ / Tầng | Ngưỡng line coverage | Ghi chú |
 |---|---|---|
-| **Đơn vị** (toàn dự án) | ≥ 80% | Đo bằng Vitest `--coverage`; báo cáo trong CI |
+| **Mô-đun cốt lõi** (gộp unit + HTTP) | ≥ 70% dòng | Ngưỡng của rubric TC2.5. Đo: `test:cov`, `test:http:cov` rồi `npm run evidence:coverage -- --core products,checkout,payments,orders`; cách đọc ở [testing.md](testing.md) |
 | **Tích hợp** | Mỗi API endpoint cần ≥ 1 happy path + ≥ 1 sad path | Không dùng con số %, dùng checklist |
 | **E2E** | Toàn bộ luồng trong phần "Tiêu chí chấp nhận" của sprint 2 | Xem danh sách bên dưới |
 | **Tải** | P95 latency ≤ 200ms tại 200 req/s; error rate < 0.1% | Môi trường staging, 5 phút |
@@ -51,7 +51,7 @@ owner: Duy
 
 2. **Thông báo thanh toán lặp** (T-M2): Gửi webhook thanh toán 3 lần cùng `payment_id` — chỉ 1 đơn hàng được tạo / cập nhật trạng thái.
 
-3. **Hoàn tiền trùng** (T-M3): Gọi API hoàn tiền 2 lần cùng `order_id` — cổng thanh toán chỉ được gọi đúng 1 lần, lần 2 trả 409 `refund_already_processed`.
+3. **Hoàn tiền trùng** (T-M3): Gọi API hoàn tiền 2 lần song song cùng thanh toán — cổng chỉ nhận đúng 1 lệnh hoàn (`apps/api/test/checkout-refund.http.spec.ts`, UC-14.3/AC1); hoàn tiếp khi đã hoàn đủ trả 409 "Thanh toán đã được hoàn đủ.".
 
 ---
 
@@ -92,3 +92,4 @@ owner: Duy
 | E2E-04 | Tìm kiếm từ khoá → Xem kết quả | PH-03 | Duy |
 | E2E-05 | Nhập hàng SKU → Kiểm tra tồn kho cập nhật | PH-13 | Duy |
 | E2E-06 | Điều chỉnh tồn kho → Xem lịch sử biến động | PH-13 | Duy |
+| E2E-07 | Khách đặt COD → admin xác nhận → giao, thu tiền → khách thấy đơn đã giao (`apps/web/e2e/checkout-cod.spec.ts`, đã chạy) | PH-11 | Bảo |

@@ -870,7 +870,7 @@ Danh sách nhánh remote dài tới mức khó tìm; nhánh giữ lâu bị lệ
 
 ### Kết quả mong đợi → thực tế
 Mong đợi: bài đầu tiên `E2E-07` (luồng COD: khách thêm giỏ → đặt COD → admin xác nhận → ghi đã giao, đã thu tiền → khách thấy đơn đã giao, tồn giảm một) xanh ổn định khi chạy lặp.
-Thực tế: 2026-11-05 · `npx playwright test --repeat-each=3` trong `apps/web` → `3 passed (38.5s)`, mỗi lượt khoảng 6 giây · khớp. Khi viết bài này lộ ra lỗi giao diện: `CheckoutPage.tsx:114` coi mọi 422 của preview là "chưa chọn sản phẩm", kể cả 422 "Địa chỉ này chưa có biểu phí giao hàng."
+Thực tế: 2026-11-05 · `npx playwright test --repeat-each=3` trong `apps/web` → `3 passed (38.5s)`, mỗi lượt khoảng 6 giây · khớp. Khi viết bài này lộ ra lỗi giao diện: `CheckoutPage.tsx:114` coi mọi 422 của preview là "chưa chọn sản phẩm", kể cả 422 "Địa chỉ này chưa có biểu phí giao hàng." · 2026-11-06: lỗi đó ghi thành Issue #66, sửa ở PR #68. Gắn job `e2e` vào `.github/workflows/ci.yml`, chạy mỗi pull request cùng các job khác (Postgres và Redis dạng service, `db:deploy` rồi `test:e2e`, tải lên `playwright-report`); kết quả lần chạy CI đầu ghi ở pull request gộp `feature/ph-11-payment` vào `develop`.
 
 ### Điều kiện xem lại
 Bài E2E chậm hoặc chập chờn tới mức chặn công việc; có môi trường staging ổn định để chạy E2E trên đó; nhóm chọn công cụ khác cho tầng UI.
