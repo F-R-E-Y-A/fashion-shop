@@ -23,12 +23,14 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "catalog:refresh": "tsx scripts/refresh-approved-catalog.ts",
+    "search:eval": "npm run build && tsx scripts/search-eval/run.ts",
     "admin:grant": "tsx scripts/grant-admin.ts",
     "areas:import": "tsx scripts/import-administrative-areas.ts",
     "stock:import": "tsx scripts/import-stock.ts",
     "e2e:seed": "tsx test/e2e/seed.ts"
   },
   "dependencies": {
+    "@huggingface/transformers": "^4.3.2",
     "@nestjs/common": "^12.0.1",
     "@nestjs/config": "^12.0.0",
     "@nestjs/core": "^12.0.1",

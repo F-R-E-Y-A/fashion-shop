@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, type OnApplicationBootstrap } from '@nestjs/common';
 
 import { skipOf, toPage } from '../../../common/pagination/page.response.js';
 import type { Prisma } from '../../../generated/prisma/client.js';
@@ -32,6 +32,7 @@ import { ascii } from './normalize-vi.js';
 import { describeIntent } from './parse-query.js';
 import { PRICE_BUCKETS } from './price-buckets.js';
 import { SearchDictionaryService } from './search-dictionary.service.js';
+import { SemanticIndexService } from './semantic/semantic-index.service.js';
 
 // Lay het san pham hien thi duoc roi loc trong tien trinh: voi vai tram san pham la du nhanh
 // (cong p95 < 150 ms) va cho phep dem facet tren ket qua. Nguong nang cap: ADR-019.
@@ -123,18 +124,40 @@ function toSearchState(query: ListProductsQuery): SearchState {
 }
 
 @Injectable()
-export class CatalogSearchService {
+export class CatalogSearchService implements OnApplicationBootstrap {
   private readonly logger = new Logger(CatalogSearchService.name);
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly dictionary: SearchDictionaryService,
     private readonly inventory: InventoryService,
+    private readonly semantic: SemanticIndexService,
   ) {}
 
-  async list(query: ListProductsQuery): Promise<ProductListResponse> {
+  /** Bat tim kiem ngu nghia thi nap mo hinh va nhung catalog o nen, khong chan khoi dong. */
+  onApplicationBootstrap(): void {
+    if (!this.semantic.enabled) return;
+    void this.loadCatalog()
+      .then((catalog) => this.semantic.refresh(catalog.products))
+      .catch((error: unknown) => {
+        this.logger.warn(`Khong nap duoc catalog de nhung: ${(error as Error).message}`);
+      });
+  }
+
+  /**
+   * options.semantic=false buoc chi xep theo luat: script danh gia (scripts/search-eval) dung de so
+   * hai cach tren cung mot tien trinh.
+   */
+  async list(
+    query: ListProductsQuery,
+    options: { semantic?: boolean } = {},
+  ): Promise<ProductListResponse> {
     const catalog = await this.loadCatalog();
-    const result = search(catalog.products, toSearchState(query), await this.dictionary.get());
+    const sim =
+      query.search !== undefined && options.semantic !== false
+        ? await this.semantic.scores(query.search, catalog.products)
+        : null;
+    const result = search(catalog.products, toSearchState(query), await this.dictionary.get(), sim);
 
     const start = skipOf(query);
     // Dang loc dung mot ho mau thi the dung anh cua mau do (storefront.ts).
@@ -149,6 +172,7 @@ export class CatalogSearchService {
     if (query.search !== undefined) {
       response.interpretation = describeIntent(result.intent);
       response.relaxed = result.relaxed;
+      response.ranking = result.semantic.applied ? 'hybrid' : 'rules';
       if (query.log !== false) this.recordQuery(query.search, result.total);
     }
     if (query.facets === true) response.facets = this.buildFacets(result, catalog);

@@ -8,6 +8,7 @@ import { ListProductsQuery } from '../dto/list-products.query.js';
 import { CatalogSearchService } from './catalog-search.service.js';
 import { DEFAULT_DICTIONARY } from './dictionary.js';
 import type { SearchDictionaryService } from './search-dictionary.service.js';
+import type { SemanticIndexService } from './semantic/semantic-index.service.js';
 
 const D = (value: string) => new Prisma.Decimal(value);
 
@@ -94,7 +95,14 @@ const CATALOG = [
 const query = (overrides: Partial<ListProductsQuery> = {}): ListProductsQuery =>
   Object.assign(new ListProductsQuery(), overrides);
 
-function make() {
+/** Mac dinh tim kiem ngu nghia tat, nhu SEARCH_SEMANTIC=off. */
+const semanticOff = {
+  enabled: false,
+  scores: async (): Promise<Map<string, number> | null> => null,
+  refresh: async (): Promise<void> => undefined,
+};
+
+function make(semantic: Partial<typeof semanticOff> = {}) {
   const findMany = vi.fn().mockResolvedValue(CATALOG);
   const create = vi.fn().mockResolvedValue({});
   const prisma = { product: { findMany }, searchQueryLog: { create } };
@@ -103,6 +111,7 @@ function make() {
     prisma as unknown as PrismaService,
     dictionary as unknown as SearchDictionaryService,
     { getStockStatuses: vi.fn(async () => new Map()) } as unknown as InventoryService,
+    { ...semanticOff, ...semantic } as unknown as SemanticIndexService,
   );
   return { service, findMany, create };
 }
@@ -242,5 +251,39 @@ describe('CatalogSearchService.suggest', () => {
     const res = await service.suggest('áo sơ mi');
     expect(res.queries.map((q) => q.text)).not.toContain('áo sơ mi');
     expect(res.queries.every((q) => q.count > 0)).toBe(true);
+  });
+});
+
+describe('CatalogSearchService.list: gop hang ngu nghia (ADR-048)', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+  });
+
+  it('UC-03.2/AC5 co diem ngu nghia thi ranking hybrid; options.semantic=false buoc chi luat', async () => {
+    const scores = vi.fn(async () => new Map(CATALOG.map((p) => [p.id, 0.8])));
+    const { service } = make({ enabled: true, scores });
+    const hybrid = await service.list(query({ search: 'áo mặc đi chơi', log: false }));
+    expect(hybrid.ranking).toBe('hybrid');
+    const rules = await service.list(query({ search: 'áo mặc đi chơi', log: false }), {
+      semantic: false,
+    });
+    expect(rules.ranking).toBe('rules');
+    expect(scores).toHaveBeenCalledTimes(1);
+  });
+
+  it('UC-03.2/AC7 bo nhung tra null (tat, loi, qua han) thi ranking rules va van co ket qua', async () => {
+    const { service } = make();
+    const r = await service.list(query({ search: 'áo mặc đi chơi', log: false }));
+    expect(r.ranking).toBe('rules');
+    expect(r.total).toBeGreaterThan(0);
+  });
+
+  it('UC-03.2/AC9 khong co search thi khong goi bo nhung, khong co truong ranking', async () => {
+    const scores = vi.fn(async () => null);
+    const { service } = make({ enabled: true, scores });
+    const r = await service.list(query({ audience: 'nu' }));
+    expect(scores).not.toHaveBeenCalled();
+    expect(r.ranking).toBeUndefined();
   });
 });
