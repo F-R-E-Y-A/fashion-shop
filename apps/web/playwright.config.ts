@@ -1,8 +1,9 @@
+import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { loadEnvFile } from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 import { defineConfig, devices } from '@playwright/test';
-import { config as loadEnv } from 'dotenv';
 
 /**
  * E2E: trinh duyet that -> web Vite -> API Nest -> Postgres KIEM THU. Chay tay:
@@ -13,7 +14,10 @@ import { config as loadEnv } from 'dotenv';
  */
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../..');
-loadEnv({ path: path.join(root, '.env'), quiet: true });
+// Dung loadEnvFile co san cua Node thay cho dotenv: image Docker cua web chi cai phu thuoc cua
+// apps/web, khong co dotenv, ma tsc -b cua ban build van kiem tep nay. CI khong co .env.
+const envFile = path.join(root, '.env');
+if (existsSync(envFile)) loadEnvFile(envFile);
 
 const testUrl = process.env.DATABASE_URL_TEST;
 if (!testUrl) throw new Error('Thieu DATABASE_URL_TEST. Chay: npm run db:test:prepare');
