@@ -531,4 +531,18 @@ describe('PH-11 checkout UI', () => {
     expect(await screen.findByRole('radio', { name: /COD/ })).toBeDisabled();
     expect(screen.getByText('Đơn trên 2.000.000đ cần thanh toán trước.')).toBeInTheDocument();
   });
+  it('UC-07.1/AC13 địa chỉ chưa có biểu phí: hiện đúng lý do của API, không báo chưa chọn sản phẩm', async () => {
+    request.mockRejectedValue(
+      new ApiError({
+        statusCode: 422,
+        code: 'UNPROCESSABLE_ENTITY',
+        message: 'Địa chỉ này chưa có biểu phí giao hàng.',
+        path: '/api/checkout/preview',
+        timestamp: new Date().toISOString(),
+      }),
+    );
+    show();
+    expect(await screen.findByText(/Địa chỉ này chưa có biểu phí giao hàng./)).toBeInTheDocument();
+    expect(screen.queryByText('Chưa chọn sản phẩm để thanh toán')).not.toBeInTheDocument();
+  });
 });
