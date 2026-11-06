@@ -1,12 +1,12 @@
 ---
 title: Môi trường thử — dựng và vận hành
-updated: 2026-10-03
+updated: 2026-11-06
 status: đang dùng
 owner: Bảo
 ---
 # Môi trường thử: dựng và vận hành
 
-**Chức năng:** Dựng môi trường thử Render và Vercel lần đầu, luồng tự triển khai, xem log, quay về bản trước, ba cái bẫy đã biết.
+**Chức năng:** Dựng môi trường thử Render và Vercel lần đầu, luồng tự triển khai, xem log, quay về bản trước, bốn cái bẫy đã biết.
 
 Máy chủ chạy **Render**, giao diện chạy **Vercel**. Đây là lựa chọn **tạm** để có địa chỉ chạy được ngay trong tuần đầu và bắt đầu đếm số lần triển khai. Kế hoạch chuyển sang **Azure** từ S3, xem [TECH_DEBT.md](../../TECH_DEBT.md) mục ND-07.
 
@@ -19,7 +19,7 @@ Máy chủ chạy **Render**, giao diện chạy **Vercel**. Đây là lựa ch�
 
 ## Ai bấm gì
 
-Triển khai **tự chạy sau khi gộp vào `develop` và CI xanh**: CI chạy sáu chặng → `cd-staging.yml` gọi Render Deploy Hook → đợi `/api/healthz` trả đúng mã commit vừa gộp → gọi thử một đường dẫn thật. Render để `autoDeployTrigger: off` để không dựng hai lần cho cùng commit. Vercel theo dõi `develop` trực tiếp và tự dựng giao diện mỗi khi nhánh có commit mới.
+Triển khai **tự chạy sau khi gộp vào `develop` và CI xanh**: CI chạy bảy chặng → `cd-staging.yml` gọi Render Deploy Hook → đợi `/api/healthz` trả đúng mã commit vừa gộp → gọi thử một đường dẫn thật. Render để `autoDeployTrigger: off` để không dựng hai lần cho cùng commit. Vercel theo dõi `develop` trực tiếp và tự dựng giao diện mỗi khi nhánh có commit mới.
 
 Làm vậy để lịch sử triển khai và thời gian từ commit tới khi lên môi trường thử đều nằm trong GitHub Actions, đúng thứ rubric TC2.6 đòi. Nếu để Render tự dựng khi thấy commit mới thì mã chưa qua kiểm cũng lên, và không có số liệu nào để nộp.
 
@@ -44,7 +44,7 @@ Làm vậy để lịch sử triển khai và thời gian từ commit tới khi 
 
 ### 3. Khai báo trong GitHub
 
-Trong kho, **Settings → Secrets and variables → Actions**:
+Đặt trong **environment `staging`** (đã có sẵn): **Settings → Environments → staging**, mục **Environment secrets** và **Environment variables**. Job của `cd-staging.yml` khai `environment: staging` nên đọc được cả biến đặt ở đây lẫn biến cấp kho; đặt ở environment thì chỉ job triển khai thấy secret.
 
 | Loại | Tên | Giá trị |
 |---|---|---|
@@ -52,7 +52,22 @@ Trong kho, **Settings → Secrets and variables → Actions**:
 | Variable | `STAGING_API_URL` | `https://fashion-shop-api.onrender.com` |
 | Variable | `STAGING_WEB_URL` | địa chỉ Vercel |
 
-Địa chỉ hook là một **bí mật**: ai có nó thì kích hoạt được triển khai. Đừng dán vào chat nhóm hay vào tài liệu.
+Địa chỉ hook là một **bí mật**: ai có nó thì kích hoạt được triển khai. Đừng dán vào chat nhóm, vào tài liệu hay vào khung chat với AI; tự dán vào ô secret của GitHub.
+
+### 4. Nạp sản phẩm cho staging
+
+Blueprint chỉ seed danh mục, nên staging lúc đầu không có sản phẩm và bước kiểm cuối của CD in `total = 0`. Nạp bộ 90 sản phẩm đã duyệt từ máy có tệp ứng viên, trỏ `DATABASE_URL` vào **External Database URL** của Render (Render → `fashion-shop-db` → **Connect**), chạy thử trước rồi mới ghi:
+
+```bash
+DATABASE_URL='<External Database URL>' npm run catalog:refresh -w apps/api -- --input ../work/ph01-data-refresh-20260927/normalized-candidates.jsonl --dry-run
+DATABASE_URL='<External Database URL>' npm run catalog:refresh -w apps/api -- --input ../work/ph01-data-refresh-20260927/normalized-candidates.jsonl --apply --confirm-db fashion_shop
+```
+
+Đường dẫn `--input` tính từ gốc kho mã; tệp nằm ở workspace `work/`, không nằm trong Git. Ảnh sản phẩm vẫn là địa chỉ của nguồn crawl, kiểm quyền dùng ảnh trước khi mở staging cho người ngoài nhóm.
+
+### 5. Chạy thử CD lần đầu
+
+Render triển khai nhánh `develop`, nên CD chỉ kiểm được đầu cuối sau khi có một lần gộp vào `develop`. Sau khi đặt đủ secret và variable: **Actions → CD staging → Run workflow** trên `develop`. Lượt xanh có ba bước: gọi hook, `/api/healthz` trả đúng `gitSha` của commit `develop`, `GET /api/products` trả đúng hình dạng. Bảng tóm tắt của lượt chạy ghi địa chỉ máy chủ, giao diện và đặc tả API.
 
 ## Dữ liệu và backup
 
@@ -76,13 +91,15 @@ Không đưa database URL hoặc file dump vào Git. Trước migration có rủ
 | Log triển khai | GitHub → **Actions** → **CD staging** |
 | Quay về bản trước | Render → **Events** → lượt cũ → **Rollback**; Vercel → **Deployments** → lượt cũ → **Promote to Production** |
 
-## Ba cái bẫy đã biết
+## Bốn cái bẫy đã biết
 
 **Gọi lần đầu rất chậm.** Gói miễn phí của Render cho máy chủ ngủ sau một thời gian không ai dùng, đánh thức mất khoảng một phút. Lúc trình bày thì mở trang trước vài phút. Bước đợi trong `cd-staging.yml` đã cho tới 10 phút vì lý do này.
 
 **Đổi địa chỉ máy chủ phải dựng lại giao diện.** Xem bước 2.3.
 
 **Quên sửa `CORS_ORIGINS`.** Triệu chứng: trang hiện nhưng không có dữ liệu, bảng điều khiển trình duyệt báo lỗi CORS. Sửa trong Render rồi khởi động lại dịch vụ.
+
+**`gitSha` trả `unknown`.** Render không truyền `--build-arg GIT_SHA`, còn `apps/api/Dockerfile` luôn đặt `GIT_SHA` với mặc định `unknown`. Trước 06/11, `/api/healthz` trả `unknown` thay vì `RENDER_GIT_COMMIT` nên CD đợi đủ 10 phút rồi báo lỗi dù bản mới đã chạy; `runningSha` trong `health.controller.ts` nay bỏ qua giá trị rỗng và `unknown`.
 
 ## Chạy cả cụm trên máy như môi trường thật
 
