@@ -403,7 +403,7 @@ kiểm tra route catalog. Người khác review và CI xanh trước khi coi ho�
 <a id="adr-048"></a>
 ## 2026-11-06 · ADR-048 — Tìm kiếm lai: luật và từ điển giữ lọc, mô hình embedding đa ngôn ngữ chạy trong API gộp hạng
 
-**Loại:** quyết định · **Phạm vi:** PH-01, `apps/api/src/modules/products/search`; cấu hình triển khai · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+**Loại:** quyết định · **Phạm vi:** PH-01, `apps/api/src/modules/products/search`; cấu hình triển khai · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** [`1ba02da`](https://github.com/F-R-E-Y-A/fashion-shop/commit/1ba02da), bộ đánh giá [`e6d020e`](https://github.com/F-R-E-Y-A/fashion-shop/commit/e6d020e)
 
 ### Hiện trạng
 - Search chỉ hiểu câu bằng luật và từ điển ([ADR-019](#adr-019)); README ghi "chưa cài embedding hoặc LLM runtime". GVHD yêu cầu áp dụng xử lý ngôn ngữ tự nhiên; biên bản gặp GVHD gợi ý mô hình đa ngôn ngữ chạy local (`bge-m3`, `multilingual-e5`), hybrid bằng RRF và đánh giá bằng Recall@k, MRR (`tlcn-docs/tien-do/DanBaiHopGVHD.md`, mục 6.1–6.2).
@@ -435,7 +435,13 @@ kiểm tra route catalog. Người khác review và CI xanh trước khi coi ho�
 
 ### Kết quả mong đợi → thực tế
 Mong đợi: `npm run search:eval -w apps/api` trên bộ 29 câu có nhãn (`scripts/search-eval/cases.json`). Nhóm câu theo ý định có Recall@10 và MRR của cách lai không thấp hơn chỉ luật, nhóm câu luật không giảm, câu âm không thêm kết quả, độ trễ thêm dưới 20 ms (UC-03.2/AC10).
-Thực tế: (điền ở commit sạch, kèm tệp minh chứng trong kho docs)
+Thực tế: `npm run search:eval -w apps/api` tại [`fc27ef1`](https://github.com/F-R-E-Y-A/fashion-shop/commit/fc27ef1), cây sạch, CSDL local 87 sản phẩm. Tệp đầy đủ: `tlcn-docs/minh-chung/danh-gia-tim-kiem-2026-11-06.md`. Mỗi ô ghi chỉ luật → lai.
+- Nhóm ý định (18 câu): Recall@10 0,59 → 0,68; MRR 0,61 → 0,87; nDCG@10 0,56 → 0,71. Tăng rõ ở "áo thấm mồ hôi mặc mùa hè", "quần áo đi làm công sở cho nữ", "đồ mặc ở nhà thoải mái" (Recall 0 → 0,33–0,50, MRR 0 → 1).
+- Nhóm luật (7 câu): Recall@10 1,00 → 1,00; MRR 0,93 → 1,00; nDCG@10 0,96 → 1,00.
+- Câu âm: "váy dự tiệc", "mũ lưỡi trai" vẫn trả 0. "giày thể thao" (42 → 43) và "túi xách nữ" (65 → 65) đã sai sẵn ở luật vì khớp "thể thao", "nữ"; lai không làm tệ hơn đáng kể.
+- Tụt: "áo đi tiệc nữ điệu đà" Recall 0,29 → 0; "quần rộng rãi cho nữ" 1 → 0,89; "quần âu nữ" 1 → 0,88.
+- Độ trễ `CatalogSearchService.list`, 116 lượt mỗi cách: p50 119,8 → 125,0 ms, p95 150,6 → 159,3 ms, thêm dưới 20 ms. Nạp mô hình và nhúng catalog 14,6 s.
+- Đạt UC-03.2/AC10 theo trung bình nhóm; riêng ba câu trên tụt. Thiên lệch: nhãn do Claude Code gán trước khi chạy, nhưng cách xếp ứng viên ngữ nghĩa được chọn sau lượt chạy đầu trên chính bộ câu này.
 
 ### Điều kiện xem lại
 - Catalog vượt vài nghìn sản phẩm, hoặc cần lọc vector trong SQL: chuyển sang pgvector.
