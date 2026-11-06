@@ -63,6 +63,12 @@ export class ProductListResponse {
   })
   relaxed?: string[];
   @ApiPropertyOptional({
+    enum: ['hybrid', 'rules'],
+    description:
+      'Chi co khi co tham so search. hybrid: xep gop luat va ngu nghia (ADR-048); rules: chi theo luat (tat, chua san sang, loi hay xep theo gia)',
+  })
+  ranking?: 'hybrid' | 'rules';
+  @ApiPropertyOptional({
     type: CatalogFacetsResponse,
     description: 'Chi co khi facets=true',
   })
