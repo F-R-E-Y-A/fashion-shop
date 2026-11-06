@@ -100,6 +100,17 @@ export const envSchema = z
     COD_MAX_FAILED_DELIVERIES: z.coerce.number().int().positive().default(2),
     // So don COD cung cho shop xac nhan toi da moi tai khoan (ADR-040).
     COD_MAX_PENDING_ORDERS: z.coerce.number().int().positive().default(3),
+    /**
+     * Tim kiem ngu nghia (ADR-048): `local` nap mo hinh embedding da ngon ngu ngay trong API (~500 MB
+     * RAM, ~7 s nap lan dau, tai mo hinh tu Hugging Face neu chua co trong SEARCH_MODEL_DIR); `off`
+     * chi dung luat va tu dien (ADR-019). Mac dinh off de may dev, CI va Render Free 512 MB khong ton RAM.
+     */
+    SEARCH_SEMANTIC: z.enum(['off', 'local']).default('off'),
+    SEARCH_EMBED_MODEL: z.string().min(1).default('Xenova/multilingual-e5-small'),
+    /** Thu muc luu mo hinh da tai; trong thi dung thu muc mac dinh cua thu vien. */
+    SEARCH_MODEL_DIR: z.string().optional(),
+    /** Qua han nay ma chua nhung xong cau truy van thi tra ket qua chi theo luat. */
+    SEARCH_SEMANTIC_TIMEOUT_MS: z.coerce.number().int().min(10).max(5000).default(300),
     /** Ma commit dang chay: CI truyen GIT_SHA khi dung image; Render tu cap RENDER_GIT_COMMIT. */
     GIT_SHA: z.string().optional(),
     RENDER_GIT_COMMIT: z.string().optional(),

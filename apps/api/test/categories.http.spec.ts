@@ -50,7 +50,7 @@ describe('GET /api/categories (UC-03.1)', () => {
     await t.http.get('/api/categories/ao-thun').expect(404);
   });
 
-  it('slug không có trả ApiErrorBody', async () => {
+  it('UC-03.1/AC5 slug không có trả ApiErrorBody', async () => {
     const res = await t.http.get('/api/categories/khong-co').expect(404);
     expect(res.body).toMatchObject({ code: 'NOT_FOUND' });
   });

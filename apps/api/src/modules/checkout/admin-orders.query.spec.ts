@@ -10,7 +10,7 @@ describe('ListAdminOrdersQuery', () => {
     expect([...ADMIN_ORDER_STATUSES].sort()).toEqual(Object.values(OrderStatus).sort());
   });
 
-  it('status nhieu gia tri cach dau phay, attention chi nhan true/false', () => {
+  it('UC-12.1/AC7 status nhieu gia tri cach dau phay, attention chi nhan true/false', () => {
     const ok = plainToInstance(ListAdminOrdersQuery, {
       status: 'PROCESSING, SHIPPED',
       attention: 'true',

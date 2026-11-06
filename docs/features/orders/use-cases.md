@@ -1,6 +1,6 @@
 ---
 title: UC-12.1 — điều hướng quản trị đơn hàng
-updated: 2026-11-03
+updated: 2026-11-06
 status: đề xuất, chờ Duy thống nhất mã và AC
 owner: Tài, Duy review
 ---
@@ -44,12 +44,14 @@ không thay trạng thái đơn, vai, số tiền hoặc kho. Khi mất quyền 
 
 ## Tiêu chí chấp nhận đề xuất
 
-- [ ] **AC1** URL sai/lặp/lạ được replace về canonical trước request; API/cache không nhận page/q chưa chuẩn hóa.
-- [ ] **AC2** Tìm/tab/phân trang, reload và Back/Forward đồng bộ ô tìm với URL và kết quả; chỉ submit tìm kiếm.
-- [ ] **AC3** Vào chi tiết, mở tab mới hoặc reload chi tiết giữ tab/q/page khi quay lại; dữ liệu return tùy ý không thành link ngoài.
-- [ ] **AC4** Trang sau rỗng có link phục hồi đúng điều kiện, không render pager có số trang vượt hoặc tự redirect vòng lặp.
-- [ ] **AC5** Hồi quy AbortSignal, actor/epoch, response cũ, 403 liên phân hệ và mutation giữ nguyên; không đổi backend/tiền/kho.
-- [ ] **AC6** Regression đỏ trước sửa rồi xanh, check/build/docs lint và browser desktop/mobile có minh chứng; review chéo trước merge.
+Loại `(thuận|âm|biên)` do Bảo gắn thay ngày 06/11 theo [ADR-047](../../LOG.md#adr-047) để ma trận truy vết đếm được ca âm và ca biên; Tài xem lại. AC6 là tiêu chí quy trình, kiểm tay.
+
+- [ ] **AC1** (âm) URL sai/lặp/lạ được replace về canonical trước request; API/cache không nhận page/q chưa chuẩn hóa.
+- [ ] **AC2** (thuận) Tìm/tab/phân trang, reload và Back/Forward đồng bộ ô tìm với URL và kết quả; chỉ submit tìm kiếm.
+- [ ] **AC3** (thuận) Vào chi tiết, mở tab mới hoặc reload chi tiết giữ tab/q/page khi quay lại; dữ liệu return tùy ý không thành link ngoài.
+- [ ] **AC4** (biên) Trang sau rỗng có link phục hồi đúng điều kiện, không render pager có số trang vượt hoặc tự redirect vòng lặp.
+- [ ] **AC5** (biên) Hồi quy AbortSignal, actor/epoch, response cũ, 403 liên phân hệ và mutation giữ nguyên; không đổi backend/tiền/kho.
+- [ ] **AC6** (thuận, tay) Regression đỏ trước sửa rồi xanh, check/build/docs lint và browser desktop/mobile có minh chứng; review chéo trước merge.
 
 ## Truy vết và trạng thái
 

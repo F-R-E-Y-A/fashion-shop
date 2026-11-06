@@ -28,22 +28,25 @@ describe('PH-11 VNPAY transaction status contract', () => {
     ['07', '07', 'PENDING'],
     ['00', '01', 'PENDING'],
     ['00', '99', 'PENDING'],
-  ])('response=%s transaction=%s phải là %s sau xác thực chữ ký', (response, status, state) => {
-    const params = {
-      vnp_TmnCode: 'TESTONLY',
-      vnp_TxnRef: reference,
-      vnp_Amount: '23000000',
-      vnp_ResponseCode: response,
-      vnp_TransactionStatus: status,
-      vnp_TransactionNo: '12345678',
-    };
-    const event = adapter().notification({
-      ...params,
-      vnp_SecureHash: hmac(secret, queryString(params)),
-    });
-    expect(event?.state).toBe(state);
-  });
-  it('QueryDR success với TransactionStatus11 vẫn là giao dịch hủy, không ghi thu', async () => {
+  ])(
+    'UC-08.2/AC8 response=%s transaction=%s phải là %s sau xác thực chữ ký',
+    (response, status, state) => {
+      const params = {
+        vnp_TmnCode: 'TESTONLY',
+        vnp_TxnRef: reference,
+        vnp_Amount: '23000000',
+        vnp_ResponseCode: response,
+        vnp_TransactionStatus: status,
+        vnp_TransactionNo: '12345678',
+      };
+      const event = adapter().notification({
+        ...params,
+        vnp_SecureHash: hmac(secret, queryString(params)),
+      });
+      expect(event?.state).toBe(state);
+    },
+  );
+  it('UC-08.2/AC8 QueryDR success với TransactionStatus11 vẫn là giao dịch hủy, không ghi thu', async () => {
     const data = {
       vnp_ResponseId: 'QUERY1',
       vnp_Command: 'querydr',

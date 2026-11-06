@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { type CatalogRow, matchTerm, prepareProducts, search } from './catalog-engine.js';
+import { type CatalogRow, HYBRID, matchTerm, prepareProducts, search } from './catalog-engine.js';
 
 type Row = Partial<CatalogRow> & Pick<CatalogRow, 'id' | 'name'>;
 
@@ -246,5 +246,89 @@ describe('matchTerm', () => {
     expect(matchTerm(p, 'cotton')).toBe(1);
     expect(matchTerm(p, 'poloo')).toBe(0.6);
     expect(matchTerm(p, 'jeans')).toBe(0);
+  });
+});
+
+describe('search: gop hang luat va ngu nghia (ADR-048)', () => {
+  /** Cosine gia lap: san pham co trong bang lay diem do, con lai 0,5. */
+  const simOf = (top: Record<string, number>): Map<string, number> =>
+    new Map(CATALOG.map((p) => [p.id, top[p.id] ?? 0.5]));
+
+  it('UC-03.2/AC5 cau theo y dinh: san pham gan nghia nhat len dau, semantic.applied', () => {
+    const rules = search(CATALOG, { q: 'áo mặc mùa lạnh' });
+    const hybrid = search(CATALOG, { q: 'áo mặc mùa lạnh' }, undefined, simOf({ p9: 0.9 }));
+    expect(rules.total).toBeGreaterThan(1);
+    expect(ids(rules)[0]).not.toBe('p9');
+    expect(ids(hybrid)[0]).toBe('p9');
+    expect(hybrid.semantic.applied).toBe(true);
+    expect(rules.semantic).toEqual({ applied: false, added: 0 });
+  });
+
+  it('UC-03.2/AC6 them san pham khong khop tu nhung gan nghia; khong vuot san pham khop tu gan nghia hon', () => {
+    // "cotton" chi khop p10; p4 (so mi nu, cung goc ao) gan nghia nen duoc them sau p10.
+    const rules = search(CATALOG, { q: 'áo cotton nữ' });
+    const hybrid = search(CATALOG, { q: 'áo cotton nữ' }, undefined, simOf({ p10: 0.9, p4: 0.89 }));
+    expect(ids(rules)).toEqual(['p10']);
+    expect(ids(hybrid)).toEqual(['p10', 'p4']);
+    expect(hybrid.semantic).toEqual({ applied: true, added: 1 });
+  });
+
+  it('UC-03.2/AC6 ung vien gan nghia hon han vuot san pham chi khop tu yeu', () => {
+    const small = prepareProducts([
+      row({ id: 'weak', name: 'Áo Thun Basic', description: 'vải cotton' }),
+      row({ id: 'near', name: 'Áo Polo Airycool Thấm Hút' }),
+    ]);
+    const sim = new Map([
+      ['weak', 0.5],
+      ['near', 0.9],
+    ]);
+    const rules = search(small, { q: 'áo cotton' });
+    expect(ids(rules)).toEqual(['weak']);
+    expect(ids(search(small, { q: 'áo cotton' }, undefined, sim))).toEqual(['near', 'weak']);
+  });
+
+  it('UC-03.2/AC6 ung vien them phai qua bo loc cau truc; facet dem ca ung vien them', () => {
+    // p9 (nam) gan nghia nhat nhung cau co "nữ" nen bi loai; p4 duoc them va duoc dem trong facet.
+    const hybrid = search(
+      CATALOG,
+      { q: 'áo cotton nữ' },
+      undefined,
+      simOf({ p9: 0.95, p10: 0.93, p4: 0.93 }),
+    );
+    expect(ids(hybrid)).not.toContain('p9');
+    expect(ids(hybrid)).toContain('p4');
+    expect(hybrid.facets.category.get('ao-so-mi')).toBe(1);
+    expect(hybrid.facets.audience.get('nu')).toBe(hybrid.total);
+  });
+
+  it('UC-03.2/AC8 luat tra rong thi van rong du co diem ngu nghia', () => {
+    const sim = simOf({ p6: 0.99, p4: 0.98 });
+    const r = search(CATALOG, { q: 'váy dự tiệc' }, undefined, sim);
+    expect(search(CATALOG, { q: 'váy dự tiệc' }).total).toBe(0);
+    expect(r.total).toBe(0);
+    expect(r.semantic.applied).toBe(false);
+  });
+
+  it('UC-03.2/AC9 sap theo gia hoac cau chi co rang buoc thi khong gop hang', () => {
+    const sim = simOf({ p9: 0.99 });
+    const byPrice = search(CATALOG, { q: 'áo', sort: 'price_asc' }, undefined, sim);
+    expect(byPrice.semantic.applied).toBe(false);
+    const prices = byPrice.items.map((p) => p.price);
+    expect(prices).toEqual([...prices].sort((a, b) => a - b));
+    const onlyPrice = search(CATALOG, { q: 'dưới 100k' }, undefined, sim);
+    expect(onlyPrice.sort).toBe('newest');
+    expect(onlyPrice.semantic.applied).toBe(false);
+  });
+
+  it('UC-03.2/AC9 moi lan them toi da HYBRID.extraMax san pham chi do ngu nghia', () => {
+    const many = prepareProducts([
+      row({ id: 'hit', name: 'Áo Polo Đặc Biệt' }),
+      ...Array.from({ length: 20 }, (_, k) => row({ id: `x${k}`, name: `Áo Thun Mẫu ${k}` })),
+    ]);
+    const sim = new Map(many.map((p) => [p.id, 0.9]));
+    const r = search(many, { q: 'polo đặc biệt' }, undefined, sim);
+    expect(r.semantic.added).toBe(HYBRID.extraMax);
+    expect(r.total).toBe(1 + HYBRID.extraMax);
+    expect(ids(r)[0]).toBe('hit');
   });
 });

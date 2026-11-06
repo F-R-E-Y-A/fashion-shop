@@ -399,3 +399,52 @@ khi chưa có số đo. Frontend dùng session cache/403 chung, không tạo cơ
 trạng thái review và kiểm chứng theo [Issue #63](https://github.com/F-R-E-Y-A/fashion-shop/issues/63).
 Menu Sản phẩm dùng AdminNavigation, breadcrumb nhận cả danh sách/chi tiết; giữ test shell và bổ sung
 kiểm tra route catalog. Người khác review và CI xanh trước khi coi hoàn thành; không tự chốt ADR.
+
+<a id="adr-048"></a>
+## 2026-11-06 · ADR-048 — Tìm kiếm lai: luật và từ điển giữ lọc, mô hình embedding đa ngôn ngữ chạy trong API gộp hạng
+
+**Loại:** quyết định · **Phạm vi:** PH-01, `apps/api/src/modules/products/search`; cấu hình triển khai · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** [`1ba02da`](https://github.com/F-R-E-Y-A/fashion-shop/commit/1ba02da), bộ đánh giá [`e6d020e`](https://github.com/F-R-E-Y-A/fashion-shop/commit/e6d020e)
+
+### Hiện trạng
+- Search chỉ hiểu câu bằng luật và từ điển ([ADR-019](#adr-019)); README ghi "chưa cài embedding hoặc LLM runtime". GVHD yêu cầu áp dụng xử lý ngôn ngữ tự nhiên; biên bản gặp GVHD gợi ý mô hình đa ngôn ngữ chạy local (`bge-m3`, `multilingual-e5`), hybrid bằng RRF và đánh giá bằng Recall@k, MRR (`tlcn-docs/tien-do/DanBaiHopGVHD.md`, mục 6.1–6.2).
+- Đo thử ngày 06/11 trên 87 sản phẩm đang bán, 12 câu, transformers.js 4.3.2 bản q8. Mỗi câu gồm nhúng câu và cosine với 87 sản phẩm:
+  - `multilingual-e5-small`: p95 7,5 ms, RSS thêm khoảng 500 MB, nạp 6,6 s;
+  - `multilingual-e5-base`: p95 15 ms;
+  - `bge-m3`: p95 63,5 ms, RSS khoảng 1,1 GB.
+
+  Trên mẫu này hai mô hình lớn cho kết quả đầu kém hơn `e5-small` (trượt "dây nịt", "áo giữ ấm mùa đông").
+- Trên cùng 12 câu, luật và mô hình đều đúng 7/12 kết quả đầu, nhưng đúng ở các câu khác nhau. Mô hình thắng ở câu theo ý định: "áo giữ ấm mùa đông" ra áo phao. Luật thắng ở ràng buộc: "polo nữ trắng dưới 100k" lọc đúng giá và màu; "váy dự tiệc" trả 0 là đúng vì cửa hàng không bán váy, còn mô hình vẫn trả quần với điểm gần bằng câu đúng. Bảng chấm do Claude Code đọc kết quả, chưa phải bộ đánh giá.
+- Staging Render dùng gói `free` ([render.yaml](../../../render.yaml)), 512 MB. API đang chạy chiếm 150 MB, cộng mô hình thì vượt giới hạn (suy luận từ số đo).
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Chỉ luật (ADR-019) | Không thêm gì | Câu theo ý định và từ đồng nghĩa ngoài từ điển không ra; không đáp ứng yêu cầu NLP của GVHD | — |
+| **B. Lai: luật lọc và giữ cửa "0 kết quả"; `e5-small` chạy trong API gộp hạng bằng RRF; vector giữ trong bộ nhớ (chọn)** | Hiểu ý định và đồng nghĩa; giữ chip "Đã hiểu", lọc giá, màu, cỡ; không gửi dữ liệu ra ngoài, không khoá API; tắt được bằng `SEARCH_SEMANTIC=off` | Thêm khoảng 500 MB RAM và khoảng 7 s nạp khi bật; image API nặng thêm vì có ONNX Runtime; vài câu tụt nhẹ (Thực tế) | Được: đặt `off`, hoặc gỡ `search/semantic/` |
+| C. Như B nhưng lưu vector trong pgvector | Đúng kế hoạch nhóm; chịu được hàng chục nghìn sản phẩm | Đổi image Postgres ở compose, CI và CSDL dev của Duy, Tài; 87 vector so trong bộ nhớ dưới 1 ms nên chưa cần | Được, tốn công |
+| D. Gọi API embedding bên ngoài | Nhẹ máy, chất lượng cao | Khoá API, phí theo lượt, gửi câu khách ra ngoài, CI phải giả lập | Được |
+
+**Chọn B** vì catalog có 87 sản phẩm, cần giữ phần giải thích được của ADR-019 và chạy được trên máy demo không cần mạng. Trade-off chấp nhận: Render Free giữ `off` ([ND-17](../../TECH_DEBT.md)); pgvector để khi catalog lớn.
+
+### Hành vi
+1. `SEARCH_SEMANTIC=off|local`, mặc định `off`; máy dev, CI và Render Free không nạp mô hình. Bộ nhúng là provider `EMBEDDER`; thư viện chỉ được nạp bằng dynamic import khi bật `local`.
+2. Bật `local` thì API nhúng catalog ở nền khi khởi động. Vector gắn với băm của mô hình và văn bản, nên sản phẩm đổi tên hay mô tả thì lần nạp sau tự tính lại.
+3. Cách gộp hạng chỉ chạy khi có câu hỏi, sắp theo liên quan và luật có kết quả. Gộp bằng RRF giữa hạng luật (hạng dày, bỏ thưởng "nổi bật") và hạng cosine, K = 60.
+4. Ứng viên chỉ do ngữ nghĩa thêm vào phải thoả ba điều kiện: qua mọi bộ lọc cấu trúc, cosine không kém sản phẩm giống nhất quá 0,03, và tối đa 12 sản phẩm. Ứng viên nhận hạng luật ngay sau mức khớp thấp nhất. Facet đếm cả ứng viên này.
+5. Mọi lỗi đều quay về chỉ luật: chưa nhúng xong, mô hình lỗi, hay quá `SEARCH_SEMANTIC_TIMEOUT_MS` (mặc định 300 ms). Phản hồi có `ranking: hybrid|rules`. Gợi ý (`/api/search/suggest`) vẫn chỉ dùng luật.
+
+### Kết quả mong đợi → thực tế
+Mong đợi: `npm run search:eval -w apps/api` trên bộ 29 câu có nhãn (`scripts/search-eval/cases.json`). Nhóm câu theo ý định có Recall@10 và MRR của cách lai không thấp hơn chỉ luật, nhóm câu luật không giảm, câu âm không thêm kết quả, độ trễ thêm dưới 20 ms (UC-03.2/AC10).
+Thực tế: `npm run search:eval -w apps/api` tại [`fc27ef1`](https://github.com/F-R-E-Y-A/fashion-shop/commit/fc27ef1), cây sạch, CSDL local 87 sản phẩm. Tệp đầy đủ: `tlcn-docs/minh-chung/danh-gia-tim-kiem-2026-11-06.md`. Mỗi ô ghi chỉ luật → lai.
+- Nhóm ý định (18 câu): Recall@10 0,59 → 0,68; MRR 0,61 → 0,87; nDCG@10 0,56 → 0,71. Tăng rõ ở "áo thấm mồ hôi mặc mùa hè", "quần áo đi làm công sở cho nữ", "đồ mặc ở nhà thoải mái" (Recall 0 → 0,33–0,50, MRR 0 → 1).
+- Nhóm luật (7 câu): Recall@10 1,00 → 1,00; MRR 0,93 → 1,00; nDCG@10 0,96 → 1,00.
+- Câu âm: "váy dự tiệc", "mũ lưỡi trai" vẫn trả 0. "giày thể thao" (42 → 43) và "túi xách nữ" (65 → 65) đã sai sẵn ở luật vì khớp "thể thao", "nữ"; lai không làm tệ hơn đáng kể.
+- Tụt: "áo đi tiệc nữ điệu đà" Recall 0,29 → 0; "quần rộng rãi cho nữ" 1 → 0,89; "quần âu nữ" 1 → 0,88.
+- Độ trễ `CatalogSearchService.list`, 116 lượt mỗi cách: p50 119,8 → 125,0 ms, p95 150,6 → 159,3 ms, thêm dưới 20 ms. Nạp mô hình và nhúng catalog 14,6 s.
+- Đạt UC-03.2/AC10 theo trung bình nhóm; riêng ba câu trên tụt. Thiên lệch: nhãn do Claude Code gán trước khi chạy, nhưng cách xếp ứng viên ngữ nghĩa được chọn sau lượt chạy đầu trên chính bộ câu này.
+
+### Điều kiện xem lại
+- Catalog vượt vài nghìn sản phẩm, hoặc cần lọc vector trong SQL: chuyển sang pgvector.
+- Staging chuyển sang Azure có từ 1 GB RAM trở lên: bật `local` ở đó.
+- Bộ đánh giá có thêm câu mà cách lai làm tụt rõ: xem lại `extraMargin` hoặc trọng số RRF.
+

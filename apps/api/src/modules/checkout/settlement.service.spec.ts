@@ -38,7 +38,7 @@ function fixture(
 afterEach(() => vi.restoreAllMocks());
 
 describe('PH-11 worker doi soat: tung muc rieng, vet het lo trong ngan sach', () => {
-  it('vet qua nhieu lo thay vi dung o 50 don moi tick', async () => {
+  it('UC-08.2/AC9 vet qua nhieu lo thay vi dung o 50 don moi tick', async () => {
     const orders = Array.from({ length: 120 }, (_, i) => ({ id: `o${i}`, userId: 'u' }));
     const { service, cancel, due } = fixture(orders, []);
     await service.tick();
@@ -46,7 +46,7 @@ describe('PH-11 worker doi soat: tung muc rieng, vet het lo trong ngan sach', ()
     expect(due.mock.calls.length).toBe(4);
   });
 
-  it('mot don loi khong chan don sau, khong bi lay lai trong cung tick, khong lo chi tiet loi', async () => {
+  it('UC-08.2/AC9 mot don loi khong chan don sau, khong bi lay lai trong cung tick, khong lo chi tiet loi', async () => {
     const { service, cancel, reconcile } = fixture(
       [
         { id: 'poison', userId: 'u' },
@@ -63,7 +63,7 @@ describe('PH-11 worker doi soat: tung muc rieng, vet het lo trong ngan sach', ()
     expect(String(log.mock.calls[0]![0])).not.toContain('private detail');
   });
 
-  it('het ngan sach thi dung, viec con lai de tick sau', async () => {
+  it('UC-08.2/AC9 het ngan sach thi dung, viec con lai de tick sau', async () => {
     const orders = Array.from({ length: 10 }, (_, i) => ({ id: `o${i}`, userId: 'u' }));
     const { service, cancel } = fixture(orders, []);
     let now = 1_000_000;
