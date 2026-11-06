@@ -72,7 +72,7 @@ describe('buoc chuyen trang thai don', () => {
     });
   });
 
-  it('buoc khong hop le tra 409 va khong ghi lich su', async () => {
+  it('UC-12.1/AC10 buoc khong hop le tra 409 va khong ghi lich su', async () => {
     const { tx, create } = fakeTx(0);
     await expect(
       new OrdersService({} as never).transition('o1', 'CONFIRMED', tx),

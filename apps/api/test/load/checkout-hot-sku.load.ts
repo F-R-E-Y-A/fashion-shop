@@ -94,7 +94,7 @@ describe(`tai checkout: ${USERS} khach tranh mot SKU con ${STOCK}`, () => {
     await t?.close();
   });
 
-  it('dung STOCK don, khong ban vuot, khong 500; qua tai chi duoc la 503 SERVER_BUSY', async () => {
+  it('UC-07.1/AC5 dung STOCK don, khong ban vuot, khong 500; qua tai chi duoc la 503 SERVER_BUSY', async () => {
     const samples: Sample[] = [];
     const timed = async (
       step: Sample['step'],
