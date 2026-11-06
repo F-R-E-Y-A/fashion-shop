@@ -848,3 +848,59 @@ Thực tế: (điền sau mốc gộp đầu tiên).
 
 ### Điều kiện xem lại
 Danh sách nhánh remote dài tới mức khó tìm; nhánh giữ lâu bị lệch `develop` gây xung đột lớn khi gộp lại.
+
+<a id="adr-046"></a>
+## 2026-11-05 · ADR-046 — Tầng E2E dùng Playwright trong `apps/web`, chạy trên CSDL kiểm thử với API và web ở cổng riêng
+
+**Loại:** quyết định · **Phạm vi:** cả nhóm: `apps/web` (thêm `@playwright/test`), `apps/api/test/e2e/seed.ts`, [shared/testing.md](shared/testing.md); tầng E2E trong [shared/test-strategy.md](shared/test-strategy.md) do Duy chủ trì · **Trạng thái:** đề xuất · **Người quyết:** Bảo đề xuất, Duy (chủ tầng E2E) và Tài review · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- Rubric mục Kiểm thử Mức 5 đòi đủ bốn tầng: unit, integration/API, E2E/UI, phi chức năng (đối chiếu rubric ngày 01/11, kho docs). Ngày 05/11 kho chưa có bài E2E nào: `grep -rl playwright --include=package.json .` không ra kết quả ngoài `node_modules`, không có nhánh hay pull request E2E.
+- [test-strategy.md](shared/test-strategy.md) chọn Playwright cho E2E và liệt kê E2E-01…E2E-06; chưa có luồng đặt hàng – thanh toán.
+- Các tầng khác đã có số: unit API 55,18% dòng (`npm run test:cov -w apps/api`), unit web 92,34% dòng (`npm run test:cov -w apps/web`), HTTP 91,26% dòng (artifact `coverage-http` của CI run `41668049279` tại `63d9798`).
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Gói E2E riêng `apps/e2e` | Tách hẳn phụ thuộc | Workspace mới lọt vào `npm run test --workspaces` nếu đặt tên script sai; thêm một package phải bảo trì | Được |
+| **B. Playwright trong `apps/web`, seed ở `apps/api/test/e2e/seed.ts` (chọn)** | Dùng lại Vite và cấu hình web; seed dùng lại `resetDatabase`, `seedShipping`, `grantAdminRole` của API | `apps/web` có thêm một devDependency; seed nằm khác gói với bài test | Được: xoá `e2e/`, `playwright.config.ts` và gỡ gói |
+| Không làm gì | Không thêm phụ thuộc | Tầng E2E vẫn trống, rubric Mức 5 không đạt | — |
+
+**Chọn B.** Cách chạy: `npm run test:e2e -w apps/web`. Playwright tự build và bật API ở cổng 3101 với `DATABASE_URL_TEST`, `NODE_ENV=test`, web Vite ở cổng 5175. Cổng riêng, không tái dùng máy chủ đang chạy, vì máy chủ dev 3001/5174 trỏ vào CSDL thật, còn seed E2E xoá sạch CSDL mà API đang dùng. Global setup chạy `npm run e2e:seed -w apps/api` và nhận một dòng JSON mô tả fixture, nên bài test không gõ lại hằng số của seed. Chưa gắn vào CI: đề xuất job chạy khi gộp `develop` như test-strategy ghi, Duy quyết.
+
+### Kết quả mong đợi → thực tế
+Mong đợi: bài đầu tiên `E2E-07` (luồng COD: khách thêm giỏ → đặt COD → admin xác nhận → ghi đã giao, đã thu tiền → khách thấy đơn đã giao, tồn giảm một) xanh ổn định khi chạy lặp.
+Thực tế: 2026-11-05 · `npx playwright test --repeat-each=3` trong `apps/web` → `3 passed (38.5s)`, mỗi lượt khoảng 6 giây · khớp. Khi viết bài này lộ ra lỗi giao diện: `CheckoutPage.tsx:114` coi mọi 422 của preview là "chưa chọn sản phẩm", kể cả 422 "Địa chỉ này chưa có biểu phí giao hàng."
+
+### Điều kiện xem lại
+Bài E2E chậm hoặc chập chờn tới mức chặn công việc; có môi trường staging ổn định để chạy E2E trên đó; nhóm chọn công cụ khác cho tầng UI.
+
+<a id="adr-047"></a>
+## 2026-11-05 · ADR-047 — Truy vết kiểm thử tới tiêu chí chấp nhận: AC có loại, mã ở tên `it`, ma trận sinh từ mã
+
+**Loại:** quyết định · **Phạm vi:** cả nhóm: khuôn [shared/templates/use-case.md](shared/templates/use-case.md), mọi `docs/features/*/use-cases*.md`, tên bài kiểm thử, `tools/evidence/` · **Trạng thái:** đề xuất · **Người quyết:** Bảo đề xuất; Duy (chủ danh mục use case và test-strategy) và Tài review · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- Rubric V2-1 mục TC2.5 Mức 5 đòi: "Test case truy vết được tới acceptance criteria, bao phủ cả ca âm và ca biên", "Tỉ lệ test case tự động hóa ≥ 70%", "Độ phủ dòng lệnh của mô-đun cốt lõi ≥ 70%, có báo cáo coverage kèm theo".
+- Đặc tả đánh dấu AC đã kiểm bằng tay (`- [x]`) nên lệch mã: ngày 05/11 `products/use-cases.md` để trống UC-03.1 dù có bài `UC-03.1/AC1`, `UC-03.1/AC3`. Chưa AC nào ghi là ca âm hay ca biên, nên không đếm được vế thứ hai của rubric.
+- Checkout, payments, orders chưa có `use-cases.md`; `use-case-index.md` vẫn là khuôn sau khi PR #26 của Duy đóng chưa gộp.
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Giữ dấu tick tay và danh sách bài trong đặc tả | Không đổi gì | Lệch theo thời gian; không đo được tỉ lệ, ca âm, ca biên | — |
+| **B. AC ghi loại trong ngoặc, mã `UC-NN.m/ACk` ở tên `it`, ma trận sinh bằng công cụ (chọn)** | Một nguồn: đổi tên bài là ma trận đổi; đếm được AC thiếu bài, tỉ lệ tự động, ca âm/biên theo use case; chạy được trong CI bằng `--check` | Phải đổi tên bài cũ khi gắn mã; tên bài dài hơn | Được: xoá ngoặc loại, công cụ không ảnh hưởng mã chạy |
+| C. Công cụ quản lý test case ngoài kho (TestRail, sheet) | Giao diện sẵn | Lệch với mã, thêm chỗ phải đồng bộ tay | Được |
+
+**Chọn B.** Quy ước:
+1. Mỗi AC: `- **ACk** (thuận|âm|biên[, tay][, chưa giao]) <câu tự kiểm được>`. `tay` là chỉ kiểm thủ công, có kịch bản ngay trong đặc tả; `chưa giao` không tính vào mẫu số.
+2. Bài kiểm một AC ghi mã ở tên `it`/`test`: `it('UC-07.1/AC3 ...')`; một bài kiểm nhiều AC ghi `UC-07.1/AC3,AC4` hoặc nhiều mã cách nhau bằng dấu cách. Mã ở `describe` không tính.
+3. Minh chứng sinh bằng `npm run evidence:trace` (ma trận AC → bài), `npm run evidence:test-cases` (bảng test case), `npm run evidence:coverage` (độ phủ dòng theo module, gộp unit và HTTP). Không gõ tay số vào minh chứng.
+
+### Kết quả mong đợi → thực tế
+Mong đợi: các use case của Bảo (UC-03, UC-07.1/.3/.4, UC-08.1/.2, UC-12.1 phần nghiệp vụ, UC-12.2, UC-14.3) có mọi AC trong phạm vi được ít nhất một bài tự động, mỗi use case có ca âm và ca biên được kiểm; module cốt lõi gộp ≥ 70% dòng.
+Thực tế: 2026-11-06 trước khi gắn mã, tại `18e1e8b` · `node tools/evidence/traceability.mjs --uc UC-03,UC-07,UC-08,UC-12,UC-14` → 89 AC trong phạm vi (gồm 6 AC điều hướng UC-12.1 của Tài, chưa phân loại), 16 có bài (18,0%) · `node tools/evidence/coverage-modules.mjs --core products,checkout,payments,orders` → gộp module cốt lõi 93,72% trên 2548 dòng.
+2026-11-06 sau khi gắn mã vào tên 121 bài (commit `test(ph-11): gan ma AC…`) · cùng lệnh trace → 91 AC, 88 có bài tự động (96,7%), 12/12 use case có ca âm và ca biên được kiểm, 0 mã treo. Còn thiếu UC-07.1/AC13 (lỗi 422, sửa ở nhánh bugfix riêng) và UC-12.1/AC5–AC6 phần điều hướng của Tài (chưa phân loại; AC6 là tiêu chí quy trình) · gần khớp mong đợi.
+
+### Điều kiện xem lại
+Nhóm đổi danh mục use case khác bộ số PR #26; rubric đổi cách tính tỉ lệ tự động; tên bài dài tới mức khó đọc báo cáo Vitest.

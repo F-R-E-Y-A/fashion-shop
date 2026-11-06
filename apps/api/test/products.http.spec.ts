@@ -52,7 +52,7 @@ describe('GET /api/products (UC-03.1 Khám phá sản phẩm)', () => {
     expect(items.every((item) => item.categorySlug === 'ao-thun')).toBe(true);
   });
 
-  it('UC-03.2/AC2 tim theo ten khong phan biet hoa thuong', async () => {
+  it('UC-03.2/AC1 tim theo ten khong phan biet hoa thuong', async () => {
     const expected = PRODUCTS.filter((p) => p.name.toLowerCase().includes('polo')).length;
 
     const res = await t.http.get('/api/products').query({ search: 'POLO' }).expect(200);
@@ -118,7 +118,7 @@ describe('GET /api/products (UC-03.1 Khám phá sản phẩm)', () => {
     expect(prices).toEqual(expected);
   });
 
-  it('hai trang không trùng sản phẩm', async () => {
+  it('UC-03.1/AC4 hai trang không trùng sản phẩm', async () => {
     const first = await t.http.get('/api/products').query({ page: 1, pageSize: 5 }).expect(200);
     const second = await t.http.get('/api/products').query({ page: 2, pageSize: 5 }).expect(200);
     const ids = [...first.body.items, ...second.body.items].map((item: { id: string }) => item.id);
@@ -134,7 +134,7 @@ describe('GET /api/products (UC-03.1 Khám phá sản phẩm)', () => {
   });
 
   describe('truong hop loi tra dung khuon ApiErrorBody', () => {
-    it('404 khi slug khong ton tai', async () => {
+    it('UC-03.4/AC5 404 khi slug khong ton tai', async () => {
       const res = await t.http.get('/api/products/khong-ton-tai').expect(404);
 
       expect(res.body).toMatchObject({
@@ -145,7 +145,7 @@ describe('GET /api/products (UC-03.1 Khám phá sản phẩm)', () => {
       expect(typeof res.body.timestamp).toBe('string');
     });
 
-    it('400 khi slug dài hơn giới hạn DTO', async () => {
+    it('UC-03.4/AC6 400 khi slug dài hơn giới hạn DTO', async () => {
       await t.http.get(`/api/products/${'x'.repeat(501)}`).expect(400);
     });
 
@@ -154,7 +154,7 @@ describe('GET /api/products (UC-03.1 Khám phá sản phẩm)', () => {
       ['page khong phai so', { page: 'abc' }],
       ['pageSize vuot 60', { pageSize: 999 }],
       ['gui truong la', { foo: 'bar' }],
-    ])('400 khi %s', async (_label, params) => {
+    ])('UC-03.1/AC4 400 khi %s', async (_label, params) => {
       const res = await t.http.get('/api/products').query(params).expect(400);
 
       expect(res.body).toMatchObject({ statusCode: 400, code: 'BAD_REQUEST' });

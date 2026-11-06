@@ -360,7 +360,7 @@ describe('UC-02.1/AC6, AC8 — hồi quy bảo vệ dùng chung cho đơn hàng 
     },
   );
 
-  it('xác nhận liên tiếp chỉ gửi một POST', async () => {
+  it('UC-12.1/AC11 xác nhận liên tiếp chỉ gửi một POST', async () => {
     const backend = createBackend();
     backend.setOrder(pendingOrder);
     const post = deferred<Response>();
@@ -393,7 +393,7 @@ describe('UC-02.1/AC6, AC8 — hồi quy bảo vệ dùng chung cho đơn hàng 
     expect(auth().user?.id).toBe(actor.id);
   });
 
-  it('timeout POST không gửi lại; GET lỗi thì chặn thao tác tới khi kiểm lại thành công', async () => {
+  it('UC-12.1/AC11 timeout POST không gửi lại; GET lỗi thì chặn thao tác tới khi kiểm lại thành công', async () => {
     const backend = createBackend();
     backend.setOrder(pendingOrder);
     let readFails = false;

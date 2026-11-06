@@ -1,6 +1,6 @@
 ---
 title: Payments — VNPAY và MoMo PH-11
-updated: 2026-11-01
+updated: 2026-11-06
 status: VNPAY đã thử PAY và QueryDR sandbox, MoMo để sau
 owner: Bảo
 ---
@@ -18,7 +18,7 @@ Bảo yêu cầu ưu tiên VNPAY, MoMo để sau: chưa có key thì MoMo không
 
 QueryDR ResponseCode=00 chỉ xác nhận API query thành công. TransactionStatus=00 mới là thanh toán thành công; 02/08/11 là lỗi/hết hạn/hủy. Trạng thái chưa rõ giữ pending, không mở lượt thu tiền mới ([vnpay.adapter.ts:35](../../../apps/api/src/modules/payments/vnpay.adapter.ts#L35)); nguồn bảng mã và lý do ở [LOG](LOG.md).
 
-- [Đăng ký hai cổng và cấu hình HTTPS tunnel](setup.md).
+- [Đặc tả UC-08.1, UC-08.2, UC-14.3](use-cases.md) và [đăng ký hai cổng, cấu hình HTTPS tunnel](setup.md).
 - HTTP: [VNPAY](../../../apps/api/test/checkout-payment.http.spec.ts), [MoMo](../../../apps/api/test/checkout-momo.http.spec.ts), [COD](../../../apps/api/test/cod.http.spec.ts); adapter: [VNPAY](../../../apps/api/src/modules/payments/vnpay.service.spec.ts), [MoMo](../../../apps/api/src/modules/payments/momo.adapter.spec.ts).
 - HTTP hoàn tiền: [checkout-refund](../../../apps/api/test/checkout-refund.http.spec.ts).
 - [Nhật ký](LOG.md), [ADR-032](../../LOG.md#adr-032), [ADR-033](../../LOG.md#adr-033).
