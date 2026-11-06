@@ -399,3 +399,46 @@ khi chưa có số đo. Frontend dùng session cache/403 chung, không tạo cơ
 trạng thái review và kiểm chứng theo [Issue #63](https://github.com/F-R-E-Y-A/fashion-shop/issues/63).
 Menu Sản phẩm dùng AdminNavigation, breadcrumb nhận cả danh sách/chi tiết; giữ test shell và bổ sung
 kiểm tra route catalog. Người khác review và CI xanh trước khi coi hoàn thành; không tự chốt ADR.
+
+<a id="adr-048"></a>
+## 2026-11-06 · ADR-048 — Tìm kiếm lai: luật và từ điển giữ lọc, mô hình embedding đa ngôn ngữ chạy trong API gộp hạng
+
+**Loại:** quyết định · **Phạm vi:** PH-01, `apps/api/src/modules/products/search`; cấu hình triển khai · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- Search chỉ hiểu câu bằng luật và từ điển ([ADR-019](#adr-019)); README ghi "chưa cài embedding hoặc LLM runtime". GVHD yêu cầu áp dụng xử lý ngôn ngữ tự nhiên; biên bản gặp GVHD gợi ý mô hình đa ngôn ngữ chạy local (`bge-m3`, `multilingual-e5`), hybrid bằng RRF và đánh giá bằng Recall@k, MRR (`tlcn-docs/tien-do/DanBaiHopGVHD.md`, mục 6.1–6.2).
+- Đo thử ngày 06/11 trên 87 sản phẩm đang bán, 12 câu, transformers.js 4.3.2 bản q8. Mỗi câu gồm nhúng câu và cosine với 87 sản phẩm:
+  - `multilingual-e5-small`: p95 7,5 ms, RSS thêm khoảng 500 MB, nạp 6,6 s;
+  - `multilingual-e5-base`: p95 15 ms;
+  - `bge-m3`: p95 63,5 ms, RSS khoảng 1,1 GB.
+
+  Trên mẫu này hai mô hình lớn cho kết quả đầu kém hơn `e5-small` (trượt "dây nịt", "áo giữ ấm mùa đông").
+- Trên cùng 12 câu, luật và mô hình đều đúng 7/12 kết quả đầu, nhưng đúng ở các câu khác nhau. Mô hình thắng ở câu theo ý định: "áo giữ ấm mùa đông" ra áo phao. Luật thắng ở ràng buộc: "polo nữ trắng dưới 100k" lọc đúng giá và màu; "váy dự tiệc" trả 0 là đúng vì cửa hàng không bán váy, còn mô hình vẫn trả quần với điểm gần bằng câu đúng. Bảng chấm do Claude Code đọc kết quả, chưa phải bộ đánh giá.
+- Staging Render dùng gói `free` ([render.yaml](../../../render.yaml)), 512 MB. API đang chạy chiếm 150 MB, cộng mô hình thì vượt giới hạn (suy luận từ số đo).
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Chỉ luật (ADR-019) | Không thêm gì | Câu theo ý định và từ đồng nghĩa ngoài từ điển không ra; không đáp ứng yêu cầu NLP của GVHD | — |
+| **B. Lai: luật lọc và giữ cửa "0 kết quả"; `e5-small` chạy trong API gộp hạng bằng RRF; vector giữ trong bộ nhớ (chọn)** | Hiểu ý định và đồng nghĩa; giữ chip "Đã hiểu", lọc giá, màu, cỡ; không gửi dữ liệu ra ngoài, không khoá API; tắt được bằng `SEARCH_SEMANTIC=off` | Thêm khoảng 500 MB RAM và khoảng 7 s nạp khi bật; image API nặng thêm vì có ONNX Runtime; vài câu tụt nhẹ (Thực tế) | Được: đặt `off`, hoặc gỡ `search/semantic/` |
+| C. Như B nhưng lưu vector trong pgvector | Đúng kế hoạch nhóm; chịu được hàng chục nghìn sản phẩm | Đổi image Postgres ở compose, CI và CSDL dev của Duy, Tài; 87 vector so trong bộ nhớ dưới 1 ms nên chưa cần | Được, tốn công |
+| D. Gọi API embedding bên ngoài | Nhẹ máy, chất lượng cao | Khoá API, phí theo lượt, gửi câu khách ra ngoài, CI phải giả lập | Được |
+
+**Chọn B** vì catalog có 87 sản phẩm, cần giữ phần giải thích được của ADR-019 và chạy được trên máy demo không cần mạng. Trade-off chấp nhận: Render Free giữ `off` ([ND-17](../../TECH_DEBT.md)); pgvector để khi catalog lớn.
+
+### Hành vi
+1. `SEARCH_SEMANTIC=off|local`, mặc định `off`; máy dev, CI và Render Free không nạp mô hình. Bộ nhúng là provider `EMBEDDER`; thư viện chỉ được nạp bằng dynamic import khi bật `local`.
+2. Bật `local` thì API nhúng catalog ở nền khi khởi động. Vector gắn với băm của mô hình và văn bản, nên sản phẩm đổi tên hay mô tả thì lần nạp sau tự tính lại.
+3. Cách gộp hạng chỉ chạy khi có câu hỏi, sắp theo liên quan và luật có kết quả. Gộp bằng RRF giữa hạng luật (hạng dày, bỏ thưởng "nổi bật") và hạng cosine, K = 60.
+4. Ứng viên chỉ do ngữ nghĩa thêm vào phải thoả ba điều kiện: qua mọi bộ lọc cấu trúc, cosine không kém sản phẩm giống nhất quá 0,03, và tối đa 12 sản phẩm. Ứng viên nhận hạng luật ngay sau mức khớp thấp nhất. Facet đếm cả ứng viên này.
+5. Mọi lỗi đều quay về chỉ luật: chưa nhúng xong, mô hình lỗi, hay quá `SEARCH_SEMANTIC_TIMEOUT_MS` (mặc định 300 ms). Phản hồi có `ranking: hybrid|rules`. Gợi ý (`/api/search/suggest`) vẫn chỉ dùng luật.
+
+### Kết quả mong đợi → thực tế
+Mong đợi: `npm run search:eval -w apps/api` trên bộ 29 câu có nhãn (`scripts/search-eval/cases.json`). Nhóm câu theo ý định có Recall@10 và MRR của cách lai không thấp hơn chỉ luật, nhóm câu luật không giảm, câu âm không thêm kết quả, độ trễ thêm dưới 20 ms (UC-03.2/AC10).
+Thực tế: (điền ở commit sạch, kèm tệp minh chứng trong kho docs)
+
+### Điều kiện xem lại
+- Catalog vượt vài nghìn sản phẩm, hoặc cần lọc vector trong SQL: chuyển sang pgvector.
+- Staging chuyển sang Azure có từ 1 GB RAM trở lên: bật `local` ở đó.
+- Bộ đánh giá có thêm câu mà cách lai làm tụt rõ: xem lại `extraMargin` hoặc trọng số RRF.
+

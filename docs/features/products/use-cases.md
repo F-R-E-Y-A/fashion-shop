@@ -1,6 +1,6 @@
 ---
 title: Khám phá sản phẩm và lát đọc quản trị catalog — đặc tả use case
-updated: 2026-11-05
+updated: 2026-11-06
 status: đề xuất, chờ Bảo duyệt
 owner: Bảo
 ---
@@ -107,6 +107,12 @@ Dùng chung `GET /api/products?search=`, không tạo `/api/products/search`: tr
 - **AC2** (biên) `search` dưới 2 ký tự trả 400
 - **AC3** (âm) Không có kết quả trả `items: []`, `total: 0`
 - **AC4** (âm) Sản phẩm ngừng bán không xuất hiện
+- **AC5** (thuận) Bật tìm kiếm ngữ nghĩa ([ADR-048](LOG.md#adr-048)): câu theo ý định không chứa tên sản phẩm, như "áo giữ ấm mùa đông", đưa sản phẩm gần nghĩa nhất lên đầu; phản hồi có `ranking: hybrid`
+- **AC6** (thuận) Sản phẩm không khớp từ nào nhưng gần nghĩa được thêm vào, chỉ khi qua mọi bộ lọc cấu trúc (danh mục, đối tượng, màu, cỡ, giá); nó vượt được sản phẩm chỉ khớp từ yếu mà xa nghĩa hơn, không vượt sản phẩm khớp từ gần nghĩa bằng hoặc hơn; facet đếm cả các sản phẩm này
+- **AC7** (âm) Bộ nhúng lỗi, quá `SEARCH_SEMANTIC_TIMEOUT_MS`, chưa nhúng xong catalog hoặc `SEARCH_SEMANTIC=off` thì trả kết quả theo luật với `ranking: rules`, không trả 5xx
+- **AC8** (âm) Câu mà luật trả rỗng (hàng cửa hàng không bán, như "váy dự tiệc") vẫn trả rỗng khi bật ngữ nghĩa
+- **AC9** (biên) Sắp theo giá hay mới nhất, hoặc câu chỉ có ràng buộc như "dưới 100k", thì không gộp hạng ngữ nghĩa; mỗi lần thêm tối đa 12 sản phẩm chỉ do ngữ nghĩa
+- **AC10** (thuận, tay) Bộ đánh giá `apps/api/scripts/search-eval/cases.json` chạy với mô hình thật: nhóm câu theo ý định có Recall@10 và MRR của cách lai không thấp hơn chỉ luật, nhóm câu luật không giảm; báo cáo kèm lệnh, commit, ngày
 
 ---
 
