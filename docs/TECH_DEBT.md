@@ -1,6 +1,6 @@
 ---
 title: Sổ nợ kỹ thuật
-updated: 2026-10-18
+updated: 2026-11-06
 status: đang dùng
 owner: Bảo
 ---
@@ -30,3 +30,4 @@ Thêm mục: cấp mã tăng dần, đừng xoá mục đã xong mà đổi tr�
 | ND-14 | Lọc cỡ (`sizes`) theo biến thể đang bán, **chưa xét tồn kho**; UC-03.3/AC3 đòi "còn hàng theo hàm tồn kho của Duy" | PH-11 có [hàm đọc tồn khả dụng](../apps/api/src/modules/inventory/inventory.service.ts#L15); Catalog đã hiển thị tồn nhưng bộ lọc cỡ chưa dùng hàm này | Ghép điều kiện tồn vào bộ lọc khi nghiệm thu UC-03.3/AC3 | Mở |
 | ND-15 | API `auth`/`users` cùng dùng web `account`; luật tên thư mục trong AGENTS còn chưa khớp. `cart` và `inventory` là hai nghiệp vụ khác nhau; bản đồ giỏ đã bổ sung tại [cart/README.md](features/cart/README.md) | Đổi thư mục của Tài trong lúc PR #29 còn mở có thể gây conflict (suy luận); chưa đổi mã chỉ để sửa tên | Chốt lại với Tài sau PR #29; mốc dự kiến 01/10 chưa hoàn thành | Mở |
 | ND-16 | Timestamp legacy có thể đã được PrismaPg ghi sai instant khi PostgreSQL session không phải UTC. Đã tái hiện trên fixture payment bằng SQL epoch; [connection.ts:2](../apps/api/src/infra/prisma/connection.ts#L2) buộc UTC cho API/seed/script/crawler từ PH-11. Không tự suy rằng mọi timestamp cũ đều sai | Không đủ nguồn để cộng/trừ múi giờ toàn DB; SQL trực tiếp và Prisma cũ có thể đã ghi khác nhau. Token cũ có thể cần đăng nhập lại sau bản sửa (suy luận) | Chủ dữ liệu kiểm nguồn/backup trước khi repair; hoàn tất trước production có dữ liệu thật | Mở |
+| ND-17 | Tìm kiếm ngữ nghĩa ([ADR-048](features/products/LOG.md#adr-048)) tắt trên staging: `SEARCH_SEMANTIC=off` trong [render.yaml](../render.yaml) vì Render Free có 512 MB, API 150 MB cộng mô hình khoảng 500 MB. Image API dựng trên alpine; chưa chạy thử mô hình trong image | Staging vẫn tìm theo luật như trước; demo chạy `local` trên máy | Khi chuyển Azure (ND-07) hoặc nâng gói từ 1 GB RAM: bật `local`, thử mô hình trong image, đổi sang base glibc nếu ONNX Runtime không chạy trên alpine | mở |

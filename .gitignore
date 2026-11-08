@@ -18,3 +18,6 @@ apps/api/src/generated/
 # Playwright E2E
 apps/web/test-results/
 apps/web/playwright-report/
+
+# Mo hinh embedding tai ve luc chay (SEARCH_MODEL_DIR, ADR-048)
+.cache/
