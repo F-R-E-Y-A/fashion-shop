@@ -1,6 +1,6 @@
 ---
 title: Môi trường thử — dựng và vận hành
-updated: 2026-11-06
+updated: 2026-11-08
 status: đang dùng
 owner: Bảo
 ---
@@ -56,14 +56,39 @@ Làm vậy để lịch sử triển khai và thời gian từ commit tới khi 
 
 ### 4. Nạp sản phẩm cho staging
 
-Blueprint chỉ seed danh mục, nên staging lúc đầu không có sản phẩm và bước kiểm cuối của CD in `total = 0`. Nạp bộ 90 sản phẩm đã duyệt từ máy có tệp ứng viên, trỏ `DATABASE_URL` vào **External Database URL** của Render (Render → `fashion-shop-db` → **Connect**), chạy thử trước rồi mới ghi:
+Blueprint chỉ seed danh mục, màu, cỡ, thương hiệu, nên staging lúc đầu có 0 sản phẩm; CD vẫn xanh vì bước kiểm chỉ xem `items` là mảng. `npm run catalog:refresh` **không** dùng được cho staging: script chỉ chạy trên CSDL `localhost` ([refresh-approved-catalog.ts:132-134](../../../apps/api/scripts/refresh-approved-catalog.ts)) và đọc bảng `staging.*` chỉ có ở máy đã crawl.
 
-```bash
-DATABASE_URL='<External Database URL>' npm run catalog:refresh -w apps/api -- --input ../work/ph01-data-refresh-20260927/normalized-candidates.jsonl --dry-run
-DATABASE_URL='<External Database URL>' npm run catalog:refresh -w apps/api -- --input ../work/ph01-data-refresh-20260927/normalized-candidates.jsonl --apply --confirm-db fashion_shop
-```
+Cách dùng: chép **8 bảng catalog** từ CSDL local đã nạp sản phẩm sang staging, giữ nguyên id. Tám bảng `brands`, `categories`, `colors`, `sizes`, `products`, `product_variants`, `product_images`, `inventory` chỉ khoá ngoại tới nhau, không chép người dùng hay đơn hàng.
 
-Đường dẫn `--input` tính từ gốc kho mã; tệp nằm ở workspace `work/`, không nằm trong Git. Ảnh sản phẩm vẫn là địa chỉ của nguồn crawl, kiểm quyền dùng ảnh trước khi mở staging cho người ngoài nhóm.
+1. **Xuất trên máy có dữ liệu** (Git Bash), tệp nằm ngoài Git:
+
+   ```bash
+   D=../work/staging-catalog-$(date +%Y%m%d); mkdir -p "$D"
+   cat > "$D/catalog.sql" <<'SQL'
+   DO $$ BEGIN
+     IF (SELECT count(*) FROM public.products) > 0 OR (SELECT count(*) FROM public.orders) > 0 THEN
+       RAISE EXCEPTION 'Staging da co san pham hoac don hang: dung lai, khong ghi de';
+     END IF;
+   END $$;
+   TRUNCATE public.brands, public.categories, public.colors, public.sizes, public.products,
+     public.product_variants, public.product_images, public.inventory CASCADE;
+   SQL
+   docker exec fashion-shop-postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d fashion_shop --data-only --no-owner --no-privileges -t public.brands -t public.categories -t public.colors -t public.sizes -t public.products -t public.product_variants -t public.product_images -t public.inventory' >> "$D/catalog.sql"
+   ```
+
+   `pg_dump` cảnh báo khoá ngoại vòng ở `categories` (cột cha trỏ cùng bảng). Không sao nếu hàng cha nằm trước hàng con; kiểm bằng truy vấn so `ctid` của con với cha phải trả 0.
+2. **Nạp lên staging** (PowerShell). Lấy **External Database URL** ở Render → `fashion-shop-db` → **Connect**, nhập bằng `Read-Host -MaskInput` để không lưu vào lịch sử lệnh:
+
+   ```powershell
+   $env:STAGING_DB_URL = Read-Host -MaskInput 'External Database URL'
+   docker cp ..\work\staging-catalog-<ngay>\catalog.sql fashion-shop-postgres:/tmp/catalog.sql
+   docker exec -e "DBURL=$env:STAGING_DB_URL" fashion-shop-postgres sh -c 'psql "$DBURL" -v ON_ERROR_STOP=1 --single-transaction -f /tmp/catalog.sql'
+   docker exec fashion-shop-postgres rm /tmp/catalog.sql; Remove-Item Env:STAGING_DB_URL
+   ```
+
+   Cả tệp chạy trong một transaction: lỗi ở đâu thì không ghi gì. Staging đã có sản phẩm hoặc đơn hàng thì khối `DO` dừng ngay; muốn nạp lại thì người quyết xoá dữ liệu trước, không sửa khối chặn.
+
+Diễn tập ngày 08/11 trên CSDL tạm đã migrate và seed giống Render: lần một nạp 90 sản phẩm (87 đang bán), 339 biến thể, 1199 ảnh, 339 dòng tồn; lần hai bị chặn; seed chạy lại sau đó không lỗi. Ảnh sản phẩm vẫn là địa chỉ của nguồn crawl, kiểm quyền dùng ảnh trước khi mở staging cho người ngoài nhóm.
 
 ### 5. Chạy thử CD lần đầu
 
