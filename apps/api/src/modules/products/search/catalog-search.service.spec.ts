@@ -5,7 +5,7 @@ import { Prisma } from '../../../generated/prisma/client.js';
 import type { PrismaService } from '../../../infra/prisma/prisma.service.js';
 import type { InventoryService } from '../../inventory/index.js';
 import { ListProductsQuery } from '../dto/list-products.query.js';
-import { CatalogSearchService } from './catalog-search.service.js';
+import { CATALOG_MAX_AGE_MS, CatalogSearchService } from './catalog-search.service.js';
 import { DEFAULT_DICTIONARY } from './dictionary.js';
 import type { SearchDictionaryService } from './search-dictionary.service.js';
 import type { SemanticIndexService } from './semantic/semantic-index.service.js';
@@ -285,5 +285,93 @@ describe('CatalogSearchService.list: gop hang ngu nghia (ADR-048)', () => {
     const r = await service.list(query({ audience: 'nu' }));
     expect(scores).not.toHaveBeenCalled();
     expect(r.ranking).toBeUndefined();
+  });
+});
+
+/** Prisma gia co $queryRaw doc catalog_revision_seq; revision() tra gia tri hien tai hoac nem loi. */
+function makeCached(revision: () => string) {
+  const findMany = vi.fn().mockResolvedValue(CATALOG);
+  const queryRaw = vi.fn(async () => [{ value: revision() }]);
+  const getStockStatuses = vi.fn(async (_rows: { id: string }[]) => new Map());
+  const prisma = {
+    product: { findMany },
+    searchQueryLog: { create: vi.fn().mockResolvedValue({}) },
+    $queryRaw: queryRaw,
+  };
+  const service = new CatalogSearchService(
+    prisma as unknown as PrismaService,
+    { get: vi.fn().mockResolvedValue(DEFAULT_DICTIONARY) } as unknown as SearchDictionaryService,
+    { getStockStatuses } as unknown as InventoryService,
+    semanticOff as unknown as SemanticIndexService,
+  );
+  return { service, findMany, queryRaw, getStockStatuses };
+}
+
+describe('CatalogSearchService: cache catalog theo catalog_revision_seq', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+  });
+
+  it('cung revision trong han thi chi nap catalog mot lan', async () => {
+    const { service, findMany } = makeCached(() => '7:t');
+    await service.list(query({ audience: 'nu' }));
+    await service.list(query({ search: 'polo', log: false }));
+    await service.suggest('polo');
+    expect(findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('revision doi thi nap lai, ket qua theo du lieu moi', async () => {
+    let rev = '7:t';
+    const { service, findMany } = makeCached(() => rev);
+    expect((await service.list(query())).total).toBe(5);
+    findMany.mockResolvedValue(CATALOG.slice(0, 2));
+    rev = '8:t';
+    expect((await service.list(query())).total).toBe(2);
+    expect(findMany).toHaveBeenCalledTimes(2);
+  });
+
+  it('qua CATALOG_MAX_AGE_MS thi nap lai du revision khong doi', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    const { service, findMany } = makeCached(() => '7:t');
+    await service.list(query());
+    now.mockReturnValue(1_000_000 + CATALOG_MAX_AGE_MS - 1);
+    await service.list(query());
+    expect(findMany).toHaveBeenCalledTimes(1);
+    now.mockReturnValue(1_000_000 + CATALOG_MAX_AGE_MS);
+    await service.list(query());
+    expect(findMany).toHaveBeenCalledTimes(2);
+  });
+
+  it('nhieu request cung luc khi chua co cache thi dung chung mot lan nap', async () => {
+    const { service, findMany } = makeCached(() => '7:t');
+    await Promise.all(Array.from({ length: 14 }, () => service.list(query({ pageSize: 3 }))));
+    expect(findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('khong doc duoc sequence thi nap moi moi lan, khong cache', async () => {
+    const { service, findMany } = makeCached(() => {
+      throw new Error('relation "catalog_revision_seq" does not exist');
+    });
+    const r = await service.list(query());
+    await service.list(query());
+    expect(r.total).toBe(5);
+    expect(findMany).toHaveBeenCalledTimes(2);
+  });
+
+  it('lan nap loi thi khong luu cache, lan sau nap lai', async () => {
+    const { service, findMany } = makeCached(() => '7:t');
+    findMany.mockRejectedValueOnce(new Error('db down'));
+    await expect(service.list(query())).rejects.toThrow('db down');
+    expect((await service.list(query())).total).toBe(5);
+    expect(findMany).toHaveBeenCalledTimes(2);
+  });
+
+  it('chi hoi ton kho cho san pham tren trang, khong cho ca catalog', async () => {
+    const { service, getStockStatuses } = makeCached(() => '7:t');
+    const r = await service.list(query({ pageSize: 2 }));
+    const asked = getStockStatuses.mock.calls[0]?.[0] ?? [];
+    expect(asked.map((row) => row.id)).toEqual(r.items.map((item) => item.id));
+    expect(asked).toHaveLength(2);
   });
 });
