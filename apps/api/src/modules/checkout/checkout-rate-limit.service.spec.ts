@@ -38,7 +38,7 @@ describe('PH-11 gioi han tao don theo tai khoan', () => {
     expect(JSON.stringify(calls)).not.toContain('user-raw-id');
   });
 
-  it('kho dem loi thi cho qua, khong chan mua hang', async () => {
+  it('UC-07.1/AC12 kho dem loi thi cho qua, khong chan mua hang', async () => {
     const { service } = fixture(async () => {
       throw new Error('redis down');
     });

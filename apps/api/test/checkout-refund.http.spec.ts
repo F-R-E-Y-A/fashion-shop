@@ -171,7 +171,7 @@ describe('PH-11 hoàn tiền: khoá đơn, sổ hoàn và đối soát tay (Post
     await new Promise<void>((done) => server.close(() => done()));
   });
 
-  it('admin bấm hoàn hai lần song song: cổng nhận đúng một lệnh, đơn REFUNDED một lần', async () => {
+  it('UC-14.3/AC1 admin bấm hoàn hai lần song song: cổng nhận đúng một lệnh, đơn REFUNDED một lần', async () => {
     const { orderId, paymentId } = await paidOrder();
     delayMs = 300;
     const results = await Promise.all([refund(paymentId), refund(paymentId)]);
@@ -187,7 +187,7 @@ describe('PH-11 hoàn tiền: khoá đơn, sổ hoàn và đối soát tay (Post
     expect(await intents('RECEIVED')).toHaveLength(0);
   });
 
-  it('hoàn một phần hai lần: PARTIALLY_REFUNDED rồi REFUNDED, tổng theo sổ, lần ba 409', async () => {
+  it('UC-14.3/AC2 hoàn một phần hai lần: PARTIALLY_REFUNDED rồi REFUNDED, tổng theo sổ, lần ba 409', async () => {
     const { orderId, paymentId } = await paidOrder();
     await refund(paymentId, { amount: '230000.01' }).expect(409);
     await refund(paymentId, { amount: '100000', reason: 'Thiếu phụ kiện' }).expect(201);
@@ -205,7 +205,7 @@ describe('PH-11 hoàn tiền: khoá đơn, sổ hoàn và đối soát tay (Post
     expect(sent).toHaveLength(2);
   });
 
-  it('cổng mất kết nối: giữ lệnh chờ đối soát, chặn lệnh mới; chốt FAILED rồi hoàn lại được', async () => {
+  it('UC-14.3/AC3 cổng mất kết nối: giữ lệnh chờ đối soát, chặn lệnh mới; chốt FAILED rồi hoàn lại được', async () => {
     const { orderId, paymentId } = await paidOrder();
     mode = 'drop';
     expect((await refund(paymentId).expect(503)).body.code).toBe('REFUND_PENDING');
@@ -222,7 +222,7 @@ describe('PH-11 hoàn tiền: khoá đơn, sổ hoàn và đối soát tay (Post
     expect(await orderStatus(orderId)).toBe('REFUNDED');
   });
 
-  it('cổng trả mã lỗi vẫn giữ chờ đối soát; chốt SUCCEEDED ghi sổ mà không gọi cổng lại', async () => {
+  it('UC-14.3/AC4 cổng trả mã lỗi vẫn giữ chờ đối soát; chốt SUCCEEDED ghi sổ mà không gọi cổng lại', async () => {
     const { orderId, paymentId } = await paidOrder();
     mode = 'reject';
     expect((await refund(paymentId).expect(503)).body.code).toBe('REFUND_PENDING');
@@ -236,7 +236,7 @@ describe('PH-11 hoàn tiền: khoá đơn, sổ hoàn và đối soát tay (Post
     await refund(paymentId).expect(409);
   });
 
-  it('không chốt được lệnh đang chờ cổng; lệnh treo quá hạn (process sập giữa chừng) thì chốt được', async () => {
+  it('UC-14.3/AC5 không chốt được lệnh đang chờ cổng; lệnh treo quá hạn (process sập giữa chừng) thì chốt được', async () => {
     const { orderId, paymentId } = await paidOrder();
     delayMs = 1500;
     const inFlight = refund(paymentId).then((response) => response);
@@ -260,7 +260,7 @@ describe('PH-11 hoàn tiền: khoá đơn, sổ hoàn và đối soát tay (Post
     await resolve(second.paymentId, 'FAILED').expect(201);
   });
 
-  it('chỉ ADMIN hoàn và chốt; khách gọi bị 403, không tạo lệnh', async () => {
+  it('UC-14.3/AC6 chỉ ADMIN hoàn và chốt; khách gọi bị 403, không tạo lệnh', async () => {
     const { paymentId } = await paidOrder();
     await t.http
       .post(`/api/admin/payments/${paymentId}/refund`)
@@ -299,7 +299,7 @@ describe('PH-11 hoàn tiền: khoá đơn, sổ hoàn và đối soát tay (Post
         .quantityOnHand;
     const cancel = (orderId: string) => t.http.post(`/api/orders/${orderId}/cancel`).set(as(token));
 
-    it('hủy → hàng về kho một lần, hoàn toàn bộ (02), đơn CANCELLED rồi REFUNDED', async () => {
+    it('UC-07.4/AC4 hủy → hàng về kho một lần, hoàn toàn bộ (02), đơn CANCELLED rồi REFUNDED', async () => {
       const { orderId, variantId } = await soldOrder();
       expect(await stock(variantId)).toBe(9);
       const view = (await t.http.get(`/api/orders/${orderId}`).set(as(token)).expect(200)).body;
@@ -325,7 +325,7 @@ describe('PH-11 hoàn tiền: khoá đơn, sổ hoàn và đối soát tay (Post
       expect(sent).toHaveLength(1);
     });
 
-    it('cổng từ chối: đơn vẫn hủy, lệnh hoàn chờ đối soát và hiện ở tab cần xử lý của admin', async () => {
+    it('UC-07.4/AC5 cổng từ chối: đơn vẫn hủy, lệnh hoàn chờ đối soát và hiện ở tab cần xử lý của admin', async () => {
       const { orderId, paymentId } = await soldOrder();
       mode = 'reject';
       const after = (await cancel(orderId).expect(201)).body;
@@ -346,7 +346,7 @@ describe('PH-11 hoàn tiền: khoá đơn, sổ hoàn và đối soát tay (Post
       expect(await orderStatus(orderId)).toBe('REFUNDED');
     });
 
-    it('admin hủy và hoàn đơn CONFIRMED: hàng về kho, REFUNDED; không có nút hoàn tay từng phần', async () => {
+    it('UC-14.3/AC7 admin hủy và hoàn đơn CONFIRMED: hàng về kho, REFUNDED; không có nút hoàn tay từng phần', async () => {
       const { orderId, variantId } = await soldOrder();
       const before = (
         await t.http.get(`/api/admin/orders/${orderId}`).set(as(adminToken)).expect(200)
@@ -370,7 +370,7 @@ describe('PH-11 hoàn tiền: khoá đơn, sổ hoàn và đối soát tay (Post
       expect(sent[0]).toMatchObject({ vnp_TransactionType: '02' });
     });
 
-    it('shop đã bắt đầu xử lý: khách không tự hủy được nữa', async () => {
+    it('UC-07.4/AC6 shop đã bắt đầu xử lý: khách không tự hủy được nữa', async () => {
       const { orderId } = await soldOrder();
       const started = (
         await t.http

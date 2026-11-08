@@ -25,7 +25,8 @@
     "catalog:refresh": "tsx scripts/refresh-approved-catalog.ts",
     "admin:grant": "tsx scripts/grant-admin.ts",
     "areas:import": "tsx scripts/import-administrative-areas.ts",
-    "stock:import": "tsx scripts/import-stock.ts"
+    "stock:import": "tsx scripts/import-stock.ts",
+    "e2e:seed": "tsx test/e2e/seed.ts"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

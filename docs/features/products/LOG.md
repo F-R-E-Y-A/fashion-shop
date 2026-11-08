@@ -400,8 +400,8 @@ trạng thái review và kiểm chứng theo [Issue #63](https://github.com/F-R-
 Menu Sản phẩm dùng AdminNavigation, breadcrumb nhận cả danh sách/chi tiết; giữ test shell và bổ sung
 kiểm tra route catalog. Người khác review và CI xanh trước khi coi hoàn thành; không tự chốt ADR.
 
-<a id="adr-045"></a>
-## ADR-045 · Giữ ngừng bán thủ công qua import và kiểm phiên bản
+<a id="adr-049"></a>
+## ADR-049 · Giữ ngừng bán thủ công qua import và kiểm phiên bản
 
 **Trạng thái:** đề xuất · **Ngày:** 2026-11-08 · **Người đề xuất:** Tài (AI hỗ trợ).
 
@@ -419,6 +419,7 @@ Không khóa toàn Catalog, không đổi chữ ký importProducts hoặc tạo 
 Checkout đã đọc trước khi ngừng bán có thể tiếp tục theo hợp đồng hiện có; lần đọc sau bị chặn.
 Cache web bỏ tập danh sách cũ, chỉ tải query active, giữ actor/epoch/403 và không nhận version cũ hơn.
 
-**Thực tế:** triển khai tại feature/ph-03-admin-product-status, base59098da; trạng thái PR/CI/review theo Issue #65.
+**Thực tế:** triển khai tại feature/ph-03-admin-product-status, đang đồng bộ develop131480e vào PR71.
+Đổi số đề xuất từ045 sang049 để tránh trùng ADR045 đã gộp;048 đã dùng ở PR70. Nghiệp vụ giữ nguyên.
 Chỉ migration/HTTP trên DB test riêng. Tài hoãn nâng DB phát triển; không tự áp migration vào đó.
 Unit/HTTP/web và minh chứng được định danh ở kho docs; Bảo/người hiểu Cart/Checkout review trước tích hợp.

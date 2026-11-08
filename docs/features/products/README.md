@@ -214,11 +214,11 @@ Check/build/HTTP/docs lint và QA được định danh bằng commit/patch tron
 không coi kết quả local là CI đã đạt. Quyết định [ADR-044](LOG.md#adr-044) vẫn đề xuất.
 Tạo/sửa nội dung, biến thể/ảnh và danh mục thuộc đợt sau; Tài đã chọn giữ dữ liệu, không xóa cứng.
 
-## Ngừng bán và gỡ ngừng bán — Issue #65, bản local
+## Ngừng bán và gỡ ngừng bán — Issue #65, PR #71
 
-Nhánh `feature/ph-03-admin-product-status` dựa trên develop `59098da`, đã chứa PR #64/#62.
+Nhánh `feature/ph-03-admin-product-status` đang đồng bộ develop `131480e`, đã chứa PR #64/#62/#69.
 Lát trạng thái mở rộng [UC-04.2/AC11–18](use-cases.md#mở-rộng-trạng-thái-sản-phẩm--issue-65-đề-xuất);
-kết quả local đã có, trạng thái PR/CI/review theo [Issue #65](https://github.com/F-R-E-Y-A/fashion-shop/issues/65). Hình dạng HTTP lấy từ Swagger `admin-products`.
+kết quả local đã có, CI/review theo [PR #71](https://github.com/F-R-E-Y-A/fashion-shop/pull/71). Hình dạng HTTP lấy từ Swagger `admin-products`.
 [Admin service](../../../apps/api/src/modules/products/admin-products.service.ts) kiểm phiên bản và khóa
 cùng hàng với [import](../../../apps/api/src/modules/products/product-status.ts); import không gỡ hold thủ công.
 Một migration bổ sung hold/version, mặc định false/0 giữ cờ isActive cũ; chỉ kiểm trên DB test riêng,
@@ -231,5 +231,8 @@ Không ghi dữ liệu admin bằng response phiên cũ/403 hoặc đè phiên b
 Bật lại là gỡ ngừng bán thủ công, không tự bật danh mục/biến thể hoặc chọn lại giỏ.
 Giỏ lần đọc sau báo INACTIVE và bỏ chọn; thêm bị Cart từ chối theo lỗi hiện có.
 Checkout đã đọc Catalog trước khi ngừng bán có thể tiếp tục; không tự hủy/hoàn tiền đơn hoặc sửa kho.
-Kiểm bằng unit/web và [HTTP regression](../../../apps/api/test/admin-product-status.http.spec.ts),
+Kiểm bằng unit/web, [HTTP regression](../../../apps/api/test/admin-product-status.http.spec.ts) và
+[E2E admin](../../../apps/web/e2e/admin-product-status.spec.ts) trên DB riêng: giảm chuyển động thật,
+desktop/mobile, hai hướng list/detail và focus. Zoom200% thật còn chờ kiểm; không thay bằng viewport.
+Quyết định [ADR-049](LOG.md#adr-049) vẫn đề xuất; số045 trùng quyết định đã gộp nên đã đổi số.
 ảnh/log/patch định danh bản giữ trong kho docs; chưa coi bản local là nghiệm thu toàn bộ admin.

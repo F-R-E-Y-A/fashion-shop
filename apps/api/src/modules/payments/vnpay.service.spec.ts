@@ -29,12 +29,12 @@ describe('PH-11 VNPAY adapter', () => {
     ).toBe('vnp_A=%C3%A1o&vnp_Z=a+b%2Bc');
     expect(vnpDate(new Date('2026-10-18T18:34:56Z'))).toBe('20261019013456');
   });
-  it('HMAC-SHA512 matches RFC4231 test case 2', () => {
+  it('UC-08.1/AC10 HMAC-SHA512 matches RFC4231 test case 2', () => {
     expect(hmac('Jefe', 'what do ya want for nothing?')).toBe(
       '164b7a7bfcf819e2e395fbe73b56e0a387bd64222e831fd610270cd7ea2505549758bf75c05a994a6d034f65f8f0e6fdcaeab1a34d4a6b4b636e070a38bce737',
     );
   });
-  it('rejects duplicate parameters, bad hex hash and amount/merchant/currency mismatch', () => {
+  it('UC-08.1/AC8 rejects duplicate parameters, bad hex hash and amount/merchant/currency mismatch', () => {
     expect(flatParams({ vnp_Amount: ['1', '2'] })).toBeNull();
     const service = gateway();
     expect(service.verifyIpn({ vnp_SecureHash: 'z'.repeat(128) })).toBeNull();
@@ -53,7 +53,7 @@ describe('PH-11 VNPAY adapter', () => {
       ),
     ).toBe(false);
   });
-  it('refuses local/custom gateway outside tests and never provides mock fallback without keys', () => {
+  it('UC-08.1/AC2 refuses local/custom gateway outside tests and never provides mock fallback without keys', () => {
     expect(() =>
       gateway({ NODE_ENV: 'development', VNPAY_PAYMENT_URL: 'http://127.0.0.1:1234/pay' }).create(
         'P1',
@@ -71,7 +71,7 @@ describe('PH-11 VNPAY adapter', () => {
 describe('PH-11 VNPAY refund', () => {
   const checkoutUrl =
     'https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?vnp_CreateDate=20261025120000';
-  it('ký refund đúng thứ tự đặc tả 2.5.5.1, nhận phản hồi vnp_ResponseId ký theo 2.5.5.2', async () => {
+  it('UC-14.3/AC8 ký refund đúng thứ tự đặc tả 2.5.5.1, nhận phản hồi vnp_ResponseId ký theo 2.5.5.2', async () => {
     const secret = 'refund-test-secret';
     const service = new VnpayService(
       new ConfigService({
@@ -135,7 +135,7 @@ describe('PH-11 VNPAY refund', () => {
     expect(result.payload.vnp_ResponseId).toBe('vnpay-generated-id');
     vi.unstubAllGlobals();
   });
-  it('từ chối khi phản hồi sai mã hoặc sai chữ ký, không tạo kết quả bừa', async () => {
+  it('UC-14.3/AC8 từ chối khi phản hồi sai mã hoặc sai chữ ký, không tạo kết quả bừa', async () => {
     const secret = 'refund-test-secret';
     const service = new VnpayService(
       new ConfigService({
