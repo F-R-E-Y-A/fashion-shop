@@ -123,9 +123,33 @@ function toSearchState(query: ListProductsQuery): SearchState {
   };
 }
 
+/** Dong catalog cua cac san pham tren trang: chi hoi ton kho cho chung, khong cho ca catalog. */
+function pageRows(items: readonly { id: string }[], catalog: Catalog) {
+  return items.flatMap((item) => {
+    const row = catalog.byId.get(item.id);
+    return row ? [row] : [];
+  });
+}
+
+/**
+ * Tuoi toi da cua catalog trong bo nho. catalog_revision_seq (migration ph11_live_revision) la
+ * sequence, khong theo transaction: no tang ngay khi cau lenh ghi chay, truoc khi commit. Mot request
+ * doc dung luc do se nap ban cu duoi so moi; han nay chan muc cu ay o 30 giay.
+ */
+export const CATALOG_MAX_AGE_MS = 30_000;
+
+/** Catalog da nap, kem revision doc truoc khi nap va thoi diem bat dau nap. */
+interface CachedCatalog {
+  revision: string;
+  loadedAt: number;
+  catalog: Catalog;
+}
+
 @Injectable()
 export class CatalogSearchService implements OnApplicationBootstrap {
   private readonly logger = new Logger(CatalogSearchService.name);
+  private cached: CachedCatalog | null = null;
+  private loading: { revision: string; promise: Promise<Catalog> } | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -137,7 +161,7 @@ export class CatalogSearchService implements OnApplicationBootstrap {
   /** Bat tim kiem ngu nghia thi nap mo hinh va nhung catalog o nen, khong chan khoi dong. */
   onApplicationBootstrap(): void {
     if (!this.semantic.enabled) return;
-    void this.loadCatalog()
+    void this.catalog()
       .then((catalog) => this.semantic.refresh(catalog.products))
       .catch((error: unknown) => {
         this.logger.warn(`Khong nap duoc catalog de nhung: ${(error as Error).message}`);
@@ -152,7 +176,7 @@ export class CatalogSearchService implements OnApplicationBootstrap {
     query: ListProductsQuery,
     options: { semantic?: boolean } = {},
   ): Promise<ProductListResponse> {
-    const catalog = await this.loadCatalog();
+    const catalog = await this.catalog();
     const sim =
       query.search !== undefined && options.semantic !== false
         ? await this.semantic.scores(query.search, catalog.products)
@@ -167,7 +191,7 @@ export class CatalogSearchService implements OnApplicationBootstrap {
       return row ? [toProductResponse(row, { preferFamily })] : [];
     });
 
-    const enriched = await withProductStock(items, [...catalog.byId.values()], this.inventory);
+    const enriched = await withProductStock(items, pageRows(items, catalog), this.inventory);
     const response: ProductListResponse = toPage(enriched, result.total, query);
     if (query.search !== undefined) {
       response.interpretation = describeIntent(result.intent);
@@ -181,7 +205,7 @@ export class CatalogSearchService implements OnApplicationBootstrap {
 
   /** Goi y cho o tim kiem toan cuc. Khong ghi search_query_logs: khach chua gui tim kiem. */
   async suggest(q: string): Promise<SuggestResponse> {
-    const catalog = await this.loadCatalog();
+    const catalog = await this.catalog();
     const dict = await this.dictionary.get();
     const result = search(catalog.products, { q }, dict);
 
@@ -204,10 +228,50 @@ export class CatalogSearchService implements OnApplicationBootstrap {
       interpretation: describeIntent(result.intent),
       total: result.total,
       relaxed: result.relaxed,
-      products: await withProductStock(products, [...catalog.byId.values()], this.inventory),
+      products: await withProductStock(products, pageRows(products, catalog), this.inventory),
       categories,
       queries: this.completions(q, catalog.products, dict),
     };
+  }
+
+  /**
+   * Catalog dung chung cho moi request. Truoc day moi request nap lai toan bo san pham, bien the,
+   * anh tu CSDL va chuan hoa lai; trang chu goi 14 request cung luc nen may 0,1 CPU nghen. Gio
+   * chi doc mot dong catalog_revision_seq: trung revision va con trong han thi dung lai; request den
+   * trong luc dang nap cung revision thi cho chung mot lan nap.
+   */
+  private async catalog(): Promise<Catalog> {
+    const revision = await this.catalogRevision();
+    if (revision === null) return this.loadCatalog();
+    const cached = this.cached;
+    if (cached?.revision === revision && Date.now() - cached.loadedAt < CATALOG_MAX_AGE_MS) {
+      return cached.catalog;
+    }
+    if (this.loading?.revision === revision) return this.loading.promise;
+
+    const loadedAt = Date.now();
+    const promise = this.loadCatalog();
+    const loading = { revision, promise };
+    this.loading = loading;
+    try {
+      const catalog = await promise;
+      this.cached = { revision, loadedAt, catalog };
+      return catalog;
+    } finally {
+      if (this.loading === loading) this.loading = null;
+    }
+  }
+
+  /** Null khi khong doc duoc sequence: khi do khong cache, nap moi nhu truoc. */
+  private async catalogRevision(): Promise<string | null> {
+    try {
+      const [row] = await this.prisma.$queryRaw<{ value: string }[]>`
+        SELECT concat_ws(':', last_value, is_called) AS value FROM public.catalog_revision_seq`;
+      return row?.value ?? null;
+    } catch (error) {
+      this.logger.warn(`Khong doc duoc catalog_revision_seq: ${(error as Error).message}`);
+      return null;
+    }
   }
 
   private async loadCatalog(): Promise<Catalog> {
