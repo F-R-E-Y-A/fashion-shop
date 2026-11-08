@@ -165,9 +165,13 @@ Tên bài theo `UC-NN.m/ACk` ([testing.md](../../shared/testing.md)). Kiểm th�
 | `importProducts` chạy hai lần không sinh bản trùng | `test/products-import.http.spec.ts` | — |
 | Ba trạng thái ở trang chủ, trang danh mục, trang chi tiết | `features/products/pages/*.test.tsx` | — |
 
+## Tìm kiếm ngữ nghĩa (06/11/2026)
+
+Nhánh `task/ph-01-semantic-search` thêm tìm kiếm lai theo [ADR-048](LOG.md#adr-048) (đề xuất). Luật và từ điển vẫn lọc và giữ chip "Đã hiểu". Mô hình `Xenova/multilingual-e5-small` chạy trong API (thư mục [`search/semantic/`](../../../apps/api/src/modules/products/search/semantic/semantic-index.service.ts)) dùng để gộp hạng và thêm sản phẩm gần nghĩa. Bật bằng `SEARCH_SEMANTIC=local`, mặc định `off`; staging Render để `off` ([ND-17](../../TECH_DEBT.md)). Tiêu chí ở [UC-03.2/AC5–AC10](use-cases.md). Số đo trước và sau: `npm run search:eval -w apps/api`, bộ câu có nhãn ở `apps/api/scripts/search-eval/cases.json`.
+
 ## Trạng thái hôm nay (04/10/2026)
 
-**Đợt 2 đã vào `develop`** qua PR #28 tại `ee46445` ngày 03/10; Issue #23 đã đóng. Đã có tìm kiếm hiểu câu tiếng Việt bằng luật/từ điển, facets, gợi ý, trang `/tim-kiem`, bộ lọc chung và trang chủ mới (`apps/api/src/modules/products/search/catalog-search.service.ts#L130`, `apps/web/src/app/routes.tsx#L43`). Đây là query understanding theo luật; chưa cài embedding hoặc LLM runtime.
+**Đợt 2 đã vào `develop`** qua PR #28 tại `ee46445` ngày 03/10; Issue #23 đã đóng. Đã có tìm kiếm hiểu câu tiếng Việt bằng luật/từ điển, facets, gợi ý, trang `/tim-kiem`, bộ lọc chung và trang chủ mới (`apps/api/src/modules/products/search/catalog-search.service.ts#L130`, `apps/web/src/app/routes.tsx#L43`). Đây là query understanding theo luật; tới 06/11 chưa cài embedding hoặc LLM runtime.
 
 **Kiểm chứng 04/10:** `npm.cmd run check` exit 0 tại `33f323c` (nhánh sửa header): API 259 pass, web 136 pass, crawler 50 pass/1 skip. Năm dòng stdout cuối: `ℹ fail 0` / `ℹ cancelled 0` / `ℹ skipped 1` / `ℹ todo 0` / `ℹ duration_ms 592.0993`. CI PR #28 trên `1809122` có 281 HTTP test pass trong 13 file; `gh pr checks 28 --json name,state,link` trả sáu gate `SUCCESS`. Không cộng các số này thành số test riêng của Bảo.
 
