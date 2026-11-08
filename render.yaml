@@ -23,6 +23,9 @@ services:
         value: 'true'
       - key: TRUST_PROXY_HOPS
         value: '1'
+      # Tim kiem ngu nghia can ~500 MB RAM, Render Free chi 512 MB: giu off (ADR-048, ND-17).
+      - key: SEARCH_SEMANTIC
+        value: 'off'
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: OTP_PEPPER

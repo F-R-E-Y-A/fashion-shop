@@ -110,9 +110,10 @@ export function CheckoutPage() {
     },
   });
   const quote = preview.data;
-  // 422: giỏ chưa có món được tick "Chọn mua" hoặc món hết hàng — dẫn về giỏ thay vì báo lỗi khô.
+  // Giỏ chưa có món được tick "Chọn mua" hoặc món hết hàng — dẫn về giỏ thay vì báo lỗi khô.
+  // Xét theo code, không theo 422: địa chỉ chưa có biểu phí cũng là 422 và phải hiện đúng lý do (Issue #66).
   const selectionMissing =
-    preview.error instanceof ApiError && preview.error.body.statusCode === 422;
+    preview.error instanceof ApiError && preview.error.body.code === 'SELECTION_REQUIRED';
   const offeredGateways = quote?.gateways ?? [
     { code: 'VNPAY' as const, label: 'VNPAY', configured: quote?.paymentConfigured ?? false },
   ];

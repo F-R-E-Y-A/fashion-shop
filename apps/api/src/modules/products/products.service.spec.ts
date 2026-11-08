@@ -105,7 +105,7 @@ describe('ProductsService (UC-03.1 catalog)', () => {
     expect(result.items[0]).toMatchObject({ price: '149000', listPrice: '199000' });
   });
 
-  it('excludes inactive products and products without an active variant', async () => {
+  it('UC-03.1/AC2 excludes inactive products and products without an active variant', async () => {
     prisma.product.count.mockResolvedValue(0);
     prisma.product.findMany.mockResolvedValue([]);
 
@@ -136,7 +136,7 @@ describe('ProductsService (UC-03.1 catalog)', () => {
     expect(args.where.images).toEqual({ some: {} });
   });
 
-  it('returns NotFound for a non-sellable product detail', async () => {
+  it('UC-03.4/AC2 returns NotFound for a non-sellable product detail', async () => {
     prisma.product.findFirst.mockResolvedValue(null);
 
     await expect(service.findBySlug('khong-co')).rejects.toBeInstanceOf(NotFoundException);

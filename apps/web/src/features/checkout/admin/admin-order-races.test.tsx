@@ -188,7 +188,7 @@ describe('UC-02.1/AC6, AC8 — hồi quy bảo vệ dùng chung cho đơn hàng 
     },
   );
 
-  it('403 dọn cache admin cùng actor, hủy GET khác và chặn màn users sau điều hướng', async () => {
+  it('UC-12.1/AC5 403 dọn cache admin cùng actor, hủy GET khác và chặn màn users sau điều hướng', async () => {
     const backend = createBackend();
     const { client } = mount();
     await screen.findByText(base.customerEmail);
@@ -267,7 +267,7 @@ describe('UC-02.1/AC6, AC8 — hồi quy bảo vệ dùng chung cho đơn hàng 
     },
   );
 
-  it('GET cũ không ghi đè trạng thái sau POST thành công, dù fetch bỏ qua abort', async () => {
+  it('UC-12.1/AC5 GET cũ không ghi đè trạng thái sau POST thành công, dù fetch bỏ qua abort', async () => {
     const backend = createBackend();
     backend.setOrder(pendingOrder);
     const stale = deferred<Response>();
@@ -305,7 +305,7 @@ describe('UC-02.1/AC6, AC8 — hồi quy bảo vệ dùng chung cho đơn hàng 
     expect(screen.queryByRole('button', { name: 'Đã giao' })).not.toBeInTheDocument();
   });
 
-  it('GET 403 của phiên cũ không thu hồi quyền của phiên mới', async () => {
+  it('UC-12.1/AC5 GET 403 của phiên cũ không thu hồi quyền của phiên mới', async () => {
     const backend = createBackend();
     const old = deferred<Response>();
     backend.override(() =>
@@ -360,7 +360,7 @@ describe('UC-02.1/AC6, AC8 — hồi quy bảo vệ dùng chung cho đơn hàng 
     },
   );
 
-  it('xác nhận liên tiếp chỉ gửi một POST', async () => {
+  it('UC-12.1/AC11 xác nhận liên tiếp chỉ gửi một POST', async () => {
     const backend = createBackend();
     backend.setOrder(pendingOrder);
     const post = deferred<Response>();
@@ -393,7 +393,7 @@ describe('UC-02.1/AC6, AC8 — hồi quy bảo vệ dùng chung cho đơn hàng 
     expect(auth().user?.id).toBe(actor.id);
   });
 
-  it('timeout POST không gửi lại; GET lỗi thì chặn thao tác tới khi kiểm lại thành công', async () => {
+  it('UC-12.1/AC11 timeout POST không gửi lại; GET lỗi thì chặn thao tác tới khi kiểm lại thành công', async () => {
     const backend = createBackend();
     backend.setOrder(pendingOrder);
     let readFails = false;

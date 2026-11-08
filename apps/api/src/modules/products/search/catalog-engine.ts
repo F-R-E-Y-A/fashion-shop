@@ -154,6 +154,8 @@ function passes(p: PreparedProduct, f: EngineFilters, skip: Skip): boolean {
   return true;
 }
 
+const FEATURED_BONUS = 0.5;
+
 /** Moi nhom la HOAC giua cac tu, cac nhom la VA. Diem null = khong qua nhom nao do. */
 function scoreAll(products: PreparedProduct[], groups: TermGroup[]): Array<number | null> {
   return products.map((p) => {
@@ -167,7 +169,7 @@ function scoreAll(products: PreparedProduct[], groups: TermGroup[]): Array<numbe
       if (!best) return null;
       s += g.kind === 'occasion' ? Math.min(best, 1.5) : best;
     }
-    return s + (p.featured ? 0.5 : 0);
+    return s + (p.featured ? FEATURED_BONUS : 0);
   });
 }
 
@@ -185,10 +187,12 @@ function countFacets(
   products: PreparedProduct[],
   f: EngineFilters,
   scores: Array<number | null>,
+  extra: ReadonlySet<string> = new Set(),
 ): FacetCounts {
   // Moi nhom dem tren cac san pham qua MOI bo loc TRU nhom do, de khach thay "chon them cai nay se con bao nhieu".
+  // San pham do phan ngu nghia them vao (extra) khong khop tu nao nhung van tinh, de facet khop danh sach.
   const pick = (skip: Skip): PreparedProduct[] =>
-    products.filter((p, i) => scores[i] !== null && passes(p, f, skip));
+    products.filter((p, i) => (scores[i] !== null || extra.has(p.id)) && passes(p, f, skip));
   const count = (list: PreparedProduct[], keys: (p: PreparedProduct) => string[]) => {
     const m = new Map<string, number>();
     for (const p of list) for (const k of keys(p)) m.set(k, (m.get(k) ?? 0) + 1);
@@ -228,6 +232,61 @@ export interface SearchState {
   sort?: SortKey | null;
 }
 
+/**
+ * Tham so gop hang lai (ADR-048). RRF: diem = 1/(K + hang luat) + 1/(K + hang ngu nghia); hang luat
+ * la hang day (cac san pham bang diem chung mot hang) nen phan ngu nghia quyet dinh trong nhom bang
+ * diem. Ung vien chi do ngu nghia them vao phai qua moi bo loc cau truc dang ap dung va co cosine
+ * khong kem san pham giong nhat qua extraMargin; chung nhan hang luat ngay sau muc khop thap nhat.
+ * Chon cach nay sau khi chay scripts/search-eval (ADR-048, muc Thuc te).
+ */
+export const HYBRID = { rrfK: 60, extraMargin: 0.03, extraMax: 12 } as const;
+
+export interface SemanticInfo {
+  /** Co gop hang theo ngu nghia khong: chi khi co cau hoi, xep theo lien quan, va luat co ket qua. */
+  applied: boolean;
+  /** So san pham chi do ngu nghia them vao. */
+  added: number;
+}
+
+function hybridRank(
+  hits: Hit[],
+  products: PreparedProduct[],
+  f: EngineFilters,
+  sim: ReadonlyMap<string, number>,
+): { hits: Hit[]; extra: Set<string> } {
+  const inHits = new Set(hits.map((h) => h.p.id));
+  const pool = products.filter((p) => sim.has(p.id) && passes(p, f, null));
+  const best = Math.max(...pool.map((p) => sim.get(p.id)!));
+  const extras = pool
+    .filter((p) => !inHits.has(p.id) && sim.get(p.id)! >= best - HYBRID.extraMargin)
+    .sort((a, b) => sim.get(b.id)! - sim.get(a.id)! || a.i - b.i)
+    .slice(0, HYBRID.extraMax);
+
+  // Hang luat tinh tren diem khop tu, bo phan thuong "noi bat": khi luat da noi bo het tu khoa thi
+  // moi san pham deu bang hang va phan ngu nghia quyet dinh.
+  const match = (h: Hit): number => h.s - (h.p.featured ? FEATURED_BONUS : 0);
+  const levels = [...new Set(hits.map(match))].sort((a, b) => b - a);
+  const ruleRank = new Map(hits.map((h) => [h.p.id, levels.indexOf(match(h)) + 1]));
+  const all: Hit[] = [...hits, ...extras.map((p) => ({ p, s: 0 }))];
+  const bySim = [...all].sort(
+    (a, b) => (sim.get(b.p.id) ?? -1) - (sim.get(a.p.id) ?? -1) || a.p.i - b.p.i,
+  );
+  const semRank = new Map(bySim.map((h, i) => [h.p.id, i + 1]));
+  // Ung vien chi do ngu nghia nhan hang luat ngay sau muc khop thap nhat: gan nghia hon han thi vuot
+  // duoc san pham khop tu yeu, nhung khong vuot san pham khop tu ma cung gan nghia.
+  const extraRank = levels.length + 1;
+  const fused = (h: Hit): number =>
+    1 / (HYBRID.rrfK + (ruleRank.get(h.p.id) ?? extraRank)) +
+    1 / (HYBRID.rrfK + semRank.get(h.p.id)!);
+  return {
+    hits: all.sort(
+      (a, b) =>
+        fused(b) - fused(a) || (sim.get(b.p.id) ?? -1) - (sim.get(a.p.id) ?? -1) || a.p.i - b.p.i,
+    ),
+    extra: new Set(extras.map((p) => p.id)),
+  };
+}
+
 export interface SearchResult {
   intent: SearchIntent;
   /** Bo loc khach yeu cau: hop cua cau hoi va tham so tuong minh. */
@@ -241,6 +300,7 @@ export interface SearchResult {
   items: PreparedProduct[];
   total: number;
   facets: FacetCounts;
+  semantic: SemanticInfo;
 }
 
 /**
@@ -251,6 +311,8 @@ export function search(
   products: PreparedProduct[],
   state: SearchState = {},
   dict: readonly DictEntry[] = DEFAULT_DICTIONARY,
+  /** Cosine giua cau hoi va tung san pham (SemanticIndexService); khong co thi chi theo luat. */
+  sim?: ReadonlyMap<string, number> | null,
 ): SearchResult {
   const q = state.q ?? '';
   const intent = parseQuery(q, dict);
@@ -370,7 +432,17 @@ export function search(
 
   const sort: SortKey =
     state.sort ?? intent.sort ?? (intent.groups.length ? 'relevance' : 'newest');
-  hits.sort(SORTS[sort]);
+  // Luat giu cua "khong co ket qua": cau tra rong (vd. hang cua hang khong ban) thi ngu nghia khong
+  // keo hang khong lien quan vao. Sap theo gia hay moi nhat thi khach da chon thu tu, khong gop hang.
+  let extra = new Set<string>();
+  const semantic: SemanticInfo = { applied: false, added: 0 };
+  if (sim && sim.size && q.trim() && hits.length && sort === 'relevance') {
+    ({ hits, extra } = hybridRank(hits, products, f, sim));
+    semantic.applied = true;
+    semantic.added = extra.size;
+  } else {
+    hits.sort(SORTS[sort]);
+  }
   return {
     intent,
     asked,
@@ -380,6 +452,7 @@ export function search(
     sort,
     items: hits.map((h) => h.p),
     total: hits.length,
-    facets: countFacets(products, f, scores),
+    facets: countFacets(products, f, scores, extra),
+    semantic,
   };
 }

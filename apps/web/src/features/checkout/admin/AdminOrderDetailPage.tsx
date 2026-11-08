@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useLocation, useParams } from 'react-router-dom';
 
 import { classifyRequestError, formatDateTime, formatPrice } from '@/core';
 import {
@@ -24,6 +24,7 @@ import {
   type PaymentLedger,
 } from './admin-orders.api.js';
 import styles from './AdminOrders.module.css';
+import { orderListPath, parseOrderListSearch } from './order-list-query.js';
 
 type Dialog =
   | {
@@ -40,6 +41,7 @@ export function AdminOrderDetailPage() {
 
 function AdminOrderDetail() {
   const { id = '' } = useParams();
+  const listReturn = orderListPath(parseOrderListSearch(useLocation().search).query);
   const { user, authenticatedRequest: request, getSessionEpoch } = useAuth();
   const actorId = user?.id ?? '';
   const { forbidden, markForbidden, guardQuery } = useAdminForbidden(actorId, getSessionEpoch);
@@ -181,7 +183,7 @@ function AdminOrderDetail() {
 
   return (
     <div className={styles.page}>
-      <Link className={styles.back} to="/admin/orders">
+      <Link className={styles.back} to={listReturn}>
         ← Danh sách đơn
       </Link>
       {result.isPending && <Loading label="Đang tải đơn…" />}

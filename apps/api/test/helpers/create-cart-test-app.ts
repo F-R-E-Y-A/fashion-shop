@@ -18,6 +18,8 @@ import { ProductsService } from '../../src/modules/products/index.js';
 import { ProductsController } from '../../src/modules/products/products.controller.js';
 import { CatalogSearchService } from '../../src/modules/products/search/catalog-search.service.js';
 import { SearchDictionaryService } from '../../src/modules/products/search/search-dictionary.service.js';
+import { EMBEDDER } from '../../src/modules/products/search/semantic/embedder.js';
+import { SemanticIndexService } from '../../src/modules/products/search/semantic/semantic-index.service.js';
 
 /** Cart + PostgreSQL + JWT that; khong khoi dong Redis/SMTP hay tao phien auth ngoai pham vi test. */
 export async function createCartTestApp(): Promise<{
@@ -36,6 +38,9 @@ export async function createCartTestApp(): Promise<{
       CatalogEventsService,
       CatalogSearchService,
       SearchDictionaryService,
+      // Tim kiem ngu nghia tat (ADR-048): gio hang khong can mo hinh.
+      SemanticIndexService,
+      { provide: EMBEDDER, useValue: null },
       OptionalAuthGuard,
       AuthGuard,
       PrismaService,

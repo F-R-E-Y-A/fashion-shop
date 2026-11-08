@@ -20,7 +20,9 @@ export function AdminLayout() {
     ? 'Người dùng'
     : pathname.startsWith('/admin/orders')
       ? 'Đơn hàng'
-      : 'Tổng quan';
+      : pathname.startsWith('/admin/products')
+        ? 'Sản phẩm'
+        : 'Tổng quan';
   useEffect(() => {
     window.addEventListener('popstate', closeMenu);
     return () => window.removeEventListener('popstate', closeMenu);

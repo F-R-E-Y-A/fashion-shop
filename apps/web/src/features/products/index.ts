@@ -38,3 +38,10 @@ export const ProductListPage = lazy(() =>
 export const SearchPage = lazy(() =>
   import('./pages/SearchPage.js').then((m) => ({ default: m.SearchPage })),
 );
+
+export const AdminCatalogPage = lazy(() =>
+  import('./admin/AdminCatalogPage.js').then((m) => ({ default: m.AdminCatalogPage })),
+);
+export const AdminCatalogDetailPage = lazy(() =>
+  import('./admin/AdminCatalogDetailPage.js').then((m) => ({ default: m.AdminCatalogDetailPage })),
+);

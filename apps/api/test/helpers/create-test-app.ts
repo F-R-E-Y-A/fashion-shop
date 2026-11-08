@@ -12,6 +12,7 @@ import { PrismaService } from '../../src/infra/prisma/prisma.service.js';
 import { RateLimiter } from '../../src/infra/rate-limit/rate-limiter.js';
 import { rateLimitKeyPrefix } from '../../src/infra/rate-limit/redis-rate-limiter.js';
 import { REDIS_CLIENT } from '../../src/infra/redis/redis.module.js';
+import { EMBEDDER, type Embedder } from '../../src/modules/products/search/semantic/embedder.js';
 import { FailingRateLimiter } from './failing-rate-limiter.js';
 import { FakeMailService } from './fake-mail.service.js';
 
@@ -36,6 +37,8 @@ export interface TestAppOptions {
    * ConfigModule.forRoot chot bien moi truong luc import, nen ta va ConfigService.get cua rieng app.
    */
   config?: Partial<Env>;
+  /** Bat tim kiem ngu nghia bang bo nhung nay thay cho mo hinh that (ADR-048). */
+  embedder?: Embedder;
 }
 
 /**
@@ -52,6 +55,9 @@ async function buildTestApp(options: TestAppOptions): Promise<TestApp> {
     .useClass(FakeMailService);
   if (options.failingRateLimiter) {
     builder = builder.overrideProvider(RateLimiter).useClass(FailingRateLimiter);
+  }
+  if (options.embedder) {
+    builder = builder.overrideProvider(EMBEDDER).useValue(options.embedder);
   }
 
   const moduleRef = await builder.compile();

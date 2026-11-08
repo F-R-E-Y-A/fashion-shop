@@ -26,6 +26,7 @@ export function AdminNavigation({ onNavigate }: { onNavigate?: () => void }) {
       {(
         [
           { path: '/admin', label: 'Tổng quan', icon: 'overview' },
+          { path: '/admin/products', label: 'Sản phẩm', icon: 'orders' },
           { path: '/admin/users', label: 'Người dùng', icon: 'users' },
           { path: '/admin/orders', label: 'Đơn hàng', icon: 'orders' },
         ] as const

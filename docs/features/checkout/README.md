@@ -1,6 +1,6 @@
 ---
 title: Checkout — luồng PH-11
-updated: 2026-11-03
+updated: 2026-11-06
 status: ưu tiên VNPAY sandbox, MoMo để sau
 owner: Bảo
 ---
@@ -18,6 +18,14 @@ owner: Bảo
 
 Hình dạng HTTP thật ở Swagger `/api/docs`, sinh từ [DTO response](../../../apps/api/src/modules/checkout/dto/checkout.response.ts). Web ở [checkout/index.ts](../../../apps/web/src/features/checkout/index.ts), bắt buộc Auth tại [routes.tsx](../../../apps/web/src/app/routes.tsx). Ba trang theo khung trang giỏ: xác nhận (`/thanh-toan`), kết quả đơn (`/don-hang/:id`, `/thanh-toan/ket-qua`) và danh sách đơn là tab `/tai-khoan/don-hang`; `/don-hang` chuyển hướng về tab đó. Đồng hồ trang đơn dùng `role="timer"` để trình đọc màn hình không đọc mỗi giây.
 
+## Điều hướng quản trị — Issue #61, chờ review
+
+URL Orders dùng codec [order-list-query.ts:18](../../../apps/web/src/features/checkout/admin/order-list-query.ts#L18)
+cho tab/q/page đã chuẩn hóa; chỉ query sau canonical. Link chi tiết mang query và dựng đường về danh sách nội bộ,
+không dùng return URL tùy ý. Back/Forward đồng bộ draft; trang sau rỗng có link phục hồi, không tự redirect theo total.
+Không đổi API, CSS, tiền/kho hoặc mutation. [Đặc tả điều hướng UC-12.1 đề xuất](../orders/use-cases.md),
+[quyết định ADR-043](LOG.md#adr-043); Issue #61 tách từ develop `8fe405e`, đã tích hợp shell từ develop `63d9798`.
+
 ## Phân chia trách nhiệm
 
 ### Bảo vệ phiên của màn quản trị — Issue #57, đã merge PR #58
@@ -33,7 +41,7 @@ Hình dạng HTTP thật ở Swagger `/api/docs`, sinh từ [DTO response](../..
 - Hồi quy tại [admin-order-races.test.tsx](../../../apps/web/src/features/checkout/admin/admin-order-races.test.tsx)
   và [admin-order-session.test.tsx](../../../apps/web/src/features/checkout/admin/admin-order-session.test.tsx);
   hợp đồng phiên theo UC-01.4/AC6–AC7 và bảo vệ admin dùng chung UC-02.1/AC6, AC8.
-  Chưa tự cấp mã use case mới cho luồng quản trị đơn; danh mục còn cần thống nhất với Duy.
+  Mã use case quản trị đơn: UC-12.1 phần nghiệp vụ và UC-12.2 ở [use-cases.md](use-cases.md), phần điều hướng UC-12.1 ở [orders/use-cases.md](../orders/use-cases.md).
 
 ### Ranh giới ghi dữ liệu
 
@@ -68,10 +76,10 @@ Theo phạm vi mới của Bảo, hiện cấu hình VNPAY; checkout ẩn MoMo k
 
 `PAYMENT_REVIEW` yêu cầu khách không thanh toán lại, liên hệ shop kèm mã đơn; ADMIN hoàn trên màn `/admin/orders` ([payments/README.md](../payments/README.md)), chưa tự động hoàn. Khách tự hủy đơn online đã trả khi shop chưa bấm "Bắt đầu xử lý": hàng về kho, hoàn tiền tự động ([ADR-038](../../LOG.md#adr-038)); từ `PROCESSING` trở đi khách liên hệ shop. SOAP không thuộc luồng cơ bản này.
 
-## Giao diện quản trị — Issue #59, chưa merge
+## Giao diện quản trị — Issue #59, đã merge PR #60
 
 AdminKit áp dụng panel/bảng trắng và nhãn trạng thái; chi tiết đặt sản phẩm/thanh toán/lịch sử bên trái, giao hàng/thao tác bên phải.
 Chỉ di chuyển JSX và đổi CSS: actions, ledger, tiền/kho/COD/refund, request và vòng đời phiên giữ nguyên.
-Dialog dùng lại ConfirmDialog; URL/Back của Orders chưa sửa, thuộc đợt riêng.
-PR #58 đã merge tại `8fe405e`; nhánh shell đã cập nhật nền này, check/build/docs lint và QA đã đạt local.
-Cần review app/ui, nghiệp vụ Orders và CI của PR Issue #59 trước merge.
+Dialog dùng lại ConfirmDialog; URL/Back của Orders nằm trong Issue #61/PR #62, đã ghép trên shell.
+PR #58 đã merge tại `8fe405e`, PR #60 được Duy approve và merge tại `63d9798`.
+PR #62 vẫn cần CI đúng head tích hợp và review chéo trước merge; không tự coi nghiệp vụ Orders đã được duyệt.

@@ -92,9 +92,11 @@ export class CheckoutService {
       a.variantId.localeCompare(b.variantId),
     );
     if (!items.length || items.some((item) => !item.canCheckout))
-      throw new UnprocessableEntityException(
-        'Chọn sản phẩm đủ tồn kho trong giỏ trước khi thanh toán.',
-      );
+      // Ma rieng de web phan biet voi 422 khac cua preview (vd. dia chi chua co bieu phi), Issue #66.
+      throw new UnprocessableEntityException({
+        error: 'SELECTION_REQUIRED',
+        message: 'Chọn sản phẩm đủ tồn kho trong giỏ trước khi thanh toán.',
+      });
     const address = await this.addresses.get(userId, addressId, tx);
     const subtotalAmount = items
       .reduce((sum, item) => sum.plus(new Decimal(item.price).times(item.quantity)), new Decimal(0))
