@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { skipOf, toPage } from '../../common/pagination/page.response.js';
 import { Prisma } from '../../generated/prisma/client.js';
@@ -8,7 +8,12 @@ import type {
   AdminProductPage,
   AdminProductSummary,
 } from './dto/admin-product.response.js';
+import type {
+  AdminProductStatus,
+  ChangeProductStatusDto,
+} from './dto/change-product-status.dto.js';
 import type { ListAdminProductsQuery } from './dto/list-admin-products.query.js';
+import { lockProductStatus, productStatusChange } from './product-status.js';
 
 const colorSelect = { code: true, name: true, hex: true } as const;
 const summarySelect = {
@@ -17,6 +22,8 @@ const summarySelect = {
   slug: true,
   priceFrom: true,
   isActive: true,
+  adminDisabled: true,
+  statusVersion: true,
   createdAt: true,
   category: { select: { id: true, name: true, slug: true, isActive: true } },
   brand: { select: { id: true, name: true } },
@@ -58,6 +65,8 @@ function toSummary(row: SummaryRow): AdminProductSummary {
     brand: row.brand,
     priceFrom: row.priceFrom.toString(),
     isActive: row.isActive,
+    adminDisabled: row.adminDisabled,
+    statusVersion: row.statusVersion,
     createdAt: row.createdAt.toISOString(),
     imageUrl: row.images[0]?.url ?? null,
   };
@@ -66,6 +75,31 @@ function toSummary(row: SummaryRow): AdminProductSummary {
 @Injectable()
 export class AdminProductsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  async changeStatus(id: string, input: ChangeProductStatusDto): Promise<AdminProductStatus> {
+    return this.prisma.$transaction(async (tx) => {
+      const before = await lockProductStatus(tx, id);
+      if (!before) throw new NotFoundException('Không tìm thấy sản phẩm');
+      if (before.statusVersion !== input.expectedVersion)
+        throw new ConflictException('Trạng thái đã thay đổi. Tải lại và xác nhận lại.');
+      const hasImages = (await tx.productImage.count({ where: { productId: id } })) > 0;
+      const data = productStatusChange(before, input.adminDisabled, hasImages);
+      const select = {
+        id: true,
+        name: true,
+        isActive: true,
+        adminDisabled: true,
+        statusVersion: true,
+      } as const;
+      // Cung muc tieu thi khong doi updatedAt hoac tao revision SSE vo co.
+      if (!data.statusVersion) return tx.product.findUniqueOrThrow({ where: { id }, select });
+      return tx.product.update({
+        where: { id, statusVersion: input.expectedVersion },
+        data,
+        select,
+      });
+    });
+  }
 
   async list(query: ListAdminProductsQuery): Promise<AdminProductPage> {
     // contains dung LIKE: escape wildcard, Prisma van tham so hoa gia tri. some dung EXISTS nen khong trung product.

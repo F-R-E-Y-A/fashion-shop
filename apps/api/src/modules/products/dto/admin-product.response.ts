@@ -26,6 +26,8 @@ export class AdminProductSummary {
   priceFrom!: string;
   @ApiProperty() isActive!: boolean;
   @ApiProperty({ type: String, nullable: true }) imageUrl!: string | null;
+  @ApiProperty({ description: 'Ngung ban thu cong, import khong tu go' }) adminDisabled!: boolean;
+  @ApiProperty({ description: 'Phien ban don tang cua co/hold' }) statusVersion!: number;
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
 }
 export class AdminProductColor {

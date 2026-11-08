@@ -13,6 +13,8 @@ export interface AdminCatalogProduct {
   slug: string;
   priceFrom: string;
   isActive: boolean;
+  adminDisabled: boolean;
+  statusVersion: number;
   createdAt: string;
   imageUrl: string | null;
   category: { id: string; name: string; slug: string; isActive: boolean };
@@ -45,6 +47,7 @@ export interface AdminCatalogPage {
 }
 export const adminCatalogKeys = {
   all: (actorId: string) => [...sessionQueryKeys.adminResource('products'), actorId] as const,
+  lists: (actorId: string) => [...adminCatalogKeys.all(actorId), 'list'] as const,
   list: (actorId: string, query: CatalogQuery) =>
     [
       ...adminCatalogKeys.all(actorId),
@@ -58,6 +61,19 @@ export const adminCatalogKeys = {
   detail: (actorId: string, id: string) =>
     [...adminCatalogKeys.all(actorId), 'detail', id] as const,
 };
+export type ProductStatusResult = Pick<
+  AdminCatalogProduct,
+  'id' | 'name' | 'isActive' | 'adminDisabled' | 'statusVersion'
+>;
+export function catalogStatusLabel(
+  product: Pick<AdminCatalogProduct, 'isActive' | 'adminDisabled'>,
+) {
+  return product.adminDisabled
+    ? 'Ngừng bán thủ công'
+    : product.isActive
+      ? 'Đang bật'
+      : 'Chưa bật từ nguồn';
+}
 export function catalogErrorText(error: unknown, target: RequestTarget) {
   switch (classifyRequestError(error, target)) {
     case 'unauthenticated':

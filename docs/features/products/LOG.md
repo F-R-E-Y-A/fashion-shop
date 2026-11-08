@@ -399,3 +399,26 @@ khi chưa có số đo. Frontend dùng session cache/403 chung, không tạo cơ
 trạng thái review và kiểm chứng theo [Issue #63](https://github.com/F-R-E-Y-A/fashion-shop/issues/63).
 Menu Sản phẩm dùng AdminNavigation, breadcrumb nhận cả danh sách/chi tiết; giữ test shell và bổ sung
 kiểm tra route catalog. Người khác review và CI xanh trước khi coi hoàn thành; không tự chốt ADR.
+
+<a id="adr-045"></a>
+## ADR-045 · Giữ ngừng bán thủ công qua import và kiểm phiên bản
+
+**Trạng thái:** đề xuất · **Ngày:** 2026-11-08 · **Người đề xuất:** Tài (AI hỗ trợ).
+
+**Bối cảnh:** Tài chốt giữ dữ liệu và giữ quyết định ngừng bán qua mọi lần import ngày04/11,
+Issue #65. Import hiện tính cờ theo ảnh; chỉ đặt isActive=false sẽ bị lần import có ảnh bật lại.
+
+**Phương án:** thêm adminDisabled=false/statusVersion=0 trong một migration, giữ isActive cũ.
+Admin PATCH gửi mục tiêu/expectedVersion; import và admin khóa cùng hàng Product rồi đọc lại hold/ảnh.
+Version chỉ tăng khi hold/cờ đổi, phát hiện ABA và không tạo xung đột vì import lặp dữ liệu khác.
+No-op admin không ghi updatedAt/revision vô cớ. Trigger SSE hiện có tiếp tục báo Catalog đổi.
+Bật lại tính cờ theo ảnh, không tự bật category/variant/chọn giỏ hoặc sửa đơn/payment/inventory.
+
+**Đánh đổi:** schema thêm hai cột và import cần review; đổi trạng thái phải chờ writer cùng hàng.
+Không khóa toàn Catalog, không đổi chữ ký importProducts hoặc tạo event bus/polling/thư viện mới.
+Checkout đã đọc trước khi ngừng bán có thể tiếp tục theo hợp đồng hiện có; lần đọc sau bị chặn.
+Cache web bỏ tập danh sách cũ, chỉ tải query active, giữ actor/epoch/403 và không nhận version cũ hơn.
+
+**Thực tế:** triển khai tại feature/ph-03-admin-product-status, base59098da; trạng thái PR/CI/review theo Issue #65.
+Chỉ migration/HTTP trên DB test riêng. Tài hoãn nâng DB phát triển; không tự áp migration vào đó.
+Unit/HTTP/web và minh chứng được định danh ở kho docs; Bảo/người hiểu Cart/Checkout review trước tích hợp.

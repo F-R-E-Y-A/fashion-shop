@@ -11,6 +11,7 @@ import type { ImportProductRow, ImportRowResult } from './import/import.types.js
 import { ImportRowError } from './import/import-row.error.js';
 import { sourceSlug } from './import/slug.js';
 import { validateRow } from './import/validate-row.js';
+import { lockProductStatus, productStatusChange } from './product-status.js';
 import { audienceFrom } from './search/audience.js';
 import { withProductStock } from './stock.js';
 import {
@@ -122,6 +123,10 @@ export class ProductsService {
       throw new ImportRowError('SKU_CONFLICT', 'SKU trong dòng thuộc nhiều sản phẩm');
     }
     const existingProductId = [...productIds][0];
+    // Khoa truoc metadata/variants/images, cung thu tu voi admin. Doc hold sau khoa,
+    // khong dung snapshot tu luc tim SKU de tranh import mo lai san pham vua ngung ban.
+    const status = existingProductId ? await lockProductStatus(tx, existingProductId) : undefined;
+    if (existingProductId && !status) throw new Error('Sản phẩm biến mất trong lúc import');
 
     const brand = row.brand
       ? await tx.brand.upsert({
@@ -167,12 +172,21 @@ export class ProductsService {
       priceFrom,
       // Suy tu slug danh muc nguon luc nap; nap lai thi cap nhat theo nguon (3.2b, ADR-019).
       audience: audienceFrom(row.attributes, row.name),
-      isActive: row.images.length > 0,
     };
     const product = existingProductId
-      ? await tx.product.update({ where: { id: existingProductId }, data: productData })
+      ? await tx.product.update({
+          where: { id: existingProductId },
+          data: {
+            ...productData,
+            ...productStatusChange(status!, status!.adminDisabled, row.images.length > 0),
+          },
+        })
       : await tx.product.create({
-          data: { ...productData, slug: sourceSlug(row.name, row.sourceKey) },
+          data: {
+            ...productData,
+            isActive: row.images.length > 0,
+            slug: sourceSlug(row.name, row.sourceKey),
+          },
         });
 
     for (const variant of row.variants) {
