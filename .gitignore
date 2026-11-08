@@ -14,3 +14,7 @@ coverage-http/
 .vercel/
 apps/api/src/generated/
 *.tsbuildinfo
+
+# Playwright E2E
+apps/web/test-results/
+apps/web/playwright-report/

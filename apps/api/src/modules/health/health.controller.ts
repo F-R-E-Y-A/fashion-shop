@@ -14,6 +14,15 @@ export interface HealthResponse {
 }
 
 /**
+ * Ma commit dang chay. Dockerfile luon dat GIT_SHA (mac dinh "unknown") nen Render, von khong truyen
+ * build-arg, se tra "unknown" va CD doi mai khong thay commit. Gia tri rong hoac "unknown" coi nhu
+ * khong co, roi moi toi RENDER_GIT_COMMIT do Render cap luc chay.
+ */
+export function runningSha(...candidates: Array<string | undefined>): string | null {
+  return candidates.find((v) => v !== undefined && v.trim() !== '' && v !== 'unknown') ?? null;
+}
+
+/**
  * Tin hieu con song kem BAN dang chay. Docker HEALTHCHECK, Render va cd-staging.yml doc duong dan nay;
  * gitSha cho phep CD doi toi khi dung commit vua gop da len staging roi moi smoke test.
  * Kiem tra sau (Postgres, hang doi...) thuoc HT-05 tuan 5.
@@ -29,10 +38,10 @@ export class HealthController {
     return {
       status: 'ok',
       version: this.config.get('APP_VERSION', { infer: true }),
-      gitSha:
-        this.config.get('GIT_SHA', { infer: true }) ??
-        this.config.get('RENDER_GIT_COMMIT', { infer: true }) ??
-        null,
+      gitSha: runningSha(
+        this.config.get('GIT_SHA', { infer: true }),
+        this.config.get('RENDER_GIT_COMMIT', { infer: true }),
+      ),
       env: this.config.get('NODE_ENV', { infer: true }),
       uptime: Math.round(process.uptime()),
       timestamp: new Date().toISOString(),

@@ -274,7 +274,7 @@ describe('GET /api/products: tim kiem va loc (UC-03.2, UC-03.3)', () => {
       expect(seen.size).toBe(first.body.items.length + second.body.items.length);
     });
 
-    it('UC-03.3 tham so sai tra 400', async () => {
+    it('UC-03.3/AC5 tham so sai tra 400', async () => {
       const bads: Array<Record<string, string | number>> = [
         { colors: 'tim-hoa' },
         { colors: 'den,khong-co' },
@@ -291,7 +291,7 @@ describe('GET /api/products: tim kiem va loc (UC-03.2, UC-03.3)', () => {
       for (const bad of bads) await list(bad).expect(400);
     });
 
-    it('UC-03.3 tham so khong khai bao van bi tu choi (forbidNonWhitelisted)', async () => {
+    it('UC-03.3/AC5 tham so khong khai bao van bi tu choi (forbidNonWhitelisted)', async () => {
       await list({ ghost: 'x' }).expect(400);
     });
   });

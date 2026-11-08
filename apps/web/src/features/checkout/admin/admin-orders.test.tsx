@@ -58,7 +58,7 @@ const apiError = (statusCode: number, message: string) =>
   new ApiError({ statusCode, code: 'TEST', message, path: '/x', timestamp: '' });
 
 describe('PH-11 quản trị đơn hàng (ADR-038)', () => {
-  it('mặc định tab Cần xử lý; đổi tab gửi bộ lọc trạng thái và hiện từng dòng', async () => {
+  it('UC-12.1/AC7 mặc định tab Cần xử lý; đổi tab gửi bộ lọc trạng thái và hiện từng dòng', async () => {
     request.mockResolvedValue({
       items: [
         {
@@ -96,7 +96,7 @@ describe('PH-11 quản trị đơn hàng (ADR-038)', () => {
     );
   });
 
-  it('hoàn tiền một phần: hộp xác nhận điền sẵn số còn hoàn được, gửi số đã sửa và lý do', async () => {
+  it('UC-14.3/AC2 hoàn tiền một phần: hộp xác nhận điền sẵn số còn hoàn được, gửi số đã sửa và lý do', async () => {
     request.mockImplementation(async (path: string) => (path.endsWith('/refund') ? {} : base));
     show('/admin/orders/o1');
     fireEvent.click(await screen.findByRole('button', { name: 'Hoàn tiền VNPAY' }));
@@ -120,7 +120,7 @@ describe('PH-11 quản trị đơn hàng (ADR-038)', () => {
     expect(await screen.findByText('Cổng đã xác nhận hoàn tiền.')).toBeInTheDocument();
   });
 
-  it('COD đang giao: giao thất bại bắt buộc lý do; chốt lệnh hoàn chỉ hiện khi chốt được', async () => {
+  it('UC-12.2/AC3 COD đang giao: giao thất bại bắt buộc lý do; chốt lệnh hoàn chỉ hiện khi chốt được', async () => {
     request.mockResolvedValue({
       ...base,
       status: 'PROCESSING',
@@ -162,7 +162,7 @@ describe('PH-11 quản trị đơn hàng (ADR-038)', () => {
     expect(request).not.toHaveBeenCalledWith('/admin/orders/o1/delivery-failed', expect.anything());
   });
 
-  it('hoàn tiền gặp 5xx: báo chưa xác định kết quả, không in lỗi thô, đọc lại đơn (ADR-039)', async () => {
+  it('UC-14.3/AC9 hoàn tiền gặp 5xx: báo chưa xác định kết quả, không in lỗi thô, đọc lại đơn (ADR-039)', async () => {
     let refunds = 0;
     request.mockImplementation(async (path: string) => {
       if (!path.endsWith('/refund')) return base;
@@ -183,7 +183,7 @@ describe('PH-11 quản trị đơn hàng (ADR-038)', () => {
     );
   });
 
-  it('409 từ máy chủ: giữ câu nghiệp vụ của máy chủ và báo đã tải lại', async () => {
+  it('UC-12.1/AC10 409 từ máy chủ: giữ câu nghiệp vụ của máy chủ và báo đã tải lại', async () => {
     request.mockImplementation(async (path: string) => {
       if (!path.endsWith('/refund')) return base;
       throw apiError(409, 'Đang có lệnh hoàn chờ kết quả.');
@@ -212,7 +212,7 @@ describe('UC-02.1/AC6, AC8 — bảo vệ dữ liệu admin dùng chung (#57)', 
   });
 
   it.each(['detail', 'list'] as const)(
-    'GET %s nhận 403 phải ẩn dữ liệu khách và xóa cache',
+    'UC-12.1/AC8 GET %s nhận 403 phải ẩn dữ liệu khách và xóa cache',
     async (source) => {
       const page = {
         items: [
