@@ -1,6 +1,6 @@
 ---
 title: Checkout — luồng PH-11
-updated: 2026-11-06
+updated: 2026-11-09
 status: ưu tiên VNPAY sandbox, MoMo để sau
 owner: Bảo
 ---
@@ -18,7 +18,7 @@ owner: Bảo
 
 Hình dạng HTTP thật ở Swagger `/api/docs`, sinh từ [DTO response](../../../apps/api/src/modules/checkout/dto/checkout.response.ts). Web ở [checkout/index.ts](../../../apps/web/src/features/checkout/index.ts), bắt buộc Auth tại [routes.tsx](../../../apps/web/src/app/routes.tsx). Ba trang theo khung trang giỏ: xác nhận (`/thanh-toan`), kết quả đơn (`/don-hang/:id`, `/thanh-toan/ket-qua`) và danh sách đơn là tab `/tai-khoan/don-hang`; `/don-hang` chuyển hướng về tab đó. Đồng hồ trang đơn dùng `role="timer"` để trình đọc màn hình không đọc mỗi giây.
 
-## Điều hướng quản trị — Issue #61, chờ review
+## Điều hướng quản trị — Issue #61, đã merge PR #62
 
 URL Orders dùng codec [order-list-query.ts:18](../../../apps/web/src/features/checkout/admin/order-list-query.ts#L18)
 cho tab/q/page đã chuẩn hóa; chỉ query sau canonical. Link chi tiết mang query và dựng đường về danh sách nội bộ,
@@ -82,4 +82,4 @@ AdminKit áp dụng panel/bảng trắng và nhãn trạng thái; chi tiết đ�
 Chỉ di chuyển JSX và đổi CSS: actions, ledger, tiền/kho/COD/refund, request và vòng đời phiên giữ nguyên.
 Dialog dùng lại ConfirmDialog; URL/Back của Orders nằm trong Issue #61/PR #62, đã ghép trên shell.
 PR #58 đã merge tại `8fe405e`, PR #60 được Duy approve và merge tại `63d9798`.
-PR #62 vẫn cần CI đúng head tích hợp và review chéo trước merge; không tự coi nghiệp vụ Orders đã được duyệt.
+PR #62 đã được approve và gộp tại `59098da`; Issue #61 đã đóng. Kết quả CI và QA gắn với commit/patch trong kho docs, không thay nghiệm thu cổng thanh toán thật.

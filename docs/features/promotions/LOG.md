@@ -1,6 +1,6 @@
 ---
 title: Khuyến mãi và Mã giảm giá — nhật ký
-updated: 2026-10-27
+updated: 2026-11-09
 status: đang triển khai
 owner: Duy
 ---
@@ -48,8 +48,8 @@ Sau review PR #41 từ Bảo:
 3. DTO cập nhật khuyến mãi: Bổ sung class `UpdatePromotionDto extends PartialType(CreatePromotionDto)` để ValidationPipe hoạt động đúng metatype ở runtime, chặn các trường lạ và enum không hợp lệ.
 4. Bổ sung `apps/api/test/promotions.http.spec.ts` kiểm thử cạnh tranh 2 transaction đồng thời cho quota và các ca hồi quy HTTP validation.
 
-<a id="adr-041"></a>
-## 2026-10-27 · ADR-041 — Động cơ khuyến mãi động, phân khúc khách hàng và các mẫu thiết kế
+<a id="adr-051"></a>
+## 2026-10-27 · ADR-051 — Động cơ khuyến mãi động, phân khúc khách hàng và các mẫu thiết kế
 
 **Loại:** quyết định · **Phạm vi:** Phân hệ Khuyến mãi (`apps/api/src/modules/promotions/engine`) · **Trạng thái:** đề xuất · **Người quyết:** Duy · **Commit:** (điền khi thi hành)
 
@@ -79,3 +79,12 @@ Thực tế: 26 bài test unit engine (`rules.spec.ts`, `strategies.spec.ts`, `p
 ### Điều kiện xem lại
 
 Khi phân hệ Loyalty / Điểm thưởng tích hợp cần thêm các loại quy tắc đổi điểm hoặc tặng quà tặng kèm (gift-with-purchase).
+
+## 2026-11-09 · Hiệu đính mã quyết định khuyến mãi
+
+**Loại:** hiệu đính tài liệu · **Phạm vi:** mã và neo của quyết định ngày27/10, không đổi nội dung hay trạng thái.
+
+Mã041 đã trùng quyết định cache admin ở LOG chung sau khi ghép PR #41. Dùng051 cho quyết định khuyến mãi;
+050 đã được dùng trong PR #74 đang mở. Giữ nguyên ngày, phương án, trạng thái đề xuất và người quyếtDuy;
+không coi sửa số là duyệt quyết định nghiệp vụ. Bản hiệu đính chỉ được áp sau khi Tài cho phép ngoại lệ
+append-only của AGENTS.md; kiểm lại dãy số/PR đang mở ngay trước khi áp.
