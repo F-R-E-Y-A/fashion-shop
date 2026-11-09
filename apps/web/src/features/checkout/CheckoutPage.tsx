@@ -11,6 +11,7 @@ import {
   listAddresses,
   useAuth,
 } from '@/features/account';
+import { PromotionField, useAppliedPromotion } from '@/features/promotions';
 
 import styles from './Checkout.module.css';
 import {
@@ -52,6 +53,7 @@ export function CheckoutPage() {
   const { user, authenticatedRequest: request } = useAuth();
   const navigate = useNavigate();
   const client = useQueryClient();
+  const { applied } = useAppliedPromotion();
   const [selected, setSelected] = useState('');
   const [preferredGateway, setGateway] = useState<GatewayCode | ''>('');
   const [addingAddress, setAddingAddress] = useState(false);
@@ -316,19 +318,14 @@ export function CheckoutPage() {
               <span>Tiền hàng ({count} món)</span>
               <span>{formatPrice(quote.subtotalAmount)}</span>
             </p>
-            <label className={styles.promotion}>
-              Khuyến mãi
-              <input
-                aria-label="Khuyến mãi"
-                value=""
-                readOnly
-                disabled
-                placeholder="Chưa áp dụng"
-              />
-            </label>
+            <PromotionField subtotal={quote.subtotalAmount} />
             <p className={styles.row}>
               <span>Giảm giá</span>
-              <span>{formatPrice(quote.discountAmount)}</span>
+              <span>
+                {applied && parseFloat(applied.discountAmount) > 0
+                  ? `-${formatPrice(applied.discountAmount)}`
+                  : formatPrice(quote.discountAmount)}
+              </span>
             </p>
             <p className={styles.row}>
               <span>Phí vận chuyển</span>
@@ -339,7 +336,18 @@ export function CheckoutPage() {
             </p>
             <p className={styles.total}>
               <span>Tổng thanh toán</span>
-              <strong>{formatPrice(quote.totalAmount)}</strong>
+              <strong>
+                {formatPrice(
+                  String(
+                    applied && parseFloat(applied.discountAmount) > 0
+                      ? Math.max(
+                          0,
+                          (parseFloat(quote.totalAmount) || 0) - parseFloat(applied.discountAmount),
+                        )
+                      : quote.totalAmount,
+                  ),
+                )}
+              </strong>
             </p>
             {quote.pendingOrder && (
               <p className={styles.notice} role="alert">

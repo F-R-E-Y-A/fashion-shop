@@ -7,6 +7,7 @@ import { AuthModule } from './modules/auth/index.js';
 import { CartModule } from './modules/cart/index.js';
 import { CheckoutModule } from './modules/checkout/index.js';
 import { HealthModule } from './modules/health/index.js';
+import { NotificationsModule } from './modules/notifications/index.js';
 import { ProductsModule } from './modules/products/index.js';
 import { PromotionsModule } from './modules/promotions/index.js';
 import { UsersModule } from './modules/users/index.js';
@@ -33,6 +34,7 @@ import { UsersModule } from './modules/users/index.js';
     HealthModule,
     CartModule,
     CheckoutModule,
+    NotificationsModule,
     ProductsModule,
     PromotionsModule,
     UsersModule,

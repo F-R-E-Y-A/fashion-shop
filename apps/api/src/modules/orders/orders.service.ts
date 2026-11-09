@@ -1,10 +1,11 @@
 import { randomBytes } from 'node:crypto';
 
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 
 import { skipOf } from '../../common/pagination/page.response.js';
 import type { OrderStatus, Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
+import { NotificationsService } from '../notifications/index.js';
 
 const details = {
   items: { orderBy: { productVariantId: 'asc' as const } },
@@ -84,7 +85,10 @@ export interface NewOrder {
 
 @Injectable()
 export class OrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly notifications?: NotificationsService,
+  ) {}
 
   async get(id: string, userId?: string, tx?: Prisma.TransactionClient) {
     const order = await (tx ?? this.prisma).order.findFirst({
@@ -177,7 +181,7 @@ export class OrdersService {
     tx: Prisma.TransactionClient,
   ) {
     const status = input.status ?? 'PENDING_PAYMENT';
-    return tx.order.create({
+    const created = await tx.order.create({
       data: {
         userId: input.userId,
         customerEmail: input.email,
@@ -204,6 +208,22 @@ export class OrdersService {
       },
       include: details,
     });
+    if (this.notifications) {
+      void this.notifications
+        .handleOrderStatusChange(
+          {
+            id: created.id,
+            orderCode: created.orderCode,
+            customerEmail: created.customerEmail,
+            userId: created.userId,
+            status: created.status,
+            totalAmount: created.totalAmount.toString(),
+          },
+          status,
+        )
+        .catch(() => {});
+    }
+    return created;
   }
 
   /** Update co dieu kien trang thai nguon: buoc khong hop le thi 409, khong ghi lich su. */
@@ -213,6 +233,33 @@ export class OrdersService {
     tx: Prisma.TransactionClient,
     actorUserId?: string,
   ) {
+    let existing: {
+      id: string;
+      orderCode: string;
+      customerEmail: string;
+      userId: string | null;
+      totalAmount: { toString(): string };
+      status: OrderStatus;
+    } | null = null;
+
+    if (this.notifications && typeof tx.order?.findUnique === 'function') {
+      try {
+        existing = await tx.order.findUnique({
+          where: { id },
+          select: {
+            id: true,
+            orderCode: true,
+            customerEmail: true,
+            userId: true,
+            totalAmount: true,
+            status: true,
+          },
+        });
+      } catch {
+        // ignore lookup errors
+      }
+    }
+
     const changed = await tx.order.updateMany({
       where: { id, status: { in: statusesLeadingTo(status) } },
       data: { status },
@@ -220,6 +267,23 @@ export class OrdersService {
     if (changed.count !== 1)
       throw new ConflictException(`Đơn không thể chuyển sang ${status} từ trạng thái hiện tại.`);
     await tx.orderStatusHistory.create({ data: { orderId: id, status, actorUserId } });
+
+    if (existing && this.notifications) {
+      void this.notifications
+        .handleOrderStatusChange(
+          {
+            id: existing.id,
+            orderCode: existing.orderCode,
+            customerEmail: existing.customerEmail,
+            userId: existing.userId,
+            status,
+            totalAmount: existing.totalAmount.toString(),
+          },
+          status,
+          existing.status,
+        )
+        .catch(() => {});
+    }
   }
 
   /** `skip`: don worker da xu ly trong tick nay, de don loi khong lap lai trong cung tick. */

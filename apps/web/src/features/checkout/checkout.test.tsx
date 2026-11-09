@@ -294,6 +294,24 @@ describe('PH-11 checkout UI', () => {
       expect.objectContaining({ body: { addressId: 'a1' } }),
     );
   });
+  it('UC-07.1/AC2 hiển thị khuyến mãi đã áp dụng từ giỏ hàng và trừ tiền giảm giá vào tổng thanh toán', async () => {
+    request.mockResolvedValue(quote);
+    sessionStorage.setItem(
+      'freya_applied_promotion',
+      JSON.stringify({
+        kind: 'VOUCHER',
+        code: 'GIAM50K',
+        name: 'Giảm 50.000đ',
+        discountAmount: '50000',
+        finalAmount: '470000',
+      }),
+    );
+    show();
+    expect(await screen.findByRole('textbox', { name: 'Khuyến mãi' })).toHaveValue('GIAM50K');
+    expect(screen.getByRole('button', { name: 'Gỡ mã ưu đãi' })).toBeInTheDocument();
+    expect(screen.getByText(/-50\.000/)).toBeInTheDocument();
+    sessionStorage.removeItem('freya_applied_promotion');
+  });
   it('UC-07.1/AC14 chưa có địa chỉ thì mở sẵn form thêm tại chỗ, không gọi preview hay tạo đơn', async () => {
     addresses.mockResolvedValue([]);
     show();
