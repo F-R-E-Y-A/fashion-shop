@@ -75,6 +75,8 @@ model Product {
   // giao dich moi lan ghi bien the, de sap xep va loc theo gia khong phai gom nhom.
   priceFrom        Decimal  @map("price_from") @db.Decimal(12, 2)
   isActive         Boolean  @default(true) @map("is_active")
+  adminDisabled    Boolean  @default(false) @map("admin_disabled")
+  statusVersion    Int      @default(0) @map("status_version")
   isFeatured       Boolean  @default(false) @map("is_featured")
   // Doi tuong: "nam" | "nu" | "unisex" | null. Suy ra tu slug danh muc nguon luc nap (ADR-019);
   // CHECK viet tay trong migration ph01_search_audience.

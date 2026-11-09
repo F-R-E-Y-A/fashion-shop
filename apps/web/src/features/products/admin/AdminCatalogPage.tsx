@@ -9,6 +9,7 @@ import {
   adminCatalogKeys,
   type AdminCatalogPage as CatalogPage,
   catalogErrorText,
+  catalogStatusLabel,
 } from './admin-catalog.api.js';
 import styles from './AdminCatalog.module.css';
 import {
@@ -17,6 +18,11 @@ import {
   catalogSearch,
   parseCatalogQuery,
 } from './catalog-query.js';
+import {
+  ProductStatusButton,
+  ProductStatusFeedback,
+  useProductStatusAction,
+} from './product-status-action.js';
 import { useAdminCatalog } from './use-admin-catalog.js';
 
 export function AdminCatalogPage() {
@@ -24,6 +30,7 @@ export function AdminCatalogPage() {
   return <CatalogList key={`${user?.id}:${getSessionEpoch()}`} />;
 }
 function CatalogList() {
+  const action = useProductStatusAction();
   const { user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -89,7 +96,7 @@ function CatalogList() {
             >
               <option value="all">Tất cả</option>
               <option value="active">Đang bật</option>
-              <option value="inactive">Đã ngừng bán</option>
+              <option value="inactive">Chưa bật / ngừng bán</option>
             </select>
           </label>
           <label className={styles.field}>
@@ -127,6 +134,7 @@ function CatalogList() {
           )}
         </div>
       </section>
+      <ProductStatusFeedback action={action} />
       {result.isPending && <Loading label="Đang tải sản phẩm…" />}
       {result.isError && (
         <ErrorNote
@@ -172,6 +180,7 @@ function CatalogList() {
                     <th scope="col">Giá tổng hợp</th>
                     <th scope="col">Cờ hoạt động</th>
                     <th scope="col">Ngày tạo</th>
+                    <th scope="col">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -214,10 +223,13 @@ function CatalogList() {
                           className={styles.badge}
                           data-tone={product.isActive ? 'accent' : 'muted'}
                         >
-                          {product.isActive ? 'Đang bật' : 'Đã ngừng bán'}
+                          {catalogStatusLabel(product)}
                         </span>
                       </td>
                       <td data-label="Ngày tạo">{formatDateTime(product.createdAt)}</td>
+                      <td data-label="Thao tác">
+                        <ProductStatusButton product={product} action={action} />
+                      </td>
                     </tr>
                   ))}
                 </tbody>

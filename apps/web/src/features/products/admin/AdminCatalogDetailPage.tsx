@@ -8,9 +8,15 @@ import {
   type AdminCatalogDetail,
   adminCatalogKeys,
   catalogErrorText,
+  catalogStatusLabel,
 } from './admin-catalog.api.js';
 import styles from './AdminCatalog.module.css';
 import { catalogListPath, catalogSearch, parseCatalogQuery } from './catalog-query.js';
+import {
+  ProductStatusButton,
+  ProductStatusFeedback,
+  useProductStatusAction,
+} from './product-status-action.js';
 import { useAdminCatalog } from './use-admin-catalog.js';
 
 export function AdminCatalogDetailPage() {
@@ -19,6 +25,7 @@ export function AdminCatalogDetailPage() {
   return <CatalogDetail key={`${user?.id}:${getSessionEpoch()}:${id}`} id={id} />;
 }
 function CatalogDetail({ id }: { id: string }) {
+  const action = useProductStatusAction();
   const { user } = useAuth();
   const location = useLocation();
   const query = parseCatalogQuery(location.search);
@@ -36,6 +43,7 @@ function CatalogDetail({ id }: { id: string }) {
       <Link className={styles.back} to={catalogListPath(query)}>
         ← Về danh sách sản phẩm
       </Link>
+      <ProductStatusFeedback action={action} />
       {result.isPending && <Loading label="Đang tải chi tiết sản phẩm…" />}
       {result.isError && (
         <ErrorNote
@@ -50,8 +58,9 @@ function CatalogDetail({ id }: { id: string }) {
             <h1 className={styles.title}>{data.name}</h1>
             <p className={styles.slug}>{data.slug}</p>
             <span className={styles.badge} data-tone={data.isActive ? 'accent' : 'muted'}>
-              {data.isActive ? 'Đang bật' : 'Đã ngừng bán'}
+              {catalogStatusLabel(data)}
             </span>
+            <ProductStatusButton product={data} action={action} />
           </header>
           <div className={styles.detailGrid}>
             <section className={styles.panel} aria-labelledby="catalog-info">

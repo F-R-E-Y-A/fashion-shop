@@ -1,6 +1,7 @@
-import { Controller, Get, Header, Param, Query } from '@nestjs/common';
+import { Body, Controller, Get, Header, Param, Patch, Query } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiConflictResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -16,6 +17,7 @@ import {
   AdminProductIdParam,
   AdminProductPage,
 } from './dto/admin-product.response.js';
+import { AdminProductStatus, ChangeProductStatusDto } from './dto/change-product-status.dto.js';
 import { ListAdminProductsQuery } from './dto/list-admin-products.query.js';
 
 @ApiTags('admin-products')
@@ -23,7 +25,7 @@ import { ListAdminProductsQuery } from './dto/list-admin-products.query.js';
 @RequireRoles(RoleCode.ADMIN)
 @ApiUnauthorizedResponse({ description: 'Chua dang nhap' })
 @ApiForbiddenResponse({ description: 'Can vai ADMIN' })
-@ApiBadRequestResponse({ description: 'Query hoac UUID khong hop le; tham so lap/la bi tu choi' })
+@ApiBadRequestResponse({ description: 'Query/body/UUID khong hop le; tham so lap/la bi tu choi' })
 export class AdminProductsController {
   constructor(private readonly products: AdminProductsService) {}
 
@@ -44,5 +46,20 @@ export class AdminProductsController {
   @ApiNotFoundResponse({ description: 'UUID hop le nhung san pham khong ton tai' })
   detail(@Param() { id }: AdminProductIdParam): Promise<AdminProductDetail> {
     return this.products.findById(id);
+  }
+
+  @Patch(':id/status')
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary: 'Ngung ban hoac go ngung ban thu cong, kiem phien ban; khong xoa du lieu',
+  })
+  @ApiOkResponse({ type: AdminProductStatus })
+  @ApiNotFoundResponse({ description: 'Khong tim thay san pham' })
+  @ApiConflictResponse({ description: 'Phien ban cu: tai lai va xac nhan lai' })
+  changeStatus(
+    @Param() { id }: AdminProductIdParam,
+    @Body() input: ChangeProductStatusDto,
+  ): Promise<AdminProductStatus> {
+    return this.products.changeStatus(id, input);
   }
 }

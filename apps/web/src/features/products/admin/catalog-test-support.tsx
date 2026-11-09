@@ -24,6 +24,8 @@ export const product: AdminCatalogDetail = {
   slug: 'ao-khoac-linen',
   priceFrom: '199000',
   isActive: false,
+  adminDisabled: false,
+  statusVersion: 0,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-02T00:00:00Z',
   imageUrl: null,
@@ -72,6 +74,7 @@ export interface Recorded {
   signal?: AbortSignal | null;
   token?: string;
   method: string;
+  body?: unknown;
 }
 export function backend() {
   const state: {
@@ -90,6 +93,7 @@ export function backend() {
         signal: init?.signal,
         method: init?.method ?? 'GET',
         token: (init?.headers as Record<string, string>)?.Authorization,
+        body: init?.body ? JSON.parse(String(init.body)) : undefined,
       };
       requests.push(r);
       const override = state.override?.(r);
@@ -119,7 +123,21 @@ export function backend() {
           totalPages: Math.max(1, Math.ceil(state.total / pageSize)),
         });
       }
-      if (url.pathname === `/api/admin/products/${product.id}`) return reply(product);
+      if (url.pathname === `/api/admin/products/${product.id}/status` && r.method === 'PATCH') {
+        const current = state.products.find((p) => p.id === product.id) ?? product;
+        const body = r.body as { adminDisabled: boolean; expectedVersion: number };
+        if (body.expectedVersion !== current.statusVersion) return failure(409);
+        const updated = {
+          ...current,
+          adminDisabled: body.adminDisabled,
+          isActive: !body.adminDisabled,
+          statusVersion: current.statusVersion + 1,
+        };
+        state.products = state.products.map((p) => (p.id === updated.id ? updated : p));
+        return reply(updated);
+      }
+      if (url.pathname === `/api/admin/products/${product.id}`)
+        return reply(state.products.find((p) => p.id === product.id) ?? product);
       if (url.pathname.startsWith('/api/admin/products/')) return failure(404);
       if (url.pathname === '/api/cart') return reply({ items: [], itemCount: 0 });
       if (url.pathname.startsWith('/api/products'))

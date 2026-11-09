@@ -1,4 +1,12 @@
+---
+title: Hợp đồng module products
+updated: 2026-11-08
+status: đang dùng; trạng thái admin chờ review
+owner: Bảo
+---
 # Phân hệ `products` — module mẫu
+
+**Chức năng:** Giữ cửa công bố và luật import/đọc Catalog cho các phân hệ gọi ProductsService.
 
 **Chủ sở hữu:** Bảo · **Dòng việc:** PH-01 (Issue #6) · **Bảng:** `categories`, `brands`, `colors`, `sizes`, `products`, `product_variants`, `product_images` trong `prisma/schema/catalog.prisma`, mô hình M2 cài ở PR #11, từ điển ở [erd.md](../../../../../docs/features/products/erd.md) · **Tài liệu feature:** [docs/features/products/](../../../../../docs/features/products/README.md)
 
@@ -84,14 +92,14 @@ Luật của `importProducts`, theo mô hình M2 ([erd.md](../../../../../docs/f
 |---|---|---|
 | 1 | **Nhận ra sản phẩm qua `sku`**: không `sku` nào của dòng có sẵn thì tạo sản phẩm mới; có và cùng thuộc một sản phẩm thì cập nhật sản phẩm đó; thuộc từ hai sản phẩm trở lên hoặc lặp SKU ngay trong dòng thì `SKU_CONFLICT`. Tài sinh `sku` ổn định từ nguồn, ví dụ `<SOURCE>-<sourceProductId>-<MAU>-<CO>` | Tên sản phẩm đổi giữa hai lần chạy vẫn nhận ra, mà không phải thêm cột nguồn vào bảng của Bảo |
 | 2 | **`slug` sinh một lần khi tạo**: `slugify(name)` + `-` + 6 ký tự đầu của `sha1(sourceKey)`; cập nhật không đổi `slug` | Hai sản phẩm trùng tên không đụng nhau; đường dẫn cũ không gãy khi tên đổi |
-| 3 | Cập nhật ghi đè tên, mô tả, danh mục, thương hiệu, giá. Biến thể có trong dòng thì bật `is_active = true`; biến thể cũ không còn trong dòng thì `is_active = false`, **không xoá**. `products.is_active` không đổi. `price_from` tính lại | Giỏ và đơn của Duy trỏ vào biến thể (luật 1 của erd.md); ẩn sản phẩm là quyết định của người, không phải của lần nạp |
+| 3 | Cập nhật ghi đè tên, mô tả, danh mục, thương hiệu, giá. Biến thể có trong dòng thì bật `is_active = true`; biến thể vắng thì tắt, **không xoá**. Product có ảnh thì bật trừ khi adminDisabled; import giữ manual hold, statusVersion chỉ tăng khi hold/cờ đổi. price_from tính lại | Giỏ/đơn trỏ biến thể; import không ghi đè quyết định ngừng bán của admin. Bảo review thay đổi hợp đồng này ở Issue #65 |
 | 4 | Ảnh ghi theo `(product_id, sort_order)` bằng thứ tự mảng, ảnh thừa bị xoá. `colorCode` không thuộc màu của dòng được lưu thành ảnh chung (`colorId = null`) | Ảnh không ai khác trỏ vào; ảnh không khớp màu vẫn dùng được |
 | 5 | Danh mục và cỡ là **danh sách đóng**: không có thì dòng lỗi, không tự tạo. Thương hiệu và màu là **danh sách mở**: chưa có thì tạo, có rồi giữ nguyên tên | Danh mục có cây, cỡ có thứ tự: tự tạo sẽ lệch menu và nút cỡ. Một dòng nạp không được sửa tên màu mà sản phẩm khác đang dùng |
 | 6 | **Mỗi dòng một giao dịch**; dòng lỗi không kéo dòng khác. Hàm không ghi bảng `staging` | Tài đánh dấu `IMPORTED` cho dòng `created`, `updated` trong giao dịch của mình. Nếu chết giữa hai bước thì chạy lại: luật 1 làm lần sau thành cập nhật, không sinh bản trùng |
 
 Đổi chữ ký một hàm đã công bố thì báo ở buổi chốt Thứ Tư và ghi một mục vào `docs/features/products/LOG.md`.
 
-PH-11 bổ sung transaction tuỳ chọn cho hai hàm đọc biến thể: Cart truyền transaction đang giữ khoá owner để đọc Catalog, ghi giỏ và dựng phản hồi cùng giao dịch; không truyền thì giữ cách gọi cũ. Lỗi truy vấn được truyền về caller, không tạo sản phẩm hay giá giả. Xem [ADR-026](../../../../../docs/LOG.md#adr-026).
+PH-11 bổ sung transaction tuỳ chọn cho hai hàm đọc biến thể: Cart truyền transaction đang giữ khoá owner để đọc Catalog, ghi giỏ và dựng phản hồi cùng giao dịch; không truyền thì giữ cách gọi cũ. Lỗi truy vấn được truyền về caller, không tạo sản phẩm hay giá giả. Xem [ADR-026](../../../../../docs/features/auth/LOG.md#adr-026).
 
 Catalog đọc tồn khả dụng qua cửa `inventory/index.ts`. Danh sách, tìm kiếm, gợi ý, sản phẩm liên quan và chi tiết nhận trạng thái tồn; chi tiết có tồn từng biến thể. Thiếu bản ghi Inventory nghĩa là chưa biết tồn, không đồng nghĩa hết hàng. SSE chỉ gửi revision công khai; Swagger là nguồn hình dạng HTTP.
 
@@ -137,4 +145,9 @@ Thêm dịp mặc mà không sửa mã: chèn một dòng vào `search_configura
 AdminProductsService là nội bộ module, không xuất qua index. Controller riêng kiểm ADMIN qua
 AuthModule, đọc cả dữ liệu ẩn và trả DTO allowlist; Swagger `admin-products` giữ hợp đồng HTTP.
 Không dùng CatalogSearchService hoặc nới storefrontProductWhere cho admin. Không đổi chữ ký
-ProductsService/importProducts hoặc thêm quyền ghi cho phân hệ khác. Lát này không có mutation.
+ProductsService/importProducts hoặc thêm quyền ghi cho phân hệ khác. Lát đọc không ghi DB.
+
+Issue #65 bổ sung trạng thái admin qua service nội bộ; chữ ký importProducts giữ nguyên.
+Import và mutation khóa cùng hàng Product trước đọc hold/ảnh và ghi, version phát hiện cả đổi qua lại.
+Không ghi bảng giỏ/đơn/kho; không tự hủy checkout đã đọc Catalog trước thời điểm ngừng bán.
+Public DTO không chứa manual hold/version; API quản trị lấy hình dạng từ Swagger, không xuất qua index.

@@ -448,3 +448,26 @@ Thực tế: `npm run search:eval -w apps/api` tại [`fc27ef1`](https://github.
 - Staging chuyển sang Azure có từ 1 GB RAM trở lên: bật `local` ở đó.
 - Bộ đánh giá có thêm câu mà cách lai làm tụt rõ: xem lại `extraMargin` hoặc trọng số RRF.
 
+<a id="adr-049"></a>
+## ADR-049 · Giữ ngừng bán thủ công qua import và kiểm phiên bản
+
+**Trạng thái:** đề xuất · **Ngày:** 2026-11-08 · **Người đề xuất:** Tài (AI hỗ trợ).
+
+**Bối cảnh:** Tài chốt giữ dữ liệu và giữ quyết định ngừng bán qua mọi lần import ngày04/11,
+Issue #65. Import hiện tính cờ theo ảnh; chỉ đặt isActive=false sẽ bị lần import có ảnh bật lại.
+
+**Phương án:** thêm adminDisabled=false/statusVersion=0 trong một migration, giữ isActive cũ.
+Admin PATCH gửi mục tiêu/expectedVersion; import và admin khóa cùng hàng Product rồi đọc lại hold/ảnh.
+Version chỉ tăng khi hold/cờ đổi, phát hiện ABA và không tạo xung đột vì import lặp dữ liệu khác.
+No-op admin không ghi updatedAt/revision vô cớ. Trigger SSE hiện có tiếp tục báo Catalog đổi.
+Bật lại tính cờ theo ảnh, không tự bật category/variant/chọn giỏ hoặc sửa đơn/payment/inventory.
+
+**Đánh đổi:** schema thêm hai cột và import cần review; đổi trạng thái phải chờ writer cùng hàng.
+Không khóa toàn Catalog, không đổi chữ ký importProducts hoặc tạo event bus/polling/thư viện mới.
+Checkout đã đọc trước khi ngừng bán có thể tiếp tục theo hợp đồng hiện có; lần đọc sau bị chặn.
+Cache web bỏ tập danh sách cũ, chỉ tải query active, giữ actor/epoch/403 và không nhận version cũ hơn.
+
+**Thực tế:** triển khai tại feature/ph-03-admin-product-status, đang đồng bộ develop131480e vào PR71.
+Đổi số đề xuất từ045 sang049 để tránh trùng ADR045 đã gộp;048 đã dùng ở PR70. Nghiệp vụ giữ nguyên.
+Chỉ migration/HTTP trên DB test riêng. Tài hoãn nâng DB phát triển; không tự áp migration vào đó.
+Unit/HTTP/web và minh chứng được định danh ở kho docs; Bảo/người hiểu Cart/Checkout review trước tích hợp.

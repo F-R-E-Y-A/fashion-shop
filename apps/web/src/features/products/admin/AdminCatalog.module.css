@@ -137,7 +137,38 @@
   font-size: var(--s-1);
 }
 .table th:first-child {
-  width: 34%;
+  width: 28%;
+}
+.statusButton {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+.statusButton[data-tone='danger'] {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.statusButton:hover:not(:disabled) {
+  background: var(--bg);
+}
+.statusButton:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.noticeSlot {
+  overflow-wrap: anywhere;
+}
+.noticeSlot:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+.noticeSlot [role='alert'] {
+  color: var(--danger);
 }
 .table td {
   overflow-wrap: anywhere;
