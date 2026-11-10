@@ -374,3 +374,61 @@ Hai điều khiển ở chân bảng dùng q cũ trên URL, làm mất chữ đa
 và được dùng chung cho thanh lọc, số dòng và phân trang; q đổi thì về trang 1. Hai bài UC-02.1/AC12 đã đỏ
 trước sửa, kiểm URL, giá trị ô tìm và request sau khi chờ hết debounce. Sửa cả README còn ghi PR #45/#47
 chưa gộp và Issue #48 chưa commit; không thay trạng thái ADR, không đổi chính sách backend.
+
+
+## 2026-11-04 · Cải tiến giao diện quản trị: Tổng quan, Users và Confirm Dialog
+
+**Loại:** thay đổi mã · **Phạm vi:** `AdminProductsPage`, `AdminUsers`, `ConfirmDialog`, `AdminLayout` · **Commit:** xem lịch sử Git của mục này
+
+Tiếp tục triển khai frontend admin trên nhánh riêng theo phản hồi QA độc lập:
+- Nâng cấp `AdminProductsPage` (/admin) theo cấu trúc AdminKit: bổ sung header, tiêu đề Playfair Display, thẻ thống kê sản phẩm công khai dạng card với `tabular-nums`, xử lý đủ trạng thái loading và error retry. Mô tả phản ánh đúng dữ liệu danh mục công khai thực có.
+- Chuẩn hóa thẻ vai trò `.role` (font-size 12px, pill badge có viền `--line`, nền tint nhẹ cho vai `ADMIN`) tăng độ rõ khi đọc trên desktop/mobile 360px; dọn dẹp thuộc tính trùng lặp trong `AdminUsers.module.css` và `AdminOrders.module.css`.
+- Bổ sung nhận diện viền nguy hiểm `[data-tone="danger"]` cho `ConfirmDialog` khi thực hiện thao tác khóa tài khoản.
+- Breadcrumb Sản phẩm đã có từ Catalog; phần hoàn thiện này giữ nguyên, không đưa lại diff đã gộp.
+- Thực tế sau đối chiếu: widget Tổng quan và tone hộp xác nhận hỗ trợ `UC-02.1/AC9`; nguồn `total` theo
+  `UC-03.1/AC4`. Không dùng AC3 của danh sách/chi tiết Users để chứng minh Tổng quan, hoặc AC7 để chứng
+  minh màu viền. Bổ sung kiểm số 0, định dạng số lớn và thao tác Thử lại thực hiện GET mới.
+
+Mục này bắt đầu từ phần bổ sung của Antigravity, được Codex hoàn thiện cùng mã; giữ nguyên mọi mục
+LOG đã có trong HEAD. Không thêm ADR hoặc tự đổi trạng thái quyết định. Minh chứng và nhật ký AI ở
+kho docs riêng, không đưa log chạy hoặc dữ liệu QA vào kho mã.
+
+## 2026-11-06 · Giảm chuyển động cho thẻ Tổng quan
+
+**Loại:** thay đổi mã · **Phạm vi:** `AdminProductsPage.module.css` · **Commit:** xem lịch sử Git của mục này
+
+Hiệu ứng chuyển màu viền mới chỉ bật trong `prefers-reduced-motion: no-preference`, cùng cách giới hạn
+animation của ConfirmDialog hiện có. Giữ màu hover tức thời khi người dùng yêu cầu giảm chuyển động,
+để bổ sung hiệu ứng trang trí không bỏ qua lựa chọn tiếp cận. Không thêm token hoặc thay query/API.
+
+## 2026-11-08 · Giữ drawer trong chiều cao màn hình
+
+**Loại:** sửa giao diện · **Phạm vi:** `AdminLayout.module.css` · **Commit:** xem lịch sử Git của mục này
+
+Kiểm trình duyệt640×320 thấy drawer có min-height360px lấn max-height288px: đáy hộp376px,
+link Về cửa hàng nhận focus nhưng nằm ở332–376px ngoài viewport. Giới hạn min-height theo cùng
+chiều cao khả dụng với max-height để nội dung cuộn bên trong. Giữ vòng Tab/Escape và không đổi
+route, token hoặc guard. Đây là thay đổi khung app dùng chung cần người hiểu ngữ cảnh review.
+
+## 2026-11-09 · Đồng bộ chuẩn kiểm thử và hoàn thiện frontend
+
+**Loại:** kiểm thử và tài liệu · **Phạm vi:** khung admin, Tổng quan, truy vết UC-02.1 · **Commit:** xem lịch sử Git của mục này
+
+Giữ phần ngừng bán PR #71, khuyến mãi PR #41 và 7 chặng CI khi đồng bộ develop `924dceb`; hai xung đột
+README được ghép theo nội dung mới, không hạ mã về base59098da. Tổng quan ghi rõ tổng sản phẩm công khai.
+AC1–15 được phân loại thuận/âm/biên, AC9/10 có kịch bản tay; giữ số và nội dung nghiệp vụ. Ma trận là liên kết
+test tới AC, không tự chứng nhận zoom, quyền backend hoặc việc người khác đã review.
+
+E2E drawer 640×320 tái hiện đáy hộp376px trước sửa rồi xanh sau giới hạn min-height; kiểm thêm focus, Escape
+và total Tổng quan từ API thật ở desktop/mobile với giảm chuyển động. Lint sau test lỗi đã quét nhầm JS sinh
+trong báo cáo Playwright, nên ESLint/Prettier bỏ qua đúng hai thư mục đầu ra đã có trong gitignore; không
+tắt luật cho bài E2E hoặc mã nguồn. Log/ảnh/patch ở kho docs; không nâng DB phát triển hoặc sửa workflow CD.
+
+## 2026-11-10 · Bàn giao frontend qua Issue #75
+
+**Loại:** bàn giao · **Phạm vi:** frontend admin hiện có · **Commit:** xem lịch sử Git của mục này
+
+Tài yêu cầu tiếp tục tới tạo PR; Issue #75 theo dõi đúng lát frontend, không đóng lại Issue #65.
+Giữ Draft khi zoom 200% thật còn mở; kê rõ kiểm tự động và docs lint đã đạt, không tự nhận có review.
+Bản hiệu đính mã ADR khuyến mãi041 thành051 giữ nguyên nội dung/trạng thái đề xuất, tránh050 ở PR #74.
+Nhật ký AI và minh chứng gắn commit được công bố ở kho docs; không thay workflow hoặc DB phát triển.

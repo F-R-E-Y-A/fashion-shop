@@ -116,6 +116,7 @@ export function ConfirmDialog({
     <dialog
       ref={dialogRef}
       className={styles.dialog}
+      data-tone={tone}
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
       onCancel={(event) => {

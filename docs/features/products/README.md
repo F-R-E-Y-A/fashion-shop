@@ -1,6 +1,6 @@
 ---
 title: Khám phá sản phẩm — bản đồ và kế hoạch PH-01
-updated: 2026-11-08
+updated: 2026-11-09
 status: đang làm
 owner: Bảo
 ---
@@ -198,8 +198,8 @@ Kiểm tra: `npm run check` exit 0 (API unit 28/28, web 27/27, crawler 50 pass, 
 ## Quản trị catalog chỉ đọc — Issue #63
 
 Tài triển khai lát đọc UC-04.2 theo [đặc tả đề xuất](use-cases.md#uc-042--quản-lý-thông-tin-sản-phẩm--lát-đọc-issue-63).
-Bản triển khai trên nhánh `feature/ph-03-admin-catalog`, đã tích hợp develop `63d9798` sau PR #60;
-trạng thái review theo [Issue #63](https://github.com/F-R-E-Y-A/fashion-shop/issues/63).
+Lát đọc đã gộp qua [PR #64](https://github.com/F-R-E-Y-A/fashion-shop/pull/64) tại `b4a056b`;
+Issue #63 đã đóng. Nhánh frontend đã đồng bộ develop `924dceb` gồm Catalog, Orders, trạng thái và khuyến mãi.
 [AdminProductsController](../../../apps/api/src/modules/products/admin-products.controller.ts#L27)
 kiểm ADMIN qua AuthModule; [service](../../../apps/api/src/modules/products/admin-products.service.ts#L70)
 đọc cả bản ghi ẩn, tách khỏi storefront. Hình dạng HTTP theo Swagger nhóm `admin-products`.
@@ -220,13 +220,13 @@ Tạo/sửa nội dung, biến thể/ảnh và danh mục thuộc đợt sau; T�
 
 ## Ngừng bán và gỡ ngừng bán — Issue #65, PR #71
 
-Nhánh `feature/ph-03-admin-product-status` đang đồng bộ develop `131480e`, đã chứa PR #64/#62/#69.
+[PR #71](https://github.com/F-R-E-Y-A/fashion-shop/pull/71) đã được Bảo approve và merge tại `bb6f648` ngày 09/11; Issue #65 đã đóng.
 Lát trạng thái mở rộng [UC-04.2/AC11–18](use-cases.md#mở-rộng-trạng-thái-sản-phẩm--issue-65-đề-xuất);
-kết quả local đã có, CI/review theo [PR #71](https://github.com/F-R-E-Y-A/fashion-shop/pull/71). Hình dạng HTTP lấy từ Swagger `admin-products`.
+CI của head `258b0ca` đạt 7/7; hình dạng HTTP lấy từ Swagger `admin-products`.
 [Admin service](../../../apps/api/src/modules/products/admin-products.service.ts) kiểm phiên bản và khóa
 cùng hàng với [import](../../../apps/api/src/modules/products/product-status.ts); import không gỡ hold thủ công.
 Một migration bổ sung hold/version, mặc định false/0 giữ cờ isActive cũ; chỉ kiểm trên DB test riêng,
-không áp lên DB phát triển. Thiết kế schema/import cần Bảo và người hiểu Cart/Checkout review trước tích hợp.
+không áp lên DB phát triển. Việc rollout DB phát triển vẫn hoãn theo yêu cầu Tài, tách khỏi nghiệm thu frontend.
 
 [Luồng chung](../../../apps/web/src/features/products/admin/product-status-action.tsx) dùng authenticatedRequest,
 actor/epoch/thế hệ quyền; list/detail xác nhận tên và tác động, ngăn gửi lặp, xử lý kết quả chưa rõ bằng GET.
@@ -240,3 +240,16 @@ Kiểm bằng unit/web, [HTTP regression](../../../apps/api/test/admin-product-s
 desktop/mobile, hai hướng list/detail và focus. Zoom200% thật còn chờ kiểm; không thay bằng viewport.
 Quyết định [ADR-049](LOG.md#adr-049) vẫn đề xuất; số045 trùng quyết định đã gộp nên đã đổi số.
 ảnh/log/patch định danh bản giữ trong kho docs; chưa coi bản local là nghiệm thu toàn bộ admin.
+
+## Tổng quan admin — hoàn thiện frontend, chưa gộp
+
+`/admin` giữ `AdminProductsPage` sau `RequireAdmin`, đọc `total` của danh sách sản phẩm công khai hiện có.
+Thẻ này không đếm mọi bản ghi catalog hoặc cam kết sản phẩm còn tồn; không phải dashboard doanh thu.
+Nhánh `feature/ph-03-admin-frontend-refinement` thêm H1, card theo AdminKit, trạng thái tải, lỗi và Thử lại;
+`total: 0` hiện số 0, số lớn định dạng `vi-VN`; nhãn “Sản phẩm công khai” không cam kết có tồn.
+Giữ `listProducts`, query key và hợp đồng API hiện tại.
+
+Yêu cầu trình bày nằm tại [UC-02.1/AC9](../users/use-cases.md); nguồn tổng theo UC-03.1/AC4 ở
+[use-cases.md](use-cases.md). Bài `AdminProductsPage.test.tsx` kiểm dữ liệu/feedback;
+[E2E layout](../../../apps/web/e2e/admin-layout.spec.ts) đối chiếu total qua API thật và giảm chuyển động, không thay kiểm zoom thủ công. Danh sách/chi tiết quản trị Catalog đã tích hợp từ PR #64; đợt này giữ nguyên API và
+chức năng đọc catalog. Khung, CSS dùng chung và vùng Products cần Bảo review trước gộp.

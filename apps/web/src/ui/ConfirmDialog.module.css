@@ -11,6 +11,10 @@
   color: var(--ink);
 }
 
+.dialog[data-tone='danger'] {
+  border-top-color: var(--danger);
+}
+
 .dialog::backdrop {
   background: color-mix(in srgb, var(--espresso) 45%, transparent);
 }

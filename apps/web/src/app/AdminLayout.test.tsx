@@ -61,7 +61,7 @@ function mount(path = '/admin/users') {
 }
 
 describe('UC-02.1/AC9 khung admin — Issue #59', () => {
-  it('drawer trong StrictMode giữ mở, Tab vòng kín và Escape trả focus/khôi phục cuộn', async () => {
+  it('UC-02.1/AC9 drawer trong StrictMode giữ mở, Tab vòng kín và Escape trả focus/khôi phục cuộn', async () => {
     media();
     document.documentElement.style.overflow = 'scroll';
     mount();
@@ -84,7 +84,7 @@ describe('UC-02.1/AC9 khung admin — Issue #59', () => {
     expect(opener).toHaveFocus();
     expect(document.documentElement.style.overflow).toBe('scroll');
   });
-  it('điều hướng trong drawer đóng hộp và giữ route hiện có', async () => {
+  it('UC-02.1/AC9 điều hướng trong drawer đóng hộp và giữ route hiện có', async () => {
     media();
     mount();
     const user = userEvent.setup();
@@ -95,7 +95,7 @@ describe('UC-02.1/AC9 khung admin — Issue #59', () => {
     expect(screen.getByRole('link', { name: 'Đơn hàng' })).toHaveAttribute('aria-current', 'page');
     expect(document.documentElement.style.overflow).not.toBe('hidden');
   });
-  it('đổi sang desktop và tháo layout đều dọn khóa cuộn, không giữ drawer mồ côi', async () => {
+  it('UC-02.1/AC9 đổi sang desktop và tháo layout đều dọn khóa cuộn, không giữ drawer mồ côi', async () => {
     const resize = media();
     const view = mount();
     const user = userEvent.setup();
@@ -122,7 +122,7 @@ describe('UC-02.1/AC9 khung admin — Issue #59', () => {
       expect(within(breadcrumb).getByText('Sản phẩm')).toHaveAttribute('aria-current', 'page');
     },
   );
-  it('chỉ có menu đã hoạt động và tài khoản từ phiên, không thêm chức năng mẫu', () => {
+  it('UC-02.1/AC9 chỉ có menu đã hoạt động và tài khoản từ phiên, không thêm chức năng mẫu', () => {
     media();
     mount();
     const nav = within(screen.getByRole('complementary')).getByRole('navigation');

@@ -1,0 +1,103 @@
+/* Trang tổng quan admin: composes từ AdminKit, phong cách thẻ quản trị F.R.E.Y.A. */
+.page {
+  composes: page from '../../../ui/AdminKit.module.css';
+}
+
+.header {
+  composes: header from '../../../ui/AdminKit.module.css';
+}
+
+.eyebrow {
+  composes: eyebrow from '../../../ui/AdminKit.module.css';
+}
+
+.headingRow {
+  composes: headingRow from '../../../ui/AdminKit.module.css';
+}
+
+.title {
+  composes: title from '../../../ui/AdminKit.module.css';
+}
+
+.description {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 340px));
+  gap: 20px;
+  min-width: 0;
+}
+
+.statCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--espresso) 4%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .statCard {
+    transition: border-color 0.15s var(--ease);
+  }
+}
+
+.statCard:hover {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+}
+
+.statHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.statLabel {
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.statValue {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 36px;
+  font-weight: 600;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+
+.statNote {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 720px) {
+  .statGrid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .statCard {
+    padding: 20px 16px;
+  }
+
+  .statValue {
+    font-size: 30px;
+  }
+}

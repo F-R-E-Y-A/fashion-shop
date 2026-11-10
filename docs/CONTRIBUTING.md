@@ -74,7 +74,7 @@ Một dòng việc chỉ được coi là xong khi đủ hết, không cắt b�
 - Có kiểm thử cho phần lõi, tên bài ghi mã tiêu chí chấp nhận dạng `UC-NN.m/ACk`.
 - Tài liệu của feature trong `docs/features/<module>/` đã cập nhật, `npm run docs:lint` sạch.
 - Chạy được trên máy người khác sau khi kéo về.
-- Pull request được người khác duyệt và CI xanh cả sáu chặng.
+- Pull request được người khác duyệt và CI xanh cả bảy chặng theo [workflow CI](../.github/workflows/ci.yml), gồm E2E Playwright.
 
 ## Nhịp làm việc
 
