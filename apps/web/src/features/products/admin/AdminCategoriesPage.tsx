@@ -124,7 +124,7 @@ export function AdminCategoriesPage() {
                 return (
                   <Fragment key={root.id}>
                     <tr className={styles.rootRow} data-testid={`category-row-${root.slug}`}>
-                      <td>
+                      <td data-label="Tên danh mục">
                         <Link
                           to={`/admin/categories/${encodeURIComponent(root.id)}`}
                           className={styles.categoryLink}
@@ -132,7 +132,7 @@ export function AdminCategoriesPage() {
                           {root.name}
                         </Link>
                       </td>
-                      <td>
+                      <td data-label="Trạng thái">
                         <span
                           className={`${styles.badge} ${
                             rootBadge.variant === 'active' ? styles.badgeActive : styles.badgeHidden
@@ -141,13 +141,13 @@ export function AdminCategoriesPage() {
                           {rootBadge.text}
                         </span>
                       </td>
-                      <td className={styles.countColumn}>
+                      <td data-label="Sản phẩm trực tiếp" className={styles.countColumn}>
                         <span className={styles.countValue}>{root.productCount}</span>
                       </td>
-                      <td className={styles.countColumn}>
+                      <td data-label="Tổng cả nhánh" className={styles.countColumn}>
                         <span className={styles.countValue}>{root.subtreeProductCount}</span>
                       </td>
-                      <td>
+                      <td data-label="Thao tác">
                         <div className={styles.actions}>
                           <button
                             type="button"
@@ -183,7 +183,7 @@ export function AdminCategoriesPage() {
                           className={styles.childRow}
                           data-testid={`category-row-${child.slug}`}
                         >
-                          <td>
+                          <td data-label="Tên danh mục">
                             <div className={styles.categoryNameCell}>
                               <span className={styles.indent} aria-hidden="true" />
                               <Link
@@ -194,7 +194,7 @@ export function AdminCategoriesPage() {
                               </Link>
                             </div>
                           </td>
-                          <td>
+                          <td data-label="Trạng thái">
                             <span
                               className={`${styles.badge} ${
                                 childBadge.variant === 'active'
@@ -207,13 +207,13 @@ export function AdminCategoriesPage() {
                               {childBadge.text}
                             </span>
                           </td>
-                          <td className={styles.countColumn}>
+                          <td data-label="Sản phẩm trực tiếp" className={styles.countColumn}>
                             <span className={styles.countValue}>{child.productCount}</span>
                           </td>
-                          <td className={styles.countColumn}>
+                          <td data-label="Tổng cả nhánh" className={styles.countColumn}>
                             <span className={styles.countValue}>{child.subtreeProductCount}</span>
                           </td>
-                          <td>
+                          <td data-label="Thao tác">
                             <div className={styles.actions}>
                               <button
                                 type="button"

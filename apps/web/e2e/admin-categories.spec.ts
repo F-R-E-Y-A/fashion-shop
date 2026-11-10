@@ -55,6 +55,24 @@ for (const viewport of [
     await expect(page.getByText('Đã ẩn danh mục "Áo" thành công.')).toBeVisible();
     await expect(aoRow.getByRole('button', { name: 'Hiện danh mục Áo' })).toBeVisible();
 
+    if (viewport.width === 360) {
+      // overflow:hidden co the cat cot ma document.scrollWidth van hop le.
+      // Kiem ca ten, so dem va thao tac van nam trong khung, khong chi do rong trang.
+      const visibleTargets = [
+        aoRow.getByRole('link', { name: 'Áo', exact: true }),
+        aoRow.getByRole('button', { name: 'Hiện danh mục Áo' }),
+        aoRow.locator('td[data-label="Sản phẩm trực tiếp"]'),
+        aoRow.locator('td[data-label="Tổng cả nhánh"]'),
+      ];
+      for (const target of visibleTargets) {
+        await expect(target).toBeVisible();
+        const box = await target.boundingBox();
+        expect(box).not.toBeNull();
+        expect(box!.x).toBeGreaterThanOrEqual(0);
+        expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width);
+      }
+    }
+
     // Chụp ảnh bằng chứng
     await testInfo.attach(`category-hidden-${viewport.width}px`, {
       body: await page.screenshot(),

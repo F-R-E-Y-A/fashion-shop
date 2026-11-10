@@ -230,7 +230,7 @@ export function AdminCategoryDetailPage() {
                 const childBadge = categoryVisibilityBadge(child);
                 return (
                   <tr key={child.id} data-testid={`child-row-${child.slug}`}>
-                    <td>
+                    <td data-label="Tên danh mục con">
                       <Link
                         to={`/admin/categories/${encodeURIComponent(child.id)}`}
                         className={styles.categoryLink}
@@ -238,7 +238,7 @@ export function AdminCategoryDetailPage() {
                         {child.name}
                       </Link>
                     </td>
-                    <td>
+                    <td data-label="Trạng thái">
                       <span
                         className={`${styles.badge} ${
                           childBadge.variant === 'active'
@@ -251,8 +251,8 @@ export function AdminCategoryDetailPage() {
                         {childBadge.text}
                       </span>
                     </td>
-                    <td>{child.productCount}</td>
-                    <td style={{ textAlign: 'right' }}>
+                    <td data-label="Sản phẩm trực tiếp">{child.productCount}</td>
+                    <td data-label="Chi tiết" style={{ textAlign: 'right' }}>
                       <Link
                         to={`/admin/categories/${encodeURIComponent(child.id)}`}
                         className={styles.categoryLink}
