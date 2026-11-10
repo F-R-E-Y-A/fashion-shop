@@ -11,6 +11,7 @@ import type { ImportProductRow, ImportRowResult } from './import/import.types.js
 import { ImportRowError } from './import/import-row.error.js';
 import { sourceSlug } from './import/slug.js';
 import { validateRow } from './import/validate-row.js';
+import { importedContent } from './product-content.js';
 import { lockProductStatus, productStatusChange } from './product-status.js';
 import { audienceFrom } from './search/audience.js';
 import { withProductStock } from './stock.js';
@@ -178,6 +179,7 @@ export class ProductsService {
           where: { id: existingProductId },
           data: {
             ...productData,
+            ...importedContent(status!, productData),
             ...productStatusChange(status!, status!.adminDisabled, row.images.length > 0),
           },
         })

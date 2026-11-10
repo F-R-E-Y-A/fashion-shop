@@ -26,6 +26,8 @@ export const product: AdminCatalogDetail = {
   isActive: false,
   adminDisabled: false,
   statusVersion: 0,
+  contentVersion: 0,
+  adminContentFields: [],
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-02T00:00:00Z',
   imageUrl: null,
@@ -135,6 +137,42 @@ export function backend() {
         };
         state.products = state.products.map((p) => (p.id === updated.id ? updated : p));
         return reply(updated);
+      }
+      if (url.pathname === `/api/admin/products/${product.id}/content` && r.method === 'PATCH') {
+        const current = state.products.find((p) => p.id === product.id) ?? product;
+        const body = r.body as {
+          name: string;
+          description: string | null;
+          material: string | null;
+          careInstructions: string | null;
+          expectedVersion: number;
+        };
+        if (body.expectedVersion !== current.contentVersion) return failure(409);
+        const changedFields = (
+          ['name', 'description', 'material', 'careInstructions'] as const
+        ).filter((f) => current[f] !== body[f]);
+        const isNoOp = changedFields.length === 0;
+        const updated = {
+          ...current,
+          name: body.name,
+          description: body.description,
+          material: body.material,
+          careInstructions: body.careInstructions,
+          contentVersion: isNoOp ? current.contentVersion : current.contentVersion + 1,
+          adminContentFields: Array.from(
+            new Set([...current.adminContentFields, ...changedFields]),
+          ),
+        };
+        state.products = state.products.map((p) => (p.id === updated.id ? updated : p));
+        return reply({
+          id: updated.id,
+          name: updated.name,
+          description: updated.description,
+          material: updated.material,
+          careInstructions: updated.careInstructions,
+          contentVersion: updated.contentVersion,
+          adminContentFields: updated.adminContentFields,
+        });
       }
       if (url.pathname === `/api/admin/products/${product.id}`)
         return reply(state.products.find((p) => p.id === product.id) ?? product);
