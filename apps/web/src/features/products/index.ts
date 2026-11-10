@@ -45,3 +45,11 @@ export const AdminCatalogPage = lazy(() =>
 export const AdminCatalogDetailPage = lazy(() =>
   import('./admin/AdminCatalogDetailPage.js').then((m) => ({ default: m.AdminCatalogDetailPage })),
 );
+export const AdminCategoriesPage = lazy(() =>
+  import('./admin/AdminCategoriesPage.js').then((m) => ({ default: m.AdminCategoriesPage })),
+);
+export const AdminCategoryDetailPage = lazy(() =>
+  import('./admin/AdminCategoryDetailPage.js').then((m) => ({
+    default: m.AdminCategoryDetailPage,
+  })),
+);

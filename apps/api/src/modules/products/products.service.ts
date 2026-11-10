@@ -11,6 +11,7 @@ import type { ImportProductRow, ImportRowResult } from './import/import.types.js
 import { ImportRowError } from './import/import-row.error.js';
 import { sourceSlug } from './import/slug.js';
 import { validateRow } from './import/validate-row.js';
+import { importedContent } from './product-content.js';
 import { lockProductStatus, productStatusChange } from './product-status.js';
 import { audienceFrom } from './search/audience.js';
 import { withProductStock } from './stock.js';
@@ -31,7 +32,12 @@ const detailProductInclude = {
 const cartVariantInclude = {
   color: true,
   size: true,
-  product: { include: { images: { orderBy: { sortOrder: 'asc' } } } },
+  product: {
+    include: {
+      category: { include: { parent: true } },
+      images: { orderBy: { sortOrder: 'asc' } },
+    },
+  },
 } as const;
 
 type CartVariant = Prisma.ProductVariantGetPayload<{ include: typeof cartVariantInclude }>;
@@ -178,6 +184,7 @@ export class ProductsService {
           where: { id: existingProductId },
           data: {
             ...productData,
+            ...importedContent(status!, productData),
             ...productStatusChange(status!, status!.adminDisabled, row.images.length > 0),
           },
         })
@@ -389,6 +396,9 @@ export class ProductsService {
       variant.color.code === 'mac-dinh' ? null : variant.color.name,
     ].filter((part): part is string => part !== null);
 
+    const category = variant.product.category;
+    const isCategoryActive = category.isActive && (!category.parent || category.parent.isActive);
+
     return {
       variantId: variant.id,
       productId: variant.productId,
@@ -397,7 +407,7 @@ export class ProductsService {
       variantLabel: labelParts.join(' / '),
       price: (variant.salePrice ?? variant.listPrice).toString(),
       imageUrl: image?.url ?? null,
-      isActive: variant.isActive && variant.product.isActive,
+      isActive: variant.isActive && variant.product.isActive && isCategoryActive,
     };
   }
 }

@@ -27,6 +27,8 @@ import {
 import {
   AdminCatalogDetailPage,
   AdminCatalogPage,
+  AdminCategoriesPage,
+  AdminCategoryDetailPage,
   AdminProductsPage,
   CategoryPage,
   HomePage,
@@ -133,6 +135,8 @@ export function AppRoutes() {
           <Route path="admin" element={<RequireAdmin />}>
             <Route element={<AdminLayout />}>
               <Route index element={<AdminProductsPage />} />
+              <Route path="categories" element={<AdminCategoriesPage />} />
+              <Route path="categories/:id" element={<AdminCategoryDetailPage />} />
               <Route path="products" element={<AdminCatalogPage />} />
               <Route path="products/:id" element={<AdminCatalogDetailPage />} />
               <Route path="users" element={<AdminUsersPage />} />

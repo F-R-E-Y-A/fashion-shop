@@ -19,6 +19,8 @@ vi.mock('@/features/products', () => ({
   ProductDetailPage: () => null,
   AdminCatalogPage: () => null,
   AdminCatalogDetailPage: () => null,
+  AdminCategoriesPage: () => null,
+  AdminCategoryDetailPage: () => null,
   AdminProductsPage: () => null,
 }));
 vi.mock('@/features/cart', () => ({
