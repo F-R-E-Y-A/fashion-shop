@@ -1,0 +1,184 @@
+.hero {
+  position: relative;
+  display: grid;
+  align-items: end;
+  min-height: clamp(620px, 88vh, 880px);
+  overflow: hidden;
+  background: var(--espresso);
+  color: var(--on-dark);
+}
+.image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  object-position: 68% 30%;
+  animation: zoom 16s var(--ease) both;
+}
+.hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgb(20 13 8 / 0.84) 0%, rgb(20 13 8 / 0.52) 40%, rgb(20 13 8 / 0) 72%),
+    linear-gradient(0deg, rgb(20 13 8 / 0.6), rgb(20 13 8 / 0) 45%);
+}
+.inner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  /* Mot cot co the co lai: neu khong, o tim kiem day cot rong ra ngoai man hinh 360 px. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+  width: 100%;
+  max-width: var(--container);
+  margin-inline: auto;
+  padding-block: calc(var(--header-h, 78px) + 40px) clamp(40px, 7vw, 90px);
+  padding-inline: var(--gutter);
+}
+.inner > * {
+  max-width: 800px;
+}
+.title {
+  margin: 0;
+  font-size: var(--s5);
+  /* Dong mot dam hon dong hai de co do tuong phan; chu nghieng dong hai la italic THAT cua
+     Playfair Display (truc ital nap trong index.html), khong con gia nghieng cua trinh duyet. */
+  font-weight: 500;
+  line-height: 1.04;
+  text-wrap: balance;
+}
+.title span {
+  display: block;
+  animation: rise 0.9s var(--ease) both;
+}
+.title span + span {
+  animation-delay: 0.12s;
+}
+.title em {
+  color: var(--amber-glow);
+  font-style: italic;
+  font-weight: 400;
+}
+.sub {
+  margin: 0;
+  max-width: 48ch;
+  color: #eadfd2;
+  font-size: var(--s1);
+  font-weight: 300;
+}
+.form {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 6px 6px 18px;
+  border: 1px solid rgb(248 247 245 / 0.32);
+  border-radius: 999px;
+  background: rgb(248 247 245 / 0.08);
+  backdrop-filter: blur(12px);
+}
+.form svg {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  opacity: 0.8;
+}
+.form input {
+  flex: 1;
+  min-width: 0;
+  padding-block: 10px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--s1);
+}
+.form input::placeholder {
+  color: rgb(248 247 245 / 0.55);
+}
+.form input::-webkit-search-cancel-button {
+  filter: invert(1);
+  opacity: 0.6;
+}
+.form:focus-within {
+  border-color: var(--amber-glow);
+}
+.form button {
+  flex: none;
+  padding: 12px 22px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent-bright);
+  color: #fff;
+  font: inherit;
+  font-weight: 500;
+}
+.form button:hover {
+  background: var(--accent);
+}
+.hints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.hints a {
+  display: inline-block;
+  padding: 6px 14px;
+  border: 1px solid rgb(248 247 245 / 0.28);
+  border-radius: 999px;
+  font-size: var(--s-1);
+}
+.hints a:hover {
+  border-color: var(--amber-glow);
+  color: var(--amber-glow);
+}
+@keyframes zoom {
+  from {
+    transform: scale(1.08);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (max-width: 720px) {
+  .image {
+    object-position: 70% 12%;
+  }
+  .hero::after {
+    background: linear-gradient(
+      0deg,
+      rgb(20 13 8 / 0.95) 0%,
+      rgb(20 13 8 / 0.84) 46%,
+      rgb(20 13 8 / 0.3) 74%,
+      rgb(20 13 8 / 0.12) 100%
+    );
+  }
+  .sub {
+    display: none;
+  }
+  .hints li:nth-child(n + 4) {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .image,
+  .title span {
+    animation: none;
+  }
+}

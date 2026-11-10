@@ -6,10 +6,11 @@
 // Chay: node tools/eslint/verify-boundaries.mjs   (CI chay o job quality)
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { ESLint } from 'eslint';
 
-const here = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
+const here = path.dirname(fileURLToPath(import.meta.url));
 const repo = path.resolve(here, '../..');
 
 /** Moi muc: tep nguon trong fixtures -> vi tri tam trong cay ung dung, kem cac chuoi loi phai thay. */

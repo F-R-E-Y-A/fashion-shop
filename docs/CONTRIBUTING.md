@@ -61,7 +61,7 @@ Muốn thêm chỉ mục trên bảng người khác thì đề xuất kèm số
 5. Chép `modules/products`, đổi tên, giữ `index.ts` làm cửa. Đăng ký vào `app.module.ts`.
 6. Chép `features/products`, đổi tên. Thêm `Route` trong `app/routes.tsx`.
 7. Viết kiểm thử: một bài đơn vị cho service, một bài HTTP cho đường dẫn, một bài cho trang.
-8. Cập nhật tài liệu của feature trong `docs/features/<module>/`: `README.md` (trạng thái hôm nay), `use-cases.md` nếu nghiệp vụ đổi, `LOG.md` nếu có quyết định. Chép khung từ `docs/shared/templates/`. Thêm dòng sở hữu vào `.github/CODEOWNERS`.
+8. Cập nhật tài liệu của feature trong `docs/features/<module>/`: `README.md` (trạng thái hôm nay), `use-cases.md` nếu nghiệp vụ đổi, `LOG.md` nếu có quyết định. Chép khung từ `docs/shared/templates/`.
 9. `npm run check`, rồi mở pull request vào `develop`. Điền danh sách kiểm, và **viết `Closes #<số phiếu>` vào phần thân** để gộp xong phiếu tự đóng.
 
 ## Điều kiện hoàn thành
@@ -74,7 +74,7 @@ Một dòng việc chỉ được coi là xong khi đủ hết, không cắt b�
 - Có kiểm thử cho phần lõi, tên bài ghi mã tiêu chí chấp nhận dạng `UC-NN.m/ACk`.
 - Tài liệu của feature trong `docs/features/<module>/` đã cập nhật, `npm run docs:lint` sạch.
 - Chạy được trên máy người khác sau khi kéo về.
-- Pull request được người khác duyệt và CI xanh cả sáu chặng.
+- Pull request được người khác duyệt và CI xanh cả bảy chặng theo [workflow CI](../.github/workflows/ci.yml), gồm E2E Playwright.
 
 ## Nhịp làm việc
 

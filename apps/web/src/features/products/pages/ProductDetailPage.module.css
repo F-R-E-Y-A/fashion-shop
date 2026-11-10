@@ -1,0 +1,181 @@
+.container {
+  max-width: 1200px;
+  margin-inline: auto;
+  padding-inline: clamp(16px, 4vw, 56px);
+}
+.detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(28px, 5vw, 72px);
+}
+.gallery,
+.info {
+  min-width: 0;
+}
+.mainImage {
+  position: relative;
+  /* Vua mot khung hinh laptop: cap theo chieu cao man hinh thay vi ti le 3/4 cua ca cot,
+     anh to nhat cung chiem phan nhin duoc khong can cuon. */
+  height: min(72dvh, 760px);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: var(--surface);
+}
+.mainImage img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  cursor: zoom-in;
+}
+.galleryArrow {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  transform: translateY(-50%);
+  border: 1px solid rgb(255 255 255 / 72%);
+  border-radius: 50%;
+  background: rgb(255 255 255 / 88%);
+  color: var(--ink);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.galleryArrow:hover {
+  background: var(--ink);
+  color: var(--on-dark);
+}
+.galleryPrevious {
+  left: 16px;
+}
+.galleryNext {
+  right: 16px;
+}
+.imageFallback {
+  margin: 0;
+  padding: 24px;
+  color: var(--muted);
+  text-align: center;
+}
+.thumbnails {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  overflow-x: auto;
+}
+.thumbnails button {
+  flex: 0 0 76px;
+  width: 76px;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: none;
+  cursor: pointer;
+}
+.thumbnails button[aria-pressed='true'] {
+  border-color: var(--ink);
+}
+.thumbnails img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  display: block;
+}
+.eyebrow {
+  font-size: 0.7rem;
+  letter-spacing: var(--tracking-caps);
+  color: var(--muted);
+}
+.info h1 {
+  font-size: clamp(2.2rem, 4vw, 4rem);
+  line-height: 1.1;
+}
+.price {
+  font-size: 1.3rem;
+}
+.price s {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-left: 12px;
+}
+.description {
+  max-width: 65ch;
+  line-height: 1.7;
+  white-space: pre-line;
+}
+.sku {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.choices {
+  border: 0;
+  padding: 16px 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.choices legend {
+  float: left;
+  margin-right: 16px;
+  font-size: 0.8rem;
+}
+.choices button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  min-width: 38px;
+  min-height: 38px;
+  padding: 4px 10px;
+}
+.colorImage {
+  display: block;
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  object-fit: cover;
+}
+.choices button[aria-pressed='true'] {
+  border-color: var(--ink);
+}
+.choices button:disabled {
+  text-decoration: line-through;
+}
+.swatch {
+  display: block;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--swatch);
+  border: 1px solid var(--line);
+}
+.cart {
+  width: 100%;
+  margin: 24px 0 8px;
+  background: var(--ink);
+  color: var(--on-dark);
+}
+.related {
+  padding-block: 88px;
+}
+@media (max-width: 760px) {
+  .detail {
+    grid-template-columns: 1fr;
+  }
+  /* Man hinh hep: anh chinh thap hon de danh cho thong tin san pham ngay khung dau. */
+  .mainImage {
+    height: min(58dvh, 520px);
+  }
+}

@@ -1,0 +1,147 @@
+.shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(0, 11fr) minmax(0, 9fr);
+}
+
+/* Ben trai: cung art-direction "Gio Ho Phach" cua trang chu — anh am espresso,
+   chu sang, nhan amber. Chi la nen trang xac thuc nen khong chua tuong tac. */
+.panel {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(28px, 4vw, 64px);
+  color: var(--on-dark);
+  background:
+    linear-gradient(160deg, rgb(30 20 12 / 0.62), rgb(30 20 12 / 0.88)),
+    url('/images/brand/freya/symbol-espresso.png') center 30% / cover no-repeat,
+    var(--espresso);
+  overflow: hidden;
+}
+/* Vong sang mem o goc duoi, cung cam xuc voi hieu ung amber-glow cua hero. */
+.panel::after {
+  content: '';
+  position: absolute;
+  inset: auto -30% -45% -30%;
+  height: 70%;
+  background: radial-gradient(closest-side, rgb(219 163 108 / 0.28), transparent 70%);
+  z-index: -1;
+}
+
+.brandLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.brandSymbol {
+  display: block;
+  height: 34px;
+  width: auto;
+}
+.wordmark {
+  display: block;
+  height: 26px;
+  width: auto;
+}
+
+.message {
+  max-width: 30ch;
+}
+.message .slogan {
+  margin: 18px 0 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.6rem, 2.6vw, 2.6rem);
+  line-height: 1.25;
+}
+.message .sub {
+  margin: 10px 0 0;
+  color: var(--on-dark-muted);
+  font-size: var(--s0);
+  line-height: 1.6;
+}
+
+/* Ba loi ich hang dau, khong chenep bang icon thu vien: dung dau gach. */
+.perks {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--s-1);
+  letter-spacing: 0.05em;
+  color: var(--on-dark-muted);
+}
+.perks li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.perks li::before {
+  content: '';
+  width: 18px;
+  height: 1px;
+  background: var(--amber-glow);
+  flex: none;
+  transform: translateY(-3px);
+}
+
+/* Ben phai: nen sang, form canh giua theo mot truc doc. */
+.formSide {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: clamp(24px, 5vw, 64px) var(--gutter);
+  background: var(--bg);
+}
+.formSide > * {
+  width: min(400px, 100%);
+}
+
+/* Man hinh hep: bo panel trai, giu lai wordmark nho tren dinh form. */
+@media (max-width: 880px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+  .panel {
+    display: none;
+  }
+  .formSide {
+    position: relative;
+    align-items: flex-start;
+    padding-top: clamp(72px, 14vw, 120px);
+  }
+  .formSide::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: clamp(56px, 10vw, 88px);
+    background: var(--espresso);
+    mask-image: linear-gradient(var(--espresso) 62%, transparent);
+  }
+  .mobileBrand {
+    position: absolute;
+    top: 18px;
+    left: var(--gutter);
+    /* Logo absolute không dùng width 100% của form rồi cộng thêm left gutter. */
+    width: auto;
+    max-width: calc(100% - 2 * var(--gutter));
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--on-dark);
+  }
+  .mobileBrand img {
+    height: 22px;
+    width: auto;
+  }
+}
+@media (min-width: 881px) {
+  .mobileBrand {
+    display: none;
+  }
+}

@@ -1,0 +1,367 @@
+.shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  min-height: 78px;
+  padding: 0 clamp(16px, 4vw, 56px);
+  display: grid;
+  /* Hai cot ngoai theo noi dung, cot giua CO BOUND (minmax(0, 1fr)) nen menu danh muc phai xuong
+     dong khi het cho thay vi day cot ben canh tran len nhau — cot auto o giua la nguyen nhan header
+     chong lan o man hinh vua. */
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 24px;
+  border-bottom: 1px solid var(--line);
+  background: rgb(248 247 245 / 0.96);
+  backdrop-filter: blur(14px);
+  transition:
+    background-color 0.35s var(--ease),
+    color 0.35s var(--ease),
+    border-color 0.35s;
+}
+/* Trang chu: hero truot len duoi header (luon, ke ca khi header da dac mau) de khong nhay bo cuc. */
+.header[data-home='true'] {
+  margin-bottom: calc(-1 * var(--header-h, 78px));
+}
+/* Dau trang chu: header trong suot, chu sang tren anh hero. */
+.header[data-over-hero='true'] {
+  background: transparent;
+  backdrop-filter: none;
+  color: var(--on-dark);
+  border-bottom-color: transparent;
+  /* Nut tim kiem can nen mo nhe de doc duoc chu tren anh hero sang mau. */
+  --trigger-bg: rgb(20 13 8 / 0.32);
+}
+.header[data-over-hero='true'] .accountStatus {
+  color: inherit;
+  opacity: 0.8;
+}
+.brand {
+  justify-self: start;
+  /* Symbol + wordmark nam ngang, can giua theo chieu doc. */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* Hai asset CUNG chieu cao de can giua doc; chieu rong tu theo ti le viewBox da cat
+   (wordmark 32 px cao ~ 186 px rong, dung khung 144-200 px cua BRAND_GUIDE). */
+.brandSymbol,
+.wordmark {
+  display: block;
+  height: 32px;
+  width: auto;
+}
+.menu {
+  justify-self: center;
+  max-width: 100%;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  /* Chiem tron cot (khong co gian ra ngoai) de nut tim kiem co the co lai khi man hinh vua du.
+     Cho wrap de nhom tai khoan xuong dong khi hep chu khong trun len menu. */
+  row-gap: 10px;
+  justify-self: stretch;
+  justify-content: flex-end;
+  gap: clamp(20px, 3vw, 40px);
+  min-width: 0;
+}
+.account {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  row-gap: 6px;
+  gap: clamp(12px, 1.5vw, 24px);
+}
+.cart {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  color: inherit;
+}
+.cart svg {
+  width: 22px;
+  height: 22px;
+}
+.cart:hover {
+  color: var(--amber-glow);
+}
+.cartCount {
+  position: absolute;
+  top: -7px;
+  right: -10px;
+  min-width: 17px;
+  padding-inline: 4px;
+  border-radius: 999px;
+  background: var(--amber-glow);
+  color: var(--on-dark);
+  font-size: var(--s-1);
+  font-weight: 600;
+  line-height: 17px;
+  text-align: center;
+}
+.accountStatus {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+}
+
+/* ---- khach chua dang nhap: text link + nut dac ---- */
+.loginLink {
+  font-size: var(--s-1);
+}
+.registerBtn {
+  padding: 9px 18px;
+  background: var(--espresso);
+  color: var(--on-dark);
+  border-radius: var(--radius);
+  font-size: var(--s-1);
+  letter-spacing: 0.05em;
+  transition: background-color 0.2s var(--ease);
+}
+.registerBtn:hover {
+  background: var(--accent);
+}
+
+/* ---- menu tai khoan avatar ---- */
+.accountMenu {
+  position: relative;
+}
+.accountButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px 4px 4px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+.avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--espresso);
+  color: var(--on-dark);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  box-shadow: 0 0 0 1px var(--line);
+  transition: box-shadow 0.2s var(--ease);
+}
+.accountButton:hover .avatar,
+.accountButton[aria-expanded='true'] .avatar {
+  box-shadow: 0 0 0 2px var(--amber-glow);
+}
+.presenceDot {
+  position: absolute;
+  right: 0;
+  bottom: 1px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--amber-glow);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.chevron {
+  color: var(--muted);
+  font-size: 0.65rem;
+}
+
+/* Ten class phai KHAC .menu cua khoi DANH MUC o tren: CSS Module trong cung mot file dung
+   chung hash nen hai rule .menu se ap dung cho ca hai phan tu — bug da tung lam danh muc
+   bi keo xuong nhu dropdown. */
+.accountDropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 50;
+  display: grid;
+  min-width: min(264px, 86vw);
+  padding: 6px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 18px 48px rgb(17 17 17 / 0.16);
+  animation: menuIn 0.16s var(--ease);
+}
+@keyframes menuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+.menuHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--line);
+}
+.menuAvatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.menuEmail {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--s-1);
+  color: var(--ink-2);
+}
+.menuLink {
+  display: block;
+  width: 100%;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  font: inherit;
+  font-size: var(--s0);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+.menuLink:hover {
+  background: var(--surface);
+}
+.menuSeparator {
+  height: 1px;
+  margin: 6px 4px;
+  background: var(--line);
+}
+.menuLogout {
+  color: var(--danger);
+}
+@media (prefers-reduced-motion: reduce) {
+  .accountDropdown {
+    animation: none;
+  }
+}
+.main {
+  flex: 1;
+  min-width: 0;
+}
+.footer {
+  padding: 64px max(16px, calc((100vw - 1200px) / 2));
+  background: var(--espresso);
+  color: var(--on-dark);
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 32px;
+}
+.footer small {
+  grid-column: 1 / -1;
+  opacity: 0.7;
+}
+.footer p {
+  letter-spacing: var(--tracking-caps);
+}
+/* Cum nhan dien footer: logo day du + khau hieu cung can giua theo mot truc cua wrapper;
+   wrapper la khoi con cua cot nen tu can trai, khong can margin am hay dich symbol. */
+.footerBrand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+/* Logo day du o footer: rong 180-240 px theo BRAND_GUIDE. */
+.footerLogo {
+  display: block;
+  width: clamp(180px, 16vw, 240px);
+  height: auto;
+}
+/* Khau hieu la cau tieng Viet co dau: sentence case, khong tracking-caps nhu nhan DANH MUC. */
+.footer .slogan {
+  letter-spacing: normal;
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+@media (prefers-reduced-motion: reduce) {
+  .header {
+    transition: none;
+  }
+}
+@media (max-width: 880px) {
+  .header {
+    /* Cot actions co gioi han tren (1fr) de nhom tai khoan phai xuong dong khi hep, khong tran vao brand. */
+    grid-template-columns: auto minmax(0, 1fr);
+    row-gap: 14px;
+    padding-block: 14px;
+  }
+  .brand {
+    gap: 8px;
+  }
+  /* Thu nho cum symbol + wordmark de danh cho actions o man hinh hep. */
+  .brandSymbol,
+  .wordmark {
+    height: 26px;
+  }
+  .menu {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .actions {
+    grid-column: 2;
+    grid-row: 1;
+    gap: 12px;
+  }
+  .account {
+    min-width: 0;
+    gap: 10px;
+  }
+  .accountStatus {
+    max-width: 110px;
+  }
+  .footer {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Dien thoai nho (<520px): bo wordmark, chi giu symbol — cum brand con ~30px, cot actions
+   du cho nhom tai khoan xuong dong khong tran chu. Footer giam padding_doc va logo. */
+@media (max-width: 520px) {
+  .header {
+    gap: 12px;
+  }
+  .wordmark {
+    display: none;
+  }
+  .brandSymbol {
+    height: 30px;
+  }
+  .brand {
+    gap: 6px;
+  }
+  .accountStatus {
+    max-width: 90px;
+  }
+  .footer {
+    padding-block: 44px;
+    gap: 24px;
+  }
+  .footerLogo {
+    width: clamp(150px, 20vw, 200px);
+  }
+}

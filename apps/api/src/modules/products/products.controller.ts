@@ -1,9 +1,15 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query, Sse } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+import { CatalogEventsService } from './catalog-events.service.js';
 import { ListProductsQuery } from './dto/list-products.query.js';
 import { ProductListResponse, ProductResponse } from './dto/product.response.js';
+import { ProductDetailResponse } from './dto/product-detail.response.js';
+import { ProductSlugParam } from './dto/product-slug.param.js';
+import { RelatedProductsQuery } from './dto/related-products.query.js';
 import { ProductsService } from './products.service.js';
+import { CatalogSearchService } from './search/catalog-search.service.js';
+import { usesSearchEngine } from './search/uses-search-engine.js';
 
 /**
  * Quy uoc duong dan chung cua du an:
@@ -17,19 +23,43 @@ import { ProductsService } from './products.service.js';
 @ApiTags('products')
 @Controller('products')
 export class ProductsController {
-  constructor(private readonly products: ProductsService) {}
+  constructor(
+    private readonly products: ProductsService,
+    private readonly catalog: CatalogSearchService,
+    private readonly events: CatalogEventsService,
+  ) {}
+
+  @Sse('events')
+  @ApiOperation({ summary: 'Theo doi thay doi gia va ton kha dung (SSE)' })
+  stream() {
+    return this.events.events;
+  }
 
   @Get()
-  @ApiOperation({ summary: 'Liet ke san pham dang ban, co phan trang' })
+  @ApiOperation({
+    summary: 'Liet ke san pham dang ban, co phan trang; tim kiem, loc va so dem bo loc',
+    description:
+      'Co search, audience, categories, colors, sizes, minPrice, maxPrice, facets hoac sort=relevance thi di duong tim kiem (UC-03.2, UC-03.3); khong co thi liet ke co ban.',
+  })
   @ApiOkResponse({ type: ProductListResponse })
   list(@Query() query: ListProductsQuery): Promise<ProductListResponse> {
-    return this.products.list(query);
+    return usesSearchEngine(query) ? this.catalog.list(query) : this.products.list(query);
+  }
+
+  @Get(':slug/related')
+  @ApiOperation({ summary: 'Sản phẩm cùng danh mục' })
+  @ApiOkResponse({ type: ProductResponse, isArray: true })
+  related(
+    @Param() { slug }: ProductSlugParam,
+    @Query() { limit }: RelatedProductsQuery,
+  ): Promise<ProductResponse[]> {
+    return this.products.related(slug, limit);
   }
 
   @Get(':slug')
-  @ApiOperation({ summary: 'Xem mot san pham theo duong dan rut gon' })
-  @ApiOkResponse({ type: ProductResponse })
-  findOne(@Param('slug') slug: string): Promise<ProductResponse> {
+  @ApiOperation({ summary: 'Chi tiết sản phẩm theo slug' })
+  @ApiOkResponse({ type: ProductDetailResponse })
+  findOne(@Param() { slug }: ProductSlugParam): Promise<ProductDetailResponse> {
     return this.products.findBySlug(slug);
   }
 }

@@ -1,0 +1,377 @@
+import { Logger } from '@nestjs/common';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { Prisma } from '../../../generated/prisma/client.js';
+import type { PrismaService } from '../../../infra/prisma/prisma.service.js';
+import type { InventoryService } from '../../inventory/index.js';
+import { ListProductsQuery } from '../dto/list-products.query.js';
+import { CATALOG_MAX_AGE_MS, CatalogSearchService } from './catalog-search.service.js';
+import { DEFAULT_DICTIONARY } from './dictionary.js';
+import type { SearchDictionaryService } from './search-dictionary.service.js';
+import type { SemanticIndexService } from './semantic/semantic-index.service.js';
+
+const D = (value: string) => new Prisma.Decimal(value);
+
+const AO = { slug: 'ao', name: 'Áo', sortOrder: 1 };
+const QUAN = { slug: 'quan', name: 'Quần', sortOrder: 2 };
+const PHU_KIEN = { slug: 'phu-kien', name: 'Phụ kiện', sortOrder: 3 };
+
+const variant = (colorName: string, sizeCode: string, sizeOrder: number, colorCode?: string) => ({
+  listPrice: D('49000'),
+  salePrice: null,
+  color: { code: colorCode ?? colorName.toLowerCase(), name: colorName },
+  size: { code: sizeCode, sortOrder: sizeOrder },
+});
+
+const product = (
+  o: Partial<{
+    id: string;
+    name: string;
+    audience: string | null;
+    priceFrom: string;
+    isFeatured: boolean;
+    category: { slug: string; name: string; sortOrder: number; parent: typeof AO | null };
+    variants: ReturnType<typeof variant>[];
+    description: string | null;
+  }> &
+    Pick<{ id: string; name: string }, 'id' | 'name'>,
+) => ({
+  slug: o.id,
+  description: null,
+  priceFrom: D(o.priceFrom ?? '49000'),
+  isFeatured: false,
+  audience: 'nu',
+  category: { slug: 'ao-thun', name: 'Áo thun', sortOrder: 1, parent: AO },
+  brand: null,
+  images: [
+    { url: `https://example.test/${o.id}-1.jpg` },
+    { url: `https://example.test/${o.id}-2.jpg` },
+  ],
+  ...o,
+  variants: (o.variants ?? [variant('Trắng', 'M', 30)]).map((v) => ({
+    ...v,
+    listPrice: D(o.priceFrom ?? '49000'),
+  })),
+  priceFromDecimal: undefined,
+});
+
+const CATALOG = [
+  product({
+    id: 'p1',
+    name: 'Áo Polo Nữ Coolmax Thoáng Mát',
+    isFeatured: true,
+    variants: [variant('Trắng', 'M', 30), variant('Đen', 'S', 20)],
+  }),
+  product({
+    id: 'p2',
+    name: 'Áo Polo Nam Airycool Phối Nẹp',
+    audience: 'nam',
+    priceFrom: '299000',
+    variants: [variant('Xanh navy', 'L', 40)],
+  }),
+  product({
+    id: 'p3',
+    name: 'Áo Sơ Mi Nữ Lụa Tay Dài',
+    priceFrom: '149000',
+    category: { slug: 'ao-so-mi', name: 'Áo sơ mi', sortOrder: 2, parent: AO },
+    variants: [variant('Kem', 'M', 30)],
+  }),
+  product({
+    id: 'p4',
+    name: 'Quần Tây Nữ Ống Rộng',
+    priceFrom: '199000',
+    category: { slug: 'quan-dai', name: 'Quần dài', sortOrder: 1, parent: QUAN },
+    variants: [variant('Đen', 'M', 30)],
+  }),
+  product({
+    id: 'p5',
+    name: 'Thắt Lưng Da Bò',
+    audience: 'nam',
+    category: { slug: 'that-lung', name: 'Thắt lưng', sortOrder: 2, parent: PHU_KIEN },
+    variants: [variant('Mặc định', 'FREE', 900, 'mac-dinh')],
+  }),
+];
+
+const query = (overrides: Partial<ListProductsQuery> = {}): ListProductsQuery =>
+  Object.assign(new ListProductsQuery(), overrides);
+
+/** Mac dinh tim kiem ngu nghia tat, nhu SEARCH_SEMANTIC=off. */
+const semanticOff = {
+  enabled: false,
+  scores: async (): Promise<Map<string, number> | null> => null,
+  refresh: async (): Promise<void> => undefined,
+};
+
+function make(semantic: Partial<typeof semanticOff> = {}) {
+  const findMany = vi.fn().mockResolvedValue(CATALOG);
+  const create = vi.fn().mockResolvedValue({});
+  const prisma = { product: { findMany }, searchQueryLog: { create } };
+  const dictionary = { get: vi.fn().mockResolvedValue(DEFAULT_DICTIONARY) };
+  const service = new CatalogSearchService(
+    prisma as unknown as PrismaService,
+    dictionary as unknown as SearchDictionaryService,
+    { getStockStatuses: vi.fn(async () => new Map()) } as unknown as InventoryService,
+    { ...semanticOff, ...semantic } as unknown as SemanticIndexService,
+  );
+  return { service, findMany, create };
+}
+
+describe('CatalogSearchService.list', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+  });
+
+  it('UC-03.3 khong co search thi khong tra interpretation, relaxed, facets va khong ghi nhat ky', async () => {
+    const { service, create } = make();
+    const res = await service.list(query({ audience: 'nu' }));
+    expect(res.total).toBe(3);
+    expect(res).not.toHaveProperty('interpretation');
+    expect(res).not.toHaveProperty('relaxed');
+    expect(res).not.toHaveProperty('facets');
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('UC-03.2 co search thi tra interpretation va relaxed, ghi nhat ky khong cho', async () => {
+    const { service, create } = make();
+    const res = await service.list(query({ search: 'polo nữ' }));
+    expect(res.items.map((i) => i.id)).toEqual(['p1']);
+    expect(res.interpretation?.chips.map((c) => c.kind)).toEqual(['style', 'audience']);
+    expect(res.relaxed).toEqual([]);
+    expect(create).toHaveBeenCalledWith({ data: { queryText: 'polo nữ', resultCount: 1 } });
+  });
+
+  it('UC-03.2 log=false thi khong ghi nhat ky nhung van tra interpretation', async () => {
+    const { service, create } = make();
+    const res = await service.list(query({ search: 'polo nữ', log: false }));
+    expect(res.interpretation).toBeDefined();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('UC-03.2 nhat ky luu cau da chuan hoa, cat 120 ky tu, loi ghi khong lam hong cau tra loi', async () => {
+    const { service, create } = make();
+    create.mockRejectedValue(new Error('DB chet'));
+    const long = `  POLO ${'x'.repeat(200)}  `;
+    const res = await service.list(query({ search: long.trim() }));
+    expect(res).toBeDefined();
+    const data = (create.mock.calls[0]?.[0] as { data: { queryText: string } }).data;
+    expect(data.queryText).toHaveLength(120);
+    expect(data.queryText.startsWith('polo x')).toBe(true);
+    await Promise.resolve();
+  });
+
+  it('UC-03.1/AC4 phan trang cat tren danh sach da loc, total la tong truoc khi cat', async () => {
+    const { service } = make();
+    const first = await service.list(query({ audience: 'nu', page: 1, pageSize: 2 }));
+    const second = await service.list(query({ audience: 'nu', page: 2, pageSize: 2 }));
+    expect(first).toMatchObject({ total: 3, page: 1, pageSize: 2, totalPages: 2 });
+    expect(first.items).toHaveLength(2);
+    expect(second.items).toHaveLength(1);
+    expect(new Set([...first.items, ...second.items].map((i) => i.id)).size).toBe(3);
+  });
+
+  it('UC-03.1 categorySlug cha keo theo danh muc con', async () => {
+    const { service } = make();
+    const res = await service.list(query({ categorySlug: 'ao', pageSize: 60 }));
+    expect(res.items.map((i) => i.id).sort()).toEqual(['p1', 'p2', 'p3']);
+  });
+
+  it('UC-03.1 the san pham co anh thu hai, chip mau, so mau; mau mac dinh khong tinh', async () => {
+    const { service } = make();
+    const res = await service.list(query({ audience: 'nam', pageSize: 60 }));
+    const polo = res.items.find((i) => i.id === 'p2');
+    expect(polo).toMatchObject({
+      hoverImageUrl: 'https://example.test/p2-2.jpg',
+      colorSwatches: ['#23304d'],
+      colorCount: 1,
+    });
+    const belt = res.items.find((i) => i.id === 'p5');
+    expect(belt).toMatchObject({ colorSwatches: [], colorCount: 0 });
+  });
+
+  it('UC-03.3 facets=true tra mang co dem, chi lua chon con san pham, co xep theo thu tu', async () => {
+    const { service } = make();
+    const res = await service.list(query({ facets: true, pageSize: 60 }));
+    const f = res.facets;
+    expect(f?.audience).toEqual([
+      { value: 'nu', count: 3 },
+      { value: 'nam', count: 2 },
+    ]);
+    // Cha roi den con, cac goc theo sort_order; danh muc rong khong xuat hien.
+    expect(f?.categories.map((c) => c.slug)).toEqual([
+      'ao',
+      'ao-thun',
+      'ao-so-mi',
+      'quan',
+      'quan-dai',
+      'phu-kien',
+      'that-lung',
+    ]);
+    expect(f?.categories.find((c) => c.slug === 'ao')).toMatchObject({
+      parentSlug: null,
+      count: 3,
+    });
+    expect(f?.categories.find((c) => c.slug === 'ao-thun')).toMatchObject({
+      parentSlug: 'ao',
+      count: 2,
+    });
+    // Ho mau co san pham; "khac" khong xuat hien vi mau mac dinh khong tinh.
+    expect(f?.colors.map((c) => c.family)).toEqual(['den', 'trang', 'navy', 'be']);
+    expect(f?.colors[0]).toMatchObject({ label: 'Đen', hex: '#1d1814', count: 2 });
+    // Co xep theo sort_order cua co: S 20, M 30, L 40, FREE 900.
+    expect(f?.sizes.map((s) => s.code)).toEqual(['S', 'M', 'L', 'FREE']);
+    expect(f?.price.every((p) => p.count > 0)).toBe(true);
+  });
+
+  it('UC-03.3 lua chon dang chon van hien du count = 0', async () => {
+    const { service } = make();
+    const res = await service.list(query({ facets: true, colors: ['hong'], pageSize: 60 }));
+    expect(res.total).toBe(0);
+    expect(res.facets?.colors.find((c) => c.family === 'hong')).toMatchObject({ count: 0 });
+  });
+});
+
+describe('CatalogSearchService.suggest', () => {
+  it('UC-03.2 tra toi da 5 san pham, danh muc dem tren ket qua va cau goi y co ket qua', async () => {
+    const { service, create } = make();
+    const res = await service.suggest('polo');
+    expect(res.total).toBe(2);
+    expect(res.products.map((p) => p.id)).toEqual(['p1', 'p2']);
+    expect(res.categories).toEqual([{ slug: 'ao-thun', name: 'Áo thun', count: 2 }]);
+    expect(res.interpretation.chips[0]).toMatchObject({ kind: 'style', source: 'polo' });
+    expect(res.relaxed).toEqual([]);
+    expect(res.queries.length).toBeLessThanOrEqual(4);
+    expect(res.queries.map((q) => q.text)).toContain('áo polo');
+    // Goi y chua phai tim kiem that: khong ghi nhat ky.
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('UC-03.2 cau goi y khong lap lai chinh cau da go va chi giu cau co ket qua', async () => {
+    const { service } = make();
+    const res = await service.suggest('áo sơ mi');
+    expect(res.queries.map((q) => q.text)).not.toContain('áo sơ mi');
+    expect(res.queries.every((q) => q.count > 0)).toBe(true);
+  });
+});
+
+describe('CatalogSearchService.list: gop hang ngu nghia (ADR-048)', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+  });
+
+  it('UC-03.2/AC5 co diem ngu nghia thi ranking hybrid; options.semantic=false buoc chi luat', async () => {
+    const scores = vi.fn(async () => new Map(CATALOG.map((p) => [p.id, 0.8])));
+    const { service } = make({ enabled: true, scores });
+    const hybrid = await service.list(query({ search: 'áo mặc đi chơi', log: false }));
+    expect(hybrid.ranking).toBe('hybrid');
+    const rules = await service.list(query({ search: 'áo mặc đi chơi', log: false }), {
+      semantic: false,
+    });
+    expect(rules.ranking).toBe('rules');
+    expect(scores).toHaveBeenCalledTimes(1);
+  });
+
+  it('UC-03.2/AC7 bo nhung tra null (tat, loi, qua han) thi ranking rules va van co ket qua', async () => {
+    const { service } = make();
+    const r = await service.list(query({ search: 'áo mặc đi chơi', log: false }));
+    expect(r.ranking).toBe('rules');
+    expect(r.total).toBeGreaterThan(0);
+  });
+
+  it('UC-03.2/AC9 khong co search thi khong goi bo nhung, khong co truong ranking', async () => {
+    const scores = vi.fn(async () => null);
+    const { service } = make({ enabled: true, scores });
+    const r = await service.list(query({ audience: 'nu' }));
+    expect(scores).not.toHaveBeenCalled();
+    expect(r.ranking).toBeUndefined();
+  });
+});
+
+/** Prisma gia co $queryRaw doc catalog_revision_seq; revision() tra gia tri hien tai hoac nem loi. */
+function makeCached(revision: () => string) {
+  const findMany = vi.fn().mockResolvedValue(CATALOG);
+  const queryRaw = vi.fn(async () => [{ value: revision() }]);
+  const getStockStatuses = vi.fn(async (_rows: { id: string }[]) => new Map());
+  const prisma = {
+    product: { findMany },
+    searchQueryLog: { create: vi.fn().mockResolvedValue({}) },
+    $queryRaw: queryRaw,
+  };
+  const service = new CatalogSearchService(
+    prisma as unknown as PrismaService,
+    { get: vi.fn().mockResolvedValue(DEFAULT_DICTIONARY) } as unknown as SearchDictionaryService,
+    { getStockStatuses } as unknown as InventoryService,
+    semanticOff as unknown as SemanticIndexService,
+  );
+  return { service, findMany, queryRaw, getStockStatuses };
+}
+
+describe('CatalogSearchService: cache catalog theo catalog_revision_seq', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+  });
+
+  it('cung revision trong han thi chi nap catalog mot lan', async () => {
+    const { service, findMany } = makeCached(() => '7:t');
+    await service.list(query({ audience: 'nu' }));
+    await service.list(query({ search: 'polo', log: false }));
+    await service.suggest('polo');
+    expect(findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('revision doi thi nap lai, ket qua theo du lieu moi', async () => {
+    let rev = '7:t';
+    const { service, findMany } = makeCached(() => rev);
+    expect((await service.list(query())).total).toBe(5);
+    findMany.mockResolvedValue(CATALOG.slice(0, 2));
+    rev = '8:t';
+    expect((await service.list(query())).total).toBe(2);
+    expect(findMany).toHaveBeenCalledTimes(2);
+  });
+
+  it('qua CATALOG_MAX_AGE_MS thi nap lai du revision khong doi', async () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    const { service, findMany } = makeCached(() => '7:t');
+    await service.list(query());
+    now.mockReturnValue(1_000_000 + CATALOG_MAX_AGE_MS - 1);
+    await service.list(query());
+    expect(findMany).toHaveBeenCalledTimes(1);
+    now.mockReturnValue(1_000_000 + CATALOG_MAX_AGE_MS);
+    await service.list(query());
+    expect(findMany).toHaveBeenCalledTimes(2);
+  });
+
+  it('nhieu request cung luc khi chua co cache thi dung chung mot lan nap', async () => {
+    const { service, findMany } = makeCached(() => '7:t');
+    await Promise.all(Array.from({ length: 14 }, () => service.list(query({ pageSize: 3 }))));
+    expect(findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('khong doc duoc sequence thi nap moi moi lan, khong cache', async () => {
+    const { service, findMany } = makeCached(() => {
+      throw new Error('relation "catalog_revision_seq" does not exist');
+    });
+    const r = await service.list(query());
+    await service.list(query());
+    expect(r.total).toBe(5);
+    expect(findMany).toHaveBeenCalledTimes(2);
+  });
+
+  it('lan nap loi thi khong luu cache, lan sau nap lai', async () => {
+    const { service, findMany } = makeCached(() => '7:t');
+    findMany.mockRejectedValueOnce(new Error('db down'));
+    await expect(service.list(query())).rejects.toThrow('db down');
+    expect((await service.list(query())).total).toBe(5);
+    expect(findMany).toHaveBeenCalledTimes(2);
+  });
+
+  it('chi hoi ton kho cho san pham tren trang, khong cho ca catalog', async () => {
+    const { service, getStockStatuses } = makeCached(() => '7:t');
+    const r = await service.list(query({ pageSize: 2 }));
+    const asked = getStockStatuses.mock.calls[0]?.[0] ?? [];
+    expect(asked.map((row) => row.id)).toEqual(r.items.map((item) => item.id));
+    expect(asked).toHaveLength(2);
+  });
+});

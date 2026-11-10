@@ -1,0 +1,391 @@
+/* Users: AdminKit dùng chung, chỉ giữ bố cục và trạng thái riêng ở đây. */
+.page {
+  composes: page from '../../../ui/AdminKit.module.css';
+}
+
+.header {
+  composes: header from '../../../ui/AdminKit.module.css';
+}
+
+.eyebrow {
+  composes: eyebrow from '../../../ui/AdminKit.module.css';
+}
+
+.headingRow {
+  composes: headingRow from '../../../ui/AdminKit.module.css';
+}
+
+.title {
+  composes: title from '../../../ui/AdminKit.module.css';
+}
+
+.count {
+  composes: count from '../../../ui/AdminKit.module.css';
+}
+
+.muted {
+  composes: muted from '../../../ui/AdminKit.module.css';
+}
+
+.numeric {
+  composes: numeric from '../../../ui/AdminKit.module.css';
+}
+
+.mono {
+  composes: mono from '../../../ui/AdminKit.module.css';
+}
+
+.tableWrap {
+  composes: tableWrap from '../../../ui/AdminKit.module.css';
+}
+
+.table {
+  composes: table from '../../../ui/AdminKit.module.css';
+  table-layout: fixed;
+}
+
+.status {
+  composes: badge from '../../../ui/AdminKit.module.css';
+  font-weight: 500;
+}
+
+.statusDot {
+  composes: badgeDot from '../../../ui/AdminKit.module.css';
+}
+
+.back {
+  composes: back from '../../../ui/AdminKit.module.css';
+}
+
+.detailGrid {
+  composes: detailGrid from '../../../ui/AdminKit.module.css';
+}
+
+.panel {
+  composes: panel from '../../../ui/AdminKit.module.css';
+}
+
+.panelTitle {
+  composes: panelTitle from '../../../ui/AdminKit.module.css';
+}
+
+.panelText {
+  composes: panelText from '../../../ui/AdminKit.module.css';
+}
+
+.facts {
+  composes: facts from '../../../ui/AdminKit.module.css';
+}
+
+.dangerButton {
+  composes: dangerButton from '../../../ui/AdminKit.module.css';
+}
+
+.primaryButton {
+  composes: primaryButton from '../../../ui/AdminKit.module.css';
+}
+
+.secondary {
+  composes: secondary from '../../../ui/AdminKit.module.css';
+}
+
+.controls {
+  composes: controls from '../../../ui/AdminKit.module.css';
+}
+
+.searchForm {
+  composes: searchForm from '../../../ui/AdminKit.module.css';
+}
+
+.searchLabel {
+  composes: searchLabel from '../../../ui/AdminKit.module.css';
+}
+
+.searchRow {
+  composes: searchRow from '../../../ui/AdminKit.module.css';
+}
+
+.searchInput {
+  composes: searchInput from '../../../ui/AdminKit.module.css';
+}
+
+.searchButton {
+  composes: searchButton from '../../../ui/AdminKit.module.css';
+}
+
+.clearButton {
+  composes: clearButton from '../../../ui/AdminKit.module.css';
+  justify-self: start;
+}
+
+.field {
+  composes: field from '../../../ui/AdminKit.module.css';
+}
+
+.notice {
+  composes: notice from '../../../ui/AdminKit.module.css';
+}
+
+.detailTitle {
+  overflow-wrap: anywhere;
+}
+
+.description {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.emailCell {
+  min-width: 0;
+}
+
+.emailLink {
+  color: var(--ink-2);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.self {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.textLink {
+  color: var(--accent);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.emptyPage {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+}
+
+.roles {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.role {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.role[data-role='ADMIN'] {
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  background: color-mix(in srgb, var(--surface) 60%, var(--paper));
+  color: var(--accent);
+}
+
+.detailHeader {
+  display: grid;
+  gap: 8px;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: end;
+  gap: 16px;
+}
+
+.pageSize {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.pageSize select {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--muted) 80%, var(--paper));
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+}
+
+.refreshing {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.rowDanger,
+.rowPrimary {
+  min-height: 36px;
+  max-width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.leavingNote {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.listFooter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.pendingLine {
+  margin: 0;
+  color: var(--muted);
+}
+
+.sub {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.verified {
+  color: var(--success);
+  font-size: 12px;
+}
+.emailLink:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.table th:nth-child(1) {
+  width: 28%;
+}
+.table th:nth-child(2) {
+  width: 13%;
+}
+.table th:nth-child(3) {
+  width: 18%;
+}
+.table th:nth-child(4) {
+  width: 16%;
+}
+.table th:nth-child(5) {
+  width: 13%;
+}
+.table th:nth-child(6) {
+  width: 12%;
+}
+.table th:last-child,
+.table td.actionCell {
+  text-align: right;
+}
+.table td.numeric {
+  white-space: normal;
+}
+.status[data-status='ACTIVE'] {
+  border-color: transparent;
+  background: var(--success-soft);
+  color: var(--success);
+}
+.status[data-status='LOCKED'] {
+  border-color: transparent;
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.status[data-status='PENDING_VERIFICATION'] {
+  border-color: transparent;
+  background: var(--surface);
+  color: var(--accent);
+}
+.status[data-status='DISABLED'] {
+  color: var(--muted);
+}
+.rowDanger:hover:not([aria-disabled='true']),
+.rowPrimary:hover:not([aria-disabled='true']) {
+  background: var(--bg);
+}
+.rowDanger[aria-disabled='true'],
+.rowPrimary[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: progress;
+}
+.table tbody tr[data-leaving] {
+  background: var(--surface);
+}
+.noticeSlot:not(:has(p)) {
+  position: absolute;
+}
+.noticeSlot:focus-visible {
+  outline-offset: 4px;
+}
+.facts dd.numeric {
+  white-space: normal;
+}
+@media (max-width: 1100px) {
+  .filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 720px) {
+  .filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .clearButton {
+    width: 100%;
+  }
+  .rowDanger,
+  .rowPrimary {
+    min-height: 44px;
+    min-width: 100px;
+    font-size: 13px;
+  }
+  .table .emailCell {
+    display: block;
+    padding-bottom: 2px;
+  }
+  .emailLink {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+  .table td.actionCell {
+    text-align: right;
+  }
+  .roles {
+    justify-content: flex-end;
+  }
+  .pageSize select {
+    font-size: 16px;
+  }
+  .table .emailCell {
+    text-align: left;
+  }
+}

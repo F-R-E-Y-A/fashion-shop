@@ -1,0 +1,125 @@
+{
+  "_doc": "Bo danh gia do lien quan cua tim kiem (UC-03.2, ADR-048). Nhan gan TRUOC khi chay, theo ten va danh muc san pham trong CSDL local (bo 90 san pham da duyet, 87 dang ban), khop theo TIEN TO slug. kind: y-dinh = cau tu nhien/dong nghia ma tu dien khong bat het; luat = cau luat dang manh, de canh hoi quy; am = cua hang khong ban, dung la tra 0. Nhan do Claude Code gan ngay 06/11/2026, Bao duyet.",
+  "cases": [
+    { "q": "áo phông", "kind": "y-dinh", "relevant": ["ao-phong-", "ao-t-shirt-", "ao-thun-"] },
+    { "q": "quần đùi", "kind": "y-dinh", "relevant": ["quan-short-"] },
+    { "q": "dây nịt", "kind": "y-dinh", "relevant": ["day-lung-"] },
+    {
+      "q": "áo giữ ấm mùa đông",
+      "kind": "y-dinh",
+      "relevant": ["ao-khoac-phao-nu", "ao-phao-nu", "ao-khoac-gio-nam"]
+    },
+    { "q": "áo khoác chống gió", "kind": "y-dinh", "relevant": ["ao-khoac-gio-nam"] },
+    {
+      "q": "trang phục tập gym",
+      "kind": "y-dinh",
+      "relevant": ["ao-thun-nam-the-thao-", "ao-thun-nu-the-thao-", "ao-polo-the-thao-nu-"]
+    },
+    {
+      "q": "đồ chạy bộ cho nữ",
+      "kind": "y-dinh",
+      "relevant": ["ao-thun-nu-the-thao-", "ao-polo-the-thao-nu-", "quan-jogger-nu-"]
+    },
+    {
+      "q": "áo thấm mồ hôi mặc mùa hè",
+      "kind": "y-dinh",
+      "relevant": [
+        "ao-polo-nu-airycool-",
+        "ao-polo-the-thao-nu-airycool",
+        "ao-polo-nam-airy-cool",
+        "ao-polo-nu-coolmax-",
+        "ao-polo-nu-cafe-co-tron-sieu-nhe-thoang-khi",
+        "ao-so-mi-nam-tay-ngan-cafe-melange-thoang-khi"
+      ]
+    },
+    {
+      "q": "quần áo đi làm công sở cho nữ",
+      "kind": "y-dinh",
+      "relevant": [
+        "ao-so-mi-nu-cong-so-co-no",
+        "ao-so-mi-nu-tay-dai-nano-cong-so",
+        "quan-tay-nu-baggy-cong-so",
+        "quan-tay-nu-ong-dung-cong-so",
+        "ao-so-mi-nu-co-duc-nano",
+        "quan-au-nu-lung-cao-ong-dung"
+      ]
+    },
+    {
+      "q": "áo chống tia UV",
+      "kind": "y-dinh",
+      "relevant": [
+        "ao-polo-nam-cafe-bo-phoi-co-chong-tia-uv",
+        "ao-polo-nu-cafe-phoi-bo-kiem-soat-mui-chong-tia"
+      ]
+    },
+    {
+      "q": "áo không bị hôi khi mặc cả ngày",
+      "kind": "y-dinh",
+      "relevant": [
+        "ao-so-mi-nam-tay-ngan-cafe-melange-thoang-khi",
+        "ao-so-mi-nu-co-duc-nano-khang-khuan-khu-mui",
+        "ao-polo-nu-cafe-bo-ke-khang-khuan-khu-mui",
+        "ao-polo-nu-cafe-phoi-bo-kiem-soat-mui"
+      ]
+    },
+    {
+      "q": "đồ mặc ở nhà thoải mái",
+      "kind": "y-dinh",
+      "relevant": ["ao-phong-", "ao-t-shirt-", "quan-short-nam-lung-thun"]
+    },
+    {
+      "q": "áo đi tiệc nữ điệu đà",
+      "kind": "y-dinh",
+      "relevant": [
+        "ao-so-mi-nu-co-no-beo-tay",
+        "ao-so-mi-nu-xoe-chun-vai",
+        "ao-so-mi-nu-tay-lo-vai-tre",
+        "ao-thun-nu-om-co-vuong-tay-bong",
+        "ao-thun-nu-co-tron-tay-bong",
+        "ao-so-mi-nu-voan-co-tim",
+        "ao-croptop-tay-ngan-phong"
+      ]
+    },
+    {
+      "q": "quần rộng rãi cho nữ",
+      "kind": "y-dinh",
+      "relevant": [
+        "quan-tay-nu-ong-rong-",
+        "quan-tay-ong-rong-xe-ta",
+        "quan-jogger-nu-ong-rong",
+        "quan-short-nu-ong-rong",
+        "quan-baggy-nu-",
+        "quan-tay-baggy-nu-",
+        "quan-tay-nu-baggy-",
+        "quan-tay-nu-lung-cao-baggy-"
+      ]
+    },
+    {
+      "q": "áo sơ mi họa tiết đi biển",
+      "kind": "y-dinh",
+      "relevant": ["ao-so-mi-nam-tay-ngan-hoa-tiet-hoa-la", "ao-so-mi-nam-tay-ngan-bamboo-cham-bi"]
+    },
+    { "q": "jean nam", "kind": "y-dinh", "relevant": ["quan-jeans-nam-"] },
+    {
+      "q": "quần âu nữ",
+      "kind": "y-dinh",
+      "relevant": ["quan-au-nu-", "quan-tay-nu-", "quan-tay-baggy-nu-", "quan-tay-ong-rong-xe-ta"]
+    },
+    {
+      "q": "áo cộc tay nam",
+      "kind": "y-dinh",
+      "relevant": ["ao-so-mi-nam-", "ao-phong-nam-", "ao-polo-nam-", "ao-thun-nam-"]
+    },
+    { "q": "áo polo nam", "kind": "luat", "relevant": ["ao-polo-nam-"] },
+    { "q": "quần jeans nam", "kind": "luat", "relevant": ["quan-jeans-nam-"] },
+    { "q": "áo khoác nữ", "kind": "luat", "relevant": ["ao-khoac-phao-nu", "ao-phao-nu"] },
+    { "q": "thắt lưng", "kind": "luat", "relevant": ["day-lung-"] },
+    { "q": "áo thun thể thao nam", "kind": "luat", "relevant": ["ao-thun-nam-the-thao-"] },
+    { "q": "quần short", "kind": "luat", "relevant": ["quan-short-"] },
+    { "q": "áo sơ mi nữ tay dài", "kind": "luat", "relevant": ["ao-so-mi-nu-tay-dai-"] },
+    { "q": "váy dự tiệc", "kind": "am", "relevant": [] },
+    { "q": "giày thể thao", "kind": "am", "relevant": [] },
+    { "q": "mũ lưỡi trai", "kind": "am", "relevant": [] },
+    { "q": "túi xách nữ", "kind": "am", "relevant": [] }
+  ]
+}

@@ -14,4 +14,10 @@ coverage-http/
 .vercel/
 apps/api/src/generated/
 *.tsbuildinfo
-tools/crawler/output/
+
+# Playwright E2E
+apps/web/test-results/
+apps/web/playwright-report/
+
+# Mo hinh embedding tai ve luc chay (SEARCH_MODEL_DIR, ADR-048)
+.cache/

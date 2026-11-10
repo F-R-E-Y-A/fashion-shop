@@ -1,20 +1,37 @@
-/* Ban 0.1: mot tep CSS thuan, du de nhin duoc.
-   Bo thanh phan dung chung that se dung o ban sau, khi da chot he mau va kieu chu. */
-
 :root {
-  --ink: #1a1a1a;
-  --muted: #6b6b6b;
-  --line: #e4e4e4;
-  --bg: #ffffff;
-  --accent: #111827;
+  --bg: #f8f7f5;
+  --surface: #f1ebe3;
+  --ink: #111111;
+  --muted: #6b6a73;
+  --line: #e4e0da;
+  --espresso: #1e140c;
+  --on-dark: #f8f7f5;
+  --accent: #925d3b;
+  --accent-bright: #af7642;
   --danger: #b42318;
-  --radius: 10px;
-  font-family:
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    Roboto,
-    sans-serif;
+  --danger-soft: #fdf1f0;
+  --success: #2e6b4f;
+  --success-soft: #edf5f0;
+  --paper: #ffffff;
+  --radius: 2px;
+  --font-display: 'Playfair Display', Georgia, serif;
+  --font-body: 'Be Vietnam Pro', system-ui, sans-serif;
+  --tracking-caps: 0.14em;
+  --amber-glow: #dba36c;
+  --stone: #e6ddd1;
+  --on-dark-muted: #c9bcae;
+  --ink-2: #2b2119;
+  --s-1: clamp(0.8rem, 0.77rem + 0.12vw, 0.86rem);
+  --s0: clamp(0.95rem, 0.91rem + 0.18vw, 1.03rem);
+  --s1: clamp(1.1rem, 1.02rem + 0.4vw, 1.3rem);
+  --s2: clamp(1.32rem, 1.14rem + 0.85vw, 1.8rem);
+  --s3: clamp(1.7rem, 1.3rem + 1.8vw, 2.7rem);
+  --s4: clamp(2.1rem, 1.5rem + 3vw, 3.9rem);
+  --s5: clamp(2.5rem, 1.5rem + 5.2vw, 5.6rem);
+  --gutter: clamp(16px, 4vw, 56px);
+  --container: 1200px;
+  --ease: cubic-bezier(0.2, 0.7, 0.1, 1);
+  font-family: var(--font-body);
   color: var(--ink);
   background: var(--bg);
 }
@@ -29,9 +46,21 @@ a {
   color: inherit;
   text-decoration: none;
 }
-h1 {
-  font-size: 1.5rem;
-  margin: 0 0 1rem;
+h1,
+h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
 }
 
 /* --- khung cua hang --- */
@@ -76,27 +105,22 @@ h1 {
   font-weight: 600;
   text-decoration: underline;
 }
+.nav--account {
+  align-items: center;
+}
+.nav__status {
+  color: var(--muted);
+}
+.nav__logout {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+}
 
-/* --- khung quan tri --- */
-.admin {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  min-height: 100vh;
-}
-.admin__side {
-  border-right: 1px solid var(--line);
-  padding: 1.25rem;
-}
-.admin__nav {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 1.5rem;
-  font-size: 0.9rem;
-}
-.admin__main {
-  padding: 1.5rem;
-}
+/* --- o so lieu cua trang Tong quan quan tri (khung quan tri o app/AdminLayout.module.css) --- */
 .tiles {
   display: flex;
   gap: 1rem;
@@ -190,6 +214,10 @@ button:disabled {
   font-size: 0.9rem;
   color: var(--muted);
 }
+.pager [aria-current='page'] {
+  background: var(--ink);
+  color: var(--on-dark);
+}
 
 /* --- chi tiet --- */
 .detail {
@@ -212,15 +240,184 @@ button:disabled {
 .state {
   color: var(--muted);
 }
+/* Trang trang thai dung rieng (cho phien, 404): nam giua khung cua hang, khong dinh mep. */
+.page-state {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  min-height: 46vh;
+  align-content: center;
+  padding: clamp(48px, 10vw, 112px) var(--gutter);
+  text-align: center;
+  color: var(--muted);
+}
+.page-state h1 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--s3);
+}
+.page-state p {
+  margin: 0;
+}
+.page-state > div {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+}
+.page-state .eyebrow {
+  font-size: var(--s-1);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.page-state-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+.page-state-actions a {
+  padding: 12px 26px;
+  border: 1px solid var(--espresso);
+  border-radius: var(--radius);
+  font-size: var(--s-1);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition:
+    background-color 0.2s var(--ease),
+    color 0.2s var(--ease);
+}
+.page-state-actions .button-primary {
+  background: var(--espresso);
+  color: var(--on-dark);
+}
+.page-state-actions .button-primary:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.page-state-actions .button-secondary {
+  color: var(--ink);
+}
+.page-state-actions .button-secondary:hover {
+  background: var(--espresso);
+  color: var(--on-dark);
+}
 .state--error {
   color: var(--danger);
 }
 
+/* --- tai khoan: form xac thuc nam trong AuthLayout, chi can chu da, khoang cach nhe --- */
+.auth-page {
+  max-width: 420px;
+}
+.auth-page > h1 {
+  margin: 0 0 0.35rem;
+  font-size: var(--s2);
+}
+/* Cau chuyen dan phia duoi tieu de: nho, mau mo, khong dan lai y cua tieu de. */
+.auth-page > p {
+  margin: 0 0 1.1rem;
+  color: var(--muted);
+  font-size: var(--s-1);
+  line-height: 1.55;
+}
+.auth-form {
+  display: grid;
+  gap: 1rem;
+}
+.auth-form label {
+  display: grid;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink-2);
+}
+.auth-form input {
+  padding: 0.72rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font: inherit;
+  transition:
+    border-color 0.2s var(--ease),
+    background-color 0.2s var(--ease);
+}
+.auth-form input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: #fff;
+}
+/* Nut submit cua form xac thuc: nhu nut chinh cua cua hang, nhan amber. */
+.auth-form button[type='submit'] {
+  margin-top: 0.35rem;
+  padding: 0.85rem 1.25rem;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--espresso);
+  color: var(--on-dark);
+  font: inherit;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background-color 0.2s var(--ease);
+}
+.auth-form button[type='submit']:hover:not(:disabled) {
+  background: var(--accent);
+}
+.auth-form button[type='submit']:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+/* O ma OTP: to hon, so cach rong nhu sau o rieng tung chu so (van la mot input de
+   ba chu pham/dan nguyen chuoi van chay binh thuong). */
+.auth-form input[data-otp='true'] {
+  padding: 0.85rem 0.6rem;
+  font-size: 1.45rem;
+  letter-spacing: 0.9em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.auth-form__hint {
+  margin: -0.5rem 0 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+/* Link phu (quen mat khau, dang ky) o day mot cho, khong phan tan. */
+.auth-page > p:has(a) {
+  margin: 1.25rem 0 0;
+}
+
 @media (max-width: 720px) {
-  .admin {
-    grid-template-columns: 1fr;
-  }
   .detail {
     grid-template-columns: 1fr;
+  }
+}
+
+/* --- lop nang cao theo cuon cho trang chu (PH-01) ---
+   [data-reveal] chi la lop phu: trinh duyet khong ho tro animation-timeline (Firefox hien tai)
+   thi trang van day du noi dung tinh. Nguoi bat giam dong (reduced-motion) cung khong nhan hieu ung. */
+[data-reveal] {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 480px;
+}
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    [data-reveal] {
+      animation: home-reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 32%;
+    }
+  }
+}
+@keyframes home-reveal {
+  from {
+    opacity: 0.05;
+    transform: translateY(26px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
   }
 }

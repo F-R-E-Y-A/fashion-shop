@@ -1,6 +1,6 @@
 ---
 title: Fashion-shop trong 15 phút
-updated: 2026-09-24
+updated: 2026-10-04
 status: đang dùng
 owner: Bảo
 ---
@@ -34,7 +34,18 @@ Trình duyệt ──▶ apps/web  React 19 + Vite, TanStack Query        (Verce
                 PostgreSQL 17
 ```
 
-**Một khối module hoá, không microservices**: ranh giới giữa ba người là module, không phải tiến trình ([LOG#adr-001](LOG.md#adr-001)). **Một cơ sở dữ liệu duy nhất** ([ADR-002](LOG.md#adr-002)). **Cơ chế xong sớm, dịch vụ đến đúng tuần**: chưa có Redis, hàng đợi hay Meilisearch, thêm vào tuần phân hệ cần ([ADR-004](LOG.md#adr-004), [lộ trình](features/platform/README.md)).
+**Một khối module hoá, không microservices**: ranh giới giữa ba người là module, không phải tiến trình ([LOG#adr-001](LOG.md#adr-001)). **Một cơ sở dữ liệu duy nhất** ([ADR-002](LOG.md#adr-002)). **Cơ chế xong sớm, dịch vụ đến đúng tuần**: Redis đã dùng cho rate limit, Mailpit nhận email local (`docker-compose.yml:28`, `:40`). Chưa thêm hàng đợi hoặc Meilisearch; tìm kiếm hiện dùng luật và từ điển trong API ([ADR-019](features/products/LOG.md#adr-019)).
+
+**Ba cặp tên, cùng một ý.** Hai phía API và web khác tên thư mục, không khác kiến trúc: luật ranh giới là cùng một quy tắc `local/boundaries`, khai với `unitsDir: 'modules'` ([eslint.config.js:62](../eslint.config.js#L62)) và `unitsDir: 'features'` ([eslint.config.js:95](../eslint.config.js#L95)).
+
+| Ý | API gọi là | Web gọi là | Tài liệu gọi là |
+|---|---|---|---|
+| Một phân hệ, một người làm trọn | `modules/<x>` (từ của NestJS: `@Module`) | `features/<x>` (quy ước thư mục phổ biến của React) | `docs/features/<x>` |
+| Thứ dùng chung, không biết phân hệ | `common/` + `infra/` | `core/` + `ui/` | — |
+| Nơi duy nhất ráp phân hệ lại | `app.module.ts` | `app/` | — |
+| Cửa duy nhất để phân hệ khác gọi vào | `modules/<x>/index.ts` | `features/<x>/index.ts` | README của module |
+
+Tên `auth` / `account` còn lệch giữa API và web ([TECH_DEBT ND-15](TECH_DEBT.md)). Giỏ hàng là `cart`, tách biệt với tồn kho `inventory`; bản đồ tài liệu: [cart](features/cart/README.md), [inventory](features/inventory/README.md), [users](features/users/README.md).
 
 ## 3. Một yêu cầu đi qua những gì
 
@@ -84,7 +95,7 @@ Xong nghĩa là: có migration và dữ liệu giả, API khớp Swagger, giao d
 
 - **Nhánh:** `main` (bản nộp) ← `develop` (tích hợp) ← `feature/<mã việc>-<tên>`; việc con `task/`, sửa lỗi `bugfix/`. Riêng `feature/platform` là nhánh dài hạn: việc nền tảng làm trên `task/` rồi gộp vào đó. Không đẩy thẳng vào `develop`, `main`: hook `pre-push` chặn.
 - **Commit:** `feat(ph-01): mo ta khong dau, chu thuong dau`. Hook `commit-msg` chặn sai dạng. Có phần AI sinh thì thêm dòng `Co-Authored-By:`.
-- **Pull request:** một người khác duyệt, CI xanh, **gộp bằng merge commit** vì lịch sử commit là hồ sơ nộp kèm ([ADR-005](LOG.md#adr-005)). Workflow `pr-reviewers.yml` gán người duyệt theo `CODEOWNERS` thay cho tính năng trả phí.
+- **Pull request:** CI xanh và một người duyệt tự nguyện — không gán theo thư mục nữa, bỏ cơ chế `CODEOWNERS` ngày 24/10 ([LOG](LOG.md#bo-gan-nguoi-duyet)). **Gộp bằng merge commit** vì lịch sử commit là hồ sơ nộp kèm ([ADR-005](LOG.md#adr-005)).
 - **Việc:** mỗi dòng việc một Issue (nhãn `ph` hoặc `ht`), gắn milestone của sprint. `Closes #N` trong thân pull request thì gộp xong Issue tự đóng.
 - Kho riêng tư gói Free **không khoá được nhánh** và không chặn tự gộp: luật giữ bằng hook và kỷ luật ([TECH_DEBT.md](TECH_DEBT.md) ND-08, ND-11).
 
@@ -109,11 +120,11 @@ Chạy cả cụm trên máy như môi trường thật: `npm run prod:up`, mở
 
 | Lệnh | Việc |
 |---|---|
-| `npm run setup` | Lần đầu: cài gói, bật Postgres, migration, dữ liệu giả, cơ sở dữ liệu kiểm thử |
+| `npm run setup` | Lần đầu: cài gói, bật dịch vụ local, migration, bảng tra cứu, cơ sở dữ liệu kiểm thử; nạp sản phẩm thật theo README products |
 | `npm run dev:api` · `npm run dev:web` | `http://localhost:3001/api` (Swagger ở `/api/docs`) · `http://localhost:5174` |
 | `npm run check` | Lint, ranh giới, định dạng, kiểu, kiểm thử đơn vị: **trước mỗi pull request** |
 | `npm run test:http` | Kiểm thử HTTP trên cơ sở dữ liệu kiểm thử riêng, bị xoá sạch mỗi lần |
-| `npm run db:migrate` · `npm run db:seed` · `npm run db:studio` | Migration sau khi sửa `.prisma` · nạp lại dữ liệu giả · xem bảng |
+| `npm run db:migrate` · `npm run db:seed` · `npm run db:studio` | Migration sau khi sửa `.prisma` · nạp lại danh mục/bảng tra cứu · xem bảng |
 | `npm run docs:lint` | Kiểm luật tài liệu: frontmatter, link gãy, neo ADR |
 
 ## 9. Sáu chỗ hay hiểu nhầm
@@ -132,11 +143,12 @@ Chạy cả cụm trên máy như môi trường thật: `npm run prod:up`, mở
 | Câu hỏi | Mở |
 |---|---|
 | Luật viết tài liệu, hệ mã `PH-NN`, `UC-NN.m`, `ADR`, `ND` | [AGENTS.md](../AGENTS.md) |
-| Feature này làm gì, tới đâu, API mới nào | `features/<module>/README.md`: [products](features/products/README.md) · [auth](features/auth/README.md) · [inventory](features/inventory/README.md) · [platform](features/platform/README.md) |
+| Feature này làm gì, tới đâu, API mới nào | `features/<module>/README.md`: [products](features/products/README.md) · [auth](features/auth/README.md) · [cart](features/cart/README.md) · [users](features/users/README.md) · [inventory](features/inventory/README.md) · [platform](features/platform/README.md) |
 | Nghiệp vụ đúng là gì, tiêu chí chấp nhận | `features/<module>/use-cases.md`; danh mục ở [shared/use-case-index.md](shared/use-case-index.md) |
 | Vì sao làm vậy | [LOG.md](LOG.md) (toàn hệ thống) và `features/<module>/LOG.md` |
 | Đường dẫn API nhận gì, trả gì | Swagger `/api/docs`; quy ước ở [shared/api.md](shared/api.md) |
 | Viết mã, kiểm thử, giao diện theo quy ước nào | [shared/code.md](shared/code.md) · [shared/testing.md](shared/testing.md) · [shared/test-strategy.md](shared/test-strategy.md) · [shared/design.md](shared/design.md) |
-| Bảng nào của ai, sơ đồ ở đâu | [CONTRIBUTING.md](CONTRIBUTING.md) · [shared/data-model.md](shared/data-model.md) · [shared/diagrams/](shared/diagrams/README.md) |
+| Bảng nào của ai, sơ đồ ở đâu | [CONTRIBUTING.md](CONTRIBUTING.md) · [shared/data-model.md](shared/data-model.md) · [shared/diagrams/](shared/diagrams/uc-tong-quan.md) |
+| Dataset HT-03 lấy từ đâu, chất lượng thế nào | [shared/data-sources/ht-03-yody.md](shared/data-sources/ht-03-yody.md) |
 | Còn nợ gì | [TECH_DEBT.md](TECH_DEBT.md) |
 | Kế hoạch, tiến độ, nhật ký AI | [Kho docs](https://github.com/F-R-E-Y-A/docs) |

@@ -1,0 +1,82 @@
+.materials {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface);
+}
+.background {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  object-fit: cover;
+  object-position: right center;
+}
+.materials::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgb(241 235 227 / 0.97) 0%,
+    rgb(241 235 227 / 0.9) 44%,
+    rgb(241 235 227 / 0.12) 80%
+  );
+}
+.inner {
+  position: relative;
+  z-index: 1;
+  padding-block: clamp(64px, 8vw, 112px);
+}
+.eyebrow {
+  margin: 0;
+  color: var(--accent);
+  font-size: var(--s-1);
+  letter-spacing: 0.16em;
+}
+.inner h2 {
+  max-width: 14ch;
+  margin-block: 12px 28px;
+  font-size: var(--s4);
+  line-height: 1.12;
+  text-wrap: balance;
+}
+.list {
+  max-width: 640px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid rgb(30 20 12 / 0.16);
+}
+.list a {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 16px;
+  padding: 18px 0;
+  border-bottom: 1px solid rgb(30 20 12 / 0.16);
+}
+.list b {
+  font: 400 var(--s2) var(--font-display);
+}
+.list span {
+  grid-column: 1;
+  color: var(--ink-2);
+  font-size: var(--s-1);
+}
+.list em {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: var(--accent);
+  font-size: var(--s-1);
+  font-style: normal;
+  white-space: nowrap;
+}
+.list a:hover b {
+  color: var(--accent);
+}
+@media (max-width: 760px) {
+  .materials::after {
+    background: rgb(241 235 227 / 0.9);
+  }
+}

@@ -1,6 +1,6 @@
 ---
 title: Mẫu đặc tả use case
-updated: 2026-09-24
+updated: 2026-11-05
 status: đang dùng
 owner: Duy
 ---
@@ -8,7 +8,7 @@ owner: Duy
 
 **Chức năng:** Khung để viết đặc tả các use case của một nhóm `UC-NN`, chép vào thư mục feature sở hữu nhóm đó.
 
-Mỗi feature một tệp `use-cases.md` chứa mọi use case của nhóm mình. Chép khung dưới, xoá phần trong ngoặc nhọn. Mẫu thật: `features/products/use-cases.md` (có từ PH-01).
+Mỗi feature một tệp `use-cases.md` chứa mọi use case của nhóm mình. Chép khung dưới, xoá phần trong ngoặc nhọn. Mẫu thật: [features/products/use-cases.md](../../features/products/use-cases.md).
 
 ````markdown
 ---
@@ -64,11 +64,14 @@ Là một **<vai>**, tôi muốn **<làm được gì>**, để **<đạt đư�
 <Bảng đụng tới, cột thêm mới, ràng buộc cần có.>
 
 ### Tiêu chí chấp nhận
-- [ ] **AC1** <Viết sao cho người khác tự kiểm được, không cần hỏi lại>
-- [ ] **AC2**
+- **AC1** (thuận) <Luồng chính chạy đúng; viết sao cho người khác tự kiểm được, không cần hỏi lại>
+- **AC2** (âm) <Dữ liệu sai, không có quyền, trạng thái không cho phép: hệ thống từ chối thế nào>
+- **AC3** (biên) <Sát ngưỡng, đồng thời, lặp lại, hết hạn: hệ thống giữ đúng ra sao>
 
 ## Câu hỏi còn treo
 <Ghi ra thay vì tự đoán. Mang tới buổi họp Chủ Nhật.>
 ````
 
 Mã `E1`, `BR1`, `AC1` đánh lại từ 1 trong mỗi use case; nhắc từ nơi khác thì ghi đủ `UC-NN.m/AC1`. Tên bài kiểm thử ghi đúng mã đó ([testing.md](../testing.md)).
+
+**Loại AC** trong ngoặc ngay sau mã, bắt buộc ([LOG#adr-047](../../LOG.md#adr-047)): `thuận`, `âm` hoặc `biên`; thêm `tay` nếu chỉ kiểm thủ công (viết kịch bản ngay dưới AC), `chưa giao` nếu chưa thuộc dòng việc nào. Mỗi use case cần ít nhất một AC `âm` và một AC `biên`. Không đánh dấu `[x]` bằng tay và không chép danh sách bài vào đây: ma trận AC → bài sinh bằng `npm run evidence:trace`.

@@ -1,11 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
 
-import { formatPrice } from '@/core';
-import { Empty, ErrorNote, Loading, Pager } from '@/ui';
+import { Empty, ErrorNote, layout, Pager, SkeletonGrid } from '@/ui';
 
 import { listProducts, productKeys } from '../api/index.js';
+import { ProductGrid } from '../components/ProductGrid.js';
 
 /**
  * Trang MAU: goi that vao module mau ben may chu.
@@ -18,13 +17,13 @@ export function ProductListPage() {
   const [page, setPage] = useState(1);
 
   const params = { page, pageSize: 12, search: submitted || undefined };
-  const { data, isPending, isError, error } = useQuery({
+  const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: productKeys.list(params),
     queryFn: () => listProducts(params),
   });
 
   return (
-    <>
+    <div className={`${layout.container} ${layout.section}`}>
       <h1>Sản phẩm</h1>
 
       <form
@@ -45,24 +44,13 @@ export function ProductListPage() {
         <button type="submit">Tìm</button>
       </form>
 
-      {isPending && <Loading />}
-      {isError && <ErrorNote error={error} />}
+      {isPending && <SkeletonGrid count={12} />}
+      {isError && <ErrorNote error={error} onRetry={() => void refetch()} />}
       {data && data.items.length === 0 && <Empty label="Không có sản phẩm nào khớp." />}
 
       {data && data.items.length > 0 && (
         <>
-          <ul className="grid">
-            {data.items.map((product) => (
-              <li key={product.id} className="card">
-                <Link to={`/san-pham/${product.slug}`}>
-                  <div className="card__image">{product.name.charAt(0)}</div>
-                  <h2 className="card__name">{product.name}</h2>
-                  <p className="card__meta">{product.categoryName}</p>
-                  <p className="card__price">{formatPrice(product.price)}</p>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <ProductGrid products={data.items} showBrand />
 
           <Pager
             page={data.page}
@@ -73,6 +61,6 @@ export function ProductListPage() {
           />
         </>
       )}
-    </>
+    </div>
   );
 }

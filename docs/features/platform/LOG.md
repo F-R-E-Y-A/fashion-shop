@@ -1,6 +1,6 @@
 ---
 title: Nền tảng — nhật ký quyết định và thay đổi
-updated: 2026-09-24
+updated: 2026-09-28
 status: đang dùng
 owner: Bảo
 ---
@@ -82,3 +82,17 @@ Phản biện của các quyết định chạm cả nhóm (ADR-004, ADR-005, nh
 | 25/09 PR #11 đỏ | AI kiểm | Chặng 4 đỏ vì `db:drift` thấy chỉ mục `UNIQUE NULLS NOT DISTINCT` viết tay mà Prisma không mô tả; 44 ràng buộc `CHECK` viết tay **không** bị báo lệch | Xác nhận chặng kiểm lệch làm đúng việc; `CHECK` viết tay dùng được |
 
 **Kết luận:** giữ nguyên tắc "cơ chế xong sớm, dịch vụ đến đúng tuần" và luật "tái hiện rồi mới sửa". **Bằng chứng:** [nhật ký tuần 38 dòng 8](https://github.com/F-R-E-Y-A/docs/blob/6d635d2/ai-log/2026-W38.md#L8), [mục 15/09 dòng 48](https://github.com/F-R-E-Y-A/fashion-shop/blob/58f45e9/docs/features/platform/LOG.md#L48), [commit 44e3d57](https://github.com/F-R-E-Y-A/fashion-shop/commit/44e3d57); log CI chặng 4 của PR #11 dòng `Removed unique index on columns (product_id, size, color)`.
+
+## 2026-09-28 · Bỏ Buildx cache khỏi gate image CI
+
+**Loại:** sửa pipeline · **Phạm vi:** `.github/workflows/ci.yml` · **PR:** [#17](https://github.com/F-R-E-Y-A/fashion-shop/pull/17).
+
+CI của PR #17 đã build xong image API nhưng bị hủy khi xuất layer lên GitHub Actions Cache ở bước `Dung image may chu`; bước web build và chạy thử image chưa kịp bắt đầu. Bỏ `cache-from`/`cache-to` ở cả hai image để gate kiểm tra việc build và chạy thật không phụ thuộc cache. Đổi lại, các lượt CI có thể build lâu hơn. Xem lại khi có số đo build ổn định hoặc cache exporter được khắc phục.
+
+## 2026-10-04 · Đối chiếu runtime local và deploy staging
+
+Compose đã có Mailpit và Redis (`docker-compose.yml:28`, `:40`); README cũ nói chưa có Redis/Compose chỉ PostgreSQL đã được sửa. Seed Catalog chỉ nạp bảng tra cứu (`apps/api/prisma/seed/catalog.seed.ts:51`), không hứa máy mới có product mẫu.
+
+`gh run view 37128704142 -R F-R-E-Y-A/fashion-shop --log-failed` đọc ngày 04/10 trả `Chua dat RENDER_DEPLOY_HOOK_URL`. CI thành công không đồng nghĩa CD đã deploy thành công. Blueprint, entrypoint và staging.md có thay đổi local từ phiên trước, chưa commit/push; phiên tổng hợp giữ nguyên chúng. Backup local ghi trong SESSION ngày 03/10 chưa chứng minh restore hoặc backup cloud.
+
+Code-tour sửa hướng dẫn pool thành cấu hình `max` của pg.Pool theo adapter đang cài và tài liệu node-postgres; không thay pool runtime. Các log cũ giữ là lịch sử, không sửa hồi tố trạng thái quyết định.

@@ -2,6 +2,8 @@ node_modules
 dist
 coverage
 coverage-http
+apps/web/playwright-report
+apps/web/test-results
 apps/api/src/generated
 package-lock.json
 *.tsbuildinfo

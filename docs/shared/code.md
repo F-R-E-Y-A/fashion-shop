@@ -1,6 +1,6 @@
 ---
 title: Quy ước viết mã
-updated: 2026-09-24
+updated: 2026-11-02
 status: đang dùng
 owner: Bảo
 ---
@@ -40,7 +40,7 @@ Lệnh đó chạy lần lượt: lint, kiểm luật ranh giới, kiểm địn
 | Tệp máy chủ | `<tên>.<vai trò>.ts` | `products.service.ts` |
 | Tệp giao diện | Hoa đầu cho component, thường cho phần còn lại | `ProductListPage.tsx`, `products.api.ts` |
 | Đường dẫn API | số nhiều, chữ thường, nối gạch ngang | `/api/product-variants` |
-| Đường dẫn trang | tiếng Việt không dấu, nối gạch ngang | `/san-pham/:slug` |
+| Đường dẫn trang | tiếng Việt không dấu, nối gạch ngang. Ngoại lệ đề xuất: khu quản trị dùng `/admin/<tài nguyên số nhiều>` ([LOG#adr-027](../LOG.md#adr-027)) | `/san-pham/:slug`, `/admin/users` |
 | Bảng dữ liệu | số nhiều, gạch dưới | `product_variants` |
 | Cột | gạch dưới trong cơ sở dữ liệu, lưng lạc đà trong mã | `created_at` ↔ `createdAt` |
 | Nhánh | `feature/<mã việc viết thường>-<tên ngắn>` | `feature/ph-02-cart`; việc nền tảng: `task/docs-restructure` trên `feature/platform` |
@@ -62,6 +62,15 @@ Lệnh đó chạy lần lượt: lint, kiểm luật ranh giới, kiểm địn
 **3. Thêm bảng thì thêm dữ liệu giả cho bảng đó** trong cùng pull request, vào `prisma/seed/<phân hệ>.seed.ts`. Mã định danh cố định, không sinh ngẫu nhiên, để ba người và máy CI thấy cùng một bộ dữ liệu.
 
 **4. Thêm biến môi trường thì khai ở hai nơi** trong cùng pull request: `.env.example` và `apps/api/src/infra/config/env.ts`. Thiếu nơi thứ hai thì máy chủ vẫn chạy rồi chết giữa chừng, thay vì chết ngay lúc khởi động với đúng tên biến.
+
+## Cache riêng của phiên
+
+Cache riêng của phiên dùng `sessionQueryKeys` ở [session-cache.ts:4](../../apps/web/src/core/session-cache.ts#L4),
+không tạo gốc riêng ngoài phạm vi hủy/xóa của AuthProvider. Khóa admin theo
+`session/admin/resource/actor/...`; dữ liệu tài khoản khác theo `session/<scope>/...` và gắn actor.
+Key danh sách có trang ở cuối để chỉ giữ placeholder khi cùng actor/điều kiện.
+403 dùng cơ chế chung của Account qua public index, không sao chép bộ máy quyền theo từng feature.
+Lý do và phạm vi triển khai đang đề xuất ở [ADR-041](../LOG.md#adr-041).
 
 ## Hàm và tệp dài bao nhiêu
 

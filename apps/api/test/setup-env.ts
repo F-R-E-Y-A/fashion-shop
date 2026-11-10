@@ -1,6 +1,6 @@
 /**
  * Chay truoc moi tep kiem thu HTTP: tro may chu vao CSDL KIEM THU, khong bao gio la CSDL that,
- * vi resetDatabase() xoa sach moi bang truoc khi nap lai du lieu gia.
+ * vi resetDatabase() xoa sach moi bang truoc khi nap lai taxonomy va fixture kiem thu.
  * Tren may: DATABASE_URL_TEST trong .env (tao bang npm run db:test:prepare).
  * Tren CI: hai bien tro cung mot Postgres dung xong bo, CI=true nen cho phep trung nhau.
  */
@@ -20,3 +20,16 @@ if (testUrl === process.env.DATABASE_URL && process.env.CI !== 'true') {
 
 process.env.DATABASE_URL = testUrl;
 process.env.NODE_ENV = 'test';
+// Secret chi dung cho HTTP test; production phai cung cap JWT_ACCESS_SECRET tu moi truong.
+process.env.JWT_ACCESS_SECRET ??= 'test-access-secret-with-at-least-thirty-two-characters';
+process.env.OTP_PEPPER ??= 'test-otp-pepper-with-at-least-thirty-two-characters';
+// MailService that duoc thay bang FakeMailService trong test/helpers/create-test-app.ts nen cac
+// bien SMTP o day chi can hop le voi env.ts, khong bao gio duoc dung that.
+process.env.SMTP_HOST ??= 'localhost';
+process.env.SMTP_FROM ??= 'no-reply@fashion-shop.test';
+// Redis that: kiem thu HTTP chay tren Redis local/CI, khong mock (dieu can chung minh la gioi han
+// hoat dong that). Khoa cua NODE_ENV=test nam rieng, xem rateLimitKeyPrefix.
+process.env.REDIS_URL ??= 'redis://localhost:6379';
+process.env.RATE_LIMIT_PEPPER ??= 'test-rate-limit-pepper-with-at-least-thirty-two-chars';
+// Tin dung 1 proxy de test gia lap cac IP khach khac nhau bang header X-Forwarded-For.
+process.env.TRUST_PROXY_HOPS ??= '1';

@@ -1,6 +1,6 @@
 ---
 title: Quy ước nhánh, commit, pull request và phiếu công việc
-updated: 2026-09-24
+updated: 2026-11-01
 status: đang dùng
 owner: Bảo
 ---
@@ -13,7 +13,7 @@ owner: Bảo
 ```
 main                      chỉ chứa bản đã nộp hoặc đã triển khai thật
 └── develop               nhánh tích hợp, mọi feature gộp vào đây
-    ├── feature/ph-01-product-catalog    một dòng việc, một người
+    ├── feature/ph-01-product-catalog    một dòng việc, một người; giữ tới khi chủ nhánh xoá
     │   ├── task/catalog-schema        việc con, gộp vào feature cha rồi xóa
     │   └── task/catalog-list-page
     ├── feature/platform               nhánh DÀI HẠN của nền tảng, không xoá
@@ -51,6 +51,8 @@ docs(ht-01): doi ma use case sang UC-NN.m
 
 Commit có phần do AI sinh thêm dòng cuối `Co-Authored-By: <công cụ> <địa chỉ>`, và `AI-Assisted: <phạm vi>` khi phần AI sinh đáng kể. Luật đầy đủ ở `ai-log/README.md` trong [kho docs](https://github.com/F-R-E-Y-A/docs).
 
+**Ngoại lệ đã xảy ra, không phải luật mới:** Bảo dặn ngày 29/09 commit PH-01 đợt 2 không có hai trailer trên (`work/PROMPT-GLM-ph01-dot2.md:16`, workspace ngoài kho mã). Nhật ký W40 vẫn kê khai Claude/Codex bằng transcript, diff và commit. Không suy ra "không dùng AI" từ việc thiếu trailer và không sửa lại lịch sử chỉ để bổ sung dấu.
+
 ## Luồng làm một phân hệ
 
 ```bash
@@ -71,11 +73,12 @@ git push -u origin feature/ph-01-product-catalog
 
 ## Luật gộp
 
-- Pull request vào `develop` cần **một người khác duyệt** và **CI xanh**.
-- Tệp `CODEOWNERS` tự gán người duyệt theo thư mục. Chạm vào thư mục người khác thì chính họ phải duyệt.
+- Pull request vào `develop` cần **CI xanh** và **một người duyệt bất kỳ, tự nguyện**; tác giả không tự duyệt pull request của mình.
+- Từ 24/10/2026 **bỏ gán người duyệt theo `CODEOWNERS`** ([LOG](../LOG.md#bo-gan-nguoi-duyet)): sau PH-11 ba người cùng chấm nhiều phân hệ đan xen, gán cứng theo thư mục làm dồn người duyệt và chậm tính năng. Ai hiểu ngữ cảnh thì duyệt; bản đồ sở hữu vùng làm việc vẫn ở [README docs](../README.md) mục 1.
 - Không đẩy thẳng vào `develop` và `main`. Hook `pre-push` chặn sẵn.
 - **Gộp bằng merge commit, không dùng squash.** Squash xoá mọi commit hằng ngày khỏi nhánh chính, mà lịch sử Git ở đồ án này là hồ sơ nộp kèm chứ không chỉ là công cụ. Lý do đầy đủ ở [LOG#adr-005](../LOG.md#adr-005).
-- Nhánh đã gộp thì xóa: `task/` sau khi gộp vào nhánh feature cha, `feature/ph-NN-*` và `bugfix/` sau khi gộp vào `develop`. An toàn, vì merge commit khiến mọi commit của nhánh thành tổ tiên của nhánh đích.
+- Nhánh đã gộp thì xóa: `task/` sau khi gộp vào nhánh feature cha, `bugfix/` sau khi gộp vào `develop`. An toàn, vì merge commit khiến mọi commit của nhánh thành tổ tiên của nhánh đích.
+- **`feature/ph-NN-*` giữ lại sau khi gộp vào `develop`**, chỉ xoá khi chủ dòng việc chủ động yêu cầu ([LOG#adr-045](../LOG.md#adr-045), đề xuất). Việc tiếp theo của dòng việc vẫn đi `task/` vào nhánh đó; trước khi làm tiếp, gộp `develop` ngược lại vào nhánh để không lệch. Agent không tự xoá và không tự mở nhánh `feature/` mới cho việc nhỏ của một dòng việc đã có nhánh.
 - **Ngoại lệ: `feature/platform` là nhánh dài hạn**, không xoá. Việc nền tảng làm trên `task/<tên>` tách từ `feature/platform`, gộp vào đó bằng merge commit, rồi mở pull request `feature/platform` → `develop`. Sau mỗi lần gộp vào `develop`, gộp `develop` ngược lại vào `feature/platform` để hai nhánh không lệch. Lý do: [LOG.md](../LOG.md) mục ngày 25/09.
 - Pull request vào `feature/platform` **không có CI**, vì CI chỉ chạy cho `develop` và `main`. CI chặn ở bước `feature/platform` → `develop`. `Closes #N` cũng chỉ tự đóng Issue ở bước đó, vì GitHub chỉ đóng khi gộp vào nhánh mặc định.
 

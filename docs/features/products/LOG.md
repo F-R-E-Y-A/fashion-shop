@@ -1,6 +1,6 @@
 ---
 title: Khám phá sản phẩm — nhật ký quyết định và thay đổi
-updated: 2026-09-25
+updated: 2026-09-30
 status: đang dùng
 owner: Bảo
 ---
@@ -15,3 +15,504 @@ Quyết định và thay đổi đáng nhớ của feature `products`, mới nh�
 **Loại:** thay đổi mã · **Phạm vi:** `modules/products`, `features/products` · **Commit:** [060abea](https://github.com/F-R-E-Y-A/fashion-shop/commit/060abea), [c9a015a](https://github.com/F-R-E-Y-A/fashion-shop/commit/c9a015a)
 
 Hai bảng `categories`, `products`, hai đường dẫn liệt kê và xem một sản phẩm, trang danh sách và trang chi tiết tối giản, bốn bài đơn vị và năm bài HTTP. Dựng để hai bạn chép khuôn bốn tầng, **không phải mô hình thật**: giá nằm trên sản phẩm, chưa có biến thể và ảnh. PH-01 viết lại theo sơ đồ quan hệ thực thể của feature.
+
+---
+
+<a id="adr-007"></a>
+## 2026-09-25 · ADR-007 — Biến thể là đơn vị bán; màu, cỡ, thương hiệu là bảng tra cứu
+
+**Loại:** quyết định · **Phạm vi:** `catalog.prisma`, sơ đồ [erd.md](erd.md); ảnh hưởng giỏ hàng và tồn kho (Duy), nạp dữ liệu và sơ đồ tổng (Tài) · **Trạng thái:** đã chốt (Bảo, 25/09, [xem mục M2](#m2-trong-pr-11)) · **Người quyết:** Bảo · **Commit:** [f39ae11](https://github.com/F-R-E-Y-A/fashion-shop/commit/f39ae11) (PR #11)
+
+### Hiện trạng
+
+- Bảo chốt hướng ngày 24/09: sửa ERD và use case cho chuẩn trước, rồi viết lại mã. Module `products` hiện là bản demo hai bảng, giá và ảnh nằm trên sản phẩm ([catalog.prisma](../../../apps/api/prisma/schema/catalog.prisma)), nên mô hình không bị ràng buộc bởi mã cũ.
+- Ba nguồn nói về mô hình, theo hai kiểu:
+  - Issue #6 (PH-01) và #7 (PH-02): *biến thể theo cỡ và màu, mỗi biến thể một giá và một mã hàng*; dòng giỏ hàng trỏ khoá ngoại sang biến thể; hợp đồng `getVariantForCart(variantId)`. Ví dụ trong [orders.prisma](../../../apps/api/prisma/schema/orders.prisma) khoá tồn kho theo `variantId`.
+  - Đặc tả UC-03 của Duy trong pull request #9 (chưa gộp) dùng **ba tầng**: sản phẩm → biến thể theo màu → `SKUS` theo cỡ, cộng bảng `COLORS`, `SIZES`, `BRANDS`. Bảng kế hoạch nhóm chỉ ghi "sản phẩm, biến thể, danh mục"; không tệp kế hoạch nào có `SKUS`.
+- Nếu cỡ và màu là **cột chữ** trên biến thể thì có ba chỗ hỏng: nút cỡ sắp theo chữ ra `L, M, S, XL` (UC-03.4 cần `S, M, L, XL`); "Đen", "đen", "Black" thành ba màu khi lọc (UC-03.3/BR2 lọc theo mã màu); thương hiệu gõ tự do thì không lọc được, mà dữ liệu thật của Tài có từ 10 thương hiệu trở lên (kế hoạch, E4).
+
+### Phương án
+
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Hai tầng, cỡ và màu là cột chữ | Ít bảng nhất | Ba chỗ hỏng ở trên | Được |
+| B. Ba tầng như đặc tả của Duy: biến thể theo màu, `skus` theo cỡ | Ảnh gắn tự nhiên vào biến thể màu | Hai cấp để chọn một món hàng; giỏ, tồn kho, đơn phải trỏ vào `sku`; Duy đang viết giỏ theo `variantId` | Khó khi đã có đơn |
+| **C. Hai tầng, cộng bảng tra cứu `colors`, `sizes`, `brands` (chọn)** | Một mã biến thể mang giá, hợp đồng với Duy không đổi; thứ tự cỡ, ô màu, bộ lọc đều đúng; ERD chuẩn hoá, không lặp dữ liệu màu và cỡ | Thêm ba bảng nhỏ; nạp dữ liệu phải quy tên màu, cỡ, thương hiệu ra mã | Được: gộp lại thành cột chữ là một migration |
+
+**Chọn C.** Lấy phần đúng của B (màu, cỡ, thương hiệu là thực thể riêng; ảnh theo màu qua `product_images.color_id`) mà không đổi đơn vị bán. Bảng `skus` trong đặc tả của Duy chính là `product_variants` ở đây. Sơ đồ, cột, ràng buộc, chỉ mục ở [erd.md](erd.md); `products.price_from` giữ giá bán thấp nhất để sắp xếp theo giá, chỉ service `products` ghi.
+
+Giá bán của một biến thể = `sale_price` nếu có, không thì `list_price`; ràng buộc `CHECK` bảo đảm `sale_price < list_price` (UC-03.1/BR2, UC-03.4/BR4). Tồn kho không nằm ở đây: bảng của Duy khoá theo `variant_id`.
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: bảy bảng như [erd.md](erd.md); `npm run db:drift -w apps/api` trả 0; `GET /api/products/<slug>` trả ít nhất hai cỡ và hai màu cho một sản phẩm mẫu, nút cỡ đúng thứ tự `sort_order`; `getVariantForCart` đúng hình dạng Issue #7 hẹn; `importProducts` chạy hai lần không sinh màu, cỡ, thương hiệu trùng.
+Thực tế: (điền khi PH-01 gộp).
+
+### Điều kiện xem lại
+
+Khi một loại hàng cần thuộc tính biến thể khác màu và cỡ (ví dụ độ dài quần), xem có cần bảng thuộc tính tổng quát.
+
+---
+
+<a id="adr-008"></a>
+## 2026-09-25 · ADR-008 — API của PH-01 đi theo quy ước chung: đường dẫn phẳng, hình dạng `Page`, `camelCase`
+
+**Loại:** quyết định · **Phạm vi:** đường dẫn `/api/products`, `/api/categories` · **Trạng thái:** đã chốt · **Người quyết:** Bảo · **Commit:** (điền khi PH-01 cài đặt)
+
+### Hiện trạng
+
+Bảng *Hợp đồng API* trong đặc tả UC-03 của Duy (pull request #9) viết trước khi có quy ước: `GET /api/categories/:slug/products`, trả `{ data, meta }`, trường `snake_case`, `?limit`, lỗi `422 query_too_short`. Mã và quy ước đã có từ 19/09: một đường dẫn liệt kê có bộ lọc bằng tham số, trả `{ items, total, page, pageSize, totalPages }` qua `toPage()` ([page.response.ts:18-31](../../../apps/api/src/common/pagination/page.response.ts#L18)), trường `camelCase`, dữ liệu vào sai trả 400 ([shared/api.md](../../shared/api.md)). Bài HTTP hiện có đã kiểm `?categorySlug=ao`.
+
+### Phương án
+
+| Phương án | Được gì | Mất gì |
+|---|---|---|
+| **A. Theo quy ước: `GET /api/products?categorySlug=&sort=&featured=`; danh mục riêng ở `GET /api/categories/:slug` (chọn)** | Một đường dẫn liệt kê dùng cho trang chủ, trang danh mục và tìm kiếm sau này; giao diện chỉ học một hình dạng; khớp mã và bài kiểm thử đang có | Đặc tả phải chỉnh theo; đã chỉnh trong [use-cases.md](use-cases.md) |
+| B. Theo đặc tả gốc: đường dẫn lồng, `{ data, meta }`, `snake_case` | Đúng chữ đặc tả | Hai hình dạng phân trang trong một hệ thống; phá quy ước ba người đã chép |
+
+**Chọn A.** Luồng, luật và tiêu chí chấp nhận của đặc tả giữ nguyên; chỉ hình dạng đổi. Ba hệ quả cho tiêu chí:
+
+- **UC-03.1/AC5** (danh mục không tồn tại trả 404) kiểm ở `GET /api/categories/:slug`. Liệt kê với `categorySlug` lạ trả danh sách rỗng, vì bộ lọc không khớp gì không phải là lỗi.
+- **UC-03.1/AC3** đổi tên trường sang `camelCase`; điểm đánh giá trung bình để sau, khi feature đánh giá của Tài có hàm công bố.
+- **UC-03.2/E2** (từ khoá quá ngắn) trả **400** chứ không phải 422, vì đó là dữ liệu vào sai hình dạng chứ không phải phạm luật nghiệp vụ.
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: Swagger `/api/docs` có đủ các đường dẫn ở mục API của [README](README.md); bài HTTP mang tên `UC-03.x/ACk` xanh. Cài xong đường dẫn nào thì xoá dòng đó khỏi mục API trong README.
+Thực tế: (điền khi PH-01 gộp).
+
+### Điều kiện xem lại
+
+Nếu tìm kiếm (UC-03.2) chuyển sang Meilisearch và cần hình dạng kết quả riêng, như điểm liên quan hay đoạn tô sáng.
+
+---
+
+## 2026-09-25 · Hồ sơ phản biện ADR-007 và ADR-008
+
+**Loại:** phản biện, bổ sung · **Phạm vi:** [ADR-007](#adr-007), [ADR-008](#adr-008) · **Công cụ AI:** Claude Code (Opus 5.5)
+
+### ADR-007 — mô hình danh mục
+
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| Người phản biện | Bảo, 24/09: mã hiện có chỉ là bản demo; sửa ERD và use case cho chuẩn rồi viết lại mã; tận dụng ý hay trong PR #9 của Duy | Mô hình quyết bằng ERD, không bằng mã cũ |
+| AI gợi ý lần đầu | Hai tầng, cỡ và màu là **cột chữ** trên biến thể (bản nháp 24/09, không đẩy lên GitHub) | Bỏ |
+| AI sai | H-13: bản nháp đó bỏ sót ba chỗ: nút cỡ sắp theo chữ ra `L, M, S, XL`; một màu gõ nhiều kiểu thành nhiều màu khi lọc; thương hiệu chữ tự do không lọc được | AI tự bắt khi dựng từ điển dữ liệu cho ERD |
+| Ý của Duy (PR #9) | Ba tầng: biến thể theo màu, `SKUS` theo cỡ, bảng `COLORS`, `SIZES`, `BRANDS` | Giữ ý màu, cỡ, thương hiệu là thực thể riêng; bỏ tầng `SKUS` để đơn vị bán vẫn là biến thể |
+| Ý của Tài (PR #11) | Hai tầng, `size` và `color` là chữ cho phép null, một cột `price`; ràng buộc duy nhất viết tay `NULLS NOT DISTINCT` | Làm CI chặng 4 đỏ vì Prisma không mô tả được ràng buộc đó; màu, cỡ là khoá ngoại bắt buộc như ADR-007 thì dùng `@@unique` thường, hết lệch |
+
+**Kết luận:** đề xuất phương án C của ADR-007, chờ Bảo chốt. **Bằng chứng:** [erd.md:159 @3206aa0](https://github.com/F-R-E-Y-A/fashion-shop/blob/3206aa0/docs/features/products/erd.md#L159) (`sizes.sort_order`), [uc-ph03:12 @fe21833](https://github.com/F-R-E-Y-A/fashion-shop/blob/fe21833/docs/ba/uc-ph03-kham-pha-san-pham.md#L12) (mô hình của Duy), [catalog.prisma:42 @be97e0e](https://github.com/F-R-E-Y-A/fashion-shop/blob/be97e0e/apps/api/prisma/schema/catalog.prisma#L42) (mô hình của Tài); log CI chặng 4 của PR #11: `Removed unique index on columns (product_id, size, color)`.
+
+### ADR-008 — hình dạng API
+
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| Câu hỏi phản biện | Bảo: mã hiện có chỉ là demo, viết lại cũng được | AI tách hai loại: bảng, service, trang của `products` là demo và viết lại tự do; quy ước `Page`, khuôn lỗi, trả 400 khi dữ liệu vào sai là **nền tảng** hai bạn đang chép, đổi thì phải có ADR |
+| AI gợi ý | Không tạo `/api/products/search` mà dùng tham số `search` đã có của đường dẫn liệt kê | Giữ |
+| AI (suy luận) | Nếu khai `/api/products/search` sau `@Get(':slug')` thì chữ `search` bị hiểu là một slug, theo thứ tự khớp đường dẫn của Express | Chưa chạy thử; lý do chính vẫn là tránh hai đường liệt kê |
+
+**Kết luận:** đề xuất theo quy ước chung, chờ Bảo chốt. **Bằng chứng:** [list-products.query.ts:15 @58f45e9](https://github.com/F-R-E-Y-A/fashion-shop/blob/58f45e9/apps/api/src/modules/products/dto/list-products.query.ts#L15), [products.controller.ts:29 @58f45e9](https://github.com/F-R-E-Y-A/fashion-shop/blob/58f45e9/apps/api/src/modules/products/products.controller.ts#L29), [use-cases.md:103 @3206aa0](https://github.com/F-R-E-Y-A/fashion-shop/blob/3206aa0/docs/features/products/use-cases.md#L103).
+
+---
+
+<a id="m2-trong-pr-11"></a>
+## 2026-09-25 · ADR-007 chốt theo mô hình M2, cài ngay trong PR #11 của Tài
+
+**Loại:** thay đổi mã, dữ liệu · **Phạm vi:** `catalog.prisma`, migration `ht02_final_baseline`, seed, module `products`; hợp đồng `importProducts` · **Commit:** [f39ae11](https://github.com/F-R-E-Y-A/fashion-shop/commit/f39ae11) trên nhánh `feature/ht-02-erd` (PR #11) · **Công cụ AI:** Claude Code (Opus 5.5)
+
+CI chặng 4 của PR #11 đỏ vì SQL viết tay tạo ràng buộc `UNIQUE NULLS NOT DISTINCT` trên `(product_id, size, color)`, còn lược đồ Prisma không khai, nên `db:drift` báo lệch. Bảo chốt **M2**: phương án C của [ADR-007](#adr-007) cộng một luật, **mọi sản phẩm có ít nhất một biến thể; sản phẩm không phân loại dùng cỡ `FREE`, màu `mac-dinh`**. Vì màu và cỡ thành khoá ngoại bắt buộc, ràng buộc duy nhất của biến thể là `@@unique` thường, Prisma mô tả được, hết lệch. Cài luôn trong PR của Tài thay vì vá tạm rồi làm lại ở PH-01.
+
+Làm trong `f39ae11`: bảy bảng M2; đoạn Prisma của migration sinh lại bằng `prisma migrate diff` từ lược đồ sau `init`, khối viết tay của Tài giữ nguyên trừ phần danh mục (bỏ `NULLS NOT DISTINCT`, thêm bảy `CHECK`); seed có cây danh mục, bảng màu, bảng cỡ, thương hiệu, một sản phẩm dùng biến thể mặc định; module demo đọc giá từ `price_from`. Hợp đồng `importProducts` viết lại theo M2 ở [README của module](../../../apps/api/src/modules/products/README.md), trả lời năm câu Tài hỏi.
+
+| Kiểm (lệnh) | Trước (`4cb8cda`) | Sau (`f39ae11`) |
+|---|---|---|
+| CI chặng 4, `npm run db:drift -w apps/api` | đỏ ở bản gốc của Tài: `Removed unique index on columns (product_id, size, color)` | `No difference detected.` |
+| CI chặng 4, `test/products.http.spec.ts` | — | `Tests 9 passed (9)` |
+| CI sáu chặng | — | xanh cả sáu, [run 36095557851](https://github.com/F-R-E-Y-A/fashion-shop/actions/runs/36095557851) |
+
+Máy nào đã có dữ liệu thì chạy `npm exec -w apps/api -- prisma migrate reset`, vì cột mới `products.price_from` bắt buộc.
+
+### Phản biện
+
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| Câu hỏi phản biện | Bảo: "CI lệch là kiểm tra gì, có phải Prisma của Tài và bảng của tôi lệch nhau?" | AI: không phải lệch giữa hai người mà giữa SQL viết tay và `.prisma` trong cùng PR. Chặng 4 chạy migration vào CSDL trắng rồi so với lược đồ; ràng buộc chỉ có trong SQL thì Prisma coi là thừa |
+| Người đưa phương án | Bảo đưa ba hướng: (1) khai bù `@@unique` có `map` trùng tên; (2A) cỡ, màu mặc định thay cho null; (2B) tách bảng theo ADR-007 | Chọn 2B, lấy ý của 2A |
+| AI phân tích hướng 1 | Che được lệch nhưng Prisma 7 không có tham số `NULLS NOT DISTINCT` cho `@@unique`, nên lược đồ nói một đằng, CSDL làm một nẻo; màu, cỡ vẫn là chữ nên ba chỗ hỏng của ADR-007 còn nguyên | Bỏ |
+| AI phân tích hướng 2A | Giá trị mặc định là ý đúng, nhưng nên là **hàng trong bảng tra cứu** (`FREE`, `mac-dinh`), không phải chuỗi rỗng trên cột chữ; giống cách Shopify tạo biến thể "Default Title" | Thành luật 5 của [erd.md](erd.md) |
+| AI sai | H-15: sau khi Bảo chốt M2, AI hiểu là để M2 cho PH-01 làm sau, đẩy bản vá tạm [`4cb8cda`](https://github.com/F-R-E-Y-A/fashion-shop/commit/4cb8cda) (hướng 1) cho CI xanh | Bảo chặn: "tôi muốn làm hoàn thiện phương án theo M2 luôn, không phải làm tạm để CI xanh". `f39ae11` thay bản vá |
+| AI tự bắt | Khi ghép tệp migration bằng script, chuỗi thay thế của `String.replace` chứa `$'` (lấy từ biểu thức `^#[0-9A-Fa-f]{6}$'`), JavaScript hiểu là "phần sau chỗ khớp" nên chèn lặp nội dung | Khôi phục tệp, ghép bằng `split` và `join`; kiểm mỗi ràng buộc xuất hiện đúng một lần trước khi commit |
+
+**Kết luận:** ADR-007 **đã chốt** theo M2 (Bảo, 25/09). Dòng Trạng thái của ADR-007 do agent sửa theo lời chốt của Bảo trong phiên làm việc. Tầng dữ liệu của PH-01 xong trước hạn; service, API, giao diện vẫn theo [README](README.md).
+
+**Bằng chứng:** màu, cỡ bắt buộc [catalog.prisma:101-102](https://github.com/F-R-E-Y-A/fashion-shop/blob/f39ae11/apps/api/prisma/schema/catalog.prisma#L101-L102) · ràng buộc thường [catalog.prisma:121](https://github.com/F-R-E-Y-A/fashion-shop/blob/f39ae11/apps/api/prisma/schema/catalog.prisma#L121) · khối `CHECK` viết tay của danh mục (bảy mới, một của Tài cho ảnh) [migration.sql:1151-1182](https://github.com/F-R-E-Y-A/fashion-shop/blob/f39ae11/apps/api/prisma/migrations/20260924184146_ht02_final_baseline/migration.sql#L1151-L1182) · biến thể mặc định trong seed [catalog.seed.ts:184-185](https://github.com/F-R-E-Y-A/fashion-shop/blob/f39ae11/apps/api/prisma/seed/catalog.seed.ts#L184-L185).
+
+## 2026-09-26 · Đồng bộ nền dữ liệu và chia task PH-01
+
+**Loại:** thay đổi quy trình · **Phạm vi:** nhánh `feature/ph-01-product-catalog`, kế hoạch trong [README](README.md) · **Commit:** [38eaac2](https://github.com/F-R-E-Y-A/fashion-shop/commit/38eaac2) · **Công cụ AI:** Codex
+
+PR #11 của Tài đã mang mô hình M2 vào `develop`; PR #13 thêm collector và staging, chưa nạp vào Catalog. Bảo yêu cầu review và gộp PR #13, đồng bộ PH-01 rồi chia việc để triển khai. PR #13 được duyệt, gộp bằng merge commit [f4c1f13](https://github.com/F-R-E-Y-A/fashion-shop/commit/f4c1f13). Khi gộp `develop` vào PH-01, xung đột ở `docs/shared/data-model.md` được giải bằng bản HT-02 đã điền và lời mở đầu cập nhật theo lược đồ Prisma thật.
+
+Chia việc thành các nhánh `task/` theo [quy ước git](../../shared/git.md): hợp đồng giỏ hàng trước vì Duy đang chờ; tiếp đó nạp Catalog, API và giao diện. ADR-008 vẫn là `đề xuất`; việc mở rộng API chờ Bảo chốt hình dạng.
+
+## 2026-09-26 · Hợp đồng đọc biến thể cho giỏ hàng
+
+**Loại:** thay đổi mã · **Phạm vi:** `ProductsService`, cửa `index.ts`, hợp đồng module · **Commit:** [c7811ea](https://github.com/F-R-E-Y-A/fashion-shop/commit/c7811ea) · **Công cụ AI:** Codex
+
+Giỏ hàng của Duy cần biết cả biến thể đã ngừng bán để hiện trạng thái thay vì coi nó là ID không tồn tại. Vì vậy hàm đọc không lọc `isActive`; kết quả trả `isActive: false` khi sản phẩm hoặc biến thể ngừng bán, và chỉ trả `null` cho ID không có. Hàm nhiều ID dùng một lần `findMany`, sau đó sắp theo thứ tự đầu vào để giao diện giỏ giữ đúng thứ tự. Giá dùng `salePrice` nếu có, ảnh ưu tiên màu đang chọn rồi ảnh chung; cỡ `FREE` và màu `mac-dinh` không hiện trong nhãn.
+
+**Bằng chứng mã:** [products.service.ts:90](https://github.com/F-R-E-Y-A/fashion-shop/blob/c7811ea/apps/api/src/modules/products/products.service.ts#L90) · [products.service.ts:108](https://github.com/F-R-E-Y-A/fashion-shop/blob/c7811ea/apps/api/src/modules/products/products.service.ts#L108) · [index.ts:9](https://github.com/F-R-E-Y-A/fashion-shop/blob/c7811ea/apps/api/src/modules/products/index.ts#L9).
+
+## 2026-09-27 · Cài `importProducts` theo hợp đồng M2
+
+**Loại:** thay đổi mã · **Phạm vi:** `ProductsService`, kiểu công bố, kiểm dữ liệu và test Postgres · **Commit:** [b2c8de0](https://github.com/F-R-E-Y-A/fashion-shop/commit/b2c8de0), [eb8cc61](https://github.com/F-R-E-Y-A/fashion-shop/commit/eb8cc61)
+
+Mỗi dòng nạp chạy trong một transaction; SKU xác định sản phẩm để chạy lại mà không sinh bản trùng. Khi cập nhật, biến thể vắng mặt được tắt thay vì xoá để giỏ và đơn còn tham chiếu; ảnh đồng bộ theo thứ tự mảng. Bổ sung chặn SKU lặp trong một dòng và dùng SQL `NULL` cho `attributes` vắng mặt; ảnh mang `colorCode` không khớp biến thể thành ảnh chung.
+
+Bằng chứng trên `eb8cc61`: `npm run check` exit 0 (API unit 17/17, web 3/3, crawler 47 pass, 1 skip); `npm run test:http` exit 0 (17/17); `git diff --cached --check` trước commit fix exit 0. Chữ ký công bố cho Tài giữ nguyên ở [README module](../../../apps/api/src/modules/products/README.md).
+
+## 2026-09-27 · Hoàn thiện API khám phá sản phẩm
+
+**Loại:** thay đổi mã · **Phạm vi:** seed, danh mục, danh sách, chi tiết và liên quan · **Commit:** [bee54a0](https://github.com/F-R-E-Y-A/fashion-shop/commit/bee54a0) · **Công cụ AI:** Codex
+
+Danh sách lọc cả danh mục con, sắp xếp ổn định theo giá hoặc ngày tạo và có bộ lọc nổi bật. Chi tiết trả ảnh, màu, cỡ, giá từng biến thể; danh mục có cây và đường dẫn phân cấp. Slug đi qua DTO để trả 400 khi sai khuôn. Seed tăng lên 20 sản phẩm cho bản xem trước; ảnh sản phẩm trong seed vẫn là ảnh mẫu.
+
+**Bằng chứng:** `npm run check` exit 0 (API unit 18/18, web 3/3, crawler 47 pass, 1 skip); `npm run test:http` exit 0 (29/29); `npm run db:drift -w apps/api` báo `No difference detected.`
+
+## 2026-09-27 · Làm sạch dữ liệu crawl, bỏ sản phẩm seed và sửa UX trước nghiệm thu
+
+**Loại:** thay đổi mã và dữ liệu · **Phạm vi:** normalizer, Catalog local, runtime seed, storefront · **Commit:** chưa tạo; nhánh `task/catalog-data-ux` đang có thay đổi chưa commit.
+
+Chuẩn hóa mô tả từ HTML sang text bằng parse5; khi mô tả chính quá ngắn, chọn mô tả nguồn hợp lệ dài ít nhất 80 ký tự thay vì tự viết nội dung ([normalizer](../../../tools/crawler/src/normalization/normalize-product.ts#L49), [parser](../../../tools/crawler/src/normalization/html-description.ts#L1)). Ảnh được lọc theo màu nguồn; trên sản phẩm có ảnh từ host `cdn.nhanh.vn`, cả trang local lẫn trang sản phẩm YODY gốc trả `ERR_NAME_NOT_RESOLVED` qua kiểm tra Network. Lệnh refresh local bỏ 4 URL không truy cập được, giữ nguyên raw/candidate và đặt product không còn ảnh hợp lệ thành inactive ([refresh script](../../../apps/api/scripts/refresh-approved-catalog.ts#L19), [ProductsService](../../../apps/api/src/modules/products/products.service.ts#L185)). Vì vậy sản phẩm source ID 14382 không có ảnh dùng được và API detail trả 404; không thay bằng ảnh của sản phẩm khác.
+
+Sản phẩm giả được chuyển sang test fixtures, runtime seed chỉ upsert danh mục và bảng tra cứu ([catalog seed](../../../apps/api/prisma/seed/catalog.seed.ts#L51)). Script cleanup đã sao lưu, quét khóa ngoại và xóa 20 product, 97 variant, 54 ảnh seed; không phát hiện tham chiếu ngoài và không xóa taxonomy. Sau đó đã chạy lại seed runtime; số sản phẩm seed vẫn bằng 0. Dữ liệu local sau refresh: 90 product crawl đã import, 339 variant, 1.199 ảnh, 87 product active; staging có 90 candidate APPROVED/IMPORTED. Lệnh API list trả total=87. Phép đo trực tiếp PostgreSQL dùng node pg COUNT trên products, product_variants, product_images, SKU SEED-*, products.is_active và staging candidate status; kết quả `{"products":90,"variants":339,"images":1199,"seedproducts":0,"activeproducts":87,"importedcandidates":90}`. `npm run db:seed -w apps/api` chạy lại vẫn cho `{"products":90,"variants":339,"images":1199,"seedproducts":0,"activeproducts":87}`.
+
+Backup trước khi xóa seed: `../work/backups/ph01-seed-products-2026-09-27T09-58-11.171Z.json`, SHA-256 `730B146A277B9005C6D3E52FDD55E49F5652C0D9325612D4605E6295038415C2`. Backup Catalog trước refresh cuối: `../work/backups/ph01-approved-catalog-2026-09-27T10-16-38.936Z.json`, SHA-256 `46ED88581BB685925B6E25753EAC03B6A937CE422A1B6D173562DE116D2DF365`. Backup đầu trước lần refresh đầu cũng còn nguyên: SHA-256 `04C467CFBDDBAF13E3FFBD5F1970387EAD4B5DF051CFB25770B7CCB04D3F49CE`. Các file nằm ngoài repository trong `../work/backups/`.
+
+Web chuyển lên đầu khi điều hướng mới và phục hồi vị trí khi Back; gallery có toàn bộ ảnh, nút trái/phải và phím mũi tên; lựa chọn màu chỉ hiện nếu có ảnh chung hoặc ảnh khớp màu. Header dùng grid ba vùng; hero đặt ảnh bằng object-fit contain để giữ gương mặt trong khung ([scroll manager](../../../apps/web/src/app/ScrollManager.tsx#L4), [gallery](../../../apps/web/src/features/products/pages/ProductDetailPage.tsx#L99), [header](../../../apps/web/src/app/StoreLayout.module.css#L10), hero (`HeroSection.tsx`, đã thay bằng `home/HeroSearch.tsx` ở ADR-020)). Preview đã kiểm bằng mắt tại trang chủ, danh mục Áo và chi tiết Bambo; Bảo chưa duyệt cuối cùng.
+
+**Kiểm chứng:** `npm run check` exit 0; 5 dòng cuối: `ℹ fail 0` / `ℹ cancelled 0` / `ℹ skipped 1` / `ℹ todo 0` / `ℹ duration_ms 584.7232`. `npm run test:http` exit 0, 57/57; 5 dòng cuối: `(Use node --trace-deprecation ...)` / `Test Files 4 passed (4)` / `Tests 57 passed (57)` / `Start at 17:27:33` / `Duration 99.39s`. `npm run db:drift -w apps/api` → `No difference detected.`; `npm run build -w apps/web` exit 0 (cảnh báo bundle JS lớn hơn 500 kB); `node tools/docs/lint.mjs docs/features/products` → 4 tệp đạt; `git diff --check` exit 0.
+
+### Quyết định cần Bảo chốt
+
+<a id="adr-018"></a>
+## 2026-09-27 · ADR-018 — Chỉ đưa product và lựa chọn màu có ảnh dùng được lên storefront
+
+**Loại:** quyết định · **Phạm vi:** API Catalog và product detail web · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** chưa tạo
+
+### Hiện trạng
+
+API không đưa product thiếu ảnh vào danh sách; service đặt product inactive khi import row không còn ảnh ([ProductsService:185](../../../apps/api/src/modules/products/products.service.ts#L185)). Web chỉ đưa color có ảnh dùng chung hoặc ảnh được gắn đúng màu vào bộ chọn ([variants.ts:26](../../../apps/web/src/features/products/lib/variants.ts#L26)). Sau refresh, product source ID 14382 có 0 ảnh dùng được; API detail cho slug áo sơ mi Kẻ Tăm trả 404. Host ảnh gốc `cdn.nhanh.vn` không phân giải DNS cả ở local storefront lẫn trang nguồn YODY.
+
+### Phương án
+
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Ẩn product không ảnh dùng được và không cho chọn màu thiếu ảnh khớp/chung | Không còn panel ảnh rỗng hoặc ảnh sai màu | 3 product và một số lựa chọn màu tạm không hiện | Có; sửa nguồn ảnh rồi refresh lại từ candidate |
+| B. Giữ toàn bộ product/màu, thay ảnh thiếu bằng placeholder | Giữ số lượng danh mục | Người mua không xem được ảnh gốc; placeholder không giải quyết nguồn ảnh | Có |
+| Không đổi | Không phát sinh công việc | Lỗi ảnh trống và lựa chọn sai tiếp tục xuất hiện | Có |
+
+**Chọn A để thử nghiệm trên local** theo yêu cầu chỉ trưng bày dữ liệu thật và tránh trình bày ảnh/màu sai. Đây là đề xuất để Bảo chốt; nếu `cdn.nhanh.vn` hoạt động lại, bỏ host khỏi danh sách lọc rồi refresh và kiểm lại sản phẩm source ID 14382.
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: product không ảnh dùng được không xuất hiện; lựa chọn màu khớp ảnh; runtime seed không tạo lại sản phẩm giả. Thực tế ngày 27/09: API list total 87, product seed 0, product active 87 trên 90 product đã import; Bambo detail có ảnh và 3 lựa chọn màu có thumbnail; API detail Kẻ Tăm trả 404. Chờ Bảo duyệt thiết kế trước PR.
+
+### Điều kiện xem lại
+
+Mở lại khi YODY/CDN cung cấp URL ảnh khác, DNS `cdn.nhanh.vn` khôi phục, hoặc Bảo muốn giữ product không ảnh với trạng thái placeholder riêng.
+
+## 2026-09-27 · Đồng bộ ảnh ba danh mục với hero và làm lại bộ sắp xếp
+
+**Loại:** thay đổi giao diện · **Phạm vi:** home category tiles, category sort · **Commit:** chưa tạo; nhánh `task/catalog-data-ux`.
+
+Bảo chỉ rõ ảnh tham chiếu: Áo là chân dung người mẫu đã duyệt ở hero, Quần là phần quần của cùng bộ trang phục, Phụ kiện là túi xách trong bối cảnh cùng chiến dịch. Ba ảnh được sinh riêng từ hero và ảnh bố cục tham chiếu, lưu PNG gốc ở `../work/assets/home/`, xuất WebP `category-{ao,quan,phu-kien}.webp` vào `apps/web/public/images/home/`. Ảnh sản phẩm trong lưới vẫn lấy từ dữ liệu crawl; chỉ ba ảnh điều hướng danh mục dùng chiến dịch tĩnh. `CategoryTiles` không còn gọi API sản phẩm để chọn ảnh đầu tiên (`CategoryTiles.tsx` (đã thay bằng `home/CategoryBento.tsx` ở ADR-020)).
+
+Bộ sắp xếp giữ `select` để dùng bàn phím và giữ URL query đang có; thêm nhãn hiển thị, khung, mũi tên và trạng thái hover/focus theo màu trang ([SortSelect.tsx](../../../apps/web/src/features/products/components/SortSelect.tsx), `Catalog.module.css` (đã tách theo từng thành phần và xoá ở ADR-020)). Preview tại `http://localhost:5174/` và `/danh-muc/phu-kien` đã được chụp và xem; Bảo cần duyệt giao diện cuối trước commit, PR và đóng Issue #6.
+
+**Kiểm chứng:** WebP có kích thước 1000 × 1250 theo Pillow; kích thước byte lần lượt 52.080, 91.204, 95.646 (`python` mở và lưu WebP, output lưu trong phiên). `npm run test -w apps/web -- CategoryPage.test.tsx` exit 0, 2/2; `npm run check` exit 0 trên HEAD `0548ae9`, 5 dòng cuối `ℹ fail 0` / `ℹ cancelled 0` / `ℹ skipped 1` / `ℹ todo 0` / `ℹ duration_ms 588.0596`.
+
+Sau khi chỉnh khoảng cách ba ô còn 6px, chạy lại `npm.cmd run check` exit 0 trên HEAD `0548ae9`; 5 dòng cuối `ℹ fail 0` / `ℹ cancelled 0` / `ℹ skipped 1` / `ℹ todo 0` / `ℹ duration_ms 561.7604`. `npm.cmd run build -w apps/web` exit 0, `✓ built in 712ms`; còn cảnh báo chunk JS >500 kB từ Vite. Đã xem thêm trang chủ ở viewport desktop sau chỉnh khoảng cách.
+
+## 2026-09-27 · Bảo duyệt giao diện PH-01, chuẩn bị PR
+
+**Loại:** nghiệm thu giao diện · **Phạm vi:** PH-01 · **Commit:** `44d361b`, merge vào nhánh feature tại `4f07243`.
+
+Bảo xác nhận đã duyệt giao diện. Phần làm sạch Catalog và UX được commit trên `task/catalog-data-ux`, rồi gộp vào `feature/ph-01-product-catalog` theo quy ước nhánh. Mở PR từ nhánh feature vào `develop` để CI và người khác review trước khi merge; `Closes #6` đặt trong mô tả PR để Issue chỉ đóng sau khi gộp. Trạng thái ADR-018 vẫn là đề xuất.
+
+## 2026-09-28 · Đính chính mã ADR khi đồng bộ `develop`
+
+**Loại:** đính chính · **Phạm vi:** ADR của Catalog.
+
+Trong khi PR #17 chờ review, các PR xác thực đã dùng ADR-010 đến ADR-017 trên `develop`. Mục Catalog từng ghi ADR-010 ở nhánh feature bị trùng; đổi anchor và tiêu đề thành ADR-018 theo dãy chung, giữ nguyên nội dung và trạng thái đề xuất. Đây là sửa mã tham chiếu để lint tài liệu nhận một ADR duy nhất, không phải quyết định mới.
+
+<a id="adr-019"></a>
+## 2026-09-30 · ADR-019 — Tìm kiếm hiểu tiếng Việt bằng luật và từ điển, lọc và xếp hạng trong API
+
+**Loại:** quyết định · **Phạm vi:** `products` (API, web), bảng `products` thêm cột `audience`, `search_configurations` · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** [1ff623b](https://github.com/F-R-E-Y-A/fashion-shop/commit/1ff623b), [3458884](https://github.com/F-R-E-Y-A/fashion-shop/commit/3458884), [e8805da](https://github.com/F-R-E-Y-A/fashion-shop/commit/e8805da), [ba72168](https://github.com/F-R-E-Y-A/fashion-shop/commit/ba72168), [6055b18](https://github.com/F-R-E-Y-A/fashion-shop/commit/6055b18) (nhánh local, chưa push)
+
+### Hiện trạng
+
+Trước đợt này ô tìm kiếm chỉ so cả câu với tên sản phẩm: `name: { contains: search, mode: 'insensitive' }` ([products.service.ts:231](../../../apps/api/src/modules/products/products.service.ts#L231)). Khách gõ thiếu dấu, thêm màu hay thêm ngân sách là không ra gì. Không có bộ lọc giá, màu, cỡ, đối tượng; đối tượng nam/nữ chỉ nằm trong chuỗi slug nguồn ở `attributes` (suy luận từ cách import, đã kiểm ở migration backfill: 22 nam, 65 nữ trên 87 sản phẩm). Catalog thật ngày 30/09: 87 sản phẩm hiển thị, 0 sản phẩm có thương hiệu.
+
+Đo ngày 30/09 trên API local: cột "Trước" là số sản phẩm có tên chứa nguyên câu (không phân biệt hoa thường, như `ILIKE`), cột "Sau" là `total` của `GET /api/products?search=`.
+
+| Khách gõ | Trước (`ILIKE` trên tên) | Sau | Cửa hàng hiểu thành |
+|---|---|---|---|
+| `ao so mi` | 0 | 23 | Áo sơ mi |
+| `polo nữ trắng dưới 100k` | 0 | 8 | Dưới 100.000 ₫ · Kiểu polo · Nữ · Màu trắng |
+| `áo mát` | 0 | 55 | Áo · Dịp: ngày hè |
+| `đồ đi biển mát mẻ` | 0 | 63 | Dịp: ngày hè |
+| `sơ mi trắng đi làm` | 0 | 10 | Áo sơ mi · Màu trắng · Dịp: công sở |
+| `quần tây nữ ống rộng` | 1 | 2 | Quần tây · Nữ · “ống rộng” |
+| `somi nữ` | 0 | 16 | Áo sơ mi · Nữ |
+
+### Phương án
+
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| **A. Luật và từ điển tiếng Việt, lọc và xếp hạng trong API (chọn)** | Hiểu có dấu và không dấu, giải thích được mỗi ý ("Đã hiểu"), chạy trong tiến trình, không thêm hạ tầng; kiểm thử được bằng bộ 47 câu mẫu | Từ điển phải nuôi; câu ngoài từ điển chỉ tìm theo chữ; lọc trong bộ nhớ không mở rộng vô hạn | Có; giữ nguyên hợp đồng API, thay bên trong |
+| B. `pg_trgm`/`tsvector`, hoặc vector `pgvector` | Xếp hạng theo độ giống, chịu lỗi gõ tốt hơn, đẩy lọc xuống SQL | Cần extension, tạo chỉ mục và đồng bộ; embedding cần mô hình; khó giải thích vì sao ra kết quả | Có, nhưng thêm hạ tầng |
+| C. Nhờ mô hình ngôn ngữ đọc ý định | Hiểu câu tự do | Chi phí và độ trễ mỗi lần gõ, kết quả không lặp lại được, cần khoá API và kiểm soát dữ liệu gửi đi | Có |
+| Không đổi | Không tốn công | Bảng trên: hầu hết câu tự nhiên ra trang trống | Có |
+
+Sáu tiêu chí (kết luận là **suy luận**, chỉ số đo nằm ở hai mục trên):
+
+| Tiêu chí | A | B | C |
+|---|---|---|---|
+| Hiểu câu tiếng Việt không dấu | ✅ có luật riêng | ❌ trigram chỉ gần đúng chữ | ✅ |
+| Giải thích được kết quả | ✅ từng ý là một chip, bỏ được | ❌ | ❌ |
+| Độ trễ mỗi lần gõ | ✅ trong tiến trình, p95 80–90 ms | ✅ | ❌ |
+| Thêm hạ tầng hoặc chi phí | ✅ không | ❌ extension, chỉ mục | ❌ khoá API, phí theo lượt |
+| Kiểm thử lặp lại được | ✅ bộ 47 câu | ✅ | ❌ |
+| Mở rộng quá vài nghìn sản phẩm | ❌ | ✅ | ✅ |
+
+**Chọn A** vì Catalog hiện 87 sản phẩm và khách cần một ô tìm kiếm hiểu được câu như nhắn tin, nhìn thấy nó hiểu gì và sửa được. Trade-off chấp nhận: lọc và xếp hạng chạy trong bộ nhớ của API trên toàn bộ sản phẩm hiển thị; khi Catalog lớn lên phải chuyển sang B.
+
+### Hành vi
+
+1. **Đọc câu theo năm bước**: giá ("dưới 100k", "từ 200 đến 500 nghìn") → cỡ ("size M", "cỡ 32" chỉ là cỡ khi không có đơn vị tiền) → cụm trong từ điển (danh mục, đối tượng, họ màu, kiểu dáng, dịp mặc), cụm dài trước → từ bỏ qua ("cho", "đi") → chữ còn lại là từ khoá tự do. Mỗi ý lưu vị trí các từ đã sinh ra nó để giao diện bỏ đúng ý đó khỏi câu.
+2. **Có dấu so bản có dấu**: gõ "mát" không khớp "mắt chim". Cụm một từ dễ nhầm khi bỏ dấu ("đỏ", "tím", "mát") đánh dấu `accentOnly`: chỉ nhận khi khách gõ có dấu. Gõ không dấu thì so bản không dấu.
+3. **Xếp hạng**: khớp đầu từ trong tên (3 điểm), trong văn bản gồm tên, danh mục, màu và mô tả đã bỏ HTML (1 điểm), gõ sai một hai chữ (0,6). Các nhóm ý là VÀ, các từ trong một nhóm là HOẶC.
+4. **Nới truy vấn** khi không có kết quả: bỏ từ khoá tự do → bỏ dịp mặc và kiểu dáng → bỏ màu → bỏ cỡ → bỏ khoảng giá, dừng ở bước đầu tiên có kết quả và ghi tên các bước vào `relaxed`. Khi không còn ràng buộc nào mà vẫn rỗng thì trả rỗng, không trả cả Catalog ([catalog-engine.ts:291-361](../../../apps/api/src/modules/products/search/catalog-engine.ts#L291)).
+5. **Tham số tường minh thắng ý trong câu** (`audience`, `minPrice`, `maxPrice`, `sort`). Số đếm mỗi nhóm bộ lọc tính trên các sản phẩm qua mọi bộ lọc trừ chính nhóm đó.
+
+### Hợp đồng
+
+- `GET /api/products` thêm `categories`, `audience`, `colors`, `sizes`, `minPrice`, `maxPrice`, `facets`, `sort=relevance`, `log`. Có `search` hay bất kỳ tham số nào ở trên thì controller chuyển sang `CatalogSearchService` ([products.controller.ts:38](../../../apps/api/src/modules/products/products.controller.ts#L38)); không thì giữ đường liệt kê cũ.
+- Phản hồi có thêm `hoverImageUrl`, `colorSwatches`, `colorCount` trên mỗi sản phẩm; khi có `search` thêm `interpretation` (chip kèm `tokens`) và `relaxed`; khi `facets=true` thêm `facets` dạng mảng.
+- `GET /api/search/suggest?q=` trả tối đa 5 sản phẩm, 3 danh mục, 4 câu gợi ý; giới hạn 60 lần mỗi phút mỗi IP, khoá Redis chỉ chứa HMAC của IP. **Khi Redis lỗi thì cho qua**: đây là API chỉ đọc, chặn cả ô tìm kiếm vì sự cố hạ tầng gây hại hơn mở cửa ([suggest-rate-limit.service.ts](../../../apps/api/src/modules/products/search/suggest-rate-limit.service.ts)). Khác cửa xác thực của Auth, nơi mở cửa có thể bị lạm dụng để gửi thư.
+- Từ điển mở rộng đọc từ `search_configurations` khoá `synonyms.v1`, nhớ tạm 60 giây; sai hình dạng hay DB lỗi thì dùng từ điển trong mã và chỉ cảnh báo một lần ([search-dictionary.service.ts](../../../apps/api/src/modules/products/search/search-dictionary.service.ts)).
+- `log=false` để các thẻ cố định trên trang chủ không ghi vào `search_query_logs`.
+
+### Lệch so với đặc tả
+
+- UC-03.3/BR2 ghi lọc màu theo `colors.code`; thực tế lọc theo **họ màu** (15 họ). Dữ liệu nguồn có hàng chục tên màu khác nhau, lọc theo mã sẽ cho hàng chục ô màu na ná nhau.
+- UC-03.3/AC3 ghi cỡ "còn hàng theo hàm đọc tồn kho của Duy"; **chưa xét tồn kho**, lọc theo biến thể đang bán. Ghi ở [TECH_DEBT ND-14](../../TECH_DEBT.md).
+- Thêm `sort=relevance`; đặc tả chỉ có ba kiểu sắp xếp.
+- Thương hiệu chưa có nhóm lọc vì 0 sản phẩm có `brand_id`.
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: bảng "Trước / Sau" ở trên đúng trên dữ liệu thật; bộ 47 câu mẫu xanh; p95 của `GET /api/products?search=&facets=true` dưới 150 ms; các bài kiểm thử HTTP xanh.
+
+Thực tế ngày 30/09: cột "Sau" đo trên API local như bảng; `node work/ph01-search/check.mjs` → `49/49 phép kiểm đúng, 87 sản phẩm`; `npm run test -w apps/api` → `Tests 221 passed (221)`; `npm run test:http` → `Test Files 7 passed (7)`, `Tests 209 passed (209)`, exit 0; `node work/ph01-search/bench-api.mjs http://localhost:3001 200` hai lần → `p50 54,3 ms · p95 90,3 ms` và `p50 53,4 ms · p95 80,0 ms`, đo khi bộ kiểm thử HTTP đang chạy song song nên là số cận trên. Khớp.
+
+### Điều kiện xem lại
+
+Chuyển sang B (kèm ADR mới) khi trên 15% câu tìm trong hai tuần không có kết quả theo `search_query_logs`, hoặc Catalog vượt vài nghìn sản phẩm (khi đó cũng đẩy lọc xuống SQL). Xem lại `accentOnly` khi thêm nhóm hàng mới có từ dễ nhầm dấu.
+
+<a id="adr-020"></a>
+## 2026-09-30 · ADR-020 — Token giao diện bản 1 và mỗi thành phần một tệp CSS
+
+**Loại:** quyết định · **Phạm vi:** `apps/web` (`styles.css`, `ui/Layout.module.css`, `features/products`) · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** [8d88342](https://github.com/F-R-E-Y-A/fashion-shop/commit/8d88342), [95449d3](https://github.com/F-R-E-Y-A/fashion-shop/commit/95449d3) (nhánh local, chưa push)
+
+### Hiện trạng
+
+Trước đợt này `Catalog.module.css` có 347 dòng và 50 lớp, dùng chung cho 13 tệp, trái tinh thần [ADR-009](../../LOG.md#adr-009) (kiểu riêng của feature nằm trong CSS Modules, mỗi thành phần một tệp; `wc -l` đo ngày 30/09). Khung `container` và `section` gõ tay `1200px` và `clamp(16px, 4vw, 56px)` ở nhiều nơi; hiện còn ở [StoreLayout.module.css:11](../../../apps/web/src/app/StoreLayout.module.css#L11), [StoreLayout.module.css:83](../../../apps/web/src/app/StoreLayout.module.css#L83), [ProductDetailPage.module.css:2](../../../apps/web/src/features/products/pages/ProductDetailPage.module.css#L2). Màu và chữ đã có biến trong [styles.css](../../../apps/web/src/styles.css) nhưng chưa có thang chữ, khoảng cách khung, hay đường cong chuyển động.
+
+### Phương án
+
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Giữ số gõ tay trong từng CSS | Không đổi gì | Đổi khung phải sửa từng nơi, dễ lệch | Có |
+| **B. Thêm biến vào `:root` và `ui/Layout.module.css` (chọn)** | Một nguồn cho khung, thang chữ, chuyển động; thành phần mới dùng chung `container`, `section`, `eyebrow` | Thêm 13 biến mới cần nhớ | Có |
+| C. Thêm thư viện token hay Tailwind | Nhiều tiện ích | Thêm thư viện, đổi cách viết CSS của cả nhóm | Khó |
+
+**Chọn B.** Thêm vào [styles.css:16-29](../../../apps/web/src/styles.css#L16): `--amber-glow`, `--stone`, `--on-dark-muted`, `--ink-2`, thang chữ `--s-1` đến `--s5`, `--gutter`, `--container`, `--ease`. `ui/Layout.module.css` xuất qua `@/ui` với `container`, `section`, `eyebrow`, `plainButton` (`styles.css` tô mọi `<button>` màu accent nên nút phụ phải reset). Mỗi thành phần cũ phải sửa được chuyển kiểu sang `<Tên>.module.css` riêng; thành phần bị thay thì xoá cùng lớp của nó. Trade-off chấp nhận: hai tệp của người khác (`StoreLayout`, `ProductDetailPage`) còn số gõ tay, đổi khi tái cấu trúc thư mục ngày 01/10.
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: `Catalog.module.css` nhỏ dưới 150 dòng, không lớp nào không có người dùng; không tệp `.tsx` mới trong `components/`; trang chủ đo Lighthouse trên máy: Accessibility ≥ 95, CLS < 0,1.
+
+Thực tế ngày 30/09: `Catalog.module.css` **xoá hẳn** (0 dòng), thay bằng bảy tệp CSS mỗi thành phần một tệp, tổng 259 dòng (`wc -l apps/web/src/features/products/components/*.css`); `components/` không có tệp `.tsx` mới; Lighthouse di động trên bản build: Accessibility 100, Best Practices 96, SEO 92 (đã thêm `robots.txt`); vết trace trên máy: LCP 871 ms, CLS 0,04, không giả lập mạng. Điểm Performance của Lighthouse **chưa đo** vì công cụ chỉ trả ba nhóm còn lại. Khớp.
+
+### Điều kiện xem lại
+
+Khi nhóm chốt tên và nhận diện thương hiệu (đổi màu, chữ), hoặc khi cần chế độ tối.
+
+## 2026-10-04 · Đối chiếu trạng thái tích hợp cho báo cáo tuần 3
+
+PR #28 đã gộp ngày 03/10 vào `develop@ee46445`; Issue #23 đã đóng. `gh pr list --state all --json number,state,mergedAt,mergeCommit` và `gh issue view 23 --json state,closedAt` xác nhận ngày 04/10. Mục ADR-019/020 ngày 30/09 ghi “local, chưa push” là mốc lịch sử, không phải trạng thái hôm nay; không đổi dòng Trạng thái ADR.
+
+`npm.cmd run check` tại `33f323c` ngày 04/10 exit 0: API 259 pass, web 136 pass, crawler 50 pass/1 skip; năm dòng stdout cuối: `ℹ fail 0` / `ℹ cancelled 0` / `ℹ skipped 1` / `ℹ todo 0` / `ℹ duration_ms 592.0993`. CI PR #28 tại `1809122` thành công sáu gate, HTTP 281 pass; lệnh và output ở kho hồ sơ `minh-chung/2026-W40-doi-chieu.md` (chưa push ở thời điểm viết).
+
+PR #31 (`33f323c`) sửa header/hero/chữ có CI SUCCESS, còn OPEN. Bộ FREYA mới là gói bàn giao trong workspace, `apps/web/src/core/brand.ts:2` còn THỜI TRANG. README được sửa theo trạng thái này; không coi asset bàn giao là đã tích hợp.
+
+### Bổ sung cuối phiên 04/10 — working tree nhận diện thay đổi
+
+Sau mốc check baseline, đọc lại `core/brand.ts:2`, `:5` thấy F.R.E.Y.A. và slogan mới; `StoreLayout.tsx:18`, `:108` đã tham chiếu PNG trong resource. HEAD vẫn `33f323c`, các thay đổi web này chưa commit. Câu THỜI TRANG ở mục trên là trạng thái lúc đọc đầu phiên; không dùng kết quả check trước đó để xác nhận bản tích hợp nhận diện mới. Phiên tổng hợp chỉ cập nhật báo cáo, không sửa hoặc revert source web phát sinh.
+
+## 2026-10-11 · The san pham dung anh cua ho mau dang loc
+
+Khach loc `colors=xanh-duong` nhung the hien anh mac dinh cua san pham (vi du Ao Polo Nu Pima: anh sort 0-4 la Hong, anh Xanh duong bat dau sort 5) nen thay "loc xanh duong ma ra ao vang, ao hong". Thuat toan loc dung san: moi ket qua deu co bien the thuoc ho mau do (kiem tra DB 11/10). Nguyen nhan la `storefront.ts` luon lay `images[0]`/`images[1]`, khong biet bo loc dang chon mau nao.
+
+Sua: `storefrontProductInclude.images` kem ten mau va nho lay 12 anh; `toProductResponse` nhan `preferFamily` — khi bo loc chon dung MOT ho mau (ca mau do query understanding chi ra qua `interpretation.colorFamilies`), anh chinh va anh re chuot lay tu anh cua ho mau do, khong co thi ve anh mac dinh. `preferredFamilyOf` chi nhan dung mot gia tri hop le, hai ho tro len khong doan thay nguoi dung. Chi ap dung tren duong tim kiem/loc (catalog-search); danh sach thuong giu nhu cu.
+
+## 2026-10-18 · PH-11 dùng hợp đồng Catalog trong transaction giỏ và cập nhật qua SSE
+
+**Loại:** thay đổi mã · **Phạm vi:** Products–Cart–Inventory · **Commit:** chưa commit, nền `e7d419437ccfaba8016336b614d9ba820735d518`.
+
+Hai hàm public đọc biến thể nhận thêm transaction tuỳ chọn để Cart không phải đọc bằng connection riêng sau commit; caller cũ không truyền tham số vẫn tương thích ([products.service.ts:343](../../../apps/api/src/modules/products/products.service.ts#L343)). Giá list/sale hiện tại được dùng cả ở thẻ sản phẩm và bộ máy tìm kiếm. Catalog đọc tồn qua Inventory; chưa ghép điều kiện tồn vào bộ lọc cỡ ND-14.
+
+Trang chi tiết đã gọi Cart khi chọn được biến thể. SSE chỉ gửi revision để frontend tải lại các query đang mở; background refetch kết quả tìm kiếm không ghi thêm lượt tìm của khách. Phương án và trade-off ở [ADR-031](../../LOG.md#adr-031). Không tích hợp PR #41 hoặc giả lập tồn kho trên database cửa hàng.
+
+
+<a id="adr-044"></a>
+## ADR-044 · API catalog quản trị chỉ đọc độc lập điều kiện storefront
+
+**Trạng thái:** đề xuất · **Ngày:** 2026-11-03 · **Người đề xuất:** Tài (AI hỗ trợ).
+
+**Bối cảnh:** Issue #63 cần xem sản phẩm/biến thể/danh mục ẩn. API công khai lọc theo điều kiện hiển thị;
+nới cùng API sẽ làm lộ dữ liệu ẩn. Actor MVP là ADMIN hiện có, không thêm STAFF từ bản nháp use case.
+
+**Phương án:** controller/service/DTO admin riêng trong module products, RequireRoles ở class,
+import AuthModule qua public index. Select allowlist, Decimal thành chuỗi; query tên HOẶC SKU dùng
+relation some để không trùng product. Escape LIKE wildcard và count/rows trong snapshot RepeatableRead.
+Giới hạn page 100000 để chặn skip quá lớn; pageSize tối đa 60 theo chuẩn.
+
+**Đánh đổi:** thêm hai DTO đọc và một luồng truy vấn riêng phải duy trì, nhưng public catalog/import
+không đổi hợp đồng. Không lấy stock/KPI hoặc ghi log tìm kiếm storefront; không thêm migration/index
+khi chưa có số đo. Frontend dùng session cache/403 chung, không tạo cơ chế phiên riêng.
+
+**Thực tế:** mã và test ở nhánh `feature/ph-03-admin-catalog`, tích hợp develop `63d9798` sau PR #60;
+trạng thái review và kiểm chứng theo [Issue #63](https://github.com/F-R-E-Y-A/fashion-shop/issues/63).
+Menu Sản phẩm dùng AdminNavigation, breadcrumb nhận cả danh sách/chi tiết; giữ test shell và bổ sung
+kiểm tra route catalog. Người khác review và CI xanh trước khi coi hoàn thành; không tự chốt ADR.
+
+<a id="adr-048"></a>
+## 2026-11-06 · ADR-048 — Tìm kiếm lai: luật và từ điển giữ lọc, mô hình embedding đa ngôn ngữ chạy trong API gộp hạng
+
+**Loại:** quyết định · **Phạm vi:** PH-01, `apps/api/src/modules/products/search`; cấu hình triển khai · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** [`1ba02da`](https://github.com/F-R-E-Y-A/fashion-shop/commit/1ba02da), bộ đánh giá [`e6d020e`](https://github.com/F-R-E-Y-A/fashion-shop/commit/e6d020e)
+
+### Hiện trạng
+- Search chỉ hiểu câu bằng luật và từ điển ([ADR-019](#adr-019)); README ghi "chưa cài embedding hoặc LLM runtime". GVHD yêu cầu áp dụng xử lý ngôn ngữ tự nhiên; biên bản gặp GVHD gợi ý mô hình đa ngôn ngữ chạy local (`bge-m3`, `multilingual-e5`), hybrid bằng RRF và đánh giá bằng Recall@k, MRR (`tlcn-docs/tien-do/DanBaiHopGVHD.md`, mục 6.1–6.2).
+- Đo thử ngày 06/11 trên 87 sản phẩm đang bán, 12 câu, transformers.js 4.3.2 bản q8. Mỗi câu gồm nhúng câu và cosine với 87 sản phẩm:
+  - `multilingual-e5-small`: p95 7,5 ms, RSS thêm khoảng 500 MB, nạp 6,6 s;
+  - `multilingual-e5-base`: p95 15 ms;
+  - `bge-m3`: p95 63,5 ms, RSS khoảng 1,1 GB.
+
+  Trên mẫu này hai mô hình lớn cho kết quả đầu kém hơn `e5-small` (trượt "dây nịt", "áo giữ ấm mùa đông").
+- Trên cùng 12 câu, luật và mô hình đều đúng 7/12 kết quả đầu, nhưng đúng ở các câu khác nhau. Mô hình thắng ở câu theo ý định: "áo giữ ấm mùa đông" ra áo phao. Luật thắng ở ràng buộc: "polo nữ trắng dưới 100k" lọc đúng giá và màu; "váy dự tiệc" trả 0 là đúng vì cửa hàng không bán váy, còn mô hình vẫn trả quần với điểm gần bằng câu đúng. Bảng chấm do Claude Code đọc kết quả, chưa phải bộ đánh giá.
+- Staging Render dùng gói `free` ([render.yaml](../../../render.yaml)), 512 MB. API đang chạy chiếm 150 MB, cộng mô hình thì vượt giới hạn (suy luận từ số đo).
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Chỉ luật (ADR-019) | Không thêm gì | Câu theo ý định và từ đồng nghĩa ngoài từ điển không ra; không đáp ứng yêu cầu NLP của GVHD | — |
+| **B. Lai: luật lọc và giữ cửa "0 kết quả"; `e5-small` chạy trong API gộp hạng bằng RRF; vector giữ trong bộ nhớ (chọn)** | Hiểu ý định và đồng nghĩa; giữ chip "Đã hiểu", lọc giá, màu, cỡ; không gửi dữ liệu ra ngoài, không khoá API; tắt được bằng `SEARCH_SEMANTIC=off` | Thêm khoảng 500 MB RAM và khoảng 7 s nạp khi bật; image API nặng thêm vì có ONNX Runtime; vài câu tụt nhẹ (Thực tế) | Được: đặt `off`, hoặc gỡ `search/semantic/` |
+| C. Như B nhưng lưu vector trong pgvector | Đúng kế hoạch nhóm; chịu được hàng chục nghìn sản phẩm | Đổi image Postgres ở compose, CI và CSDL dev của Duy, Tài; 87 vector so trong bộ nhớ dưới 1 ms nên chưa cần | Được, tốn công |
+| D. Gọi API embedding bên ngoài | Nhẹ máy, chất lượng cao | Khoá API, phí theo lượt, gửi câu khách ra ngoài, CI phải giả lập | Được |
+
+**Chọn B** vì catalog có 87 sản phẩm, cần giữ phần giải thích được của ADR-019 và chạy được trên máy demo không cần mạng. Trade-off chấp nhận: Render Free giữ `off` ([ND-17](../../TECH_DEBT.md)); pgvector để khi catalog lớn.
+
+### Hành vi
+1. `SEARCH_SEMANTIC=off|local`, mặc định `off`; máy dev, CI và Render Free không nạp mô hình. Bộ nhúng là provider `EMBEDDER`; thư viện chỉ được nạp bằng dynamic import khi bật `local`.
+2. Bật `local` thì API nhúng catalog ở nền khi khởi động. Vector gắn với băm của mô hình và văn bản, nên sản phẩm đổi tên hay mô tả thì lần nạp sau tự tính lại.
+3. Cách gộp hạng chỉ chạy khi có câu hỏi, sắp theo liên quan và luật có kết quả. Gộp bằng RRF giữa hạng luật (hạng dày, bỏ thưởng "nổi bật") và hạng cosine, K = 60.
+4. Ứng viên chỉ do ngữ nghĩa thêm vào phải thoả ba điều kiện: qua mọi bộ lọc cấu trúc, cosine không kém sản phẩm giống nhất quá 0,03, và tối đa 12 sản phẩm. Ứng viên nhận hạng luật ngay sau mức khớp thấp nhất. Facet đếm cả ứng viên này.
+5. Mọi lỗi đều quay về chỉ luật: chưa nhúng xong, mô hình lỗi, hay quá `SEARCH_SEMANTIC_TIMEOUT_MS` (mặc định 300 ms). Phản hồi có `ranking: hybrid|rules`. Gợi ý (`/api/search/suggest`) vẫn chỉ dùng luật.
+
+### Kết quả mong đợi → thực tế
+Mong đợi: `npm run search:eval -w apps/api` trên bộ 29 câu có nhãn (`scripts/search-eval/cases.json`). Nhóm câu theo ý định có Recall@10 và MRR của cách lai không thấp hơn chỉ luật, nhóm câu luật không giảm, câu âm không thêm kết quả, độ trễ thêm dưới 20 ms (UC-03.2/AC10).
+Thực tế: `npm run search:eval -w apps/api` tại [`fc27ef1`](https://github.com/F-R-E-Y-A/fashion-shop/commit/fc27ef1), cây sạch, CSDL local 87 sản phẩm. Tệp đầy đủ: `tlcn-docs/minh-chung/danh-gia-tim-kiem-2026-11-06.md`. Mỗi ô ghi chỉ luật → lai.
+- Nhóm ý định (18 câu): Recall@10 0,59 → 0,68; MRR 0,61 → 0,87; nDCG@10 0,56 → 0,71. Tăng rõ ở "áo thấm mồ hôi mặc mùa hè", "quần áo đi làm công sở cho nữ", "đồ mặc ở nhà thoải mái" (Recall 0 → 0,33–0,50, MRR 0 → 1).
+- Nhóm luật (7 câu): Recall@10 1,00 → 1,00; MRR 0,93 → 1,00; nDCG@10 0,96 → 1,00.
+- Câu âm: "váy dự tiệc", "mũ lưỡi trai" vẫn trả 0. "giày thể thao" (42 → 43) và "túi xách nữ" (65 → 65) đã sai sẵn ở luật vì khớp "thể thao", "nữ"; lai không làm tệ hơn đáng kể.
+- Tụt: "áo đi tiệc nữ điệu đà" Recall 0,29 → 0; "quần rộng rãi cho nữ" 1 → 0,89; "quần âu nữ" 1 → 0,88.
+- Độ trễ `CatalogSearchService.list`, 116 lượt mỗi cách: p50 119,8 → 125,0 ms, p95 150,6 → 159,3 ms, thêm dưới 20 ms. Nạp mô hình và nhúng catalog 14,6 s.
+- Đạt UC-03.2/AC10 theo trung bình nhóm; riêng ba câu trên tụt. Thiên lệch: nhãn do Claude Code gán trước khi chạy, nhưng cách xếp ứng viên ngữ nghĩa được chọn sau lượt chạy đầu trên chính bộ câu này.
+
+### Điều kiện xem lại
+- Catalog vượt vài nghìn sản phẩm, hoặc cần lọc vector trong SQL: chuyển sang pgvector.
+- Staging chuyển sang Azure có từ 1 GB RAM trở lên: bật `local` ở đó.
+- Bộ đánh giá có thêm câu mà cách lai làm tụt rõ: xem lại `extraMargin` hoặc trọng số RRF.
+
+<a id="adr-049"></a>
+## ADR-049 · Giữ ngừng bán thủ công qua import và kiểm phiên bản
+
+**Trạng thái:** đề xuất · **Ngày:** 2026-11-08 · **Người đề xuất:** Tài (AI hỗ trợ).
+
+**Bối cảnh:** Tài chốt giữ dữ liệu và giữ quyết định ngừng bán qua mọi lần import ngày04/11,
+Issue #65. Import hiện tính cờ theo ảnh; chỉ đặt isActive=false sẽ bị lần import có ảnh bật lại.
+
+**Phương án:** thêm adminDisabled=false/statusVersion=0 trong một migration, giữ isActive cũ.
+Admin PATCH gửi mục tiêu/expectedVersion; import và admin khóa cùng hàng Product rồi đọc lại hold/ảnh.
+Version chỉ tăng khi hold/cờ đổi, phát hiện ABA và không tạo xung đột vì import lặp dữ liệu khác.
+No-op admin không ghi updatedAt/revision vô cớ. Trigger SSE hiện có tiếp tục báo Catalog đổi.
+Bật lại tính cờ theo ảnh, không tự bật category/variant/chọn giỏ hoặc sửa đơn/payment/inventory.
+
+**Đánh đổi:** schema thêm hai cột và import cần review; đổi trạng thái phải chờ writer cùng hàng.
+Không khóa toàn Catalog, không đổi chữ ký importProducts hoặc tạo event bus/polling/thư viện mới.
+Checkout đã đọc trước khi ngừng bán có thể tiếp tục theo hợp đồng hiện có; lần đọc sau bị chặn.
+Cache web bỏ tập danh sách cũ, chỉ tải query active, giữ actor/epoch/403 và không nhận version cũ hơn.
+
+**Thực tế:** triển khai tại feature/ph-03-admin-product-status, đang đồng bộ develop131480e vào PR71.
+Đổi số đề xuất từ045 sang049 để tránh trùng ADR045 đã gộp;048 đã dùng ở PR70. Nghiệp vụ giữ nguyên.
+Chỉ migration/HTTP trên DB test riêng. Tài hoãn nâng DB phát triển; không tự áp migration vào đó.
+Unit/HTTP/web và minh chứng được định danh ở kho docs; Bảo/người hiểu Cart/Checkout review trước tích hợp.
+
+<a id="adr-052"></a>
+## ADR-052 · Giữ từng trường nội dung quản trị qua import
+
+**Trạng thái:** đề xuất · **Ngày:** 2026-11-10 · **Người đề xuất:** Tài (AI hỗ trợ).
+
+**Bối cảnh:** Issue77 mở sửa tên, mô tả, chất liệu và hướng dẫn bảo quản. Tài giao agent
+khuyến nghị chính sách import. Ghi đè toàn bộ khi import sẽ làm mất nội dung đã biên tập;
+đóng băng toàn sản phẩm lại ngăn các trường chưa sửa cập nhật từ nguồn.
+
+**Phương án:** bảo vệ từng trường có thay đổi hiệu lực bởi admin, kể cả giá trị null.
+Trường chưa được bảo vệ tiếp tục theo nguồn. contentVersion tách statusVersion; admin và
+import khóa cùng hàng trước đọc/ghi. CAS chặn phiên bản cũ và ABA; no-op không tăng version
+hoặc bảo vệ thêm trường. Chỉ nội dung hiệu lực đổi mới tăng version khi import.
+UI giữ snapshot, ghép ba bản khi409; trường cùng thay đổi khác nhau cần chọn giá trị rõ ràng,
+không chỉ nâng version rồi gửi cả draft cũ. Phần gõ thêm khi GET đang chờ phải được giữ.
+
+**Đánh đổi:** thêm hai cột và một migration; writer cùng sản phẩm phải chờ khóa hàng.
+MVP không có thao tác gỡ bảo vệ để quay về nguồn; việc đó cần Issue/use case riêng.
+Không đổi slug, giá, trạng thái bán, kho hoặc snapshot đơn cũ. Một request sửa gửi đủ bốn
+trường; việc gỡ vai vẫn do backend kiểm, trạng thái frontend không thay kiểm quyền.
+
+**Thực tế:** mã/test tại task/admin-product-edit, UC-04.2/AC19–28; regression độc lập bắt
+hai lỗi409/403 và lỗi draft khi GET chậm, đã bổ sung test chính thức. Migration chỉ áp DB
+test riêng của Issue77; chưa rollout DB phát triển. Kế hoạch, log và giới hạn nghiệm thu
+ở kho docs. Triển khai không tự đổi quyết định sang đã chốt; người hiểu Catalog/Import review.
+
+<a id="adr-053"></a>
+## ADR-053 · Quản lý ẩn hiện danh mục bằng CAS qua updatedAt và khóa hàng
+
+**Trạng thái:** đề xuất · **Ngày:** 2026-11-10 · **Người đề xuất:** Tài (AI hỗ trợ).
+
+**Bối cảnh:** Issue #79 yêu cầu quản trị viên có thể xem cây/chi tiết danh mục và bật/tắt hiển thị (`isActive`). Cần cơ chế kiểm soát tương tranh lạc quan (CAS) ngăn ghi đè mà không cần thêm migration hay cột phiên bản mới vào schema hiện tại.
+
+**Phương án:**
+1. Dùng `updatedAt` với định dạng ISO 8601 mili-giây chuẩn (`expectedUpdatedAt`) làm token CAS.
+2. Thực hiện khóa hàng `SELECT id, is_active, updated_at FROM categories WHERE id = $1 FOR UPDATE`.
+3. Kiểm tra CAS token trước no-op: Nếu token không khớp DB, lập tức trả 409 Conflict kể cả khi mục tiêu `isActive` trùng với hiện tại.
+4. Cập nhật tăng đơn điệu: `updated_at = GREATEST(NOW(), updated_at + INTERVAL '1 millisecond')` với `WHERE id = $1 AND updated_at = $2::timestamptz`. Kiểm tra affected rows = 1.
+5. No-op (khi CAS hợp lệ và `isActive` không đổi): không gọi UPDATE, không tăng timestamp, không bump revision.
+6. Ngữ nghĩa cha–con: Ẩn cha làm nhánh con không hiển thị hiệu lực trên Storefront (`parentHidden: true`), nhưng giữ nguyên cờ `isActive` của con trong DB.
+7. Bảo vệ writer (seed): loại bỏ `isActive: true` khi update danh mục đã có trong seed; chỉ update khi metadata (`name`, `sortOrder`, `parentId`) thực sự đổi để không làm hỏng token CAS.
+
+**Đánh đổi:** Không thêm cột mới hay migration, giảm rủi ro thay đổi schema DB; yêu cầu client gửi đúng định dạng timestamp mili-giây và xử lý 409 bằng cách tải lại trạng thái mới nhất rồi xác nhận lại.
+

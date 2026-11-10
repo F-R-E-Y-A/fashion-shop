@@ -1,12 +1,12 @@
 ---
 title: Môi trường thử — dựng và vận hành
-updated: 2026-09-24
+updated: 2026-11-08
 status: đang dùng
 owner: Bảo
 ---
 # Môi trường thử: dựng và vận hành
 
-**Chức năng:** Dựng môi trường thử Render và Vercel lần đầu, luồng tự triển khai, xem log, quay về bản trước, ba cái bẫy đã biết.
+**Chức năng:** Dựng môi trường thử Render và Vercel lần đầu, luồng tự triển khai, xem log, quay về bản trước, bốn cái bẫy đã biết.
 
 Máy chủ chạy **Render**, giao diện chạy **Vercel**. Đây là lựa chọn **tạm** để có địa chỉ chạy được ngay trong tuần đầu và bắt đầu đếm số lần triển khai. Kế hoạch chuyển sang **Azure** từ S3, xem [TECH_DEBT.md](../../TECH_DEBT.md) mục ND-07.
 
@@ -19,7 +19,7 @@ Máy chủ chạy **Render**, giao diện chạy **Vercel**. Đây là lựa ch�
 
 ## Ai bấm gì
 
-Triển khai **không tự chạy khi đẩy mã**. Thứ tự là: gộp vào `develop` → CI chạy sáu chặng → CI xanh thì `cd-staging.yml` tự chạy → gọi Render dựng → đợi `/api/healthz` trả đúng mã commit vừa gộp → gọi thử một đường dẫn thật.
+Triển khai **tự chạy sau khi gộp vào `develop` và CI xanh**: CI chạy bảy chặng → `cd-staging.yml` gọi Render Deploy Hook → đợi `/api/healthz` trả đúng mã commit vừa gộp → gọi thử một đường dẫn thật. Render để `autoDeployTrigger: off` để không dựng hai lần cho cùng commit. Vercel theo dõi `develop` trực tiếp và tự dựng giao diện mỗi khi nhánh có commit mới.
 
 Làm vậy để lịch sử triển khai và thời gian từ commit tới khi lên môi trường thử đều nằm trong GitHub Actions, đúng thứ rubric TC2.6 đòi. Nếu để Render tự dựng khi thấy commit mới thì mã chưa qua kiểm cũng lên, và không có số liệu nào để nộp.
 
@@ -28,23 +28,23 @@ Làm vậy để lịch sử triển khai và thời gian từ commit tới khi 
 ### 1. Render, cho máy chủ
 
 1. Đăng nhập Render bằng tài khoản GitHub, cho phép đọc tổ chức `F-R-E-Y-A`.
-2. **New → Blueprint**, chọn kho `fashion-shop`. Render đọc `render.yaml` ở gốc và tạo hai thứ: dịch vụ web `fashion-shop-api` và cơ sở dữ liệu `fashion-shop-db`.
-3. Render hỏi giá trị cho `CORS_ORIGINS` vì nó được đánh dấu `sync: false`. Chưa có địa chỉ Vercel thì điền tạm `http://localhost:5174`, xong bước 2 thì quay lại sửa.
+2. **New → Blueprint**, chọn kho `fashion-shop`, nhánh `develop`. Render đọc `render.yaml` ở gốc và tạo API, PostgreSQL và Key Value dùng cho Redis. Blueprint phải được tạo từ commit đã có đầy đủ biến môi trường; chưa được đẩy lên GitHub thì dashboard vẫn đọc bản cũ.
+3. Render hỏi `CORS_ORIGINS`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM` vì được đánh dấu `sync: false`. Điền CORS tạm `http://localhost:5174` nếu chưa có Vercel URL. SMTP phải là dịch vụ thực sự dùng được trên cổng ngoài `25`, `465`, `587` (Render Free chặn ba cổng này). Nếu SMTP cần xác thực, thêm `SMTP_USER` và `SMTP_PASS` trong Environment của Render; tuyệt đối không ghi mật khẩu vào repo. Với Blueprint đã tạo từ trước, các biến `sync: false` mới phải thêm thủ công trong dashboard.
 4. Vào **Settings → Deploy Hook**, sao chép địa chỉ.
 
-Biến `DATABASE_URL` do Render tự nối từ cơ sở dữ liệu, không phải điền tay.
+`DATABASE_URL` và `REDIS_URL` do Blueprint tự nối; ba secret `JWT_ACCESS_SECRET`, `OTP_PEPPER`, `RATE_LIMIT_PEPPER` được Render tạo. `TRUST_PROXY_HOPS=1` theo cấu hình một reverse proxy. Kiểm tra tất cả trong Environment trước khi deploy, không sao chép giá trị bí mật ra tài liệu.
 
 ### 2. Vercel, cho giao diện
 
 1. Đăng nhập Vercel bằng GitHub, **Add New → Project**, chọn kho `fashion-shop`.
 2. **Root Directory** đặt là `apps/web`. Vercel đọc `apps/web/vercel.json` cho lệnh cài và lệnh dựng, vì hai lệnh đó phải chạy từ gốc kho mã do dùng npm workspaces.
 3. **Environment Variables**: thêm `VITE_API_URL` bằng `<địa chỉ Render>/api`. Biến `VITE_*` được nhúng vào mã **lúc dựng**, nên đổi địa chỉ máy chủ thì phải dựng lại, không sửa biến rồi khởi động lại là xong.
-4. **Settings → Git**, đặt nhánh sản xuất là `develop`.
+4. **Settings → Environments → Production → Branch Tracking**, đặt nhánh sản xuất là `develop`. Đây là thiết lập trong Vercel dashboard, `vercel.json` không đặt được nhánh này.
 5. Quay lại Render sửa `CORS_ORIGINS` thành địa chỉ Vercel vừa có. Quên bước này thì trang tải được nhưng không gọi được API, và lỗi hiện trong bảng điều khiển trình duyệt chứ không hiện trên trang.
 
 ### 3. Khai báo trong GitHub
 
-Trong kho, **Settings → Secrets and variables → Actions**:
+Đặt trong **environment `staging`** (đã có sẵn): **Settings → Environments → staging**, mục **Environment secrets** và **Environment variables**. Job của `cd-staging.yml` khai `environment: staging` nên đọc được cả biến đặt ở đây lẫn biến cấp kho; đặt ở environment thì chỉ job triển khai thấy secret.
 
 | Loại | Tên | Giá trị |
 |---|---|---|
@@ -52,7 +52,60 @@ Trong kho, **Settings → Secrets and variables → Actions**:
 | Variable | `STAGING_API_URL` | `https://fashion-shop-api.onrender.com` |
 | Variable | `STAGING_WEB_URL` | địa chỉ Vercel |
 
-Địa chỉ hook là một **bí mật**: ai có nó thì kích hoạt được triển khai. Đừng dán vào chat nhóm hay vào tài liệu.
+Địa chỉ hook là một **bí mật**: ai có nó thì kích hoạt được triển khai. Đừng dán vào chat nhóm, vào tài liệu hay vào khung chat với AI; tự dán vào ô secret của GitHub.
+
+### 4. Nạp sản phẩm cho staging
+
+Blueprint chỉ seed danh mục, màu, cỡ, thương hiệu, nên staging lúc đầu có 0 sản phẩm; CD vẫn xanh vì bước kiểm chỉ xem `items` là mảng. `npm run catalog:refresh` **không** dùng được cho staging: script chỉ chạy trên CSDL `localhost` ([refresh-approved-catalog.ts:132-134](../../../apps/api/scripts/refresh-approved-catalog.ts)) và đọc bảng `staging.*` chỉ có ở máy đã crawl.
+
+Cách dùng: chép **8 bảng catalog** từ CSDL local đã nạp sản phẩm sang staging, giữ nguyên id. Tám bảng `brands`, `categories`, `colors`, `sizes`, `products`, `product_variants`, `product_images`, `inventory` chỉ khoá ngoại tới nhau, không chép người dùng hay đơn hàng.
+
+1. **Xuất trên máy có dữ liệu** (Git Bash), tệp nằm ngoài Git:
+
+   ```bash
+   D=../work/staging-catalog-$(date +%Y%m%d); mkdir -p "$D"
+   cat > "$D/catalog.sql" <<'SQL'
+   DO $$ BEGIN
+     IF (SELECT count(*) FROM public.products) > 0 OR (SELECT count(*) FROM public.orders) > 0 THEN
+       RAISE EXCEPTION 'Staging da co san pham hoac don hang: dung lai, khong ghi de';
+     END IF;
+   END $$;
+   TRUNCATE public.brands, public.categories, public.colors, public.sizes, public.products,
+     public.product_variants, public.product_images, public.inventory CASCADE;
+   SQL
+   docker exec fashion-shop-postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d fashion_shop --data-only --no-owner --no-privileges -t public.brands -t public.categories -t public.colors -t public.sizes -t public.products -t public.product_variants -t public.product_images -t public.inventory' >> "$D/catalog.sql"
+   ```
+
+   `pg_dump` cảnh báo khoá ngoại vòng ở `categories` (cột cha trỏ cùng bảng). Không sao nếu hàng cha nằm trước hàng con; kiểm bằng truy vấn so `ctid` của con với cha phải trả 0.
+2. **Nạp lên staging** (PowerShell). Lấy **External Database URL** ở Render → `fashion-shop-db` → **Connect**, nhập bằng `Read-Host -MaskInput` để không lưu vào lịch sử lệnh:
+
+   ```powershell
+   $env:STAGING_DB_URL = Read-Host -MaskInput 'External Database URL'
+   docker cp ..\work\staging-catalog-<ngay>\catalog.sql fashion-shop-postgres:/tmp/catalog.sql
+   docker exec -e "DBURL=$env:STAGING_DB_URL" fashion-shop-postgres sh -c 'psql "$DBURL" -v ON_ERROR_STOP=1 --single-transaction -f /tmp/catalog.sql'
+   docker exec fashion-shop-postgres rm /tmp/catalog.sql; Remove-Item Env:STAGING_DB_URL
+   ```
+
+   Cả tệp chạy trong một transaction: lỗi ở đâu thì không ghi gì. Staging đã có sản phẩm hoặc đơn hàng thì khối `DO` dừng ngay; muốn nạp lại thì người quyết xoá dữ liệu trước, không sửa khối chặn.
+
+Diễn tập ngày 08/11 trên CSDL tạm đã migrate và seed giống Render: lần một nạp 90 sản phẩm (87 đang bán), 339 biến thể, 1199 ảnh, 339 dòng tồn; lần hai bị chặn; seed chạy lại sau đó không lỗi. Ảnh sản phẩm vẫn là địa chỉ của nguồn crawl, kiểm quyền dùng ảnh trước khi mở staging cho người ngoài nhóm.
+
+### 5. Chạy thử CD lần đầu
+
+Render triển khai nhánh `develop`, nên CD chỉ kiểm được đầu cuối sau khi có một lần gộp vào `develop`. Sau khi đặt đủ secret và variable: **Actions → CD staging → Run workflow** trên `develop`. Lượt xanh có ba bước: gọi hook, `/api/healthz` trả đúng `gitSha` của commit `develop`, `GET /api/products` trả đúng hình dạng. Bảng tóm tắt của lượt chạy ghi địa chỉ máy chủ, giao diện và đặc tả API.
+
+## Dữ liệu và backup
+
+Prisma migration trong `apps/api/docker-entrypoint.sh` chỉ tạo và cập nhật cấu trúc DB. `SEED_ON_START=true` chỉ upsert danh mục và bảng tra cứu, **không nạp sản phẩm đã crawl trên máy local**. Muốn staging hiển thị sản phẩm, phải nhập dữ liệu riêng sau khi có DB và kiểm tra quyền sử dụng ảnh; không trỏ staging vào DB local.
+
+Blueprint hiện khai báo PostgreSQL **Free**. Render Free không có backup/PITR và DB hết hạn sau 30 ngày; vì vậy không dùng nó để giữ dữ liệu quan trọng hoặc coi là môi trường liên tục dài hạn. Quyết định gói DB và nơi lưu bản sao ngoài Render phải chốt trước khi nạp dữ liệu không thể tạo lại.
+
+| Phương án | Cách bảo vệ và khôi phục | Điểm cần lưu ý |
+|---|---|---|
+| DB trả phí trên Render | Render tự sao lưu liên tục với PITR: workspace Hobby khôi phục trong 3 ngày, Pro trở lên 7 ngày. Thử khôi phục sang DB mới trước khi chuyển `DATABASE_URL`. Xuất thêm `pg_dump` ra nơi lưu ngoài Render để giữ lâu. | Có phí; PITR ngắn hạn và không thay thế bản sao lưu ngoài nhà cung cấp. |
+| DB Free cho demo tạm | Chạy `pg_dump -Fc` định kỳ từ máy/runner bên ngoài bằng external DB URL, lưu file mã hóa ở nơi khác, giữ bản theo chính sách và thử `pg_restore` vào DB trống. | Phải tự vận hành lịch chạy, lưu trữ và cảnh báo; không có PITR, có thể mất dữ liệu từ lần dump gần nhất; DB vẫn hết hạn. |
+
+Không đưa database URL hoặc file dump vào Git. Trước migration có rủi ro và trước nhập dữ liệu lớn, tạo backup và thử đọc bằng `pg_restore -l`; định kỳ thử phục hồi vào DB tách biệt. Mục HT-08 trong kế hoạch nhóm mới là việc xây lịch backup, script restore và diễn tập, chưa phải bằng chứng rằng staging đã có backup.
 
 ## Xem log và sửa khi hỏng
 
@@ -63,13 +116,21 @@ Trong kho, **Settings → Secrets and variables → Actions**:
 | Log triển khai | GitHub → **Actions** → **CD staging** |
 | Quay về bản trước | Render → **Events** → lượt cũ → **Rollback**; Vercel → **Deployments** → lượt cũ → **Promote to Production** |
 
-## Ba cái bẫy đã biết
+## Sáu cái bẫy đã biết
 
 **Gọi lần đầu rất chậm.** Gói miễn phí của Render cho máy chủ ngủ sau một thời gian không ai dùng, đánh thức mất khoảng một phút. Lúc trình bày thì mở trang trước vài phút. Bước đợi trong `cd-staging.yml` đã cho tới 10 phút vì lý do này.
+
+**Máy chủ treo hẳn sau một quãng không ai gọi.** Ngày 08/11 API treo nhiều lần: log dừng, `/api/healthz` giữ kết nối mà không trả lời, Restart không sinh dòng log nào, chỉ Manual Deploy chữa được. Lần có request đều đặn (gọi `healthz` mỗi 30 giây, 19:24–19:55) thì không treo; các lần treo quan sát được đều sau một quãng log không có request (sau 12:32, sau 21:51). Bản có cache catalog (`489b0b3`) vẫn treo, nên không phải do nạp catalog. Nguyên nhân phía Render chưa rõ (suy luận: đánh thức thất bại), chưa gửi ticket. Cách giữ: một dịch vụ ping ngoài (Bảo chọn UptimeRobot) gọi `/api/healthz` khoảng 5–10 phút một lần [TBD — Bảo xác nhận đã bật]. Treo thì Render → **Manual Deploy → Deploy latest commit**.
+
+**Sửa `render.yaml` là Render tự deploy.** Dịch vụ do Blueprint quản lý, nên khi `render.yaml` trên `develop` đổi, Render đồng bộ và dựng lại ngay lúc gộp (trigger "Blueprint"), dù `autoDeployTrigger: off`. Lượt CD sau đó gọi hook dựng thêm một lần nữa; không hại, chỉ tốn vài phút.
 
 **Đổi địa chỉ máy chủ phải dựng lại giao diện.** Xem bước 2.3.
 
 **Quên sửa `CORS_ORIGINS`.** Triệu chứng: trang hiện nhưng không có dữ liệu, bảng điều khiển trình duyệt báo lỗi CORS. Sửa trong Render rồi khởi động lại dịch vụ.
+
+**`gitSha` trả `unknown`.** Render không truyền `--build-arg GIT_SHA`, còn `apps/api/Dockerfile` luôn đặt `GIT_SHA` với mặc định `unknown`. Trước 06/11, `/api/healthz` trả `unknown` thay vì `RENDER_GIT_COMMIT` nên CD đợi đủ 10 phút rồi báo lỗi dù bản mới đã chạy; `runningSha` trong `health.controller.ts` nay bỏ qua giá trị rỗng và `unknown`.
+
+**CD kẹt hàng giờ khi máy chủ treo.** Trước 08/11, bước đợi gọi `curl` không có `--max-time` và job không có `timeout-minutes`: máy chủ treo thì `curl` chờ mãi, giữ nhóm `concurrency: cd-staging` và chặn lượt CD của lần gộp sau (run 42489840316 kẹt hơn một giờ, phải huỷ tay). Nay mỗi `curl` có trần, vòng đợi tính hạn 10 phút theo đồng hồ, cả job tối đa 20 phút.
 
 ## Chạy cả cụm trên máy như môi trường thật
 

@@ -24,6 +24,8 @@ export default defineConfig([
       '**/node_modules/**',
       '**/coverage/**',
       '**/coverage-http/**',
+      'apps/web/playwright-report/**',
+      'apps/web/test-results/**',
       'apps/api/src/generated/**',
       'tools/eslint/fixtures/**',
       '**/*.tsbuildinfo',

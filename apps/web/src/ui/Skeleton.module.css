@@ -1,0 +1,43 @@
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 24px 20px;
+}
+.card {
+  min-width: 0;
+}
+.image {
+  aspect-ratio: 3 / 4;
+  background: var(--surface);
+}
+.line,
+.short {
+  height: 12px;
+  margin-top: 12px;
+  background: var(--surface);
+}
+.short {
+  width: 55%;
+}
+.detail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 40px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .image,
+  .line,
+  .short {
+    animation: pulse 1.3s ease-in-out infinite alternate;
+  }
+  @keyframes pulse {
+    to {
+      opacity: 0.55;
+    }
+  }
+}
+@media (max-width: 720px) {
+  .detail {
+    grid-template-columns: 1fr;
+  }
+}

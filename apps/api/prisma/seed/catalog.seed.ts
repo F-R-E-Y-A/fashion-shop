@@ -1,128 +1,118 @@
 /**
- * Du lieu gia cua phan he danh muc va san pham (Bao, PH-01).
- * Ma dinh danh CO DINH de ba nguoi, CI va bai kiem thu deu thay cung mot bo du lieu.
- * Bai kiem thu import cac hang so o day thay vi go lai so, de doi du lieu mot cho la du.
+ * Nap danh muc va bang tra cuu dung cho du lieu crawl that (ADR-007, docs/features/products/erd.md).
+ * San pham mau chi duoc tao trong test fixtures, khong duoc nap vao storefront dev.
  */
 import type { PrismaClient } from '../../src/generated/prisma/client.js';
 
-export const CATEGORY_IDS = {
-  ao: '11111111-1111-4111-8111-000000000001',
-  quan: '11111111-1111-4111-8111-000000000002',
-  phuKien: '11111111-1111-4111-8111-000000000003',
-} as const;
-
 export const CATEGORIES = [
-  { id: CATEGORY_IDS.ao, name: 'Ao', slug: 'ao' },
-  { id: CATEGORY_IDS.quan, name: 'Quan', slug: 'quan' },
-  { id: CATEGORY_IDS.phuKien, name: 'Phu kien', slug: 'phu-kien' },
+  { slug: 'ao', name: 'Áo', parentSlug: null, sortOrder: 1 },
+  { slug: 'quan', name: 'Quần', parentSlug: null, sortOrder: 2 },
+  { slug: 'phu-kien', name: 'Phụ kiện', parentSlug: null, sortOrder: 3 },
+  { slug: 'ao-thun', name: 'Áo thun', parentSlug: 'ao', sortOrder: 1 },
+  { slug: 'ao-so-mi', name: 'Áo sơ mi', parentSlug: 'ao', sortOrder: 2 },
+  { slug: 'ao-khoac', name: 'Áo khoác', parentSlug: 'ao', sortOrder: 3 },
+  { slug: 'quan-dai', name: 'Quần dài', parentSlug: 'quan', sortOrder: 1 },
+  { slug: 'quan-short', name: 'Quần short', parentSlug: 'quan', sortOrder: 2 },
+  { slug: 'mu', name: 'Mũ', parentSlug: 'phu-kien', sortOrder: 1 },
+  { slug: 'that-lung', name: 'Thắt lưng', parentSlug: 'phu-kien', sortOrder: 2 },
 ] as const;
 
-const P = (n: number): string => `22222222-2222-4222-8222-0000000000${String(n).padStart(2, '0')}`;
+export const BRANDS = [
+  { slug: 'freya-basic', name: 'Freya Basic' },
+  { slug: 'urban-line', name: 'Urban Line' },
+  { slug: 'moc', name: 'Mộc' },
+] as const;
 
-export const PRODUCTS = [
-  {
-    id: P(1),
-    name: 'Ao thun co tron basic',
-    slug: 'ao-thun-co-tron-basic',
-    price: 199000,
-    categoryId: CATEGORY_IDS.ao,
-  },
-  {
-    id: P(2),
-    name: 'Ao so mi linen tay dai',
-    slug: 'ao-so-mi-linen-tay-dai',
-    price: 459000,
-    categoryId: CATEGORY_IDS.ao,
-  },
-  {
-    id: P(3),
-    name: 'Ao khoac du hai lop',
-    slug: 'ao-khoac-du-hai-lop',
-    price: 689000,
-    categoryId: CATEGORY_IDS.ao,
-  },
-  {
-    id: P(4),
-    name: 'Ao polo cotton pique',
-    slug: 'ao-polo-cotton-pique',
-    price: 329000,
-    categoryId: CATEGORY_IDS.ao,
-  },
-  {
-    id: P(5),
-    name: 'Quan jean ong suong',
-    slug: 'quan-jean-ong-suong',
-    price: 549000,
-    categoryId: CATEGORY_IDS.quan,
-  },
-  {
-    id: P(6),
-    name: 'Quan kaki tui hop',
-    slug: 'quan-kaki-tui-hop',
-    price: 429000,
-    categoryId: CATEGORY_IDS.quan,
-  },
-  {
-    id: P(7),
-    name: 'Quan short the thao',
-    slug: 'quan-short-the-thao',
-    price: 259000,
-    categoryId: CATEGORY_IDS.quan,
-  },
-  {
-    id: P(8),
-    name: 'Quan tay cong so',
-    slug: 'quan-tay-cong-so',
-    price: 479000,
-    categoryId: CATEGORY_IDS.quan,
-  },
-  {
-    id: P(9),
-    name: 'Mu luoi trai canvas',
-    slug: 'mu-luoi-trai-canvas',
-    price: 149000,
-    categoryId: CATEGORY_IDS.phuKien,
-  },
-  {
-    id: P(10),
-    name: 'That lung da bo',
-    slug: 'that-lung-da-bo',
-    price: 359000,
-    categoryId: CATEGORY_IDS.phuKien,
-  },
+export const COLORS = [
+  { code: 'den', name: 'Đen', hex: '#111111' },
+  { code: 'trang', name: 'Trắng', hex: '#FFFFFF' },
+  { code: 'be', name: 'Be', hex: '#D8C8B0' },
+  { code: 'xanh-navy', name: 'Xanh navy', hex: '#1F2A44' },
+  { code: 'xam', name: 'Xám', hex: '#8A8A8A' },
+  // Mau cua san pham khong phan loai theo mau; giao dien khong hien o mau nay.
+  { code: 'mac-dinh', name: 'Mặc định', hex: null },
+] as const;
+
+// sort_order quyet thu tu nut co: sap theo chu se ra L, M, S, XL.
+export const SIZES = [
+  { code: 'XS', sortOrder: 10 },
+  { code: 'S', sortOrder: 20 },
+  { code: 'M', sortOrder: 30 },
+  { code: 'L', sortOrder: 40 },
+  { code: 'XL', sortOrder: 50 },
+  { code: '29', sortOrder: 120 },
+  { code: '30', sortOrder: 130 },
+  { code: '31', sortOrder: 140 },
+  { code: '32', sortOrder: 150 },
+  // Co cua san pham khong phan loai theo co.
+  { code: 'FREE', sortOrder: 900 },
 ] as const;
 
 export async function seedCatalog(
   prisma: PrismaClient,
-): Promise<{ categories: number; products: number }> {
-  for (const category of CATEGORIES) {
-    await prisma.category.upsert({
-      where: { id: category.id },
-      update: { name: category.name, slug: category.slug },
-      create: { id: category.id, name: category.name, slug: category.slug },
+): Promise<{ categories: number; brands: number; colors: number; sizes: number }> {
+  // Danh muc cha truoc, con sau, de noi duoc parent theo slug.
+  // Khong bat lai isActive cua danh muc da bi admin an; chi cap nhat khi metadata thuc su doi de giu CAS token.
+  for (const c of [...CATEGORIES].sort((a, b) => Number(!!a.parentSlug) - Number(!!b.parentSlug))) {
+    const existing = await prisma.category.findUnique({
+      where: { slug: c.slug },
+      include: { parent: { select: { slug: true } } },
+    });
+    if (!existing) {
+      const parent = c.parentSlug ? { connect: { slug: c.parentSlug } } : undefined;
+      await prisma.category.create({
+        data: { slug: c.slug, name: c.name, sortOrder: c.sortOrder, parent },
+      });
+    } else {
+      const parentSlug = existing.parent?.slug ?? null;
+      const metadataChanged =
+        existing.name !== c.name ||
+        existing.sortOrder !== c.sortOrder ||
+        parentSlug !== c.parentSlug;
+
+      if (metadataChanged) {
+        const parentId = c.parentSlug
+          ? ((
+              await prisma.category.findUnique({
+                where: { slug: c.parentSlug },
+                select: { id: true },
+              })
+            )?.id ?? null)
+          : null;
+        await prisma.$executeRaw`
+          UPDATE public.categories
+          SET name = ${c.name},
+              sort_order = ${c.sortOrder},
+              parent_id = ${parentId}::uuid,
+              updated_at = GREATEST(NOW(), updated_at + INTERVAL '1 millisecond')
+          WHERE slug = ${c.slug}
+        `;
+      }
+    }
+  }
+
+  for (const b of BRANDS) {
+    await prisma.brand.upsert({ where: { slug: b.slug }, update: { name: b.name }, create: b });
+  }
+  for (const c of COLORS) {
+    await prisma.color.upsert({
+      where: { code: c.code },
+      update: { name: c.name, hex: c.hex },
+      create: c,
+    });
+  }
+  for (const s of SIZES) {
+    await prisma.size.upsert({
+      where: { code: s.code },
+      update: { sortOrder: s.sortOrder },
+      create: s,
     });
   }
 
-  for (const product of PRODUCTS) {
-    const data = {
-      name: product.name,
-      slug: product.slug,
-      description: `${product.name}. Du lieu gia de thu giao dien, thay bang du lieu that o tuan 2.`,
-      price: product.price,
-      imageUrl: null,
-      isActive: true,
-      categoryId: product.categoryId,
-    };
-    await prisma.product.upsert({
-      where: { id: product.id },
-      update: data,
-      create: { id: product.id, ...data },
-    });
-  }
-
-  const [categories, products] = await Promise.all([
-    prisma.category.count(),
-    prisma.product.count(),
-  ]);
-  return { categories, products };
+  return {
+    categories: CATEGORIES.length,
+    brands: BRANDS.length,
+    colors: COLORS.length,
+    sizes: SIZES.length,
+  };
 }

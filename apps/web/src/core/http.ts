@@ -6,6 +6,11 @@
  */
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001/api';
 
+/** Stream nay chi chua revision cong khai, khong gui access token tren URL. */
+export function openEventStream(path: string): EventSource {
+  return new EventSource(`${BASE_URL}${path}`);
+}
+
 /** Hinh dang loi thong nhat, khop AllExceptionsFilter ben may chu. */
 export interface ApiErrorBody {
   statusCode: number;
@@ -24,13 +29,36 @@ export class ApiError extends Error {
 
 export type QueryParams = Record<string, string | number | boolean | undefined>;
 
-export async function apiGet<T>(path: string, params?: QueryParams): Promise<T> {
-  const url = new URL(`${BASE_URL}${path}`);
-  for (const [key, value] of Object.entries(params ?? {})) {
-    if (value !== undefined && value !== '') url.searchParams.set(key, String(value));
-  }
+export interface ApiRequestOptions {
+  method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
+  body?: unknown;
+  accessToken?: string;
+  credentials?: RequestCredentials;
+  /** Huy yeu cau dang bay, vd goi y tim kiem khi khach go tiep. */
+  signal?: AbortSignal;
+  headers?: Record<string, string>;
+}
 
-  const response = await fetch(url, { headers: { Accept: 'application/json' } });
+let accessTokenGetter: (() => string | null) | null = null;
+
+export function setAccessTokenGetter(getter: (() => string | null) | null): void {
+  accessTokenGetter = getter;
+}
+
+export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  const token = options.accessToken ?? accessTokenGetter?.();
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: options.method ?? 'GET',
+    credentials: options.credentials,
+    signal: options.signal,
+    headers: {
+      Accept: 'application/json',
+      ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
+    body: options.body === undefined ? undefined : JSON.stringify(options.body),
+  });
 
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as ApiErrorBody | null;
@@ -45,8 +73,37 @@ export async function apiGet<T>(path: string, params?: QueryParams): Promise<T> 
     );
   }
 
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
+
+/** Tuy chon rieng cua GET: huy yeu cau dang bay va header phu (vd x-guest-token cua gio hang). */
+export interface ApiGetOptions {
+  signal?: AbortSignal;
+  headers?: Record<string, string>;
+}
+
+export async function apiGet<T>(
+  path: string,
+  params?: QueryParams,
+  options: ApiGetOptions = {},
+): Promise<T> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(params ?? {})) {
+    if (value !== undefined && value !== '') query.set(key, String(value));
+  }
+  const search = query.toString();
+  return apiRequest<T>(search ? `${path}?${search}` : path, options);
+}
+
+export const apiPost = <T>(path: string, body?: unknown, headers?: Record<string, string>) =>
+  apiRequest<T>(path, { method: 'POST', body, headers });
+
+export const apiPatch = <T>(path: string, body?: unknown, headers?: Record<string, string>) =>
+  apiRequest<T>(path, { method: 'PATCH', body, headers });
+
+export const apiDel = <T>(path: string, headers?: Record<string, string>) =>
+  apiRequest<T>(path, { method: 'DELETE', headers });
 
 /** Hinh dang tra ve cua moi duong dan liet ke, khop Page<T> ben may chu. */
 export interface Page<T> {

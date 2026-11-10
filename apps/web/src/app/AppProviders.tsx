@@ -3,15 +3,20 @@ import type { ReactNode } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 
 import { queryClient } from '@/core';
+import { AuthProvider } from '@/features/account';
 
 import { ErrorBoundary } from './ErrorBoundary.js';
+import { StorefrontLiveUpdates } from './StorefrontLiveUpdates.js';
 
 /** Cay provider viet mot lan. Mot QueryClient cho ca trang nen hai trang cung du lieu dung chung bo dem. */
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
-        <BrowserRouter>{children}</BrowserRouter>
+        <AuthProvider>
+          <StorefrontLiveUpdates />
+          <BrowserRouter>{children}</BrowserRouter>
+        </AuthProvider>
       </QueryClientProvider>
     </ErrorBoundary>
   );

@@ -1,0 +1,304 @@
+/* Orders: chỉ đổi trình bày; giữ actions, ledger và nghiệp vụ trong feature. */
+.page {
+  composes: page from '../../../ui/AdminKit.module.css';
+}
+
+.header {
+  composes: header from '../../../ui/AdminKit.module.css';
+}
+
+.eyebrow {
+  composes: eyebrow from '../../../ui/AdminKit.module.css';
+}
+
+.headingRow {
+  composes: headingRow from '../../../ui/AdminKit.module.css';
+}
+
+.title {
+  composes: title from '../../../ui/AdminKit.module.css';
+  overflow-wrap: anywhere;
+}
+
+.count {
+  composes: count from '../../../ui/AdminKit.module.css';
+}
+
+.muted {
+  composes: muted from '../../../ui/AdminKit.module.css';
+  margin: 0;
+}
+
+.numeric {
+  composes: numeric from '../../../ui/AdminKit.module.css';
+}
+
+.back {
+  composes: back from '../../../ui/AdminKit.module.css';
+}
+
+.controls {
+  composes: controls from '../../../ui/AdminKit.module.css';
+}
+
+.searchForm {
+  composes: searchForm from '../../../ui/AdminKit.module.css';
+}
+
+.searchLabel {
+  composes: searchLabel from '../../../ui/AdminKit.module.css';
+}
+
+.searchRow {
+  composes: searchRow from '../../../ui/AdminKit.module.css';
+}
+
+.searchInput {
+  composes: searchInput from '../../../ui/AdminKit.module.css';
+}
+
+.searchButton {
+  composes: searchButton from '../../../ui/AdminKit.module.css';
+}
+
+.clearButton {
+  composes: clearButton from '../../../ui/AdminKit.module.css';
+}
+
+.tableWrap {
+  composes: tableWrap from '../../../ui/AdminKit.module.css';
+}
+
+.table {
+  composes: table from '../../../ui/AdminKit.module.css';
+  table-layout: fixed;
+}
+
+.badge {
+  composes: badge from '../../../ui/AdminKit.module.css';
+}
+
+.badgeDot {
+  composes: badgeDot from '../../../ui/AdminKit.module.css';
+}
+
+.notice {
+  composes: notice from '../../../ui/AdminKit.module.css';
+}
+
+.detailGrid {
+  composes: detailGrid from '../../../ui/AdminKit.module.css';
+}
+
+.panel {
+  composes: panel from '../../../ui/AdminKit.module.css';
+}
+
+.panelTitle {
+  composes: panelTitle from '../../../ui/AdminKit.module.css';
+}
+
+.facts {
+  composes: facts from '../../../ui/AdminKit.module.css';
+}
+
+.field {
+  composes: field from '../../../ui/AdminKit.module.css';
+  margin-bottom: 16px;
+}
+
+.primaryButton {
+  composes: primaryButton from '../../../ui/AdminKit.module.css';
+}
+
+.dangerButton {
+  composes: dangerButton from '../../../ui/AdminKit.module.css';
+}
+
+.secondary {
+  composes: secondary from '../../../ui/AdminKit.module.css';
+}
+
+.description {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.tabs {
+  display: flex;
+  gap: 24px;
+  min-width: 0;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  scrollbar-width: thin;
+}
+
+.tab {
+  flex: none;
+  min-height: 44px;
+  padding: 10px 0 13px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.code {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+}
+
+.sub {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.email {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.flag {
+  display: block;
+  margin-top: 4px;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.column {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+
+.actions {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.items,
+.timeline {
+  display: grid;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.choices {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+  font-size: 13px;
+}
+.tab:hover {
+  color: var(--accent);
+}
+.tab[aria-pressed='true'] {
+  border-bottom-color: var(--accent);
+  color: var(--ink-2);
+}
+.table th:nth-child(1) {
+  width: 17%;
+}
+.table th:nth-child(2) {
+  width: 23%;
+}
+.table th:nth-child(3) {
+  width: 20%;
+}
+.table th:nth-child(4) {
+  width: 14%;
+}
+.table th:nth-child(5) {
+  width: 13%;
+}
+.table th:nth-child(6) {
+  width: 13%;
+}
+.table th.right,
+.table td.right {
+  text-align: right;
+}
+.table td.numeric,
+.facts dd.numeric {
+  white-space: normal;
+}
+.code:hover {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.actions > button,
+.actions > span {
+  width: 100%;
+}
+.items li {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  font-size: 14px;
+}
+.items li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.timeline li {
+  position: relative;
+  padding-left: 22px;
+  font-size: 13px;
+}
+.timeline li::before {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  left: 0;
+  top: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.choices legend {
+  margin-bottom: 8px;
+  color: var(--ink-2);
+  font-size: 12px;
+}
+.choices input {
+  width: auto;
+  min-height: auto;
+}
+@media (max-width: 720px) {
+  .column {
+    gap: 20px;
+  }
+  .table td:first-child {
+    display: block;
+    padding-bottom: 2px;
+  }
+  .table td:first-child::before {
+    display: none;
+  }
+  .table td.right::before {
+    text-align: left;
+  }
+  .table td.email {
+    min-width: 0;
+  }
+}

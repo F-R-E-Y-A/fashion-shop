@@ -10,25 +10,152 @@ import { z } from 'zod';
 // ConfigService.get('<bien chua khai>') se tra ve undefined du .env co bien do.
 // Kiem chung: z.object({A}).parse({A,B}) -> {A}. Dung looseObject de bien la van di qua,
 // van kiem chat cac bien da khai. Them bien moi thi van phai khai o day de co kiem va co kieu.
-export const envSchema = z.looseObject({
-  NODE_ENV: z.enum(['development', 'test', 'staging', 'production']).default('development'),
-  /** Cong do nen tang cap (Render, Azure). Khi co thi uu tien hon API_PORT. */
-  PORT: z.coerce.number().int().positive().optional(),
-  API_PORT: z.coerce.number().int().positive().default(3001),
-  DATABASE_URL: z
-    .string()
-    .min(1, 'thieu chuoi ket noi')
-    .refine(
-      (value) => value.startsWith('postgresql://') || value.startsWith('postgres://'),
-      'phai bat dau bang postgresql://',
-    ),
-  /** Cac goc web duoc goi API, cach nhau bang dau phay. Staging dien dung dia chi web cua no. */
-  CORS_ORIGINS: z.string().default('http://localhost:5174'),
-  APP_VERSION: z.string().default('0.0.0-dev'),
-  /** Ma commit dang chay: CI truyen GIT_SHA khi dung image; Render tu cap RENDER_GIT_COMMIT. */
-  GIT_SHA: z.string().optional(),
-  RENDER_GIT_COMMIT: z.string().optional(),
-});
+export const envSchema = z
+  .looseObject({
+    NODE_ENV: z.enum(['development', 'test', 'staging', 'production']).default('development'),
+    /** Cong do nen tang cap (Render, Azure). Khi co thi uu tien hon API_PORT. */
+    PORT: z.coerce.number().int().positive().optional(),
+    API_PORT: z.coerce.number().int().positive().default(3001),
+    DATABASE_URL: z
+      .string()
+      .min(1, 'thieu chuoi ket noi')
+      .refine(
+        (value) => value.startsWith('postgresql://') || value.startsWith('postgres://'),
+        'phai bat dau bang postgresql://',
+      ),
+    /**
+     * So ket noi toi da moi API process. Tong cua moi instance (va worker, script) phai nho hon
+     * max_connections cua PostgreSQL; checkout giu mot ket noi trong ca transaction tao don.
+     */
+    DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(200).default(10),
+    /** Cho ket noi ranh toi da bao lau (ms) roi bao loi thay vi treo request mai; 0 la cho mai. */
+    DATABASE_POOL_TIMEOUT_MS: z.coerce.number().int().min(0).default(10_000),
+    /** Cac goc web duoc goi API, cach nhau bang dau phay. Staging dien dung dia chi web cua no. */
+    CORS_ORIGINS: z.string().default('http://localhost:5174'),
+    /** Bat buoc tu moi truong; khong co default de khong bao gio dua production secret vao ma nguon. */
+    JWT_ACCESS_SECRET: z.string().min(32, 'phai dai it nhat 32 ky tu'),
+    /** Chuoi thoi luong nguyen duong: 15m, 1h, 30d... */
+    JWT_ACCESS_TTL: z
+      .string()
+      .regex(/^[1-9]\d*[smhd]$/u, 'phai co dang 15m, 1h hoac 30d')
+      .default('15m'),
+    REFRESH_TOKEN_TTL: z
+      .string()
+      .regex(/^[1-9]\d*[smhd]$/u, 'phai co dang 15m, 1h hoac 30d')
+      .default('30d'),
+    /** Dung de tron OTP truoc khi bam HMAC-SHA256; bat buoc, khong co default de khong lo tren prod. */
+    OTP_PEPPER: z.string().min(32, 'phai dai it nhat 32 ky tu'),
+    /** May chu SMTP gui email xac thuc. Local dung Mailpit (xem docker-compose.yml). */
+    SMTP_HOST: z.string().min(1, 'thieu SMTP_HOST'),
+    SMTP_PORT: z.coerce.number().int().positive().default(1025),
+    SMTP_SECURE: z
+      .enum(['true', 'false'])
+      .transform((value) => value === 'true')
+      .default(false),
+    /** Bo trong khi may chu SMTP khong doi xac thuc (Mailpit local). */
+    SMTP_USER: z.string().optional(),
+    SMTP_PASS: z.string().optional(),
+    SMTP_FROM: z.string().min(1, 'thieu SMTP_FROM'),
+    /**
+     * Redis dung chung cho moi ban sao cua API, giu bo dem gioi han toc do. Bat buoc: gioi han
+     * dang nhap/OTP la co che bao mat, khong duoc luu trong bo nho tien trinh (moi ban sao mot so dem
+     * rieng thi tang ban sao la vo hieu gioi han). Chi kiem dinh dang; ket noi duoc thu luc chay.
+     */
+    REDIS_URL: z
+      .string()
+      .min(1, 'thieu REDIS_URL')
+      .refine(
+        (value) => value.startsWith('redis://') || value.startsWith('rediss://'),
+        'phai bat dau bang redis:// hoac rediss://',
+      ),
+    /** Tron danh tinh (email, userId) truoc khi dung lam khoa Redis va khoa OTP; khong luu email tho. */
+    RATE_LIMIT_PEPPER: z.string().min(32, 'phai dai it nhat 32 ky tu'),
+    /**
+     * So proxy tin cay dung truoc API (0 = khach noi thang, khong tin X-Forwarded-For). Gioi han
+     * theo IP dung req.ip nen phai dung: dat sai thi hoac moi nguoi dung chung mot IP cua proxy (bi
+     * gioi han lan nhau), hoac ke tan cong gia mao IP bang X-Forwarded-For. Bat buoc khai bao ro o
+     * staging/production, xem superRefine ben duoi.
+     */
+    TRUST_PROXY_HOPS: z
+      .string()
+      .regex(/^\d{1,2}$/u, 'phai la so nguyen 0-99')
+      .transform(Number)
+      .optional(),
+    APP_VERSION: z.string().default('0.0.0-dev'),
+    VNPAY_TMN_CODE: z.string().optional(),
+    VNPAY_HASH_SECRET: z.string().optional(),
+    VNPAY_PAYMENT_URL: z.url().default('https://sandbox.vnpayment.vn/paymentv2/vpcpay.html'),
+    VNPAY_QUERY_URL: z
+      .url()
+      .default('https://sandbox.vnpayment.vn/merchant_webapi/api/transaction'),
+    VNPAY_RETURN_URL: z.url().default('http://localhost:5174/thanh-toan/ket-qua'),
+    MOMO_PARTNER_CODE: z.string().default(''),
+    MOMO_ACCESS_KEY: z.string().default(''),
+    MOMO_SECRET_KEY: z.string().default(''),
+    MOMO_API_URL: z.url().default('https://test-payment.momo.vn/v2/gateway/api'),
+    MOMO_RETURN_URL: z.url().default('http://localhost:5174/thanh-toan/ket-qua'),
+    MOMO_IPN_URL: z.union([z.literal(''), z.url()]).default(''),
+    /** Chong bom COD (ADR-038): don tren tran nay hoac khach da giao that bai du so lan thi phai tra truoc. */
+    COD_MAX_AMOUNT: z.coerce.number().positive().default(2_000_000),
+    COD_MAX_FAILED_DELIVERIES: z.coerce.number().int().positive().default(2),
+    // So don COD cung cho shop xac nhan toi da moi tai khoan (ADR-040).
+    COD_MAX_PENDING_ORDERS: z.coerce.number().int().positive().default(3),
+    /**
+     * Tim kiem ngu nghia (ADR-048): `local` nap mo hinh embedding da ngon ngu ngay trong API (~500 MB
+     * RAM, ~7 s nap lan dau, tai mo hinh tu Hugging Face neu chua co trong SEARCH_MODEL_DIR); `off`
+     * chi dung luat va tu dien (ADR-019). Mac dinh off de may dev, CI va Render Free 512 MB khong ton RAM.
+     */
+    SEARCH_SEMANTIC: z.enum(['off', 'local']).default('off'),
+    SEARCH_EMBED_MODEL: z.string().min(1).default('Xenova/multilingual-e5-small'),
+    /** Thu muc luu mo hinh da tai; trong thi dung thu muc mac dinh cua thu vien. */
+    SEARCH_MODEL_DIR: z.string().optional(),
+    /** Qua han nay ma chua nhung xong cau truy van thi tra ket qua chi theo luat. */
+    SEARCH_SEMANTIC_TIMEOUT_MS: z.coerce.number().int().min(10).max(5000).default(300),
+    /** Ma commit dang chay: CI truyen GIT_SHA khi dung image; Render tu cap RENDER_GIT_COMMIT. */
+    GIT_SHA: z.string().optional(),
+    RENDER_GIT_COMMIT: z.string().optional(),
+  })
+  .superRefine((env, context) => {
+    if (env.MOMO_PARTNER_CODE && env.MOMO_ACCESS_KEY && env.MOMO_SECRET_KEY) {
+      if (env.NODE_ENV !== 'test' && !env.MOMO_IPN_URL.startsWith('https://'))
+        context.addIssue({
+          code: 'custom',
+          path: ['MOMO_IPN_URL'],
+          message: 'phai dung IPN HTTPS khi bat MoMo',
+        });
+      if (
+        ['staging', 'production'].includes(env.NODE_ENV) &&
+        !env.MOMO_RETURN_URL.startsWith('https://')
+      )
+        context.addIssue({
+          code: 'custom',
+          path: ['MOMO_RETURN_URL'],
+          message: 'phai dung HTTPS tren staging/production',
+        });
+    }
+    if (
+      (env.NODE_ENV === 'production' || env.NODE_ENV === 'staging') &&
+      (env.VNPAY_TMN_CODE || env.VNPAY_HASH_SECRET) &&
+      !env.VNPAY_RETURN_URL.startsWith('https://')
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['VNPAY_RETURN_URL'],
+        message: 'phai dung HTTPS khi bat VNPAY tren staging/production',
+      });
+    }
+    if (
+      (env.NODE_ENV === 'production' || env.NODE_ENV === 'staging') &&
+      env.TRUST_PROXY_HOPS === undefined
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['TRUST_PROXY_HOPS'],
+        message:
+          'phai khai bao ro o staging/production (0 neu khong co reverse proxy, 1 neu sau mot proxy tin cay)',
+      });
+    }
+  });
 
 export type Env = z.infer<typeof envSchema>;
 

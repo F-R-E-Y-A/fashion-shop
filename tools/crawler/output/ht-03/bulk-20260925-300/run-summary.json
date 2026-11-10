@@ -1,0 +1,13 @@
+{
+  "runId": "bulk-20260925-300",
+  "source": "YODY",
+  "startedAt": "2026-09-25T08:11:23.518Z",
+  "finishedAt": "2026-09-25T08:47:23.531Z",
+  "discovered": 315,
+  "requested": 315,
+  "succeeded": 314,
+  "failed": 1,
+  "duplicates": 0,
+  "uniqueProducts": 314,
+  "stoppedReason": null
+}

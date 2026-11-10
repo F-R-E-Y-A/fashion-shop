@@ -1,0 +1,41 @@
+import { Module } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { JwtModule } from '@nestjs/jwt';
+
+import type { Env } from '../../infra/config/env.js';
+import { MailModule } from '../../infra/mail/mail.module.js';
+import { RateLimitModule } from '../../infra/rate-limit/rate-limit.module.js';
+import { AuthController } from './auth.controller.js';
+import { AuthGuard } from './auth.guard.js';
+import { AuthService } from './auth.service.js';
+import { AuthRateLimitService } from './auth-rate-limit.service.js';
+import { OtpService } from './otp.service.js';
+import { PasswordHasherService } from './password-hasher.service.js';
+import { RolesGuard } from './roles.guard.js';
+import { TokenService } from './token.service.js';
+
+/** Phase 1 security primitives; HTTP endpoints are added in later PH3 phases. */
+@Module({
+  imports: [
+    JwtModule.registerAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<Env, true>) => ({
+        secret: config.get('JWT_ACCESS_SECRET', { infer: true }),
+      }),
+    }),
+    MailModule,
+    RateLimitModule,
+  ],
+  controllers: [AuthController],
+  providers: [
+    AuthGuard,
+    AuthRateLimitService,
+    AuthService,
+    OtpService,
+    PasswordHasherService,
+    RolesGuard,
+    TokenService,
+  ],
+  exports: [AuthGuard, AuthService, PasswordHasherService, RolesGuard, TokenService],
+})
+export class AuthModule {}

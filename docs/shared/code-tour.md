@@ -1,6 +1,6 @@
 ---
 title: Hướng dẫn đọc sâu mã nguồn
-updated: 2026-09-24
+updated: 2026-10-04
 status: đang dùng
 owner: Bảo
 ---
@@ -133,7 +133,6 @@ Bảng này chính là thứ để ôn trước buổi bảo vệ. Cột cuối 
 | `tools/git/check-commit-msg.mjs` | Ép dạng commit message | Lịch sử git lộn xộn, khó đối chiếu với nhật ký AI |
 | `tools/git/pre-push.mjs` | Chặn đẩy thẳng vào `develop`, `main` | Có người đẩy thẳng, bỏ qua duyệt và bỏ qua CI |
 | `tools/db/prepare-test-db.mjs` | Tạo cơ sở dữ liệu riêng cho kiểm thử | Kiểm thử xoá sạch dữ liệu đang làm việc |
-| `tools/github/request-reviewers.mjs` | Gán người duyệt theo `CODEOWNERS` | Kho riêng tư gói Free không tự gán, `CODEOWNERS` thành tờ giấy dán tường |
 | `tools/evidence/github-metrics.mjs` | Xuất bốn con số rubric chấm | Tới lúc nộp phải ngồi đếm tay, và đếm sai |
 | `.github/workflows/ci.yml` | Sáu chặng chặn gộp | Mã hỏng vào được `develop` |
 | `.github/workflows/cd-staging.yml` | Triển khai sau khi CI xanh | Không có số lần triển khai để nộp, TC2.6 mất điểm |
@@ -227,7 +226,7 @@ Bốn kết quả trong cột cuối là đo thật trên máy chủ đang chạ
 
 **Vì sao `enableImplicitConversion: false`.** Nếu bật, `class-transformer` tự suy kiểu và đổi ngầm. Nghe tiện nhưng sinh bất ngờ: chuỗi `"false"` thành `true`, chuỗi rỗng thành `0`. Tắt nó đi thì muốn đổi kiểu phải ghi rõ `@Type(() => Number)`, tức là **ý định nằm trong mã** chứ không nằm trong hành vi ngầm của thư viện.
 
-**Chỗ pipe không với tới.** `findOne(@Param('slug') slug: string)` khai kiểu nguyên thuỷ, nên pipe bỏ qua hoàn toàn. Đã đo: gửi slug dài 500 ký tự thì trả **404 chứ không phải 400**, nghĩa là chuỗi đi thẳng tới truy vấn mà không qua kiểm tra độ dài. Prisma có tham số hoá câu lệnh nên không có nguy cơ chèn lệnh SQL, nhưng đây vẫn là **dữ liệu vào không được kiểm**. Muốn kiểm thì khai tham số đường dẫn bằng một lớp DTO thay vì chuỗi. Đã ghi vào [TECH_DEBT.md](../TECH_DEBT.md) mục ND-10.
+**Chỗ pipe không với tới và bản sửa hiện có.** Ví dụ cũ `findOne(@Param('slug') slug: string)` dùng kiểu nguyên thuỷ nên pipe bỏ qua kiểm tra DTO. PH-01 đã thay bằng `@Param() { slug }: ProductSlugParam` (`apps/api/src/modules/products/products.controller.ts:54`); [ND-10](../TECH_DEBT.md) đã xử lý. Khi thêm controller, dùng DTO thay vì chép ví dụ lỗi cũ.
 
 ### 4.9 Bể kết nối cơ sở dữ liệu
 
@@ -249,7 +248,7 @@ Số 10 đúng bằng giá trị mặc định của `pg-pool`. Bể giữ kết
 
 **Nếu 10 là chưa đủ thì sao.** Khi có 60 yêu cầu cùng lúc, 10 cái chạy trước, 50 cái còn lại **xếp hàng** chứ không lỗi. Đó là cách một bể kết nối hoạt động, và thường là điều mong muốn: cơ sở dữ liệu thà phục vụ tuần tự còn hơn nhận 60 truy vấn rồi chậm đều tất cả. Nút cổ chai thật ở quy mô thương mại điện tử **thường không nằm ở số kết nối** mà nằm ở truy vấn thiếu chỉ mục, thứ được xử lý ở HT-08 tuần 9 bằng `EXPLAIN` và số đo thật.
 
-Muốn đổi kích thước bể thì thêm `connection_limit` vào chuỗi kết nối. **Chưa đổi lúc này** vì đổi mà không có số đo thì chỉ là đoán; tuần 10 có bài kiểm thử tải của Duy mới đủ căn cứ.
+Muốn đổi kích thước bể của adapter hiện tại thì truyền `max` trong cấu hình `PrismaPg`, ví dụ `{ connectionString, max: 10 }`; không áp dụng hướng dẫn `connection_limit` của engine Prisma cũ. Mã đang dùng `new PrismaPg({ connectionString })` (`apps/api/src/infra/prisma/prisma.service.ts:24`); adapter tạo `pg.Pool`, và [tài liệu node-postgres](https://node-postgres.com/apis/pool) xác định `max` là cấu hình pool. **Chưa đổi runtime** vì chưa có số đo yêu cầu tăng pool.
 
 ### 4.10 Bộ lọc lỗi bắt được gì, không bắt được gì
 

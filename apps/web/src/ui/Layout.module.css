@@ -1,0 +1,26 @@
+/* Khung dung chung cho moi trang cua hang. Xuat qua @/ui de moi feature dung cung mot bo. */
+.container {
+  max-width: var(--container);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+.section {
+  padding-block: clamp(64px, 8vw, 112px);
+}
+.eyebrow {
+  font: 500 0.7rem var(--font-body);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+/* styles.css tô moi <button> mau accent; nut khong phai nut chinh phai reset bang lop nay. */
+.plainButton {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: inherit;
+}
