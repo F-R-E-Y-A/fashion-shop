@@ -26,7 +26,9 @@ const row = (
   ...overrides,
 });
 
-const cartRow = () => ({
+const cartRow = (overrides?: {
+  category?: { isActive: boolean; parent?: { isActive: boolean } | null };
+}) => ({
   id: 'v-1',
   productId: 'p-1',
   colorId: 'c-den',
@@ -39,6 +41,13 @@ const cartRow = () => ({
     slug: 'ao-thun-co-tron-basic',
     name: 'Ao thun co tron basic',
     isActive: true,
+    category: {
+      id: 'cat-1',
+      name: 'Áo',
+      slug: 'ao',
+      isActive: overrides?.category?.isActive ?? true,
+      parent: overrides?.category?.parent !== undefined ? overrides.category.parent : null,
+    },
     images: [
       { colorId: null, url: 'https://example.test/common.jpg' },
       { colorId: 'c-den', url: 'https://example.test/black.jpg' },
@@ -205,5 +214,29 @@ describe('ProductsService (UC-03.1 catalog)', () => {
       isActive: false,
     });
     expect(prisma.productVariant.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('UC-04.1/AC5 reports cart variant as inactive when its category or parent is inactive', async () => {
+    const activeRow = cartRow({ category: { isActive: true, parent: null } });
+    const hiddenCategoryRow = {
+      ...cartRow({ category: { isActive: false, parent: null } }),
+      id: 'v-hidden-cat',
+    };
+    const hiddenParentRow = {
+      ...cartRow({ category: { isActive: true, parent: { isActive: false } } }),
+      id: 'v-hidden-parent',
+    };
+    prisma.productVariant.findMany.mockResolvedValue([
+      activeRow,
+      hiddenCategoryRow,
+      hiddenParentRow,
+    ]);
+
+    const result = await service.getVariantsForCart(['v-1', 'v-hidden-cat', 'v-hidden-parent']);
+
+    expect(result).toHaveLength(3);
+    expect(result[0]?.isActive).toBe(true);
+    expect(result[1]?.isActive).toBe(false);
+    expect(result[2]?.isActive).toBe(false);
   });
 });

@@ -233,6 +233,17 @@ actor/epoch/thế hệ quyền; list/detail xác nhận tên và tác động, n
 Sau thành công bỏ tập filter cũ và tải total/trang lại; không tính lại total từ một dòng.
 Không ghi dữ liệu admin bằng response phiên cũ/403 hoặc đè phiên bản mới hơn đang đọc.
 Bật lại là gỡ ngừng bán thủ công, không tự bật danh mục/biến thể hoặc chọn lại giỏ.
+
+## Danh mục quản trị đọc và ẩn hiện — Issue #79
+
+Đặc tả đề xuất [UC-04.1](use-cases-admin-categories.md) thuộc Issue #79: đọc cây phân cấp, chi tiết và chuyển đổi trạng thái hiển thị (`isActive`) an toàn qua CAS bằng `updatedAt`.
+Không tạo mới, sửa tên/slug/cha/thứ tự, không xóa và không kéo thả.
+Phân quyền ADMIN kiểm tra trước validation, allowlist và `Cache-Control: no-store`.
+Ngữ nghĩa: ẩn cha làm nhánh con không hiển thị hiệu lực (`parentHidden: true`), không đổi cờ DB con; bật cha chỉ khôi phục con có `isActive = true`.
+Số đếm: `productCount` (trực tiếp) và `subtreeProductCount` (toàn nhánh) trong cùng snapshot `RepeatableRead`.
+CAS kiểm tra `expectedUpdatedAt` ISO mili-giây, khóa hàng `FOR UPDATE`, tăng đơn điệu `GREATEST(NOW(), updated_at + 1ms)`; no-op không UPDATE và không bump catalog revision.
+Storefront và Cart phản ánh trạng thái ẩn/hiện danh mục; seed lặp bảo toàn quyết định ẩn của admin; quyết định kiến trúc đề xuất [ADR-053](LOG.md#adr-053).
+
 Giỏ lần đọc sau báo INACTIVE và bỏ chọn; thêm bị Cart từ chối theo lỗi hiện có.
 Checkout đã đọc Catalog trước khi ngừng bán có thể tiếp tục; không tự hủy/hoàn tiền đơn hoặc sửa kho.
 Kiểm bằng unit/web, [HTTP regression](../../../apps/api/test/admin-product-status.http.spec.ts) và

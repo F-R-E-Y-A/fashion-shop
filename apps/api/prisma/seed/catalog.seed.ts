@@ -52,13 +52,43 @@ export async function seedCatalog(
   prisma: PrismaClient,
 ): Promise<{ categories: number; brands: number; colors: number; sizes: number }> {
   // Danh muc cha truoc, con sau, de noi duoc parent theo slug.
+  // Khong bat lai isActive cua danh muc da bi admin an; chi cap nhat khi metadata thuc su doi de giu CAS token.
   for (const c of [...CATEGORIES].sort((a, b) => Number(!!a.parentSlug) - Number(!!b.parentSlug))) {
-    const parent = c.parentSlug ? { connect: { slug: c.parentSlug } } : undefined;
-    await prisma.category.upsert({
+    const existing = await prisma.category.findUnique({
       where: { slug: c.slug },
-      update: { name: c.name, sortOrder: c.sortOrder, isActive: true, parent },
-      create: { slug: c.slug, name: c.name, sortOrder: c.sortOrder, parent },
+      include: { parent: { select: { slug: true } } },
     });
+    if (!existing) {
+      const parent = c.parentSlug ? { connect: { slug: c.parentSlug } } : undefined;
+      await prisma.category.create({
+        data: { slug: c.slug, name: c.name, sortOrder: c.sortOrder, parent },
+      });
+    } else {
+      const parentSlug = existing.parent?.slug ?? null;
+      const metadataChanged =
+        existing.name !== c.name ||
+        existing.sortOrder !== c.sortOrder ||
+        parentSlug !== c.parentSlug;
+
+      if (metadataChanged) {
+        const parentId = c.parentSlug
+          ? ((
+              await prisma.category.findUnique({
+                where: { slug: c.parentSlug },
+                select: { id: true },
+              })
+            )?.id ?? null)
+          : null;
+        await prisma.$executeRaw`
+          UPDATE public.categories
+          SET name = ${c.name},
+              sort_order = ${c.sortOrder},
+              parent_id = ${parentId}::uuid,
+              updated_at = GREATEST(NOW(), updated_at + INTERVAL '1 millisecond')
+          WHERE slug = ${c.slug}
+        `;
+      }
+    }
   }
 
   for (const b of BRANDS) {
