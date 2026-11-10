@@ -472,6 +472,32 @@ Cache web bỏ tập danh sách cũ, chỉ tải query active, giữ actor/epoch
 Chỉ migration/HTTP trên DB test riêng. Tài hoãn nâng DB phát triển; không tự áp migration vào đó.
 Unit/HTTP/web và minh chứng được định danh ở kho docs; Bảo/người hiểu Cart/Checkout review trước tích hợp.
 
+<a id="adr-052"></a>
+## ADR-052 · Giữ từng trường nội dung quản trị qua import
+
+**Trạng thái:** đề xuất · **Ngày:** 2026-11-10 · **Người đề xuất:** Tài (AI hỗ trợ).
+
+**Bối cảnh:** Issue77 mở sửa tên, mô tả, chất liệu và hướng dẫn bảo quản. Tài giao agent
+khuyến nghị chính sách import. Ghi đè toàn bộ khi import sẽ làm mất nội dung đã biên tập;
+đóng băng toàn sản phẩm lại ngăn các trường chưa sửa cập nhật từ nguồn.
+
+**Phương án:** bảo vệ từng trường có thay đổi hiệu lực bởi admin, kể cả giá trị null.
+Trường chưa được bảo vệ tiếp tục theo nguồn. contentVersion tách statusVersion; admin và
+import khóa cùng hàng trước đọc/ghi. CAS chặn phiên bản cũ và ABA; no-op không tăng version
+hoặc bảo vệ thêm trường. Chỉ nội dung hiệu lực đổi mới tăng version khi import.
+UI giữ snapshot, ghép ba bản khi409; trường cùng thay đổi khác nhau cần chọn giá trị rõ ràng,
+không chỉ nâng version rồi gửi cả draft cũ. Phần gõ thêm khi GET đang chờ phải được giữ.
+
+**Đánh đổi:** thêm hai cột và một migration; writer cùng sản phẩm phải chờ khóa hàng.
+MVP không có thao tác gỡ bảo vệ để quay về nguồn; việc đó cần Issue/use case riêng.
+Không đổi slug, giá, trạng thái bán, kho hoặc snapshot đơn cũ. Một request sửa gửi đủ bốn
+trường; việc gỡ vai vẫn do backend kiểm, trạng thái frontend không thay kiểm quyền.
+
+**Thực tế:** mã/test tại task/admin-product-edit, UC-04.2/AC19–28; regression độc lập bắt
+hai lỗi409/403 và lỗi draft khi GET chậm, đã bổ sung test chính thức. Migration chỉ áp DB
+test riêng của Issue77; chưa rollout DB phát triển. Kế hoạch, log và giới hạn nghiệm thu
+ở kho docs. Triển khai không tự đổi quyết định sang đã chốt; người hiểu Catalog/Import review.
+
 <a id="adr-053"></a>
 ## ADR-053 · Quản lý ẩn hiện danh mục bằng CAS qua updatedAt và khóa hàng
 
@@ -489,3 +515,4 @@ Unit/HTTP/web và minh chứng được định danh ở kho docs; Bảo/ngườ
 7. Bảo vệ writer (seed): loại bỏ `isActive: true` khi update danh mục đã có trong seed; chỉ update khi metadata (`name`, `sortOrder`, `parentId`) thực sự đổi để không làm hỏng token CAS.
 
 **Đánh đổi:** Không thêm cột mới hay migration, giảm rủi ro thay đổi schema DB; yêu cầu client gửi đúng định dạng timestamp mili-giây và xử lý 409 bằng cách tải lại trạng thái mới nhất rồi xác nhận lại.
+

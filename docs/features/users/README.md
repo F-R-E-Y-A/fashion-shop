@@ -190,4 +190,5 @@ Tổng quan 360×740/1280×800 và reduced-motion thật; zoom 200% bằng trìn
 AC đã phân loại theo [testing.md](../../shared/testing.md); AC10 là checklist thủ công, không giả lập bằng test widget.
 
 Lát frontend được theo dõi tại [Issue #75](https://github.com/F-R-E-Y-A/fashion-shop/issues/75);
-PR giữ Draft khi zoom 200% thật hoặc review/CI đúng head chưa đủ.
+[PR #76](https://github.com/F-R-E-Y-A/fashion-shop/pull/76) đã mở để nhận review. Ready không phải nghiệm thu:
+zoom 200% thật, review chéo và CI đúng head cuối vẫn phải được xác nhận trước merge.
