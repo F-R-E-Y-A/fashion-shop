@@ -15,3 +15,13 @@ Phân hệ khác import qua `index.ts`. Cart/Catalog chỉ đọc; Checkout dùn
 - `parseStockCsv(text)`, `applyStockCounts(prisma, counts, { dryRun })`: đặt tồn vật lý theo file kiểm kê `sku,quantity`, tất cả hoặc không dòng nào. Khoá variant như Checkout; từ chối SKU lạ và số nhỏ hơn lượng đang giữ; mỗi chênh lệch ghi một StockMovement `ADJUSTMENT`. Gọi qua `npm run stock:import -w apps/api -- --file=<csv> [--dry-run]` ([ADR-029](../../../../../docs/LOG.md#adr-029)).
 
 Caller lấy khoá Cart và Order trước khi ghi Inventory; script kiểm kê chỉ lấy khoá variant nên không tạo vòng khoá. Chưa có UI/API nhập kho; số liệu do chủ kho cung cấp. Không seed số lượng giả trên database đang sử dụng.
+
+
+## Quản trị chỉ đọc — Issue #81
+
+AdminInventoryController/AdminInventoryService là nội bộ module, không xuất qua index.
+AuthModule bảo vệ ADMIN, DTO/Swagger giữ hợp đồng thật; mọi GET trả no-store và allowlist.
+Danh sách gồm cả variant chưa có Inventory hoặc đang ngừng bán. Số tồn/giữ/khả dụng và lịch sử
+được đọc trong snapshot RepeatableRead; giữ chỉ tính chưa release và chưa hết hạn tại asOf.
+Thiếu Inventory trả null, không tự tạo dòng; lịch sử không lộ khách hàng, đơn hoặc chi tiết reservation.
+Không sửa các cửa ghi đã công bố và không thêm API ghi/migration/seed trong lát này.
