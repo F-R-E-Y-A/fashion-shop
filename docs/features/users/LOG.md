@@ -432,3 +432,12 @@ Tài yêu cầu tiếp tục tới tạo PR; Issue #75 theo dõi đúng lát fro
 Giữ Draft khi zoom 200% thật còn mở; kê rõ kiểm tự động và docs lint đã đạt, không tự nhận có review.
 Bản hiệu đính mã ADR khuyến mãi041 thành051 giữ nguyên nội dung/trạng thái đề xuất, tránh050 ở PR #74.
 Nhật ký AI và minh chứng gắn commit được công bố ở kho docs; không thay workflow hoặc DB phát triển.
+
+## 2026-11-10 · Tách Ready for review khỏi nghiệm thu
+
+**Loại:** hiệu đính trạng thái bàn giao · **Phạm vi:** PR #76 và README Users · **Commit:** xem lịch sử Git của mục này
+
+Tài yêu cầu chốt Draft để bắt đầu review tổng thể. Câu giữ Draft khi chưa có review đã làm đảo thứ tự
+quy trình; mở Ready cho người khác duyệt, không tick thay review hoặc AC9. Zoom 200% thật vẫn chưa kiểm,
+CI phải đúng head cuối và người khác duyệt trước merge. Không đổi các AC, runtime, quyền hoặc DB.
+Mục Draft phía trên là trạng thái ở lần công bố trước, được hiệu đính tại đây theo luật append-only.
