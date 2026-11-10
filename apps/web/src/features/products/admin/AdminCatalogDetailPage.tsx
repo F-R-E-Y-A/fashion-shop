@@ -13,6 +13,11 @@ import {
 import styles from './AdminCatalog.module.css';
 import { catalogListPath, catalogSearch, parseCatalogQuery } from './catalog-query.js';
 import {
+  ProductContentButton,
+  ProductContentFeedback,
+  useProductContentAction,
+} from './product-content-action.js';
+import {
   ProductStatusButton,
   ProductStatusFeedback,
   useProductStatusAction,
@@ -25,7 +30,8 @@ export function AdminCatalogDetailPage() {
   return <CatalogDetail key={`${user?.id}:${getSessionEpoch()}:${id}`} id={id} />;
 }
 function CatalogDetail({ id }: { id: string }) {
-  const action = useProductStatusAction();
+  const statusAction = useProductStatusAction();
+  const contentAction = useProductContentAction();
   const { user } = useAuth();
   const location = useLocation();
   const query = parseCatalogQuery(location.search);
@@ -43,7 +49,8 @@ function CatalogDetail({ id }: { id: string }) {
       <Link className={styles.back} to={catalogListPath(query)}>
         ← Về danh sách sản phẩm
       </Link>
-      <ProductStatusFeedback action={action} />
+      <ProductStatusFeedback action={statusAction} />
+      <ProductContentFeedback action={contentAction} />
       {result.isPending && <Loading label="Đang tải chi tiết sản phẩm…" />}
       {result.isError && (
         <ErrorNote
@@ -60,7 +67,10 @@ function CatalogDetail({ id }: { id: string }) {
             <span className={styles.badge} data-tone={data.isActive ? 'accent' : 'muted'}>
               {catalogStatusLabel(data)}
             </span>
-            <ProductStatusButton product={data} action={action} />
+            <div className={styles.actionGroup}>
+              <ProductStatusButton product={data} action={statusAction} />
+              <ProductContentButton product={data} action={contentAction} />
+            </div>
           </header>
           <div className={styles.detailGrid}>
             <section className={styles.panel} aria-labelledby="catalog-info">
@@ -82,6 +92,21 @@ function CatalogDetail({ id }: { id: string }) {
                 </Fact>
                 <Fact label="Chất liệu">{data.material ?? 'Chưa có'}</Fact>
                 <Fact label="Hướng dẫn bảo quản">{data.careInstructions ?? 'Chưa có'}</Fact>
+                <Fact label="Nội dung giữ khi nhập lại">
+                  {data.adminContentFields.length > 0
+                    ? data.adminContentFields
+                        .map(
+                          (field) =>
+                            ({
+                              name: 'Tên sản phẩm',
+                              description: 'Mô tả',
+                              material: 'Chất liệu',
+                              careInstructions: 'Hướng dẫn bảo quản',
+                            })[field] ?? 'Nội dung khác',
+                        )
+                        .join(', ')
+                    : 'Chưa có trường nào'}
+                </Fact>
                 <Fact label="Ngày tạo">{formatDateTime(data.createdAt)}</Fact>
                 <Fact label="Cập nhật">{formatDateTime(data.updatedAt)}</Fact>
               </dl>

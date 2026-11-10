@@ -21,6 +21,8 @@ export interface AdminCatalogProduct {
   brand: { id: string; name: string } | null;
 }
 export interface AdminCatalogDetail extends AdminCatalogProduct {
+  contentVersion: number;
+  adminContentFields: string[];
   description: string | null;
   material: string | null;
   careInstructions: string | null;
@@ -37,6 +39,22 @@ export interface AdminCatalogDetail extends AdminCatalogProduct {
     isActive: boolean;
   }[];
   images: { id: string; url: string; alt: string | null; color: Color | null; sortOrder: number }[];
+}
+export interface ProductContentResult {
+  id: string;
+  name: string;
+  description: string | null;
+  material: string | null;
+  careInstructions: string | null;
+  contentVersion: number;
+  adminContentFields: string[];
+}
+export interface ChangeProductContentInput {
+  name: string;
+  description: string | null;
+  material: string | null;
+  careInstructions: string | null;
+  expectedVersion: number;
 }
 export interface AdminCatalogPage {
   items: AdminCatalogProduct[];
