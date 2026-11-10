@@ -497,3 +497,22 @@ trường; việc gỡ vai vẫn do backend kiểm, trạng thái frontend khôn
 hai lỗi409/403 và lỗi draft khi GET chậm, đã bổ sung test chính thức. Migration chỉ áp DB
 test riêng của Issue77; chưa rollout DB phát triển. Kế hoạch, log và giới hạn nghiệm thu
 ở kho docs. Triển khai không tự đổi quyết định sang đã chốt; người hiểu Catalog/Import review.
+
+<a id="adr-053"></a>
+## ADR-053 · Quản lý ẩn hiện danh mục bằng CAS qua updatedAt và khóa hàng
+
+**Trạng thái:** đề xuất · **Ngày:** 2026-11-10 · **Người đề xuất:** Tài (AI hỗ trợ).
+
+**Bối cảnh:** Issue #79 yêu cầu quản trị viên có thể xem cây/chi tiết danh mục và bật/tắt hiển thị (`isActive`). Cần cơ chế kiểm soát tương tranh lạc quan (CAS) ngăn ghi đè mà không cần thêm migration hay cột phiên bản mới vào schema hiện tại.
+
+**Phương án:**
+1. Dùng `updatedAt` với định dạng ISO 8601 mili-giây chuẩn (`expectedUpdatedAt`) làm token CAS.
+2. Thực hiện khóa hàng `SELECT id, is_active, updated_at FROM categories WHERE id = $1 FOR UPDATE`.
+3. Kiểm tra CAS token trước no-op: Nếu token không khớp DB, lập tức trả 409 Conflict kể cả khi mục tiêu `isActive` trùng với hiện tại.
+4. Cập nhật tăng đơn điệu: `updated_at = GREATEST(NOW(), updated_at + INTERVAL '1 millisecond')` với `WHERE id = $1 AND updated_at = $2::timestamptz`. Kiểm tra affected rows = 1.
+5. No-op (khi CAS hợp lệ và `isActive` không đổi): không gọi UPDATE, không tăng timestamp, không bump revision.
+6. Ngữ nghĩa cha–con: Ẩn cha làm nhánh con không hiển thị hiệu lực trên Storefront (`parentHidden: true`), nhưng giữ nguyên cờ `isActive` của con trong DB.
+7. Bảo vệ writer (seed): loại bỏ `isActive: true` khi update danh mục đã có trong seed; chỉ update khi metadata (`name`, `sortOrder`, `parentId`) thực sự đổi để không làm hỏng token CAS.
+
+**Đánh đổi:** Không thêm cột mới hay migration, giảm rủi ro thay đổi schema DB; yêu cầu client gửi đúng định dạng timestamp mili-giây và xử lý 409 bằng cách tải lại trạng thái mới nhất rồi xác nhận lại.
+

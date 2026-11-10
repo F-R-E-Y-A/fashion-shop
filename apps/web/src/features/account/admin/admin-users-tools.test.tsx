@@ -29,6 +29,8 @@ vi.mock('@/features/products', () => ({
   ProductDetailPage: () => null,
   AdminCatalogPage: () => null,
   AdminCatalogDetailPage: () => null,
+  AdminCategoriesPage: () => null,
+  AdminCategoryDetailPage: () => null,
   AdminProductsPage: () => <p>Tổng quan sản phẩm của Bảo</p>,
 }));
 vi.mock('@/features/cart', () => ({

@@ -29,6 +29,8 @@ vi.mock('@/features/products', () => ({
   ProductDetailPage: () => null,
   AdminCatalogPage: () => null,
   AdminCatalogDetailPage: () => null,
+  AdminCategoriesPage: () => null,
+  AdminCategoryDetailPage: () => null,
   AdminProductsPage: () => <p>Tổng quan sản phẩm của Bảo</p>,
 }));
 vi.mock('@/features/cart', () => ({
@@ -110,6 +112,7 @@ describe('UC-02.1 Quản trị tài khoản — cổng ADMIN và đường dẫn
     const links = within(nav() as HTMLElement).getAllByRole('link');
     expect(links.map((link) => link.textContent)).toEqual([
       'Tổng quan',
+      'Danh mục',
       'Sản phẩm',
       'Người dùng',
       'Đơn hàng',
