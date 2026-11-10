@@ -116,15 +116,21 @@ Không đưa database URL hoặc file dump vào Git. Trước migration có rủ
 | Log triển khai | GitHub → **Actions** → **CD staging** |
 | Quay về bản trước | Render → **Events** → lượt cũ → **Rollback**; Vercel → **Deployments** → lượt cũ → **Promote to Production** |
 
-## Bốn cái bẫy đã biết
+## Sáu cái bẫy đã biết
 
 **Gọi lần đầu rất chậm.** Gói miễn phí của Render cho máy chủ ngủ sau một thời gian không ai dùng, đánh thức mất khoảng một phút. Lúc trình bày thì mở trang trước vài phút. Bước đợi trong `cd-staging.yml` đã cho tới 10 phút vì lý do này.
+
+**Máy chủ treo hẳn sau một quãng không ai gọi.** Ngày 08/11 API treo nhiều lần: log dừng, `/api/healthz` giữ kết nối mà không trả lời, Restart không sinh dòng log nào, chỉ Manual Deploy chữa được. Lần có request đều đặn (gọi `healthz` mỗi 30 giây, 19:24–19:55) thì không treo; các lần treo quan sát được đều sau một quãng log không có request (sau 12:32, sau 21:51). Bản có cache catalog (`489b0b3`) vẫn treo, nên không phải do nạp catalog. Nguyên nhân phía Render chưa rõ (suy luận: đánh thức thất bại), chưa gửi ticket. Cách giữ: một dịch vụ ping ngoài (Bảo chọn UptimeRobot) gọi `/api/healthz` khoảng 5–10 phút một lần [TBD — Bảo xác nhận đã bật]. Treo thì Render → **Manual Deploy → Deploy latest commit**.
+
+**Sửa `render.yaml` là Render tự deploy.** Dịch vụ do Blueprint quản lý, nên khi `render.yaml` trên `develop` đổi, Render đồng bộ và dựng lại ngay lúc gộp (trigger "Blueprint"), dù `autoDeployTrigger: off`. Lượt CD sau đó gọi hook dựng thêm một lần nữa; không hại, chỉ tốn vài phút.
 
 **Đổi địa chỉ máy chủ phải dựng lại giao diện.** Xem bước 2.3.
 
 **Quên sửa `CORS_ORIGINS`.** Triệu chứng: trang hiện nhưng không có dữ liệu, bảng điều khiển trình duyệt báo lỗi CORS. Sửa trong Render rồi khởi động lại dịch vụ.
 
 **`gitSha` trả `unknown`.** Render không truyền `--build-arg GIT_SHA`, còn `apps/api/Dockerfile` luôn đặt `GIT_SHA` với mặc định `unknown`. Trước 06/11, `/api/healthz` trả `unknown` thay vì `RENDER_GIT_COMMIT` nên CD đợi đủ 10 phút rồi báo lỗi dù bản mới đã chạy; `runningSha` trong `health.controller.ts` nay bỏ qua giá trị rỗng và `unknown`.
+
+**CD kẹt hàng giờ khi máy chủ treo.** Trước 08/11, bước đợi gọi `curl` không có `--max-time` và job không có `timeout-minutes`: máy chủ treo thì `curl` chờ mãi, giữ nhóm `concurrency: cd-staging` và chặn lượt CD của lần gộp sau (run 42489840316 kẹt hơn một giờ, phải huỷ tay). Nay mỗi `curl` có trần, vòng đợi tính hạn 10 phút theo đồng hồ, cả job tối đa 20 phút.
 
 ## Chạy cả cụm trên máy như môi trường thật
 
