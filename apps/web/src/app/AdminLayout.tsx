@@ -16,17 +16,21 @@ export function AdminLayout() {
   const openerRef = useRef<HTMLButtonElement>(null);
   const mainRef = useRef<HTMLElement>(null);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
-  const section = pathname.startsWith('/admin/categories')
-    ? 'Danh mục'
-    : pathname.startsWith('/admin/promotions')
-      ? 'Khuyến mãi'
+  const section = pathname.startsWith('/admin/inventory')
+    ? 'Tồn kho'
+    : pathname.startsWith('/admin/categories')
+      ? 'Danh mục'
       : pathname.startsWith('/admin/users')
         ? 'Người dùng'
         : pathname.startsWith('/admin/orders')
           ? 'Đơn hàng'
           : pathname.startsWith('/admin/products')
             ? 'Sản phẩm'
-            : 'Tổng quan';
+            : pathname.startsWith('/admin/promotions')
+              ? 'Khuyến mãi'
+              : pathname.startsWith('/admin/vouchers')
+                ? 'Mã giảm giá'
+                : 'Tổng quan';
   useEffect(() => {
     window.addEventListener('popstate', closeMenu);
     return () => window.removeEventListener('popstate', closeMenu);

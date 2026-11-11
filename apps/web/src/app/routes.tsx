@@ -24,6 +24,7 @@ import {
   OrderPage,
   OrdersPage,
 } from '@/features/checkout';
+import { AdminInventoryDetailPage, AdminInventoryPage } from '@/features/inventory';
 import {
   AdminCatalogDetailPage,
   AdminCatalogPage,
@@ -40,6 +41,9 @@ import {
   AdminPromotionDetailPage,
   AdminPromotionNewPage,
   AdminPromotionsPage,
+  AdminVoucherDetailPage,
+  AdminVoucherNewPage,
+  AdminVouchersPage,
 } from '@/features/promotions';
 import { Loading } from '@/ui';
 
@@ -140,6 +144,8 @@ export function AppRoutes() {
           <Route path="admin" element={<RequireAdmin />}>
             <Route element={<AdminLayout />}>
               <Route index element={<AdminProductsPage />} />
+              <Route path="inventory" element={<AdminInventoryPage />} />
+              <Route path="inventory/:id" element={<AdminInventoryDetailPage />} />
               <Route path="categories" element={<AdminCategoriesPage />} />
               <Route path="categories/:id" element={<AdminCategoryDetailPage />} />
               <Route path="products" element={<AdminCatalogPage />} />
@@ -147,6 +153,9 @@ export function AppRoutes() {
               <Route path="promotions" element={<AdminPromotionsPage />} />
               <Route path="promotions/new" element={<AdminPromotionNewPage />} />
               <Route path="promotions/:id" element={<AdminPromotionDetailPage />} />
+              <Route path="vouchers" element={<AdminVouchersPage />} />
+              <Route path="vouchers/new" element={<AdminVoucherNewPage />} />
+              <Route path="vouchers/:id" element={<AdminVoucherDetailPage />} />
               <Route path="users" element={<AdminUsersPage />} />
               <Route path="users/:id" element={<AdminUserDetailPage />} />
               <Route path="orders" element={<AdminOrdersPage />} />

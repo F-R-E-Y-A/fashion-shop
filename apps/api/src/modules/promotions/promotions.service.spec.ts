@@ -277,22 +277,159 @@ describe('PromotionsService (UC-07.2 Áp dụng mã giảm giá & UC-10.2 Quản
     });
 
     it('từ chối khi PATCH đổi discountType thành PERCENTAGE nhưng discountValue hiện tại > 100', async () => {
-      prisma.voucher.findUnique.mockResolvedValue({
-        id: 'v-fixed',
-        code: 'FIXED50K',
-        discountType: DiscountType.FIXED_AMOUNT,
-        discountValue: new Decimal(50000),
-        maxDiscountAmount: null,
-        minOrderAmount: null,
-        startsAt: null,
-        endsAt: null,
-      });
+      prisma.$queryRaw.mockResolvedValue([
+        {
+          id: 'v-fixed',
+          code: 'FIXED50K',
+          status: VoucherStatus.ACTIVE,
+          discountType: DiscountType.FIXED_AMOUNT,
+          discountValue: new Decimal(50000),
+          maxDiscountAmount: null,
+          minOrderAmount: null,
+          usageLimit: null,
+          perUserLimit: null,
+          startsAt: null,
+          endsAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ]);
 
       await expect(
         service.updateVoucher('v-fixed', {
           discountType: DiscountType.PERCENTAGE,
         }),
       ).rejects.toThrow('Giá trị phần trăm không thể vượt quá 100%');
+    });
+
+    it('báo lỗi ConflictException (409) khi expectedUpdatedAt không khớp với DB (CAS mismatch)', async () => {
+      const dbDate = new Date('2026-11-11T10:00:00.000Z');
+      prisma.$queryRaw.mockResolvedValue([
+        {
+          id: 'v-cas',
+          code: 'VOUCHER10',
+          status: VoucherStatus.ACTIVE,
+          discountType: DiscountType.PERCENTAGE,
+          discountValue: new Decimal(10),
+          maxDiscountAmount: null,
+          minOrderAmount: null,
+          usageLimit: null,
+          perUserLimit: null,
+          startsAt: null,
+          endsAt: null,
+          createdAt: dbDate,
+          updatedAt: dbDate,
+        },
+      ]);
+
+      await expect(
+        service.updateVoucher('v-cas', {
+          status: VoucherStatus.INACTIVE,
+          expectedUpdatedAt: '2026-11-11T09:00:00.000Z',
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('cập nhật thành công và tăng đơn điệu updatedAt khi expectedUpdatedAt khớp', async () => {
+      const dbDate = new Date('2026-11-11T10:00:00.000Z');
+      const updatedDate = new Date('2026-11-11T10:00:00.001Z');
+      prisma.$queryRaw.mockResolvedValue([
+        {
+          id: 'v-cas',
+          code: 'VOUCHER10',
+          status: VoucherStatus.ACTIVE,
+          discountType: DiscountType.PERCENTAGE,
+          discountValue: new Decimal(10),
+          maxDiscountAmount: null,
+          minOrderAmount: null,
+          usageLimit: null,
+          perUserLimit: null,
+          startsAt: null,
+          endsAt: null,
+          createdAt: dbDate,
+          updatedAt: dbDate,
+        },
+      ]);
+
+      prisma.voucher.update.mockResolvedValue({
+        id: 'v-cas',
+        code: 'VOUCHER10',
+        status: VoucherStatus.INACTIVE,
+        discountType: DiscountType.PERCENTAGE,
+        discountValue: new Decimal(10),
+        maxDiscountAmount: null,
+        minOrderAmount: null,
+        usageLimit: null,
+        perUserLimit: null,
+        startsAt: null,
+        endsAt: null,
+        createdAt: dbDate,
+        updatedAt: updatedDate,
+        _count: { usages: 0 },
+      });
+
+      const res = await service.updateVoucher('v-cas', {
+        status: VoucherStatus.INACTIVE,
+        expectedUpdatedAt: '2026-11-11T10:00:00.000Z',
+      });
+
+      expect(res.status).toBe(VoucherStatus.INACTIVE);
+      expect(prisma.voucher.update).toHaveBeenCalled();
+    });
+
+    it('no-op: trả về bản ghi hiện tại mà không gọi update khi dữ liệu không thay đổi', async () => {
+      const dbDate = new Date('2026-11-11T10:00:00.000Z');
+      prisma.$queryRaw.mockResolvedValue([
+        {
+          id: 'v-noop',
+          code: 'NOOP10',
+          status: VoucherStatus.ACTIVE,
+          discountType: DiscountType.PERCENTAGE,
+          discountValue: new Decimal(10),
+          maxDiscountAmount: null,
+          minOrderAmount: null,
+          usageLimit: null,
+          perUserLimit: null,
+          startsAt: null,
+          endsAt: null,
+          createdAt: dbDate,
+          updatedAt: dbDate,
+        },
+      ]);
+
+      const res = await service.updateVoucher('v-noop', {
+        status: VoucherStatus.ACTIVE,
+        expectedUpdatedAt: '2026-11-11T10:00:00.000Z',
+      });
+
+      expect(res.status).toBe(VoucherStatus.ACTIVE);
+      expect(prisma.voucher.update).not.toHaveBeenCalled();
+    });
+
+    it('lan truyền lỗi SQL/DB khi lockVoucher thất bại (không nuốt lỗi để rollback transaction)', async () => {
+      prisma.$queryRaw.mockRejectedValue(new Error('Deadlock detected'));
+
+      await expect(
+        service.updateVoucher('v-deadlock', {
+          status: VoucherStatus.INACTIVE,
+        }),
+      ).rejects.toThrow('Deadlock detected');
+    });
+
+    it('bắt lỗi Prisma P2002 race condition và ném ConflictException khi tạo mã trùng', async () => {
+      prisma.voucher.findUnique.mockResolvedValue(null);
+      prisma.voucher.create.mockRejectedValue({
+        code: 'P2002',
+        message: 'Unique constraint failed on the fields: (`code`)',
+      });
+
+      await expect(
+        service.createVoucher({
+          code: 'RACECODE',
+          discountType: DiscountType.PERCENTAGE,
+          discountValue: '10',
+        }),
+      ).rejects.toThrow(ConflictException);
     });
   });
 

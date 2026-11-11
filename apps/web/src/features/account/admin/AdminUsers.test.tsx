@@ -112,9 +112,11 @@ describe('UC-02.1 Quản trị tài khoản — cổng ADMIN và đường dẫn
     const links = within(nav() as HTMLElement).getAllByRole('link');
     expect(links.map((link) => link.textContent)).toEqual([
       'Tổng quan',
+      'Tồn kho',
       'Danh mục',
       'Sản phẩm',
       'Khuyến mãi',
+      'Mã giảm giá',
       'Người dùng',
       'Đơn hàng',
     ]);

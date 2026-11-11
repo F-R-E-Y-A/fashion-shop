@@ -43,6 +43,7 @@ import {
   PromotionEvaluatorService,
 } from './engine/index.js';
 import { lockPromotion } from './promotion-concurrency.js';
+import { lockVoucher, toIsoString, type VoucherLockedRow } from './voucher-concurrency.js';
 
 export function isComplexConditions(conditions: unknown): boolean {
   if (conditions === null || conditions === undefined) return false;
@@ -346,20 +347,26 @@ export class PromotionsService {
       };
     }
 
-    const [total, vouchers] = await Promise.all([
-      this.prisma.voucher.count({ where }),
-      this.prisma.voucher.findMany({
-        where,
-        skip: skipOf(query),
-        take: query.pageSize,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          _count: {
-            select: { usages: true },
-          },
-        },
-      }),
-    ]);
+    const { total, vouchers } = await this.prisma.$transaction(
+      async (tx) => {
+        const [total, vouchers] = await Promise.all([
+          tx.voucher.count({ where }),
+          tx.voucher.findMany({
+            where,
+            skip: skipOf(query),
+            take: query.pageSize,
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            include: {
+              _count: {
+                select: { usages: true },
+              },
+            },
+          }),
+        ]);
+        return { total, vouchers };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
 
     const items = vouchers.map((v) => this.mapVoucherToResponse(v, v._count.usages));
     return toPage(items, total, query);
@@ -422,108 +429,226 @@ export class PromotionsService {
       throw new BadRequestException('Thời gian kết thúc phải sau thời gian bắt đầu');
     }
 
-    const voucher = await this.prisma.voucher.create({
-      data: {
-        code: normalizedCode,
-        status: dto.status ?? VoucherStatus.ACTIVE,
-        discountType: dto.discountType,
-        discountValue,
-        maxDiscountAmount,
-        minOrderAmount,
-        usageLimit: dto.usageLimit ?? null,
-        perUserLimit: dto.perUserLimit ?? null,
-        startsAt: dto.startsAt ? new Date(dto.startsAt) : null,
-        endsAt: dto.endsAt ? new Date(dto.endsAt) : null,
-      },
-      include: {
-        _count: {
-          select: { usages: true },
+    try {
+      const voucher = await this.prisma.voucher.create({
+        data: {
+          code: normalizedCode,
+          status: dto.status ?? VoucherStatus.ACTIVE,
+          discountType: dto.discountType,
+          discountValue,
+          maxDiscountAmount,
+          minOrderAmount,
+          usageLimit: dto.usageLimit ?? null,
+          perUserLimit: dto.perUserLimit ?? null,
+          startsAt: dto.startsAt ? new Date(dto.startsAt) : null,
+          endsAt: dto.endsAt ? new Date(dto.endsAt) : null,
         },
-      },
-    });
+        include: {
+          _count: {
+            select: { usages: true },
+          },
+        },
+      });
 
-    return this.mapVoucherToResponse(voucher, voucher._count.usages);
+      return this.mapVoucherToResponse(voucher, voucher._count.usages);
+    } catch (err: unknown) {
+      const errorObj =
+        typeof err === 'object' && err !== null ? (err as Record<string, unknown>) : null;
+      if (
+        errorObj?.code === 'P2002' ||
+        (typeof errorObj?.message === 'string' && errorObj.message.includes('Unique constraint'))
+      ) {
+        throw new ConflictException(`Mã giảm giá ${normalizedCode} đã tồn tại trong hệ thống`);
+      }
+      throw err;
+    }
   }
 
   async updateVoucher(id: string, dto: UpdateVoucherDto): Promise<VoucherResponse> {
-    const existing = await this.prisma.voucher.findUnique({ where: { id } });
-    if (!existing) {
-      throw new NotFoundException('Không tìm thấy mã giảm giá');
-    }
+    return this.prisma.$transaction(async (tx) => {
+      const existing: (VoucherLockedRow & { _count?: { usages: number } }) | null =
+        '$queryRaw' in tx && typeof tx.$queryRaw === 'function'
+          ? await lockVoucher(tx as Parameters<typeof lockVoucher>[0], id)
+          : await tx.voucher.findUnique({
+              where: { id },
+              include: {
+                _count: {
+                  select: { usages: true },
+                },
+              },
+            });
 
-    const data: Prisma.VoucherUpdateInput = {};
-
-    if (dto.code) {
-      const normalizedCode = dto.code.trim().toUpperCase();
-      if (normalizedCode !== existing.code) {
-        const dup = await this.prisma.voucher.findUnique({ where: { code: normalizedCode } });
-        if (dup) {
-          throw new ConflictException(`Mã giảm giá ${normalizedCode} đã tồn tại`);
-        }
-        data.code = normalizedCode;
+      if (!existing) {
+        throw new NotFoundException('Không tìm thấy mã giảm giá');
       }
-    }
 
-    const mergedDiscountType = dto.discountType ?? existing.discountType;
-    const mergedDiscountValue =
-      dto.discountValue !== undefined ? new Decimal(dto.discountValue) : existing.discountValue;
+      const currentIso = toIsoString(existing.updatedAt);
 
-    if (mergedDiscountValue.lte(0)) {
-      throw new BadRequestException('Giá trị giảm phải lớn hơn 0');
-    }
-    if (mergedDiscountType === DiscountType.PERCENTAGE && mergedDiscountValue.gt(100)) {
-      throw new BadRequestException('Giá trị phần trăm không thể vượt quá 100%');
-    }
+      if (dto.expectedUpdatedAt !== undefined) {
+        if (currentIso !== dto.expectedUpdatedAt) {
+          throw new ConflictException(
+            'Mã giảm giá đã được thay đổi trên máy chủ. Tải lại và xác nhận lại.',
+          );
+        }
+      }
 
-    let mergedMaxDiscountAmount = existing.maxDiscountAmount;
-    if (dto.maxDiscountAmount !== undefined) {
-      mergedMaxDiscountAmount = dto.maxDiscountAmount ? new Decimal(dto.maxDiscountAmount) : null;
-    }
-    if (mergedMaxDiscountAmount && mergedMaxDiscountAmount.lte(0)) {
-      throw new BadRequestException('Mức giảm tối đa phải lớn hơn 0');
-    }
+      let normalizedCode: string | undefined = undefined;
+      if (dto.code) {
+        normalizedCode = dto.code.trim().toUpperCase();
+        if (normalizedCode !== existing.code) {
+          const dup = await tx.voucher.findUnique({ where: { code: normalizedCode } });
+          if (dup) {
+            throw new ConflictException(`Mã giảm giá ${normalizedCode} đã tồn tại`);
+          }
+        }
+      }
 
-    let mergedMinOrderAmount = existing.minOrderAmount;
-    if (dto.minOrderAmount !== undefined) {
-      mergedMinOrderAmount = dto.minOrderAmount ? new Decimal(dto.minOrderAmount) : null;
-    }
-    if (mergedMinOrderAmount && mergedMinOrderAmount.lt(0)) {
-      throw new BadRequestException('Giá trị đơn tối thiểu không được âm');
-    }
+      const mergedDiscountType = dto.discountType ?? existing.discountType;
+      const mergedDiscountValue =
+        dto.discountValue !== undefined
+          ? new Decimal(dto.discountValue)
+          : new Decimal(existing.discountValue);
 
-    const mergedStartsAt =
-      dto.startsAt !== undefined
-        ? dto.startsAt
-          ? new Date(dto.startsAt)
-          : null
-        : existing.startsAt;
-    const mergedEndsAt =
-      dto.endsAt !== undefined ? (dto.endsAt ? new Date(dto.endsAt) : null) : existing.endsAt;
-    if (mergedStartsAt && mergedEndsAt && mergedEndsAt <= mergedStartsAt) {
-      throw new BadRequestException('Thời gian kết thúc phải sau thời gian bắt đầu');
-    }
+      if (mergedDiscountValue.lte(0)) {
+        throw new BadRequestException('Giá trị giảm phải lớn hơn 0');
+      }
+      if (mergedDiscountType === DiscountType.PERCENTAGE && mergedDiscountValue.gt(100)) {
+        throw new BadRequestException('Giá trị phần trăm không thể vượt quá 100%');
+      }
 
-    if (dto.status) data.status = dto.status;
-    if (dto.discountType) data.discountType = dto.discountType;
-    if (dto.discountValue !== undefined) data.discountValue = mergedDiscountValue;
-    if (dto.maxDiscountAmount !== undefined) data.maxDiscountAmount = mergedMaxDiscountAmount;
-    if (dto.minOrderAmount !== undefined) data.minOrderAmount = mergedMinOrderAmount;
-    if (dto.usageLimit !== undefined) data.usageLimit = dto.usageLimit ?? null;
-    if (dto.perUserLimit !== undefined) data.perUserLimit = dto.perUserLimit ?? null;
-    if (dto.startsAt !== undefined) data.startsAt = mergedStartsAt;
-    if (dto.endsAt !== undefined) data.endsAt = mergedEndsAt;
+      let mergedMaxDiscountAmount = existing.maxDiscountAmount
+        ? new Decimal(existing.maxDiscountAmount)
+        : null;
+      if (dto.maxDiscountAmount !== undefined) {
+        mergedMaxDiscountAmount = dto.maxDiscountAmount ? new Decimal(dto.maxDiscountAmount) : null;
+      }
+      if (mergedMaxDiscountAmount && mergedMaxDiscountAmount.lte(0)) {
+        throw new BadRequestException('Mức giảm tối đa phải lớn hơn 0');
+      }
 
-    const updated = await this.prisma.voucher.update({
-      where: { id },
-      data,
-      include: {
-        _count: {
-          select: { usages: true },
-        },
-      },
+      let mergedMinOrderAmount = existing.minOrderAmount
+        ? new Decimal(existing.minOrderAmount)
+        : null;
+      if (dto.minOrderAmount !== undefined) {
+        mergedMinOrderAmount = dto.minOrderAmount ? new Decimal(dto.minOrderAmount) : null;
+      }
+      if (mergedMinOrderAmount && mergedMinOrderAmount.lt(0)) {
+        throw new BadRequestException('Giá trị đơn tối thiểu không được âm');
+      }
+
+      const mergedStartsAt =
+        dto.startsAt !== undefined
+          ? dto.startsAt
+            ? new Date(dto.startsAt)
+            : null
+          : existing.startsAt
+            ? new Date(existing.startsAt)
+            : null;
+      const mergedEndsAt =
+        dto.endsAt !== undefined
+          ? dto.endsAt
+            ? new Date(dto.endsAt)
+            : null
+          : existing.endsAt
+            ? new Date(existing.endsAt)
+            : null;
+      if (mergedStartsAt && mergedEndsAt && mergedEndsAt <= mergedStartsAt) {
+        throw new BadRequestException('Thời gian kết thúc phải sau thời gian bắt đầu');
+      }
+
+      const targetStatus = dto.status ?? existing.status;
+      const targetUsageLimit = dto.usageLimit !== undefined ? dto.usageLimit : existing.usageLimit;
+      const targetPerUserLimit =
+        dto.perUserLimit !== undefined ? dto.perUserLimit : existing.perUserLimit;
+
+      // No-op check
+      const codeMatches = !normalizedCode || normalizedCode === existing.code;
+      const statusMatches = targetStatus === existing.status;
+      const typeMatches = mergedDiscountType === existing.discountType;
+      const valueMatches = mergedDiscountValue.eq(new Decimal(existing.discountValue));
+      const maxMatches =
+        (mergedMaxDiscountAmount === null && existing.maxDiscountAmount === null) ||
+        (mergedMaxDiscountAmount !== null &&
+          existing.maxDiscountAmount !== null &&
+          mergedMaxDiscountAmount.eq(new Decimal(existing.maxDiscountAmount)));
+      const minMatches =
+        (mergedMinOrderAmount === null && existing.minOrderAmount === null) ||
+        (mergedMinOrderAmount !== null &&
+          existing.minOrderAmount !== null &&
+          mergedMinOrderAmount.eq(new Decimal(existing.minOrderAmount)));
+      const usageLimitMatches = targetUsageLimit === existing.usageLimit;
+      const perUserMatches = targetPerUserLimit === existing.perUserLimit;
+      const startsMatches =
+        (mergedStartsAt === null && existing.startsAt === null) ||
+        (mergedStartsAt !== null &&
+          existing.startsAt !== null &&
+          mergedStartsAt.getTime() === new Date(existing.startsAt).getTime());
+      const endsMatches =
+        (mergedEndsAt === null && existing.endsAt === null) ||
+        (mergedEndsAt !== null &&
+          existing.endsAt !== null &&
+          mergedEndsAt.getTime() === new Date(existing.endsAt).getTime());
+
+      const usagesCount =
+        existing._count?.usages ?? (await tx.voucherUsage.count({ where: { voucherId: id } }));
+
+      if (
+        codeMatches &&
+        statusMatches &&
+        typeMatches &&
+        valueMatches &&
+        maxMatches &&
+        minMatches &&
+        usageLimitMatches &&
+        perUserMatches &&
+        startsMatches &&
+        endsMatches
+      ) {
+        return this.mapVoucherToResponse(existing, usagesCount);
+      }
+
+      // Monotonic update
+      const existingTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : Date.now();
+      const monotonicDate = new Date(Math.max(Date.now(), existingTime + 1));
+
+      const data: Prisma.VoucherUpdateInput = {
+        updatedAt: monotonicDate,
+      };
+      if (dto.code) data.code = normalizedCode;
+      if (dto.status) data.status = targetStatus;
+      if (dto.discountType) data.discountType = mergedDiscountType;
+      if (dto.discountValue !== undefined) data.discountValue = mergedDiscountValue;
+      if (dto.maxDiscountAmount !== undefined) data.maxDiscountAmount = mergedMaxDiscountAmount;
+      if (dto.minOrderAmount !== undefined) data.minOrderAmount = mergedMinOrderAmount;
+      if (dto.usageLimit !== undefined) data.usageLimit = targetUsageLimit ?? null;
+      if (dto.perUserLimit !== undefined) data.perUserLimit = targetPerUserLimit ?? null;
+      if (dto.startsAt !== undefined) data.startsAt = mergedStartsAt;
+      if (dto.endsAt !== undefined) data.endsAt = mergedEndsAt;
+
+      try {
+        const updated = await tx.voucher.update({
+          where: { id },
+          data,
+          include: {
+            _count: {
+              select: { usages: true },
+            },
+          },
+        });
+
+        return this.mapVoucherToResponse(updated, updated._count.usages);
+      } catch (err: unknown) {
+        const errorObj =
+          typeof err === 'object' && err !== null ? (err as Record<string, unknown>) : null;
+        if (
+          errorObj?.code === 'P2002' ||
+          (typeof errorObj?.message === 'string' && errorObj.message.includes('Unique constraint'))
+        ) {
+          throw new ConflictException(`Mã giảm giá ${normalizedCode ?? dto.code} đã tồn tại`);
+        }
+        throw err;
+      }
     });
-
-    return this.mapVoucherToResponse(updated, updated._count.usages);
   }
 
   async deleteVoucher(id: string): Promise<{ ok: boolean; message: string }> {
