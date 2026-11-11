@@ -114,6 +114,7 @@ describe('UC-02.1 Quản trị tài khoản — cổng ADMIN và đường dẫn
       'Tổng quan',
       'Danh mục',
       'Sản phẩm',
+      'Mã giảm giá',
       'Người dùng',
       'Đơn hàng',
     ]);

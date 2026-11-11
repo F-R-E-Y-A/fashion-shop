@@ -53,6 +53,8 @@ function mount(path = '/admin/users') {
             <Route path="users" element={<h1>Danh sách hiện có</h1>} />
             <Route path="products" element={<h1>Danh sách sản phẩm</h1>} />
             <Route path="products/:id" element={<h1>Chi tiết sản phẩm</h1>} />
+            <Route path="vouchers" element={<h1>Danh sách mã giảm giá</h1>} />
+            <Route path="vouchers/:id" element={<h1>Chi tiết mã giảm giá</h1>} />
             <Route path="orders" element={<h1>Đơn hiện có</h1>} />
           </Route>
           <Route path="/" element={<h1>Cửa hàng hiện có</h1>} />
@@ -138,6 +140,20 @@ describe('UC-02.1/AC9 khung admin — Issue #59', () => {
       expect(within(breadcrumb).getByText('Danh mục')).toHaveAttribute('aria-current', 'page');
     },
   );
+  it.each(['/admin/vouchers', '/admin/vouchers/voucher-id'])(
+    'UC-10.1/AC6 route %s giữ menu Mã giảm giá active và breadcrumb của shell',
+    (path) => {
+      media();
+      mount(path);
+      const nav = within(screen.getByRole('complementary')).getByRole('navigation');
+      expect(within(nav).getByRole('link', { name: 'Mã giảm giá' })).toHaveAttribute(
+        'aria-current',
+        'page',
+      );
+      const breadcrumb = screen.getByRole('navigation', { name: 'Vị trí hiện tại' });
+      expect(within(breadcrumb).getByText('Mã giảm giá')).toHaveAttribute('aria-current', 'page');
+    },
+  );
   it('UC-02.1/AC9 chỉ có menu đã hoạt động và tài khoản từ phiên, không thêm chức năng mẫu', () => {
     media();
     mount();
@@ -146,7 +162,14 @@ describe('UC-02.1/AC9 khung admin — Issue #59', () => {
       within(nav)
         .getAllByRole('link')
         .map((link) => link.getAttribute('href')),
-    ).toEqual(['/admin', '/admin/categories', '/admin/products', '/admin/users', '/admin/orders']);
+    ).toEqual([
+      '/admin',
+      '/admin/categories',
+      '/admin/products',
+      '/admin/vouchers',
+      '/admin/users',
+      '/admin/orders',
+    ]);
     expect(screen.getByText('admin@example.test')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Cửa hàng/ })).toHaveAttribute('href', '/');
   });
