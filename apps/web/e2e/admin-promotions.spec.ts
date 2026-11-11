@@ -8,7 +8,7 @@ for (const viewport of [
 ]) {
   test(`UC-10.1 Quản trị chiến dịch đơn giản ${viewport.width}px: danh sách, tạo mới, sửa và bật/ngưng`, async ({
     page,
-  }) => {
+  }, testInfo) => {
     await page.setViewportSize(viewport);
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const fx = fixture();
@@ -53,9 +53,9 @@ for (const viewport of [
     await expect(page.getByRole('heading', { name: campaignName })).toBeVisible();
     await expect(page.getByText('Ngưng hoạt động')).toBeVisible();
 
-    await page.screenshot({
-      path: `/Users/huynhtai/Projects/TLCN/.worktrees/admin-campaigns-docs/minh-chung/admin-campaigns88/campaign-detail-${viewport.width}px.png`,
-      fullPage: true,
+    await testInfo.attach(`campaign-detail-${viewport.width}px`, {
+      body: await page.screenshot({ fullPage: true }),
+      contentType: 'image/png',
     });
 
     // 3. Chỉnh sửa thông tin chiến dịch
