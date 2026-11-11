@@ -146,7 +146,14 @@ describe('UC-02.1/AC9 khung admin — Issue #59', () => {
       within(nav)
         .getAllByRole('link')
         .map((link) => link.getAttribute('href')),
-    ).toEqual(['/admin', '/admin/categories', '/admin/products', '/admin/users', '/admin/orders']);
+    ).toEqual([
+      '/admin',
+      '/admin/inventory',
+      '/admin/categories',
+      '/admin/products',
+      '/admin/users',
+      '/admin/orders',
+    ]);
     expect(screen.getByText('admin@example.test')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Cửa hàng/ })).toHaveAttribute('href', '/');
   });
