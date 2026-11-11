@@ -1,6 +1,3 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
-import path from 'node:path';
-
 import { expect, test } from '@playwright/test';
 
 import { fixture, login } from './fixture.js';
@@ -52,15 +49,6 @@ for (const viewport of [
       body: screenshot,
       contentType: 'image/png',
     });
-
-    const docsDir =
-      '/Users/huynhtai/Projects/TLCN/.worktrees/admin-vouchers-docs/minh-chung/admin-vouchers86';
-    try {
-      mkdirSync(docsDir, { recursive: true });
-      writeFileSync(path.join(docsDir, `voucher-detail-${viewport.width}px.png`), screenshot);
-    } catch {
-      // In sandbox, writing outside worktree may be blocked; file can also be copied later
-    }
 
     // 6. Thao tác kích hoạt trạng thái từ trang chi tiết
     const activateBtn = page.getByRole('button', { name: 'Kích hoạt mã' });
