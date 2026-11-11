@@ -33,6 +33,9 @@ vi.mock('@/features/products', () => ({
   AdminCategoryDetailPage: () => null,
   AdminProductsPage: () => <p>Tổng quan sản phẩm của Bảo</p>,
 }));
+vi.mock('@/features/overview', () => ({
+  AdminOverviewPage: () => <p>Tổng quan sản phẩm của Bảo</p>,
+}));
 vi.mock('@/features/cart', () => ({
   cartKeys: { all: ['cart'], current: () => ['cart', 'current'] },
   getCart: async () => ({ items: [], itemCount: 0 }),

@@ -1,0 +1,380 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+  max-width: 1280px;
+  margin: 0 auto;
+  box-sizing: border-box;
+  font-family: var(--font-body, 'Be Vietnam Pro', sans-serif);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.titleArea {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-display, 'Playfair Display', Georgia, serif);
+  font-size: 32px;
+  font-weight: 400;
+  line-height: 1.25;
+  color: var(--ink, #1a1512);
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted, #6b6158);
+  line-height: 1.5;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.refreshButton {
+  composes: secondary from '@/ui/AdminKit.module.css';
+  min-height: 44px;
+  min-width: 44px;
+  padding: 10px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.refreshButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.kpiCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 20px;
+  background: var(--paper, #ffffff);
+  border: 1px solid var(--line, #e4dcce);
+  border-radius: var(--radius, 8px);
+  text-decoration: none;
+  color: inherit;
+  min-height: 44px;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+  box-sizing: border-box;
+}
+
+.kpiCard:hover {
+  border-color: var(--accent, #9a4924);
+  background-color: color-mix(in srgb, var(--bg, #f9f6f0) 45%, var(--paper, #ffffff));
+}
+
+.kpiCard:focus-visible {
+  outline: 2px solid var(--accent, #9a4924);
+  outline-offset: 2px;
+}
+
+.kpiLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted, #6b6158);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.kpiCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.kpiLink {
+  font-size: 12px;
+  color: var(--accent, #9a4924);
+  text-decoration: none;
+  font-weight: 500;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.kpiLink:hover {
+  text-decoration: underline;
+}
+
+.kpiLink:focus-visible {
+  outline: 2px solid var(--accent, #9a4924);
+  outline-offset: 2px;
+}
+
+.kpiValue {
+  font-size: 30px;
+  font-weight: 600;
+  color: var(--ink, #1a1512);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.kpiError {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--danger, #9c281b);
+}
+
+.kpiRetryBtn {
+  background: none;
+  border: 1px solid var(--danger, #9c281b);
+  border-radius: var(--radius, 4px);
+  color: var(--danger, #9c281b);
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  min-height: 32px;
+}
+
+.kpiRetryBtn:hover {
+  background: color-mix(in srgb, var(--danger, #9c281b) 10%, transparent);
+}
+
+.kpiLoading {
+  font-size: 14px;
+  color: var(--muted, #6b6158);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  background: var(--paper, #ffffff);
+  border: 1px solid var(--line, #e4dcce);
+  border-radius: var(--radius, 8px);
+  box-sizing: border-box;
+}
+
+.panelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.panelHeadingGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.panelTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--ink, #1a1512);
+  line-height: 1.3;
+}
+
+.panelSubtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted, #6b6158);
+}
+
+.badge {
+  composes: badge from '@/ui/AdminKit.module.css';
+  font-variant-numeric: tabular-nums;
+}
+
+.tableWrap {
+  composes: tableWrap from '@/ui/AdminKit.module.css';
+}
+
+.table {
+  composes: table from '@/ui/AdminKit.module.css';
+}
+
+.numeric {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.actionLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  min-width: 44px;
+  color: var(--accent, #9a4924);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.actionLink:hover {
+  text-decoration: underline;
+}
+
+.actionLink:focus-visible {
+  outline: 2px solid var(--accent, #9a4924);
+  outline-offset: 2px;
+}
+
+.panelFooter {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding-top: 8px;
+}
+
+.footerLink {
+  composes: secondary from '@/ui/AdminKit.module.css';
+  min-height: 44px;
+  text-decoration: none;
+}
+
+.emptyState {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--muted, #6b6158);
+  font-size: 14px;
+  background: var(--bg, #f9f6f0);
+  border-radius: var(--radius, 8px);
+  border: 1px dashed var(--line, #e4dcce);
+}
+
+.errorState {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  background: color-mix(in srgb, var(--danger, #9c281b) 8%, var(--paper, #ffffff));
+  border: 1px solid var(--danger, #9c281b);
+  border-radius: var(--radius, 8px);
+  color: var(--danger, #9c281b);
+  font-size: 13px;
+  gap: 12px;
+}
+
+.retryButton {
+  composes: secondary from '@/ui/AdminKit.module.css';
+  min-height: 44px;
+  border-color: var(--danger, #9c281b);
+  color: var(--danger, #9c281b);
+}
+
+.desktopView {
+  display: block;
+}
+
+.mobileView {
+  display: none;
+}
+
+.mobileCardList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mobileCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 16px;
+  border: 1px solid var(--line, #e4dcce);
+  border-radius: var(--radius, 8px);
+  background: var(--bg, #f9f6f0);
+}
+
+.mobileCardHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.mobileCardTitle {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink, #1a1512);
+}
+
+.mobileCardMeta {
+  font-size: 12px;
+  color: var(--muted, #6b6158);
+}
+
+.mobileCardAction {
+  margin-top: 4px;
+  align-self: flex-start;
+}
+
+@media (max-width: 900px) {
+  .kpiGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .page {
+    gap: 16px;
+    padding: 0;
+  }
+
+  .panel {
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .desktopView {
+    display: none;
+  }
+
+  .mobileView {
+    display: block;
+  }
+}
+
+@media (max-width: 480px) {
+  .kpiGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kpiCard,
+  .refreshButton {
+    transition: none;
+  }
+}

@@ -35,3 +35,11 @@ Các số là snapshot cùng thời điểm, UI ghi asOf và tải lại định
 Giữ nguyên reserve/release/commit/restock và script kiểm kê; không ghi bảng của phân hệ khác.
 Kiểm thử tại admin-inventory.service.spec.ts, admin-inventory.http.spec.ts, inventory.test.tsx và
 admin-inventory.spec.ts. Trạng thái kiểm thực tế/ảnh và giới hạn lưu ở kho docs, không coi là đã merge.
+
+## Cảnh báo tồn thấp — Issue #92
+
+Endpoint `GET /api/admin/inventory/low-stock?threshold=5&limit=5` hỗ trợ Tổng quan admin:
+- Tính `availableQuantity = max(0, quantityOnHand - reserved)` với hold còn hiệu lực (`releasedAt IS NULL AND expiresAt > asOf`).
+- Lọc `availableQuantity <= threshold` trên toàn bộ cơ sở dữ liệu trước khi `LIMIT`, không tải toàn bộ vào RAM.
+- `threshold` 1..100 (mặc định 5), `limit` 1..10 (mặc định 5).
+- Đếm toàn tập `total` khớp danh sách items trong giao dịch `RepeatableRead` cùng mốc `asOf`. Loại bỏ biến thể chưa có bản ghi tồn kho; bao gồm cả biến thể ngừng bán và biến thể có khả dụng = 0.

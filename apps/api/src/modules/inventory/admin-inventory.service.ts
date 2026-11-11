@@ -6,7 +6,10 @@ import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import {
   AdminInventoryDetail,
   AdminInventoryPage,
+  AdminLowStockItem,
+  AdminLowStockResponse,
   InventoryPageQuery,
+  LowStockQuery,
 } from './dto/admin-inventory.dto.js';
 
 const selection = {
@@ -64,6 +67,63 @@ export class AdminInventoryService {
         const total = await tx.productVariant.count();
         return {
           ...toPage(await this.rows(tx, variants, asOf), total, query),
+          asOf: asOf.toISOString(),
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
+  }
+
+  lowStock(query: LowStockQuery): Promise<AdminLowStockResponse> {
+    const threshold = query.threshold ?? 5;
+    const limit = query.limit ?? 5;
+    return this.prisma.$transaction(
+      async (tx) => {
+        const asOf = new Date();
+        const items = await tx.$queryRaw<AdminLowStockItem[]>`
+          SELECT
+            pv.id::text AS "id",
+            pv.sku,
+            p.name AS "productName",
+            c.name AS "colorName",
+            s.code AS "sizeCode",
+            i.quantity_on_hand::int AS "quantityOnHand",
+            COALESCE(r.reserved, 0)::int AS "reservedQuantity",
+            GREATEST(0, i.quantity_on_hand - COALESCE(r.reserved, 0))::int AS "availableQuantity"
+          FROM product_variants pv
+          INNER JOIN inventory i ON i.product_variant_id = pv.id
+          INNER JOIN products p ON p.id = pv.product_id
+          INNER JOIN colors c ON c.id = pv.color_id
+          INNER JOIN sizes s ON s.id = pv.size_id
+          LEFT JOIN (
+            SELECT product_variant_id, SUM(quantity)::int AS reserved
+            FROM inventory_reservations
+            WHERE released_at IS NULL AND expires_at > ${asOf}
+            GROUP BY product_variant_id
+          ) r ON r.product_variant_id = pv.id
+          WHERE GREATEST(0, i.quantity_on_hand - COALESCE(r.reserved, 0)) <= ${threshold}
+          ORDER BY "availableQuantity" ASC, pv.sku ASC, pv.id ASC
+          LIMIT ${limit}
+        `;
+
+        const countResult = await tx.$queryRaw<Array<{ count: string | number | bigint }>>`
+          SELECT COUNT(*)::text AS count
+          FROM product_variants pv
+          INNER JOIN inventory i ON i.product_variant_id = pv.id
+          LEFT JOIN (
+            SELECT product_variant_id, SUM(quantity)::int AS reserved
+            FROM inventory_reservations
+            WHERE released_at IS NULL AND expires_at > ${asOf}
+            GROUP BY product_variant_id
+          ) r ON r.product_variant_id = pv.id
+          WHERE GREATEST(0, i.quantity_on_hand - COALESCE(r.reserved, 0)) <= ${threshold}
+        `;
+
+        const total = Number(countResult[0]?.count ?? 0);
+        return {
+          items,
+          total,
+          threshold,
           asOf: asOf.toISOString(),
         };
       },
