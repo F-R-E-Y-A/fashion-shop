@@ -53,3 +53,12 @@ HTTP: auth/validation/no-store/allowlist, giữ hết hạn/đã nhả, tồn0/n
 Web: URL, trạng thái, signal/bearer, logout/403 với GET muộn.
 E2E: đăng nhập admin, danh sách/chi tiết/back tại1280/360, reduced-motion và hình học cột mobile.
 Zoom200%, screen reader và rollout môi trường cần kiểm riêng; test tự động không thay nghiệm thu tay.
+
+## Endpoint cảnh báo tồn thấp chỉ đọc (Issue #92 — đề xuất bổ sung, chờ Duy/Bảo duyệt mã UC)
+
+Endpoint `GET /api/admin/inventory/low-stock`:
+- Nhận query `threshold` (1..100, mặc định 5), `limit` (1..10, mặc định 5).
+- Lọc điều kiện `GREATEST(0, i.quantity_on_hand - COALESCE(r.reserved, 0)) <= threshold` trước khi phân trang `LIMIT`.
+- Trả về `{ items, total, threshold, asOf }` với thứ tự sắp xếp ổn định `availableQuantity ASC, sku ASC, id ASC`.
+- Biến thể không có bản ghi tồn kho (`null`) bị loại trừ; biến thể có khả dụng = 0 và biến thể ngừng bán được giữ lại.
+- Chạy trong giao dịch `RepeatableRead` ở cùng mốc thời gian `asOf`.

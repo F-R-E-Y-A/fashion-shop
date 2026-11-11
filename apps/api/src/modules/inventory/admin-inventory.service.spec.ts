@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { AdminInventoryService } from './admin-inventory.service.js';
+import { LowStockQuery } from './dto/admin-inventory.dto.js';
 
 function setup() {
   const variant = {
@@ -23,6 +24,7 @@ function setup() {
       groupBy: vi.fn().mockResolvedValue([{ productVariantId: 'v1', _sum: { quantity: 3 } }]),
     },
     stockMovement: { findMany: vi.fn().mockResolvedValue([]), count: vi.fn().mockResolvedValue(0) },
+    $queryRaw: vi.fn(),
   };
   const prisma = { $transaction: vi.fn(async (fn: (db: typeof tx) => unknown) => fn(tx)) };
   return {
@@ -101,5 +103,90 @@ describe('UC-13.1 quản trị tồn chỉ đọc', () => {
       NotFoundException,
     );
     expect(tx.stockMovement.findMany).not.toHaveBeenCalled();
+  });
+
+  describe('Issue #92: lowStock cảnh báo tồn thấp', () => {
+    it('truy vấn phân ngưỡng và đếm toàn cục trong RepeatableRead transaction', async () => {
+      const { service, tx, prisma } = setup();
+      const mockItems = [
+        {
+          id: 'v1',
+          sku: 'SKU-001',
+          productName: 'Áo Thun',
+          colorName: 'Đen',
+          sizeCode: 'M',
+          quantityOnHand: 4,
+          reservedQuantity: 1,
+          availableQuantity: 3,
+        },
+      ];
+      tx.$queryRaw.mockResolvedValueOnce(mockItems).mockResolvedValueOnce([{ count: '1' }]);
+
+      const result = await service.lowStock({ threshold: 5, limit: 5 });
+
+      expect(result).toMatchObject({
+        items: mockItems,
+        total: 1,
+        threshold: 5,
+      });
+      expect(typeof result.asOf).toBe('string');
+      expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+        isolationLevel: 'RepeatableRead',
+      });
+      expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    });
+
+    it('áp dụng giá trị mặc định threshold=5 và limit=5 khi không truyền', async () => {
+      const { service, tx } = setup();
+      tx.$queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([{ count: '0' }]);
+
+      const result = await service.lowStock({} as LowStockQuery);
+
+      expect(result).toEqual({
+        items: [],
+        total: 0,
+        threshold: 5,
+        asOf: expect.any(String),
+      });
+    });
+
+    it('tính khả dụng=0 khi reserved vượt quá quantityOnHand (không âm) và kiểm chứng công thức SQL', async () => {
+      const { service, tx } = setup();
+      const mockItem = {
+        id: 'v2',
+        sku: 'SKU-OVERHELD',
+        productName: 'Quần Jeans',
+        colorName: 'Xanh',
+        sizeCode: 'L',
+        quantityOnHand: 2,
+        reservedQuantity: 5,
+        availableQuantity: 0,
+      };
+      tx.$queryRaw.mockResolvedValueOnce([mockItem]).mockResolvedValueOnce([{ count: '1' }]);
+
+      const result = await service.lowStock({ threshold: 5, limit: 10 });
+      expect(result.items[0]?.availableQuantity).toBe(0);
+      expect(result.total).toBe(1);
+
+      // Kiểm chứng câu truy vấn SQL được tạo bởi Prisma $queryRaw chứa đúng công thức toán học và sắp xếp
+      const firstCall = tx.$queryRaw.mock.calls[0] as [
+        string[] | { strings?: string[]; values?: unknown[] },
+        ...unknown[],
+      ];
+      const queryText = (
+        Array.isArray(firstCall[0])
+          ? (firstCall[0] as string[]).join('?')
+          : String(firstCall[0]?.strings?.join('?') ?? firstCall[0])
+      ).replace(/\s+/g, ' ');
+      expect(queryText).toContain('GREATEST(0, i.quantity_on_hand - COALESCE(r.reserved, 0))');
+      expect(queryText).toContain(
+        'WHERE GREATEST(0, i.quantity_on_hand - COALESCE(r.reserved, 0)) <=',
+      );
+      expect(queryText).toContain('ORDER BY "availableQuantity" ASC, pv.sku ASC, pv.id ASC');
+      expect(queryText).toContain('LIMIT');
+
+      const values = Array.isArray(firstCall[0]?.values) ? firstCall[0].values : firstCall.slice(1);
+      expect(values).toEqual(expect.arrayContaining([5, 10]));
+    });
   });
 });

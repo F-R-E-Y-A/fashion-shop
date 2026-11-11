@@ -13,8 +13,10 @@ import { AdminInventoryService } from './admin-inventory.service.js';
 import {
   AdminInventoryDetail,
   AdminInventoryPage,
+  AdminLowStockResponse,
   InventoryPageQuery,
   InventoryVariantParam,
+  LowStockQuery,
 } from './dto/admin-inventory.dto.js';
 
 @ApiTags('admin-inventory')
@@ -31,6 +33,13 @@ export class AdminInventoryController {
   @ApiOkResponse({ type: AdminInventoryPage })
   list(@Query() query: InventoryPageQuery) {
     return this.inventory.list(query);
+  }
+
+  @Get('low-stock')
+  @Header('Cache-Control', 'no-store')
+  @ApiOkResponse({ type: AdminLowStockResponse })
+  lowStock(@Query() query: LowStockQuery) {
+    return this.inventory.lowStock(query);
   }
 
   @Get(':id')

@@ -1,5 +1,11 @@
 export { shouldRetryAdminQuery } from './admin/admin-errors.js';
-export { adminAccessGeneration, useAdminForbidden } from './admin/admin-hooks.js';
+export {
+  adminAccessGeneration,
+  formatAdminDate,
+  formatAdminDateTime,
+  formatCount,
+  useAdminForbidden,
+} from './admin/admin-hooks.js';
 export { AdminForbidden } from './admin/AdminForbidden.js';
 export { AdminUserDetailPage } from './admin/AdminUserDetailPage.js';
 export { AdminUsersPage } from './admin/AdminUsersPage.js';
