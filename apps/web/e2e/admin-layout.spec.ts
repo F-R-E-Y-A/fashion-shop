@@ -48,13 +48,26 @@ for (const viewport of [
     await page.setViewportSize(viewport);
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await login(page, fixture().admin);
-    const response = await page.request.get('/api/products?page=1&pageSize=1');
+    const [response] = await Promise.all([
+      page.waitForResponse((reply) => {
+        const url = new URL(reply.url());
+        return (
+          reply.request().method() === 'GET' &&
+          url.pathname === '/api/admin/products' &&
+          url.searchParams.get('status') === 'all' &&
+          url.searchParams.get('page') === '1' &&
+          url.searchParams.get('pageSize') === '1'
+        );
+      }),
+      page.goto('/admin'),
+    ]);
     expect(response.ok()).toBe(true);
     const data = (await response.json()) as { total: number };
     expect(Number.isSafeInteger(data.total)).toBe(true);
-    await page.goto('/admin');
     await expect(page.getByRole('heading', { name: 'Tổng quan cửa hàng' })).toBeVisible();
-    const card = page.getByRole('region', { name: 'Sản phẩm công khai' });
+    const card = page
+      .getByRole('region', { name: 'Chỉ số hoạt động chính' })
+      .getByRole('link', { name: /^Sản phẩm/u });
     await expect(card.getByText(data.total.toLocaleString('vi-VN'), { exact: true })).toBeVisible();
     expect(await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)).toBe(
       true,
