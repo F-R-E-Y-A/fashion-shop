@@ -53,6 +53,7 @@ function mount(path = '/admin/users') {
             <Route path="users" element={<h1>Danh sách hiện có</h1>} />
             <Route path="products" element={<h1>Danh sách sản phẩm</h1>} />
             <Route path="products/:id" element={<h1>Chi tiết sản phẩm</h1>} />
+            <Route path="promotions" element={<h1>Danh sách khuyến mãi</h1>} />
             <Route path="vouchers" element={<h1>Danh sách mã giảm giá</h1>} />
             <Route path="vouchers/:id" element={<h1>Chi tiết mã giảm giá</h1>} />
             <Route path="orders" element={<h1>Đơn hiện có</h1>} />
@@ -167,6 +168,7 @@ describe('UC-02.1/AC9 khung admin — Issue #59', () => {
       '/admin/inventory',
       '/admin/categories',
       '/admin/products',
+      '/admin/promotions',
       '/admin/vouchers',
       '/admin/users',
       '/admin/orders',

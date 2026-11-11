@@ -38,6 +38,9 @@ import {
   SearchPage,
 } from '@/features/products';
 import {
+  AdminPromotionDetailPage,
+  AdminPromotionNewPage,
+  AdminPromotionsPage,
   AdminVoucherDetailPage,
   AdminVoucherNewPage,
   AdminVouchersPage,
@@ -147,6 +150,9 @@ export function AppRoutes() {
               <Route path="categories/:id" element={<AdminCategoryDetailPage />} />
               <Route path="products" element={<AdminCatalogPage />} />
               <Route path="products/:id" element={<AdminCatalogDetailPage />} />
+              <Route path="promotions" element={<AdminPromotionsPage />} />
+              <Route path="promotions/new" element={<AdminPromotionNewPage />} />
+              <Route path="promotions/:id" element={<AdminPromotionDetailPage />} />
               <Route path="vouchers" element={<AdminVouchersPage />} />
               <Route path="vouchers/new" element={<AdminVoucherNewPage />} />
               <Route path="vouchers/:id" element={<AdminVoucherDetailPage />} />

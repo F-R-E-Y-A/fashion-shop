@@ -93,6 +93,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const purgeAccountData = useCallback(() => {
     void queryClient?.cancelQueries({ queryKey: sessionQueryKeys.all });
     queryClient?.removeQueries({ queryKey: sessionQueryKeys.all });
+    void queryClient?.cancelQueries({ queryKey: ['uncertain'] });
+    queryClient?.removeQueries({ queryKey: ['uncertain'] });
   }, [queryClient]);
 
   /** Mo mot epoch moi: huy moi request cua phien truoc va xoa cache tai khoan cua no. */

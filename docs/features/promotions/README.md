@@ -1,7 +1,7 @@
 ---
 title: Khuyến mãi và Mã giảm giá
 updated: 2026-11-11
-status: đã triển khai UC-07.2 và UC-10.2 (quản trị voucher Issue #86)
+status: đã triển khai voucher; chiến dịch đơn giản chờ review Issue88
 owner: Duy
 ---
 # Khuyến mãi và Mã giảm giá
@@ -11,8 +11,8 @@ owner: Duy
 | Mục | Hiện trạng |
 |---|---|
 | Người sở hữu | Duy; `apps/api/src/modules/promotions`, `apps/web/src/features/promotions`, các bảng trong `catalog.prisma` |
-| Dòng việc | PH-10 Khuyến mãi & Mã giảm giá |
-| Ca sử dụng | UC-07.2 (Áp dụng mã giảm giá), UC-10.1 (Quản lý chương trình KM), UC-10.2 (Quản lý mã giảm giá — Issue #86) |
+| Dòng việc | PH-10 Khuyến mãi & Mã giảm giá, PH-03 Quản trị chiến dịch đơn giản (Issue #88) |
+| Ca sử dụng | UC-07.2 (Áp dụng mã giảm giá), [UC-10.1 (Quản lý chương trình KM)](use-cases.md#uc-101--quản-trị-chương-trình-khuyến-mãi-đơn-giản), UC-10.2 (Quản lý mã giảm giá — Issue #86) |
 | Sơ đồ tham chiếu | Class Diagram (namespace `Payment_Promotion`), ERD (`05 Payment Promotion Vouchers`) |
 
 ## Mô hình và ranh giới
@@ -41,6 +41,12 @@ Giao diện và API quản trị voucher cho phép Admin cấu hình và kiểm 
 - **Kiểm tra phiên bản CAS**: Đối chiếu `expectedUpdatedAt` trước khi ghi. Lưu ý kỹ thuật: `expectedUpdatedAt` được thiết kế tùy chọn (`optional`) ở tầng API DTO để duy trì khả năng tương thích ngược với các caller cũ/hệ thống nội bộ, nhưng bắt buộc (`mandatory`) trên giao diện Web Admin để ngăn ngừa triệt để lỗi ghi đè dữ liệu đồng thời.
 - **Tăng đơn điệu thời gian**: Triển khai thực tế sử dụng `Math.max(Date.now(), existingTime + 1)` để sinh `updatedAt` mới, bảo đảm giá trị luôn tăng đơn điệu ngay cả khi đồng hồ hệ thống bị trôi hoặc nhiều thao tác cập nhật diễn ra trong cùng một mili-giây.
 - **No-op optimization**: Nếu toàn bộ dữ liệu gửi lên trùng khớp với bản ghi hiện tại trong CSDL, hệ thống không thực hiện UPDATE và không tăng `updatedAt`.
+
+## Quản trị chiến dịch đơn giản (UC-10.1 — Issue #88)
+
+Danh sách, chi tiết, tạo/sửa và bật/ngừng tại `/admin/promotions`; form mới mặc định
+`INACTIVE`. Có kiểm soát phiên bản và đối chiếu kết quả chưa xác định. Chiến dịch có
+điều kiện phức tạp chỉ xem; không sửa động cơ khuyến mãi. Đặc tả đang chờ Duy review.
 
 ## Động cơ khuyến mãi động (Promotion Engine)
 
