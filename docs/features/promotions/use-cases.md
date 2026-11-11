@@ -1,7 +1,7 @@
 ---
 title: Khuyến mãi và Mã giảm giá — đặc tả use case
 updated: 2026-11-11
-status: đã chốt cho UC-07.2 và UC-10.2
+status: đề xuất cập nhật UC-10.2 cho Issue86, chờ Duy review
 owner: Duy
 ---
 # Khuyến mãi và Mã giảm giá — Đặc tả Use Case
@@ -10,7 +10,7 @@ owner: Duy
 
 | | |
 |---|---|
-| **Người viết đặc tả** | Phan Ngọc Duy; cập nhật hoàn thiện UC-10.2 (Issue #86) ngày 11/11/2026 |
+| **Người viết đặc tả** | Kế thừa đặc tả của Duy; Antigravity cập nhật UC-10.2 cho Issue #86, Codex review kỹ thuật; chờ Duy xác nhận |
 | **Người sở hữu mã** | Phan Ngọc Duy, module `promotions` |
 | **Dòng việc** | **PH-10** Khuyến mãi & Mã giảm giá |
 | **Tác nhân chính** | Khách hàng (UC-07.2), Quản trị viên / ADMIN (UC-10.2) |
