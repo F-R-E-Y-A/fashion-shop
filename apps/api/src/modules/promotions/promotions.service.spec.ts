@@ -2,13 +2,17 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { Decimal } from 'decimal.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DiscountType, VoucherStatus } from '../../generated/prisma/enums.js';
+import { DiscountType, PromotionStatus, VoucherStatus } from '../../generated/prisma/enums.js';
 import type { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { PromotionsService } from './promotions.service.js';
 
 function makePrisma() {
   const prisma = {
-    $queryRaw: vi.fn(),
+    $executeRaw: vi.fn(async () => 1),
+    $executeRawUnsafe: vi.fn(async () => 1),
+    $queryRaw: vi.fn<() => Promise<unknown[]>>(async () => [
+      { id: 'p-1', updatedAt: new Date('2026-01-01T00:00:00.000Z') },
+    ]),
     $transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => {
       if (typeof cb === 'function') {
         return cb(prisma);
@@ -458,6 +462,7 @@ describe('PromotionsService (UC-07.2 Áp dụng mã giảm giá & UC-10.2 Quản
         minOrderAmount: null,
         startsAt: null,
         endsAt: null,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
       });
 
       await expect(
@@ -465,6 +470,253 @@ describe('PromotionsService (UC-07.2 Áp dụng mã giảm giá & UC-10.2 Quản
           discountType: DiscountType.PERCENTAGE,
         }),
       ).rejects.toThrow('Giá trị phần trăm không thể vượt quá 100%');
+    });
+
+    it('idempotency: trả về bản ghi hiện có khi truyền dto.id trùng lặp với payload giống hệt', async () => {
+      const fixedId = 'a0000000-0000-4000-a000-000000000001';
+      const existing = {
+        id: fixedId,
+        name: 'KM Tet 2026',
+        discountType: DiscountType.FIXED_AMOUNT,
+        discountValue: new Decimal('50000'),
+        maxDiscountAmount: null,
+        minOrderAmount: new Decimal('200000'),
+        conditions: null,
+        status: PromotionStatus.ACTIVE,
+        startsAt: null,
+        endsAt: null,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      };
+      prisma.promotion.findUnique.mockResolvedValue(existing);
+
+      const res = await service.createPromotion({
+        id: fixedId,
+        name: '  KM Tet 2026  ',
+        discountType: DiscountType.FIXED_AMOUNT,
+        discountValue: '50000',
+        minOrderAmount: '200000',
+      });
+
+      expect(res.id).toBe(fixedId);
+      expect(prisma.promotion.create).not.toHaveBeenCalled();
+    });
+
+    it('idempotency: ném ConflictException khi truyền dto.id đã tồn tại nhưng payload khác biệt', async () => {
+      const fixedId = 'a0000000-0000-4000-a000-000000000001';
+      const existing = {
+        id: fixedId,
+        name: 'KM Mua Sam',
+        discountType: DiscountType.FIXED_AMOUNT,
+        discountValue: new Decimal('50000'),
+        maxDiscountAmount: null,
+        minOrderAmount: null,
+        conditions: null,
+        status: PromotionStatus.ACTIVE,
+        startsAt: null,
+        endsAt: null,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      };
+      prisma.promotion.findUnique.mockResolvedValue(existing);
+
+      await expect(
+        service.createPromotion({
+          id: fixedId,
+          name: 'KM Hoan Toan Khac',
+          discountType: DiscountType.PERCENTAGE,
+          discountValue: '10',
+        }),
+      ).rejects.toThrow('Mã định danh chương trình khuyến mãi đã tồn tại với nội dung khác.');
+    });
+
+    it('CAS: ném ConflictException khi expectedUpdatedAt không khớp với phiên bản máy chủ', async () => {
+      const existing = {
+        id: 'p-1',
+        name: 'KM He',
+        discountType: DiscountType.PERCENTAGE,
+        discountValue: new Decimal('10'),
+        maxDiscountAmount: null,
+        minOrderAmount: null,
+        conditions: null,
+        status: PromotionStatus.ACTIVE,
+        startsAt: null,
+        endsAt: null,
+        createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-01-02T10:00:00.000Z'),
+      };
+      prisma.promotion.findUnique.mockResolvedValue(existing);
+
+      await expect(
+        service.updatePromotion('p-1', {
+          name: 'KM He Cap Nhat',
+          expectedUpdatedAt: '2026-01-01T00:00:00.000Z',
+        }),
+      ).rejects.toThrow('Dữ liệu chương trình khuyến mãi đã bị thay đổi bởi phiên làm việc khác');
+    });
+
+    it('no-op: không cập nhật DB và giữ nguyên updatedAt khi payload cập nhật trùng với hiện tại', async () => {
+      const baseDate = new Date('2026-01-01T00:00:00.000Z');
+      const existing = {
+        id: 'p-1',
+        name: 'KM Mua Dong',
+        discountType: DiscountType.PERCENTAGE,
+        discountValue: new Decimal('15'),
+        maxDiscountAmount: new Decimal('100000'),
+        minOrderAmount: new Decimal('300000'),
+        conditions: null,
+        status: PromotionStatus.ACTIVE,
+        startsAt: null,
+        endsAt: null,
+        createdAt: baseDate,
+        updatedAt: baseDate,
+      };
+      prisma.promotion.findUnique.mockResolvedValue(existing);
+
+      const res = await service.updatePromotion('p-1', {
+        name: '  KM Mua Dong  ',
+        discountType: DiscountType.PERCENTAGE,
+        discountValue: '15',
+        maxDiscountAmount: '100000',
+        minOrderAmount: '300000',
+        status: PromotionStatus.ACTIVE,
+        expectedUpdatedAt: baseDate.toISOString(),
+      });
+
+      expect(res.name).toBe('KM Mua Dong');
+      expect(prisma.promotion.update).not.toHaveBeenCalled();
+    });
+
+    it('bảo toàn conditions phức tạp khi update đơn giản không truyền conditions', async () => {
+      const baseDate = new Date('2026-01-01T00:00:00.000Z');
+      const complexConditions = {
+        type: 'CUSTOMER_SEGMENT',
+        segment: 'VIP',
+        tiers: [{ minSpent: 1000000, discount: 20 }],
+      };
+      const existing = {
+        id: 'p-complex',
+        name: 'KM Phuc Tap',
+        discountType: DiscountType.PERCENTAGE,
+        discountValue: new Decimal('20'),
+        maxDiscountAmount: null,
+        minOrderAmount: null,
+        conditions: complexConditions,
+        status: PromotionStatus.ACTIVE,
+        startsAt: null,
+        endsAt: null,
+        createdAt: baseDate,
+        updatedAt: baseDate,
+      };
+      prisma.promotion.findUnique.mockResolvedValue(existing);
+      prisma.promotion.update.mockImplementation(
+        async ({ data }: { data: Record<string, unknown> }) => ({
+          ...existing,
+          ...data,
+          updatedAt: data.updatedAt,
+        }),
+      );
+
+      const res = await service.updatePromotion('p-complex', {
+        name: 'KM Phuc Tap Doi Ten',
+        expectedUpdatedAt: baseDate.toISOString(),
+      });
+
+      expect(res.name).toBe('KM Phuc Tap Doi Ten');
+      expect(res.conditions).toEqual(complexConditions);
+      expect(prisma.promotion.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'p-complex' },
+          data: expect.not.objectContaining({ conditions: null }),
+        }),
+      );
+    });
+
+    it('listPromotions thực thi trong transaction RepeatableRead với sắp xếp phá hòa id desc', async () => {
+      prisma.promotion.count.mockResolvedValue(1);
+      prisma.promotion.findMany.mockResolvedValue([
+        {
+          id: 'p-1',
+          name: 'KM Test',
+          discountType: DiscountType.PERCENTAGE,
+          discountValue: new Decimal('10'),
+          maxDiscountAmount: null,
+          minOrderAmount: null,
+          conditions: null,
+          status: PromotionStatus.ACTIVE,
+          startsAt: null,
+          endsAt: null,
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+          updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+        },
+      ]);
+
+      const res = await service.listPromotions({ page: 1, pageSize: 12 });
+      expect(res.total).toBe(1);
+      expect(res.items).toHaveLength(1);
+      expect(prisma.promotion.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        }),
+      );
+    });
+
+    it('CODEX_REVIEW concurrent identical creates must not leak unique error', async () => {
+      const id = 'a0000000-0000-4000-a000-000000000001';
+      const payload = {
+        id,
+        name: 'Concurrent same request',
+        discountType: DiscountType.PERCENTAGE,
+        discountValue: '10',
+        status: PromotionStatus.INACTIVE,
+      };
+      const row = {
+        id,
+        name: payload.name,
+        discountType: payload.discountType,
+        discountValue: new Decimal(10),
+        status: payload.status,
+        maxDiscountAmount: null,
+        minOrderAmount: null,
+        conditions: null,
+        startsAt: null,
+        endsAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      let committed = false;
+      prisma.promotion.create.mockImplementation(async () => {
+        if (!committed) {
+          committed = true;
+          return row;
+        }
+        throw Object.assign(new Error('Unique constraint failed'), { code: 'P2002' });
+      });
+      prisma.promotion.findUnique.mockImplementation(async ({ where }) => {
+        if (where?.id === id && committed) return row;
+        return null;
+      });
+      const results = await Promise.allSettled([
+        service.createPromotion(payload),
+        service.createPromotion(payload),
+      ]);
+      expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(2);
+    });
+
+    it('CODEX_REVIEW2 unique error with no committed row must not fabricate campaign success', async () => {
+      const { prisma: p, service: s } = makePrisma();
+      const error = Object.assign(new Error('Unique constraint failed'), { code: 'P2002' });
+      p.promotion.findUnique.mockResolvedValue(null);
+      p.promotion.create.mockRejectedValue(error);
+      await expect(
+        s.createPromotion({
+          id: 'a0000000-0000-4000-a000-000000000088',
+          name: 'Not persisted',
+          discountType: DiscountType.PERCENTAGE,
+          discountValue: '10',
+          status: PromotionStatus.INACTIVE,
+        }),
+      ).rejects.toThrow();
     });
   });
 });

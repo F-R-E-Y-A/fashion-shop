@@ -8,10 +8,12 @@ export const sessionQueryKeys = {
   adminResource: (name: string) => ['session', 'admin', name] as const,
 };
 
-/** Khóa admin: session/admin/resource/actor/...; 403 chỉ xóa dữ liệu admin của actor đó. */
+/** Khóa admin: session/admin/resource/actor/... hoặc uncertain/admin/resource/actor/...; 403 chỉ xóa dữ liệu admin của actor đó. */
 export function isAdminQueryForActor(query: Query, actorId: string): boolean {
   const key = query.queryKey;
-  return key[0] === 'session' && key[1] === 'admin' && key[3] === actorId;
+  if (key[0] === 'session' && key[1] === 'admin' && key[3] === actorId) return true;
+  if (key[0] === 'uncertain' && key[1] === 'admin' && key[3] === actorId) return true;
+  return false;
 }
 
 /** Giữ chỗ chỉ khi toàn bộ điều kiện giống nhau, trừ trang ở phần tử cuối. */

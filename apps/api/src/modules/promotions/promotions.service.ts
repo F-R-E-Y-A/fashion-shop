@@ -6,7 +6,6 @@ import {
 } from '@nestjs/common';
 import { Decimal } from 'decimal.js';
 
-import { PageQuery } from '../../common/pagination/page.query.js';
 import { skipOf, toPage } from '../../common/pagination/page.response.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import {
@@ -22,6 +21,7 @@ import {
   EvaluatePromotionsDto,
   EvaluatePromotionsResponse,
 } from './dto/evaluate-promotions.dto.js';
+import { ListPromotionsQuery } from './dto/list-promotions.query.js';
 import { ListVouchersQuery } from './dto/list-vouchers.query.js';
 import {
   CreatePromotionDto,
@@ -42,6 +42,15 @@ import {
   type PromotionContext,
   PromotionEvaluatorService,
 } from './engine/index.js';
+import { lockPromotion } from './promotion-concurrency.js';
+
+export function isComplexConditions(conditions: unknown): boolean {
+  if (conditions === null || conditions === undefined) return false;
+  if (typeof conditions === 'object' && !Array.isArray(conditions)) {
+    return Object.keys(conditions as Record<string, unknown>).length > 0;
+  }
+  return true;
+}
 
 @Injectable()
 export class PromotionsService {
@@ -548,18 +557,23 @@ export class PromotionsService {
 
   // ================= ADMIN: QUẢN LÝ CHƯƠNG TRÌNH KM (UC-10.1) =================
 
-  async listPromotions(query: PageQuery): Promise<PromotionListResponse> {
-    const [total, promotions] = await Promise.all([
-      this.prisma.promotion.count(),
-      this.prisma.promotion.findMany({
-        skip: skipOf(query),
-        take: query.pageSize,
-        orderBy: { createdAt: 'desc' },
-      }),
-    ]);
+  async listPromotions(query: ListPromotionsQuery): Promise<PromotionListResponse> {
+    return this.prisma.$transaction(
+      async (tx) => {
+        const [total, promotions] = await Promise.all([
+          tx.promotion.count(),
+          tx.promotion.findMany({
+            skip: skipOf(query),
+            take: query.pageSize,
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          }),
+        ]);
 
-    const items = promotions.map((p) => this.mapPromotionToResponse(p));
-    return toPage(items, total, query);
+        const items = promotions.map((p) => this.mapPromotionToResponse(p));
+        return toPage(items, total, query);
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
   }
 
   async createPromotion(dto: CreatePromotionDto): Promise<PromotionResponse> {
@@ -592,87 +606,300 @@ export class PromotionsService {
       throw new BadRequestException('Thời gian kết thúc phải sau thời gian bắt đầu');
     }
 
-    const promotion = await this.prisma.promotion.create({
-      data: {
-        name: dto.name.trim(),
-        discountType: dto.discountType,
-        discountValue,
-        maxDiscountAmount,
-        minOrderAmount,
-        conditions: (dto.conditions as Prisma.InputJsonValue) ?? Prisma.JsonNull,
-        status: dto.status ?? PromotionStatus.ACTIVE,
-        startsAt: dto.startsAt ? new Date(dto.startsAt) : null,
-        endsAt: dto.endsAt ? new Date(dto.endsAt) : null,
-      },
-    });
+    const trimmedName = dto.name.trim();
 
-    return this.mapPromotionToResponse(promotion);
+    const runCreate = async () => {
+      return this.prisma.$transaction(async (tx) => {
+        if (dto.id) {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${dto.id}))`;
+
+          const existing = await tx.promotion.findUnique({ where: { id: dto.id } });
+          if (existing) {
+            if (
+              this.doesPromotionMatchPayload(
+                existing,
+                dto,
+                trimmedName,
+                discountValue,
+                maxDiscountAmount,
+                minOrderAmount,
+              )
+            ) {
+              return this.mapPromotionToResponse(existing);
+            }
+            throw new ConflictException(
+              'Mã định danh chương trình khuyến mãi đã tồn tại với nội dung khác.',
+            );
+          }
+        }
+
+        const promotion = await tx.promotion.create({
+          data: {
+            ...(dto.id ? { id: dto.id } : {}),
+            name: trimmedName,
+            discountType: dto.discountType,
+            discountValue,
+            maxDiscountAmount,
+            minOrderAmount,
+            conditions: (dto.conditions as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+            status: dto.status ?? PromotionStatus.ACTIVE,
+            startsAt: dto.startsAt ? new Date(dto.startsAt) : null,
+            endsAt: dto.endsAt ? new Date(dto.endsAt) : null,
+          },
+        });
+
+        return this.mapPromotionToResponse(promotion);
+      });
+    };
+
+    try {
+      return await runCreate();
+    } catch (err: unknown) {
+      const errorObj =
+        typeof err === 'object' && err !== null ? (err as Record<string, unknown>) : null;
+      const isUniqueError =
+        errorObj?.code === 'P2002' ||
+        (typeof errorObj?.message === 'string' && errorObj.message.includes('Unique constraint'));
+
+      if (dto.id && isUniqueError) {
+        // Query committed row outside aborted transaction
+        const existing = await this.prisma.promotion.findUnique({ where: { id: dto.id } });
+        if (existing) {
+          if (
+            this.doesPromotionMatchPayload(
+              existing,
+              dto,
+              trimmedName,
+              discountValue,
+              maxDiscountAmount,
+              minOrderAmount,
+            )
+          ) {
+            return this.mapPromotionToResponse(existing);
+          }
+          throw new ConflictException(
+            'Mã định danh chương trình khuyến mãi đã tồn tại với nội dung khác.',
+          );
+        }
+      }
+
+      throw err;
+    }
+  }
+
+  private doesPromotionMatchPayload(
+    existing: {
+      name: string;
+      discountType: DiscountType;
+      discountValue: Decimal;
+      maxDiscountAmount: Decimal | null;
+      minOrderAmount: Decimal | null;
+      conditions: Prisma.JsonValue | null;
+      status: PromotionStatus;
+      startsAt: Date | null;
+      endsAt: Date | null;
+    },
+    dto: CreatePromotionDto,
+    trimmedName: string,
+    discountValue: Decimal,
+    maxDiscountAmount: Decimal | null,
+    minOrderAmount: Decimal | null,
+  ): boolean {
+    if (existing.name !== trimmedName) return false;
+    if (existing.discountType !== dto.discountType) return false;
+    if (!existing.discountValue.equals(discountValue)) return false;
+
+    if (existing.maxDiscountAmount === null && maxDiscountAmount !== null) return false;
+    if (existing.maxDiscountAmount !== null && maxDiscountAmount === null) return false;
+    if (
+      existing.maxDiscountAmount !== null &&
+      maxDiscountAmount !== null &&
+      !existing.maxDiscountAmount.equals(maxDiscountAmount)
+    ) {
+      return false;
+    }
+
+    if (existing.minOrderAmount === null && minOrderAmount !== null) return false;
+    if (existing.minOrderAmount !== null && minOrderAmount === null) return false;
+    if (
+      existing.minOrderAmount !== null &&
+      minOrderAmount !== null &&
+      !existing.minOrderAmount.equals(minOrderAmount)
+    ) {
+      return false;
+    }
+
+    const expectedStatus = dto.status ?? PromotionStatus.ACTIVE;
+    if (existing.status !== expectedStatus) return false;
+
+    const existingStartsAt = existing.startsAt ? existing.startsAt.getTime() : null;
+    const dtoStartsAt = dto.startsAt ? new Date(dto.startsAt).getTime() : null;
+    if (existingStartsAt !== dtoStartsAt) return false;
+
+    const existingEndsAt = existing.endsAt ? existing.endsAt.getTime() : null;
+    const dtoEndsAt = dto.endsAt ? new Date(dto.endsAt).getTime() : null;
+    if (existingEndsAt !== dtoEndsAt) return false;
+
+    const existingCondStr = JSON.stringify(existing.conditions ?? null);
+    const dtoCondStr = JSON.stringify(dto.conditions ?? null);
+    if (existingCondStr !== dtoCondStr) return false;
+
+    return true;
   }
 
   async updatePromotion(id: string, dto: UpdatePromotionDto): Promise<PromotionResponse> {
-    const existing = await this.prisma.promotion.findUnique({ where: { id } });
-    if (!existing) {
-      throw new NotFoundException('Không tìm thấy chương trình khuyến mãi');
-    }
+    return this.prisma.$transaction(async (tx) => {
+      const locked = await lockPromotion(tx, id);
+      if (!locked) {
+        throw new NotFoundException('Không tìm thấy chương trình khuyến mãi');
+      }
 
-    const mergedDiscountType = dto.discountType ?? existing.discountType;
-    const mergedDiscountValue =
-      dto.discountValue !== undefined ? new Decimal(dto.discountValue) : existing.discountValue;
+      const existing = await tx.promotion.findUnique({ where: { id } });
+      if (!existing) {
+        throw new NotFoundException('Không tìm thấy chương trình khuyến mãi');
+      }
 
-    if (mergedDiscountValue.lte(0)) {
-      throw new BadRequestException('Giá trị giảm phải lớn hơn 0');
-    }
-    if (mergedDiscountType === DiscountType.PERCENTAGE && mergedDiscountValue.gt(100)) {
-      throw new BadRequestException('Giá trị phần trăm không thể vượt quá 100%');
-    }
+      if (isComplexConditions(existing.conditions)) {
+        if (dto.conditions !== undefined) {
+          throw new BadRequestException(
+            'Chương trình khuyến mãi có cấu hình phức tạp (chỉ xem), không thể sửa hoặc xóa điều kiện.',
+          );
+        }
+        if (dto.status !== undefined && dto.status !== existing.status) {
+          throw new BadRequestException(
+            'Chương trình khuyến mãi có cấu hình phức tạp (chỉ xem), không thể thay đổi trạng thái.',
+          );
+        }
+      }
 
-    let mergedMaxDiscountAmount = existing.maxDiscountAmount;
-    if (dto.maxDiscountAmount !== undefined) {
-      mergedMaxDiscountAmount = dto.maxDiscountAmount ? new Decimal(dto.maxDiscountAmount) : null;
-    }
-    if (mergedMaxDiscountAmount && mergedMaxDiscountAmount.lte(0)) {
-      throw new BadRequestException('Mức giảm tối đa phải lớn hơn 0');
-    }
+      if (dto.expectedUpdatedAt !== undefined) {
+        const existingIso = existing.updatedAt.toISOString();
+        if (existingIso !== dto.expectedUpdatedAt) {
+          throw new ConflictException(
+            'Dữ liệu chương trình khuyến mãi đã bị thay đổi bởi phiên làm việc khác. Vui lòng tải lại trước khi cập nhật.',
+          );
+        }
+      }
 
-    let mergedMinOrderAmount = existing.minOrderAmount;
-    if (dto.minOrderAmount !== undefined) {
-      mergedMinOrderAmount = dto.minOrderAmount ? new Decimal(dto.minOrderAmount) : null;
-    }
-    if (mergedMinOrderAmount && mergedMinOrderAmount.lt(0)) {
-      throw new BadRequestException('Giá trị đơn tối thiểu không được âm');
-    }
+      const mergedDiscountType = dto.discountType ?? existing.discountType;
+      const mergedDiscountValue =
+        dto.discountValue !== undefined ? new Decimal(dto.discountValue) : existing.discountValue;
 
-    const mergedStartsAt =
-      dto.startsAt !== undefined
-        ? dto.startsAt
-          ? new Date(dto.startsAt)
-          : null
-        : existing.startsAt;
-    const mergedEndsAt =
-      dto.endsAt !== undefined ? (dto.endsAt ? new Date(dto.endsAt) : null) : existing.endsAt;
-    if (mergedStartsAt && mergedEndsAt && mergedEndsAt <= mergedStartsAt) {
-      throw new BadRequestException('Thời gian kết thúc phải sau thời gian bắt đầu');
-    }
+      if (mergedDiscountValue.lte(0)) {
+        throw new BadRequestException('Giá trị giảm phải lớn hơn 0');
+      }
+      if (mergedDiscountType === DiscountType.PERCENTAGE && mergedDiscountValue.gt(100)) {
+        throw new BadRequestException('Giá trị phần trăm không thể vượt quá 100%');
+      }
 
-    const data: Prisma.PromotionUpdateInput = {};
-    if (dto.name) data.name = dto.name.trim();
-    if (dto.status) data.status = dto.status;
-    if (dto.discountType) data.discountType = dto.discountType;
-    if (dto.discountValue !== undefined) data.discountValue = mergedDiscountValue;
-    if (dto.maxDiscountAmount !== undefined) data.maxDiscountAmount = mergedMaxDiscountAmount;
-    if (dto.minOrderAmount !== undefined) data.minOrderAmount = mergedMinOrderAmount;
-    if (dto.conditions !== undefined) {
-      data.conditions = (dto.conditions as Prisma.InputJsonValue) ?? Prisma.JsonNull;
-    }
-    if (dto.startsAt !== undefined) data.startsAt = mergedStartsAt;
-    if (dto.endsAt !== undefined) data.endsAt = mergedEndsAt;
+      let mergedMaxDiscountAmount = existing.maxDiscountAmount;
+      if (dto.maxDiscountAmount !== undefined) {
+        mergedMaxDiscountAmount = dto.maxDiscountAmount ? new Decimal(dto.maxDiscountAmount) : null;
+      }
+      if (mergedMaxDiscountAmount && mergedMaxDiscountAmount.lte(0)) {
+        throw new BadRequestException('Mức giảm tối đa phải lớn hơn 0');
+      }
 
-    const updated = await this.prisma.promotion.update({
-      where: { id },
-      data,
+      let mergedMinOrderAmount = existing.minOrderAmount;
+      if (dto.minOrderAmount !== undefined) {
+        mergedMinOrderAmount = dto.minOrderAmount ? new Decimal(dto.minOrderAmount) : null;
+      }
+      if (mergedMinOrderAmount && mergedMinOrderAmount.lt(0)) {
+        throw new BadRequestException('Giá trị đơn tối thiểu không được âm');
+      }
+
+      const mergedStartsAt =
+        dto.startsAt !== undefined
+          ? dto.startsAt
+            ? new Date(dto.startsAt)
+            : null
+          : existing.startsAt;
+      const mergedEndsAt =
+        dto.endsAt !== undefined ? (dto.endsAt ? new Date(dto.endsAt) : null) : existing.endsAt;
+      if (mergedStartsAt && mergedEndsAt && mergedEndsAt <= mergedStartsAt) {
+        throw new BadRequestException('Thời gian kết thúc phải sau thời gian bắt đầu');
+      }
+
+      // Kiểm tra no-op (không có trường nào thay đổi giá trị)
+      let isNoOp = true;
+      if (dto.name !== undefined && dto.name.trim() !== existing.name) isNoOp = false;
+      if (dto.discountType !== undefined && dto.discountType !== existing.discountType)
+        isNoOp = false;
+      if (
+        dto.discountValue !== undefined &&
+        !new Decimal(dto.discountValue).equals(existing.discountValue)
+      ) {
+        isNoOp = false;
+      }
+      if (dto.maxDiscountAmount !== undefined) {
+        if (existing.maxDiscountAmount === null && dto.maxDiscountAmount !== null) isNoOp = false;
+        else if (existing.maxDiscountAmount !== null && dto.maxDiscountAmount === null)
+          isNoOp = false;
+        else if (
+          existing.maxDiscountAmount !== null &&
+          dto.maxDiscountAmount !== null &&
+          !existing.maxDiscountAmount.equals(new Decimal(dto.maxDiscountAmount))
+        ) {
+          isNoOp = false;
+        }
+      }
+      if (dto.minOrderAmount !== undefined) {
+        if (existing.minOrderAmount === null && dto.minOrderAmount !== null) isNoOp = false;
+        else if (existing.minOrderAmount !== null && dto.minOrderAmount === null) isNoOp = false;
+        else if (
+          existing.minOrderAmount !== null &&
+          dto.minOrderAmount !== null &&
+          !existing.minOrderAmount.equals(new Decimal(dto.minOrderAmount))
+        ) {
+          isNoOp = false;
+        }
+      }
+      if (dto.status !== undefined && dto.status !== existing.status) isNoOp = false;
+      if (dto.startsAt !== undefined) {
+        const t1 = existing.startsAt ? existing.startsAt.getTime() : null;
+        const t2 = dto.startsAt ? new Date(dto.startsAt).getTime() : null;
+        if (t1 !== t2) isNoOp = false;
+      }
+      if (dto.endsAt !== undefined) {
+        const t1 = existing.endsAt ? existing.endsAt.getTime() : null;
+        const t2 = dto.endsAt ? new Date(dto.endsAt).getTime() : null;
+        if (t1 !== t2) isNoOp = false;
+      }
+      if (dto.conditions !== undefined) {
+        if (JSON.stringify(dto.conditions) !== JSON.stringify(existing.conditions)) {
+          isNoOp = false;
+        }
+      }
+
+      if (isNoOp) {
+        return this.mapPromotionToResponse(existing);
+      }
+
+      const existingTime = existing.updatedAt.getTime();
+      const monotonicUpdatedAt = new Date(Math.max(Date.now(), existingTime + 1));
+
+      const data: Prisma.PromotionUpdateInput = {
+        updatedAt: monotonicUpdatedAt,
+      };
+      if (dto.name !== undefined) data.name = dto.name.trim();
+      if (dto.status !== undefined) data.status = dto.status;
+      if (dto.discountType !== undefined) data.discountType = dto.discountType;
+      if (dto.discountValue !== undefined) data.discountValue = mergedDiscountValue;
+      if (dto.maxDiscountAmount !== undefined) data.maxDiscountAmount = mergedMaxDiscountAmount;
+      if (dto.minOrderAmount !== undefined) data.minOrderAmount = mergedMinOrderAmount;
+      if (dto.conditions !== undefined) {
+        data.conditions = (dto.conditions as Prisma.InputJsonValue) ?? Prisma.JsonNull;
+      }
+      if (dto.startsAt !== undefined) data.startsAt = mergedStartsAt;
+      if (dto.endsAt !== undefined) data.endsAt = mergedEndsAt;
+
+      const updated = await tx.promotion.update({
+        where: { id },
+        data,
+      });
+
+      return this.mapPromotionToResponse(updated);
     });
-
-    return this.mapPromotionToResponse(updated);
   }
 
   async getPromotionById(id: string): Promise<PromotionResponse> {
@@ -684,18 +911,24 @@ export class PromotionsService {
   }
 
   async deletePromotion(id: string): Promise<{ ok: boolean; message: string }> {
-    const promo = await this.prisma.promotion.findUnique({ where: { id } });
-    if (!promo) {
-      throw new NotFoundException('Không tìm thấy chương trình khuyến mãi');
-    }
-    await this.prisma.promotion.update({
-      where: { id },
-      data: { status: PromotionStatus.INACTIVE },
+    return this.prisma.$transaction(async (tx) => {
+      const locked = await lockPromotion(tx, id);
+      if (!locked) {
+        throw new NotFoundException('Không tìm thấy chương trình khuyến mãi');
+      }
+      const promo = await tx.promotion.findUnique({ where: { id } });
+      if (!promo) {
+        throw new NotFoundException('Không tìm thấy chương trình khuyến mãi');
+      }
+      await tx.promotion.update({
+        where: { id },
+        data: { status: PromotionStatus.INACTIVE },
+      });
+      return {
+        ok: true,
+        message: 'Đã chuyển trạng thái chương trình khuyến mãi sang ngưng hoạt động (INACTIVE)',
+      };
     });
-    return {
-      ok: true,
-      message: 'Đã chuyển trạng thái chương trình khuyến mãi sang ngưng hoạt động (INACTIVE)',
-    };
   }
 
   /**

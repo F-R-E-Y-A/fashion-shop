@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -11,8 +12,8 @@ import {
 } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { PageQuery } from '../../common/pagination/page.query.js';
 import { RequireRoles, RoleCode } from '../auth/index.js';
+import { ListPromotionsQuery } from './dto/list-promotions.query.js';
 import {
   CreatePromotionDto,
   PromotionListResponse,
@@ -28,9 +29,10 @@ export class AdminPromotionsController {
   constructor(private readonly promotionsService: PromotionsService) {}
 
   @Get()
+  @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Danh sách chương trình khuyến mãi (Admin - UC-10.1)' })
   @ApiOkResponse({ type: PromotionListResponse })
-  async list(@Query() query: PageQuery): Promise<PromotionListResponse> {
+  async list(@Query() query: ListPromotionsQuery): Promise<PromotionListResponse> {
     return this.promotionsService.listPromotions(query);
   }
 
@@ -42,6 +44,7 @@ export class AdminPromotionsController {
   }
 
   @Get(':id')
+  @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Chi tiết chương trình khuyến mãi (Admin - UC-10.1)' })
   @ApiOkResponse({ type: PromotionResponse })
   async getById(@Param('id', ParseUUIDPipe) id: string): Promise<PromotionResponse> {

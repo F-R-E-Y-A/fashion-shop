@@ -53,6 +53,7 @@ function mount(path = '/admin/users') {
             <Route path="users" element={<h1>Danh sách hiện có</h1>} />
             <Route path="products" element={<h1>Danh sách sản phẩm</h1>} />
             <Route path="products/:id" element={<h1>Chi tiết sản phẩm</h1>} />
+            <Route path="promotions" element={<h1>Danh sách khuyến mãi</h1>} />
             <Route path="orders" element={<h1>Đơn hiện có</h1>} />
           </Route>
           <Route path="/" element={<h1>Cửa hàng hiện có</h1>} />
@@ -146,7 +147,14 @@ describe('UC-02.1/AC9 khung admin — Issue #59', () => {
       within(nav)
         .getAllByRole('link')
         .map((link) => link.getAttribute('href')),
-    ).toEqual(['/admin', '/admin/categories', '/admin/products', '/admin/users', '/admin/orders']);
+    ).toEqual([
+      '/admin',
+      '/admin/categories',
+      '/admin/products',
+      '/admin/promotions',
+      '/admin/users',
+      '/admin/orders',
+    ]);
     expect(screen.getByText('admin@example.test')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Cửa hàng/ })).toHaveAttribute('href', '/');
   });

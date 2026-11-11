@@ -1,6 +1,6 @@
 ---
 title: Khuyến mãi và Mã giảm giá
-updated: 2026-10-27
+updated: 2026-11-11
 status: đang triển khai
 owner: Duy
 ---
@@ -11,8 +11,8 @@ owner: Duy
 | Mục | Hiện trạng |
 |---|---|
 | Người sở hữu | Duy; `apps/api/src/modules/promotions`, `apps/web/src/features/promotions`, các bảng trong `catalog.prisma` |
-| Dòng việc | PH-10 Khuyến mãi & Mã giảm giá |
-| Ca sử dụng | UC-07.2 (Áp dụng mã giảm giá), UC-10.1 (Quản lý chương trình KM), UC-10.2 (Quản lý mã giảm giá) |
+| Dòng việc | PH-10 Khuyến mãi & Mã giảm giá, PH-03 Quản trị chiến dịch đơn giản (Issue #88) |
+| Ca sử dụng | UC-07.2 (Áp dụng mã giảm giá), [UC-10.1 (Quản lý chương trình KM)](use-cases.md#uc-101--quản-trị-chương-trình-khuyến-mãi-đơn-giản), UC-10.2 (Quản lý mã giảm giá) |
 | Sơ đồ tham chiếu | Class Diagram (namespace `Payment_Promotion`), ERD (`05 Payment Promotion Vouchers`) |
 
 ## Mô hình và ranh giới
