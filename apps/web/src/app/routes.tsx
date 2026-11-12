@@ -25,12 +25,12 @@ import {
   OrdersPage,
 } from '@/features/checkout';
 import { AdminInventoryDetailPage, AdminInventoryPage } from '@/features/inventory';
+import { AdminOverviewPage } from '@/features/overview';
 import {
   AdminCatalogDetailPage,
   AdminCatalogPage,
   AdminCategoriesPage,
   AdminCategoryDetailPage,
-  AdminProductsPage,
   CategoryPage,
   HomePage,
   ProductDetailPage,
@@ -143,7 +143,7 @@ export function AppRoutes() {
           <Route path="quan-tri" element={<LegacyAdminRedirect />} />
           <Route path="admin" element={<RequireAdmin />}>
             <Route element={<AdminLayout />}>
-              <Route index element={<AdminProductsPage />} />
+              <Route index element={<AdminOverviewPage />} />
               <Route path="inventory" element={<AdminInventoryPage />} />
               <Route path="inventory/:id" element={<AdminInventoryDetailPage />} />
               <Route path="categories" element={<AdminCategoriesPage />} />

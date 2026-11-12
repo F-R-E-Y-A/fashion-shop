@@ -30,6 +30,22 @@ export interface InventoryDetail extends InventoryRow {
   asOf: string;
   movements: Page<Movement>;
 }
+export interface AdminLowStockItem {
+  id: string;
+  sku: string;
+  productName: string;
+  colorName: string;
+  sizeCode: string;
+  quantityOnHand: number;
+  reservedQuantity: number;
+  availableQuantity: number;
+}
+export interface AdminLowStockResponse {
+  items: AdminLowStockItem[];
+  total: number;
+  threshold: number;
+  asOf: string;
+}
 export const inventoryKeys = {
   all: (actor: string) => [...sessionQueryKeys.adminResource('inventory'), actor] as const,
   list: (actor: string, page: number) => [...inventoryKeys.all(actor), 'list', page] as const,
