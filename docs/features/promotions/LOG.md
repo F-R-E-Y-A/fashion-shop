@@ -88,3 +88,14 @@ Mã041 đã trùng quyết định cache admin ở LOG chung sau khi ghép PR #4
 050 đã được dùng trong PR #74 đang mở. Giữ nguyên ngày, phương án, trạng thái đề xuất và người quyếtDuy;
 không coi sửa số là duyệt quyết định nghiệp vụ. Bản hiệu đính chỉ được áp sau khi Tài cho phép ngoại lệ
 append-only của AGENTS.md; kiểm lại dãy số/PR đang mở ngay trước khi áp.
+
+## 2026-11-11 · Quản trị chiến dịch khuyến mãi đơn giản (Issue #88)
+
+**Loại:** thay đổi mã và kiểm thử (đề xuất, chờ Duy/Bảo review) · **Phạm vi:** `apps/api/src/modules/promotions`, `apps/web/src/features/promotions` · **Commit:** (chờ commit)
+
+Theo kế hoạch MVP Issue #88:
+1. **Idempotency cho tạo mới chiến dịch**: Do tên chiến dịch không bắt buộc duy nhất theo schema, API hỗ trợ client UUID v4 (`id` tùy chọn trong `CreatePromotionDto`). Khi nhận yêu cầu tạo mới với UUID đã tồn tại, nếu payload giống hệt thì trả về 201 cùng bản ghi hiện có; nếu payload khác biệt thì ném `409 Conflict`.
+2. **Kiểm soát đồng thời khi cập nhật (CAS)**: `UpdatePromotionDto` nhận `expectedUpdatedAt` tùy chọn. Trong transaction, khóa dòng bằng `SELECT ... FOR UPDATE`, đối chiếu phiên bản `updatedAt`. Nếu không khớp ném `409 Conflict`. Nếu dữ liệu cập nhật giống hệt dữ liệu hiện tại (no-op), bỏ qua lệnh UPDATE và giữ nguyên timestamp. Khi có thay đổi, ép tăng `updatedAt` đơn điệu (`Math.max(Date.now(), existing.updatedAt.getTime() + 1)`).
+3. **Ranh giới chiến dịch đơn giản và phức tạp**: Màn hình quản trị admin chỉ hỗ trợ tạo/sửa chiến dịch đơn giản (`conditions = null` hoặc object rỗng). Các chiến dịch có `conditions` phức tạp được hiển thị ở chế độ Chỉ xem (Read-Only) kèm cảnh báo giải thích và JSON viewer; vô hiệu hóa các thao tác sửa/bật-ngừng/xóa trên giao diện để tránh làm hỏng cấu hình engine của Duy.
+4. **Mặc định trạng thái form mới**: Form tạo chiến dịch mới mặc định ở trạng thái `INACTIVE`.
+5. **An toàn API admin**: Kiểm tra vai trò `ADMIN`, header `Cache-Control: no-store`, phân trang nghiêm ngặt (`strictInteger`), sắp xếp phá hòa `{ createdAt: 'desc', id: 'desc' }` trong transaction RepeatableRead.

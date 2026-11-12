@@ -37,6 +37,14 @@ import {
   ProductListPage,
   SearchPage,
 } from '@/features/products';
+import {
+  AdminPromotionDetailPage,
+  AdminPromotionNewPage,
+  AdminPromotionsPage,
+  AdminVoucherDetailPage,
+  AdminVoucherNewPage,
+  AdminVouchersPage,
+} from '@/features/promotions';
 import { Loading } from '@/ui';
 
 import { AdminLayout } from './AdminLayout.js';
@@ -142,6 +150,12 @@ export function AppRoutes() {
               <Route path="categories/:id" element={<AdminCategoryDetailPage />} />
               <Route path="products" element={<AdminCatalogPage />} />
               <Route path="products/:id" element={<AdminCatalogDetailPage />} />
+              <Route path="promotions" element={<AdminPromotionsPage />} />
+              <Route path="promotions/new" element={<AdminPromotionNewPage />} />
+              <Route path="promotions/:id" element={<AdminPromotionDetailPage />} />
+              <Route path="vouchers" element={<AdminVouchersPage />} />
+              <Route path="vouchers/new" element={<AdminVoucherNewPage />} />
+              <Route path="vouchers/:id" element={<AdminVoucherDetailPage />} />
               <Route path="users" element={<AdminUsersPage />} />
               <Route path="users/:id" element={<AdminUserDetailPage />} />
               <Route path="orders" element={<AdminOrdersPage />} />

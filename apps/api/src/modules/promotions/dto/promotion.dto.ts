@@ -1,10 +1,11 @@
-import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
 import {
   IsDateString,
   IsEnum,
   IsNotEmpty,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   MaxLength,
   MinLength,
@@ -14,6 +15,14 @@ import { Page } from '../../../common/pagination/page.response.js';
 import { DiscountType, PromotionStatus } from '../promotions.types.js';
 
 export class CreatePromotionDto {
+  @ApiPropertyOptional({
+    description: 'Mã định danh chiến dịch (UUID v4) do client sinh phục vụ idempotency',
+    example: 'a0000000-0000-4000-a000-000000000001',
+  })
+  @IsUUID('4', { message: 'ID phải là chuỗi UUID v4 hợp lệ' })
+  @IsOptional()
+  id?: string;
+
   @ApiProperty({
     description: 'Tên chương trình khuyến mãi',
     example: 'Khuyến mãi Khai trương mùa thu',
@@ -80,7 +89,16 @@ export class CreatePromotionDto {
   endsAt?: string;
 }
 
-export class UpdatePromotionDto extends PartialType(CreatePromotionDto) {}
+export class UpdatePromotionDto extends PartialType(OmitType(CreatePromotionDto, ['id'] as const)) {
+  @ApiPropertyOptional({
+    description:
+      'Thời điểm cập nhật mong đợi (ISO 8601 UTC) phục vụ Optimistic Concurrency Control (CAS)',
+    example: '2026-11-11T00:00:00.000Z',
+  })
+  @IsDateString({}, { message: 'expectedUpdatedAt phải là chuỗi ISO 8601 hợp lệ' })
+  @IsOptional()
+  expectedUpdatedAt?: string;
+}
 
 export class PromotionResponse {
   @ApiProperty({ description: 'ID khuyến mãi' })
