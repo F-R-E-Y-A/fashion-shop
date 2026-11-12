@@ -50,15 +50,15 @@ Là một **khách hàng đã nhận hàng**, tôi muốn **chấm sao, nhận x
 | BR8 | Ảnh tải lên mà 24 giờ chưa gắn vào đánh giá thì bị xoá khỏi kho; gửi đánh giá kèm ảnh đang bị dọn thì 422, khách tải lại ảnh ([ADR-056](../uploads/LOG.md#adr-056)) |
 
 ### Tiêu chí chấp nhận
-- **AC1** (thuận) Chỉ dòng đơn đã giao mới đánh giá được; danh sách chờ kèm hạn 30 ngày; web: trang đơn mời đánh giá đúng số dòng còn chờ của đơn đó, đơn không còn dòng chờ thì không mời
-- **AC2** (thuận) Chữ sạch không ảnh: hiện ngay, điểm sản phẩm cập nhật; mỗi dòng đơn một đánh giá
+- **AC1** (thuận) Chỉ dòng đơn đã giao mới đánh giá được; đơn hoàn một phần vẫn viết được, hoàn toàn bộ hoặc đang xét thanh toán (`PAYMENT_REVIEW`) thì 422; danh sách chờ kèm hạn 30 ngày; web: trang đơn mời đánh giá đúng số dòng còn chờ của đơn đó, đơn không còn dòng chờ thì không mời
+- **AC2** (thuận) Chữ sạch không ảnh: hiện ngay, điểm sản phẩm cập nhật; mỗi dòng đơn một đánh giá, gửi hai lần cùng lúc cũng chỉ tạo một; bài đã xoá mềm vẫn giữ chỗ dòng đơn (409)
 - **AC3** (âm) Dòng đơn của người khác: 404, không lộ dòng đó có tồn tại
 - **AC4** (biên) Quá 30 ngày từ lúc giao: hết hạn, không còn trong danh sách chờ
 - **AC5** (âm) Ảnh: chỉ ảnh trong thư mục của mình, đã tải xong, đúng định dạng; có ảnh thì chờ duyệt; kho ảnh lỗi khi kiểm thì 503 và không tạo đánh giá
 - **AC6** (thuận) Chữ có số điện thoại, link hay từ tục: chờ duyệt thay vì hiện ngay
 - **AC7** (biên) Sửa một lần trong hạn: duyệt lại, thay ảnh thì ảnh cũ vào hàng xoá, lần hai bị chặn; sửa đánh giá đang hiện thì điểm tính lại ngay; web: form điền sẵn nội dung cũ, không đổi ảnh thì không gửi trường ảnh; đánh giá bị ẩn hiện lý do và không còn nút sửa
 - **AC8** (thuận) Ẩn danh che tên; trang công khai không có email hay mã người dùng
-- **AC9** (âm) Dữ liệu sai, kể cả trường lạ: 400
+- **AC9** (âm) Dữ liệu sai (sao ngoài 1–5 hoặc số lẻ), kể cả trường lạ (`userId`, `moderationStatus`): 400
 - **AC10** (thuận, web) Form kiểm trước khi gửi: chưa chọn sao, ảnh lỗi, ảnh đang tải; ảnh tải thẳng lên kho bằng phiếu, token của cửa hàng không đi sang kho; gửi xong chuyển sang tab "Đã đánh giá" kèm thông báo
 - **AC11** (biên) Ảnh tải lên quá 24 giờ chưa gắn bị xoá khỏi kho theo lô tối đa 100 ảnh mỗi lệnh; ảnh mới 23 giờ 59 phút và ảnh đã gắn giữ nguyên; hai lượt dọn chồng nhau không xoá trùng; kho lỗi thì thử lại sau hạn thuê; ảnh đang bị dọn không gắn được (422)
 
@@ -99,12 +99,12 @@ Là **người mua**, tôi muốn **xem điểm, phân bố sao, độ vừa và
 
 ### Tiêu chí chấp nhận
 - **AC1** (thuận) Tổng hợp: trung bình, phân bố 5 mức, có ảnh, có chữ, độ vừa; khớp điểm trên trang chi tiết và danh sách sản phẩm; web: bấm một mức sao thì lọc, bấm lại thì bỏ lọc
-- **AC2** (thuận) Hữu ích: mỗi người một phiếu, bỏ phiếu được, đánh giá chưa duyệt thì 404; web: token hết hạn thì làm mới một lần rồi tải lại, đánh giá của mình không có nút bình chọn
+- **AC2** (thuận) Hữu ích: mỗi người một phiếu, bỏ phiếu được, đánh giá chưa duyệt thì 404; danh sách trả `isOwn`, `viewerHasVoted` theo người xem nên có `Cache-Control: no-store`; web: token hết hạn thì làm mới một lần rồi tải lại, đánh giá của mình không có nút bình chọn
 - **AC3** (thuận) Báo cáo: đánh dấu cho quản trị, không tự ẩn; báo lại không tính thêm
 - **AC4** (âm) Sản phẩm ẩn hoặc slug sai: 404 và 400 như trang chi tiết
 - **AC5** (thuận, web) Khách vãng lai: chỉ tải khi mở khu đánh giá, không gửi token; bình chọn dẫn về đăng nhập rồi quay lại đúng trang
 - **AC6** (thuận, web) Ảnh trong đánh giá: lưới chỉ tải bản thu nhỏ 160 px; bấm ảnh thì thư viện mở bản lớn
-- **AC7** (biên) Chưa có đánh giá đã duyệt, kể cả khi chỉ có bài chờ duyệt hoặc bài duy nhất vừa bị ẩn: tổng hợp đủ 5 mức đều 0, trung bình 0, danh sách rỗng, điểm sản phẩm về 0; web chỉ báo "Chưa có đánh giá nào", không vẽ bảng sao; lọc một mức không có bài thì báo không có đánh giá khớp
+- **AC7** (biên) Chưa có đánh giá đã duyệt, kể cả khi chỉ có bài chờ duyệt hoặc bài duy nhất vừa bị ẩn: tổng hợp đủ 5 mức đều 0, trung bình 0, danh sách rỗng, điểm sản phẩm về 0; web chỉ báo "Chưa có đánh giá nào", không vẽ bảng sao; lọc một mức không có bài thì báo không có đánh giá khớp; bài đã xoá mềm không hiện ở danh sách và tổng hợp
 
 ---
 

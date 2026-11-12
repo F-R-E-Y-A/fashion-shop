@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Header, Param, Query, UseGuards } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiNotFoundResponse,
@@ -31,6 +31,8 @@ export class ProductReviewsController {
 
   @Get()
   @UseGuards(OptionalAuthGuard)
+  // Tra viewerHasVoted, isOwn theo nguoi xem: proxy hay trinh duyet khong duoc giu ban dung chung.
+  @Header('Cache-Control', 'no-store')
   @ApiOperation({
     summary: 'Danh gia da duyet cua san pham; dang nhap thi biet minh da bam huu ich chua',
   })

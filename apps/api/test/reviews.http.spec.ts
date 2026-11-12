@@ -80,6 +80,56 @@ describe('UC-11.1 viet va sua danh gia san pham (PostgreSQL)', () => {
     expect(await t.prisma.review.count()).toBe(1);
   });
 
+  it('UC-11.1/AC1 hoan tien sau giao: PARTIALLY_REFUNDED van viet duoc; REFUNDED, PAYMENT_REVIEW thi 422 (E2)', async () => {
+    // Dat thang trang thai hien tai cua don: luat xet trang thai hien tai cung lan giao (BR1).
+    const setStatus = (
+      orderId: string,
+      status: 'PARTIALLY_REFUNDED' | 'REFUNDED' | 'PAYMENT_REVIEW',
+    ) => t.prisma.order.update({ where: { id: orderId }, data: { status } });
+    const partial = await w.deliveredItem();
+    const refunded = await w.deliveredItem();
+    const inReview = await w.deliveredItem();
+    await setStatus(partial.orderId, 'PARTIALLY_REFUNDED');
+    await setStatus(refunded.orderId, 'REFUNDED');
+    await setStatus(inReview.orderId, 'PAYMENT_REVIEW');
+
+    expect((await eligible(w.buyer)).map((item) => item.orderItemId)).toEqual([
+      partial.orderItemId,
+    ]);
+    for (const blocked of [refunded, inReview]) {
+      const response = await post(w.buyer, { orderItemId: blocked.orderItemId, rating: 5 }).expect(
+        422,
+      );
+      expect(response.body.code).toBe('REVIEW_NOT_ALLOWED');
+    }
+    await post(w.buyer, { orderItemId: partial.orderItemId, rating: 4 }).expect(201);
+  });
+
+  it('UC-11.1/AC2 gui hai lan cung luc cung mot dong don: mot 201, mot 409, chi mot danh gia', async () => {
+    const { orderItemId } = await w.deliveredItem();
+    const responses = await Promise.all([
+      post(w.buyer, { orderItemId, rating: 5 }),
+      post(w.buyer, { orderItemId, rating: 4 }),
+    ]);
+    expect(responses.map((response) => response.status).sort()).toEqual([201, 409]);
+    expect(responses.find((response) => response.status === 409)?.body.code).toBe(
+      'REVIEW_ALREADY_EXISTS',
+    );
+    expect(await t.prisma.review.count()).toBe(1);
+  });
+
+  it('UC-11.1/AC2 danh gia da xoa mem van giu cho dong don: khong vao lai danh sach cho, viet lai 409', async () => {
+    const { orderItemId } = await w.deliveredItem();
+    const created = await post(w.buyer, { orderItemId, rating: 5 }).expect(201);
+    await t.prisma.review.update({
+      where: { id: created.body.id },
+      data: { deletedAt: new Date() },
+    });
+    expect(await eligible(w.buyer)).toEqual([]);
+    const again = await post(w.buyer, { orderItemId, rating: 4 }).expect(409);
+    expect(again.body.code).toBe('REVIEW_ALREADY_EXISTS');
+  });
+
   it('UC-11.1/AC3 dong don cua nguoi khac: 404, khong lo dong don do co ton tai', async () => {
     const { orderItemId } = await w.deliveredItem();
     const response = await post(w.other, { orderItemId, rating: 5 }).expect(404);
@@ -264,12 +314,16 @@ describe('UC-11.1 viet va sua danh gia san pham (PostgreSQL)', () => {
     const cases: Record<string, unknown>[] = [
       { orderItemId, rating: 0 },
       { orderItemId, rating: '5' },
+      { orderItemId, rating: 6 },
+      { orderItemId, rating: 4.5 },
       { orderItemId, rating: 5, content: 'x'.repeat(1501) },
       { orderItemId, rating: 5, heightCm: 99 },
       { orderItemId, rating: 5, fitFeedback: 'PERFECT' },
       { orderItemId, rating: 5, media: [{ key: '../etc/passwd' }] },
       { orderItemId, rating: 5, media: Array.from({ length: 6 }, (_, i) => ({ key: `k${i}` })) },
       { orderItemId, rating: 5, productId: orderItemId },
+      { orderItemId, rating: 5, userId: w.other.id },
+      { orderItemId, rating: 5, moderationStatus: 'APPROVED' },
       { orderItemId: 'not-a-uuid', rating: 5 },
     ];
     for (const body of cases) {

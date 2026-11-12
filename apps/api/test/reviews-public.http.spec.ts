@@ -167,4 +167,25 @@ describe('UC-11.3 xem, binh chon va bao cao danh gia (PostgreSQL)', () => {
     const product = await t.http.get(`/api/products/${w.productSlug}`).expect(200);
     expect(product.body).toMatchObject({ ratingAverage: 0, ratingCount: 0 });
   });
+
+  it('UC-11.3/AC2 danh sach tra theo nguoi xem (isOwn, viewerHasVoted): Cache-Control no-store', async () => {
+    await w.review({ rating: 5, content: 'Đẹp' });
+    const guest = await t.http.get(reviewsUrl()).expect(200);
+    const owner = await t.http.get(reviewsUrl()).set(w.buyer.auth).expect(200);
+    expect(guest.headers['cache-control']).toBe('no-store');
+    expect(owner.headers['cache-control']).toBe('no-store');
+    expect(owner.body.items[0].isOwn).toBe(true);
+    expect(guest.body.items[0].isOwn).toBe(false);
+  });
+
+  it('UC-11.3/AC7 bai da xoa mem khong hien o danh sach va tong hop', async () => {
+    const kept = await w.review({ rating: 4, content: 'Giữ lại' });
+    const gone = await w.review({ rating: 1, content: 'Bài sẽ bị xoá' });
+    await t.prisma.review.update({ where: { id: gone.id }, data: { deletedAt: new Date() } });
+    const list = await t.http.get(reviewsUrl()).expect(200);
+    expect(list.body.items.map((item: { id: string }) => item.id)).toEqual([kept.id]);
+    expect(list.body.total).toBe(1);
+    const summary = await t.http.get(`${reviewsUrl()}/summary`).expect(200);
+    expect(summary.body).toMatchObject({ average: 4, count: 1 });
+  });
 });
