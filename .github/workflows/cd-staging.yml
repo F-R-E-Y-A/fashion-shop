@@ -5,10 +5,12 @@
 #   giao dien    -> Vercel (tu dung va tu trien khai khi thay commit moi tren develop)
 #
 # Chay SAU khi CI xanh, khong chay song song: bao dam thu len moi truong thu la thu da qua kiem.
-# Bien bi mat can dat o Settings > Secrets and variables > Actions (xem docs/features/platform/staging.md):
-#   RENDER_DEPLOY_HOOK_URL   dia chi hook lay trong Render, Settings > Deploy Hook
-#   STAGING_API_URL          vi du https://fashion-shop-api.onrender.com
-#   STAGING_WEB_URL          vi du https://fashion-shop-web.vercel.app
+# Can dat truoc (xem docs/features/platform/staging.md):
+#   secret cua kho (Settings > Secrets and variables > Actions):
+#     RENDER_DEPLOY_HOOK_URL   dia chi hook lay trong Render, Settings > Deploy Hook
+#   bien cua moi truong staging (Settings > Environments > staging), khong phai secret:
+#     STAGING_API_URL          vi du https://fashion-shop-api.onrender.com
+#     STAGING_WEB_URL          vi du https://fashion-shop-web.vercel.app
 name: CD staging
 
 on:
@@ -83,7 +85,7 @@ jobs:
           # 60 giay: lan dau sau deploy phai nap catalog tren 0,15 CPU (do 08/11: ~12 giay/request).
           curl -fsS --max-time 60 "$API/api/products?pageSize=1" -o products.json
           cat products.json
-          # Co du lieu that tren staging thi total phai lon hon 0.
+          # Chi kiem hinh dang (items la mang) va in total ra log; chua bat total > 0.
           node -e "const d=require('./products.json'); if(!Array.isArray(d.items)) {console.error('Sai hinh dang'); process.exit(1)}; console.log('total =', d.total)"
 
       - name: Ghi lai ket qua
