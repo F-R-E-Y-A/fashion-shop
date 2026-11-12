@@ -49,7 +49,7 @@ Làm vậy để lịch sử triển khai và thời gian từ commit tới khi 
 | Loại | Tên | Giá trị |
 |---|---|---|
 | Secret | `RENDER_DEPLOY_HOOK_URL` | địa chỉ hook ở bước 1.4 |
-| Variable | `STAGING_API_URL` | `https://fashion-shop-api.onrender.com` |
+| Variable | `STAGING_API_URL` | địa chỉ Render cấp cho dịch vụ API, có thể có hậu tố sau tên. Đang dùng: `https://fashion-shop-api-rivi.onrender.com` (`gh variable list -e staging`, 12/11) |
 | Variable | `STAGING_WEB_URL` | địa chỉ Vercel |
 
 Địa chỉ hook là một **bí mật**: ai có nó thì kích hoạt được triển khai. Đừng dán vào chat nhóm, vào tài liệu hay vào khung chat với AI; tự dán vào ô secret của GitHub.
