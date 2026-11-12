@@ -147,6 +147,35 @@ describe('search: hieu cau va loc', () => {
     expect(r.items.every((p) => p.audience === 'nu')).toBe(true);
   });
 
+  // Noi chi bo phan hieu tu cau hoi; mau, co, gia khach tu bam (state.filters) giu nguyen.
+  it('UC-03.2/E1 noi cau hoi giu mau khach tu bam', () => {
+    const r = search(CATALOG, { q: 'polo dưới 1k', filters: { colors: ['den'] } });
+    expect(r.relaxed).toEqual(['bỏ dịp mặc và kiểu dáng', 'bỏ khoảng giá']);
+    expect(r.applied.colors).toEqual(['den']);
+    expect(ids(r).sort()).toEqual(['p1', 'p6', 'p8', 'p9']);
+  });
+
+  it('UC-03.2/E1 noi cau hoi giu co khach tu bam', () => {
+    const r = search(CATALOG, { q: 'polo dưới 1k', filters: { sizes: ['XL'] } });
+    expect(r.relaxed).toEqual(['bỏ dịp mặc và kiểu dáng', 'bỏ khoảng giá']);
+    expect(r.applied.sizes).toEqual(['XL']);
+    expect(ids(r)).toEqual(['p3']);
+  });
+
+  it('UC-03.2/E1 noi cau hoi giu khoang gia khach tu nhap', () => {
+    const r = search(CATALOG, { q: 'polo nam', filters: { maxPrice: 1000 } });
+    expect(r.relaxed).not.toContain('bỏ khoảng giá');
+    expect(r.applied.maxPrice).toBe(1000);
+    expect(r.total).toBe(0);
+  });
+
+  it('UC-03.2/E1 noi chi bo mau hieu tu cau hoi, giu mau khach bam cung luc', () => {
+    const r = search(CATALOG, { q: 'polo trắng dưới 1k', filters: { colors: ['den'] } });
+    expect(r.relaxed).toContain('bỏ màu');
+    expect(r.applied.colors).toEqual(['den']);
+    expect(r.items.every((p) => p.families.includes('den'))).toBe(true);
+  });
+
   it('UC-03.3/BR3 nhieu gia tri cung loai la HOAC, khac loai la VA', () => {
     const either = search(CATALOG, { filters: { colors: ['den', 'hong'] } });
     expect(ids(either).sort()).toEqual(['p1', 'p2', 'p6', 'p8', 'p9']);

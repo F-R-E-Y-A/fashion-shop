@@ -362,9 +362,11 @@ export function search(
     f.maxPrice !== null ||
     f.featured;
 
-  // Khong co ket qua thi noi dan va noi ro da noi gi. Chi noi khi co cau hoi, khong noi bo loc
-  // khach tu bam. Noi toi luc khong con rang buoc nao thi dung: tra rong (UC-03.2/E1, AC3),
-  // khong tra ca Catalog.
+  // Khong co ket qua thi noi dan va noi ro da noi gi. Chi noi khi co cau hoi, va chi bo phan
+  // hieu tu cau hoi: mau, co, gia khach tu bam (ex) giu nguyen. Noi toi luc khong con rang buoc
+  // nao thi dung: tra rong (UC-03.2/E1, AC3), khong tra ca Catalog.
+  const fromQuery = (picked: string[], clicked: string[]): boolean =>
+    picked.some((v) => !clicked.includes(v));
   if (!hits.length && q.trim()) {
     const steps: Array<[string, () => boolean, () => void]> = [
       [
@@ -383,21 +385,22 @@ export function search(
       ],
       [
         'bỏ màu',
-        () => f.colors.length > 0,
+        () => fromQuery(f.colors, ex.colors),
         () => {
-          f.colors = [];
+          f.colors = f.colors.filter((c) => ex.colors.includes(c));
         },
       ],
       [
         'bỏ cỡ',
-        () => f.sizes.length > 0,
+        () => fromQuery(f.sizes, ex.sizes),
         () => {
-          f.sizes = [];
+          f.sizes = f.sizes.filter((s) => ex.sizes.includes(s));
         },
       ],
       [
         'bỏ khoảng giá',
-        () => f.minPrice !== null || f.maxPrice !== null,
+        // Gia khach nhap thang gia trong cau (explicitPrice); khi do khoang gia la cua khach.
+        () => !explicitPrice && (f.minPrice !== null || f.maxPrice !== null),
         () => {
           f.minPrice = null;
           f.maxPrice = null;
