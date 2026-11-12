@@ -10,7 +10,7 @@ owner: Bảo
 
 | | |
 |---|---|
-| **Người viết đặc tả** | Bảo cùng Claude Code, 12/11, viết ngược từ mã và bài kiểm thử trên nhánh `feature/ph-01-reviews` (chưa commit). UC-11.1, UC-11.2 theo danh mục của Duy ở [PR #26](https://github.com/F-R-E-Y-A/fashion-shop/pull/26) (`46a238c`); **UC-11.3 là mã mới**, chờ Duy thêm vào danh mục |
+| **Người viết đặc tả** | Bảo cùng Claude Code, 12/11, viết ngược từ mã và bài kiểm thử trên nhánh `feature/ph-01-reviews`. UC-11.1, UC-11.2 theo danh mục của Duy ở [PR #26](https://github.com/F-R-E-Y-A/fashion-shop/pull/26) (`46a238c`); **UC-11.3 là mã mới**, chờ Duy thêm vào danh mục |
 | **Người sở hữu mã** | Bảo, module `reviews` (đọc `orders`, ghi điểm qua `products`, ảnh qua `uploads`) |
 | **Tác nhân** | Khách vãng lai, Khách hàng (đã đăng nhập), Quản trị viên (`ADMIN`) |
 | **Dữ liệu** | `reviews`, `review_media`, `review_helpful_votes`, `review_reports`; hai cột điểm trên `products` |

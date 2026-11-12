@@ -1,7 +1,7 @@
 ---
 title: Hợp đồng module uploads
 updated: 2026-11-12
-status: đề xuất, chưa commit; chưa thử với Cloudinary thật
+status: đề xuất, đã commit, PR vào develop chờ review; chưa thử với Cloudinary thật
 owner: Bảo
 ---
 # Phân hệ `uploads` — phiếu tải ảnh và kiểm ảnh

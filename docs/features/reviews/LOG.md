@@ -54,3 +54,39 @@ Thực tế: (điền sau khi có `CLOUDINARY_URL` trên Render và chạy thử
 
 ### Điều kiện xem lại
 Có vai `STAFF` (ai được duyệt); có đổi trả (`returns`) chạy thật (đánh giá của đơn đã trả có còn tính không); bộ lọc chữ bỏ sót nhiều thì thêm kiểm duyệt bằng dịch vụ ngoài.
+
+<a id="adr-058"></a>
+## 2026-11-12 · ADR-058 — Bản trên `feature/ph-01-reviews` làm nền cho đánh giá; bài kiểm còn thiếu lấy từ PR #98 của Tài
+
+**Loại:** quyết định · **Phạm vi:** module `reviews`, web `features/reviews`; Issue #96, #97 và nhánh `feature/ph-03-product-reviews` của Tài · **Trạng thái:** đề xuất · **Người quyết:** Bảo; Tài xác nhận khi duyệt PR vào `develop` · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- Hai bản cùng làm UC-11. PR #98 của Tài đã gộp vào `feature/ph-03-product-reviews` ngày 12/11 (merge `b1401b1`), chưa vào `develop`. Bản này theo [ADR-054](#adr-054).
+- Bản PR #98 luôn ghi `PENDING` khi tạo ([reviews.service.ts:149](https://github.com/F-R-E-Y-A/fashion-shop/blob/b1401b1fcca1a0373dad7f030bc41b738263c41f/apps/api/src/modules/reviews/reviews.service.ts#L149)) và chưa có đường duyệt (để Issue #97). Khách chỉ có `GET orders/:orderId/reviews` và `POST reviews` ([reviews.controller.ts:29](https://github.com/F-R-E-Y-A/fashion-shop/blob/b1401b1fcca1a0373dad7f030bc41b738263c41f/apps/api/src/modules/reviews/reviews.controller.ts#L29), [:44](https://github.com/F-R-E-Y-A/fashion-shop/blob/b1401b1fcca1a0373dad7f030bc41b738263c41f/apps/api/src/modules/reviews/reviews.controller.ts#L44)). Chưa có hạn viết, sửa bài, điểm trung bình, ảnh.
+- Bản này thiếu một số bài mà PR #98 có. Đã lấy sang ở `431a706`: hoàn tiền sau giao, sao 6 và 4.5, trường lạ `userId` và `moderationStatus`, xoá mềm, gửi đồng thời. Bài `no-store` bắt được một lỗi thật: danh sách công khai trả `isOwn`, `viewerHasVoted` theo người xem mà không đặt `Cache-Control`.
+- Chưa lấy sang: E2E, web giữ nội dung khi gửi không rõ kết quả, unit cho hàm đọc của `orders`.
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. PR #98 làm nền, đắp phần còn lại lên | Giữ mã của Tài; không thêm migration | Viết lại duyệt, điểm, ảnh, sửa bài; tới khi có trang duyệt thì trang công khai rỗng vì mọi bài chờ duyệt (suy luận) | Dễ, trước khi gộp vào `develop` |
+| **B. Bản này làm nền, lấy bài kiểm và ý hay từ PR #98 (chọn)** | Đủ UC-11.1 tới UC-11.3, có trang duyệt và ảnh; giữ được bài kiểm của Tài | Mã trùng của PR #98 không vào `develop`; luật khác PR #98, Tài phải đồng ý | Dễ, trước khi gộp vào `develop` |
+| Không làm gì | Không tốn công | Hai bản cùng phạm vi treo; không ai biết bản nào vào `develop` | — |
+
+**Chọn B** vì bản này đã làm phần PR #98 để lại cho Issue #97 và các phần PR #98 chưa có, còn bài kiểm của PR #98 lấy sang được. Trade-off chấp nhận: chỗ hai bản khác luật thì theo bản này. Đơn `REFUNDED` hoặc đang `PAYMENT_REVIEW` không viết được; hạn 30 ngày; chữ sạch không ảnh hiện ngay; trang công khai hiện tên rút gọn, phân loại, chiều cao, cân nặng; nhận xét tối đa 1.500 ký tự; gửi trùng luôn 409; mặc định sắp "hữu ích nhất".
+
+### Phản biện
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| AI gợi ý | Claude Code (Opus 5.5) so hai bản theo luật và bài kiểm ngày 12/11, đề xuất lấy bản này làm nền và chuyển 9 nhóm bài từ PR #98 | giữ: 5 nhóm đã chuyển, 4 nhóm làm tiếp |
+| Người phản biện | Tài: chưa trả lời; Bảo mặc định Tài đồng ý và nhờ Tài xác nhận khi duyệt PR | chờ |
+
+**Kết luận:** Chọn B, chờ Tài xác nhận.
+**Bằng chứng:** `gh pr view 98` → `MERGED`, `task/product-reviews-customer` vào `feature/ph-03-product-reviews`, merge `b1401b1` (12/11). Trên `431a706`: `npx vitest run --project http test/reviews.http.spec.ts test/reviews-public.http.spec.ts` (apps/api) → 2 tệp, 22 bài qua; `npm run check` → exit 0.
+
+### Kết quả mong đợi → thực tế
+Mong đợi: Tài duyệt PR này vào `develop`; Issue #96, #97 đóng theo PR này; `feature/ph-03-product-reviews` không mở PR vào `develop`.
+Thực tế: (điền sau khi Tài duyệt).
+
+### Điều kiện xem lại
+Tài không đồng ý luật nào ở trên thì thêm mục mới cho luật đó.

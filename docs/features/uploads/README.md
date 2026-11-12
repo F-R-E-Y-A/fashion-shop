@@ -1,7 +1,7 @@
 ---
 title: Tải ảnh của người dùng
 updated: 2026-11-12
-status: đề xuất; mã xong trên nhánh, chưa commit, chưa thử Cloudinary thật
+status: đề xuất; đã commit, PR vào develop chờ duyệt, chưa thử Cloudinary thật
 owner: Bảo
 ---
 # Tải ảnh của người dùng

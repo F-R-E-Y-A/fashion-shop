@@ -1,7 +1,7 @@
 ---
 title: Hợp đồng module reviews
 updated: 2026-11-12
-status: đề xuất, chưa commit, chờ review
+status: đề xuất, đã commit, PR vào develop chờ review
 owner: Bảo
 ---
 # Phân hệ `reviews` — đánh giá và chấm sao
