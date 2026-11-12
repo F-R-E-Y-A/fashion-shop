@@ -1,12 +1,12 @@
 ---
 title: Môi trường thử — dựng và vận hành
-updated: 2026-11-08
+updated: 2026-11-12
 status: đang dùng
 owner: Bảo
 ---
 # Môi trường thử: dựng và vận hành
 
-**Chức năng:** Dựng môi trường thử Render và Vercel lần đầu, luồng tự triển khai, xem log, quay về bản trước, bốn cái bẫy đã biết.
+**Chức năng:** Dựng Render và Vercel lần đầu, luồng tự triển khai, sao lưu và khôi phục DB, xem log, quay về bản trước, bẫy đã biết.
 
 Máy chủ chạy **Render**, giao diện chạy **Vercel**. Đây là lựa chọn **tạm** để có địa chỉ chạy được ngay trong tuần đầu và bắt đầu đếm số lần triển khai. Kế hoạch chuyển sang **Azure** từ S3, xem [TECH_DEBT.md](../../TECH_DEBT.md) mục ND-07.
 
@@ -77,13 +77,13 @@ Cách dùng: chép **8 bảng catalog** từ CSDL local đã nạp sản phẩm 
    ```
 
    `pg_dump` cảnh báo khoá ngoại vòng ở `categories` (cột cha trỏ cùng bảng). Không sao nếu hàng cha nằm trước hàng con; kiểm bằng truy vấn so `ctid` của con với cha phải trả 0.
-2. **Nạp lên staging** (PowerShell). Lấy **External Database URL** ở Render → `fashion-shop-db` → **Connect**, nhập bằng `Read-Host -MaskInput` để không lưu vào lịch sử lệnh:
+2. **Nạp lên staging** (PowerShell). Lấy **External Database URL** ở Render → `fashion-shop-db` → **Connect**, nhập bằng `Read-Host -MaskInput` để không lưu vào lịch sử lệnh. `-e DBURL` không kèm giá trị: docker lấy giá trị từ biến môi trường của phiên, nên URL không nằm trong dòng lệnh `docker` trên máy. Trong container, URL vẫn là tham số của `psql` tới khi lệnh xong; script ở mục "Sao lưu và khôi phục bằng script" tách URL thành biến `PG*` nên không còn chỗ hở này.
 
    ```powershell
-   $env:STAGING_DB_URL = Read-Host -MaskInput 'External Database URL'
+   $env:DBURL = Read-Host -MaskInput 'External Database URL'
    docker cp ..\work\staging-catalog-<ngay>\catalog.sql fashion-shop-postgres:/tmp/catalog.sql
-   docker exec -e "DBURL=$env:STAGING_DB_URL" fashion-shop-postgres sh -c 'psql "$DBURL" -v ON_ERROR_STOP=1 --single-transaction -f /tmp/catalog.sql'
-   docker exec fashion-shop-postgres rm /tmp/catalog.sql; Remove-Item Env:STAGING_DB_URL
+   docker exec -e DBURL fashion-shop-postgres sh -c 'psql "$DBURL" -v ON_ERROR_STOP=1 --single-transaction -f /tmp/catalog.sql'
+   docker exec fashion-shop-postgres rm /tmp/catalog.sql; Remove-Item Env:DBURL
    ```
 
    Cả tệp chạy trong một transaction: lỗi ở đâu thì không ghi gì. Staging đã có sản phẩm hoặc đơn hàng thì khối `DO` dừng ngay; muốn nạp lại thì người quyết xoá dữ liệu trước, không sửa khối chặn.
@@ -98,14 +98,39 @@ Render triển khai nhánh `develop`, nên CD chỉ kiểm được đầu cuố
 
 Prisma migration trong `apps/api/docker-entrypoint.sh` chỉ tạo và cập nhật cấu trúc DB. `SEED_ON_START=true` chỉ upsert danh mục và bảng tra cứu, **không nạp sản phẩm đã crawl trên máy local**. Muốn staging hiển thị sản phẩm, phải nhập dữ liệu riêng sau khi có DB và kiểm tra quyền sử dụng ảnh; không trỏ staging vào DB local.
 
-Blueprint hiện khai báo PostgreSQL **Free**. Render Free không có backup/PITR và DB hết hạn sau 30 ngày; vì vậy không dùng nó để giữ dữ liệu quan trọng hoặc coi là môi trường liên tục dài hạn. Quyết định gói DB và nơi lưu bản sao ngoài Render phải chốt trước khi nạp dữ liệu không thể tạo lại.
+Blueprint hiện khai báo PostgreSQL 17 gói **Free** ([render.yaml:65-68](../../../render.yaml)). Render Free không có backup/PITR và DB hết hạn sau 30 ngày; vì vậy không dùng nó để giữ dữ liệu quan trọng hoặc coi là môi trường liên tục dài hạn. Quyết định gói DB và nơi lưu bản sao ngoài Render phải chốt trước khi nạp dữ liệu không thể tạo lại.
 
 | Phương án | Cách bảo vệ và khôi phục | Điểm cần lưu ý |
 |---|---|---|
 | DB trả phí trên Render | Render tự sao lưu liên tục với PITR: workspace Hobby khôi phục trong 3 ngày, Pro trở lên 7 ngày. Thử khôi phục sang DB mới trước khi chuyển `DATABASE_URL`. Xuất thêm `pg_dump` ra nơi lưu ngoài Render để giữ lâu. | Có phí; PITR ngắn hạn và không thay thế bản sao lưu ngoài nhà cung cấp. |
 | DB Free cho demo tạm | Chạy `pg_dump -Fc` định kỳ từ máy/runner bên ngoài bằng external DB URL, lưu file mã hóa ở nơi khác, giữ bản theo chính sách và thử `pg_restore` vào DB trống. | Phải tự vận hành lịch chạy, lưu trữ và cảnh báo; không có PITR, có thể mất dữ liệu từ lần dump gần nhất; DB vẫn hết hạn. |
 
-Không đưa database URL hoặc file dump vào Git. Trước migration có rủi ro và trước nhập dữ liệu lớn, tạo backup và thử đọc bằng `pg_restore -l`; định kỳ thử phục hồi vào DB tách biệt. Mục HT-08 trong kế hoạch nhóm mới là việc xây lịch backup, script restore và diễn tập, chưa phải bằng chứng rằng staging đã có backup.
+Không đưa database URL hoặc file dump vào Git. Trước migration có rủi ro và trước nhập dữ liệu lớn, tạo backup và thử đọc bằng `pg_restore -l`; định kỳ thử phục hồi vào DB tách biệt. Mục HT-08 trong kế hoạch nhóm gồm lịch backup, script restore và diễn tập: script và diễn tập trên máy đã có (bên dưới), lịch chạy định kỳ thì chưa. Staging chỉ có bản sao lưu khi Bảo chạy bước 1 với URL thật.
+
+### Sao lưu và khôi phục bằng script
+
+`tools/db/backup-db.ps1` và `tools/db/restore-db.ps1` chỉ hỏi URL rồi gọi hàm trong `tools/db/pg-backup.psm1`. Cần PowerShell 7 (`pwsh`) và Docker Desktop đang chạy: `pg_dump` và `pg_restore` 17 chạy trong image `postgres:17-alpine` đã có trên máy, script không tự tải image. URL nhập qua ô che ký tự (`Read-Host -MaskInput`), không nhận qua tham số, không in, không ghi ra đĩa. Script tách URL thành biến `PG*` và chuyển vào container bằng `-e TÊN`, nên mật khẩu không nằm trong dòng lệnh nào; xong lệnh thì xoá biến. Phần còn hở ghi ở [pg-backup.psm1:88-92](../../../tools/db/pg-backup.psm1#L88). Host ngoài máy mặc định `sslmode=require` ([pg-backup.psm1:56-59](../../../tools/db/pg-backup.psm1#L56)): mã hoá đường truyền nhưng không kiểm chứng chỉ.
+
+1. **Sao lưu.** Ở gốc kho:
+
+   ```powershell
+   ./tools/db/backup-db.ps1          # đổi chỗ lưu: -OutDir <thư mục ngoài kho>
+   ```
+
+   Dán **External Database URL** (Render → `fashion-shop-db` → **Connect**; URL Internal chỉ dùng được bên trong Render). File `staging-db-<yyyyMMdd-HHmmss>.dump` (định dạng custom) nằm ở `../work/backups/staging-db/` cạnh thư mục kho chính, kể cả khi chạy từ worktree; thư mục nằm trong kho bị từ chối. Script ghi ra `.partial`, đọc lại bằng `pg_restore --list`, đọc được mới đổi tên thành `.dump`. Sau đó in kích thước, SHA-256, số mục TOC, số bảng và `SourceRows`, tức số dòng `products`, `product_variants`, `users`, `orders` đếm ngay sau khi dump. Ghi lại tên file, SHA-256 và `SourceRows`.
+2. **Giữ bản sao mã hoá ngoài máy.** File chứa email và mật khẩu đã băm của người dùng: chỉ mang ra khỏi máy ở dạng mã hoá, không gửi qua chat. Nơi lưu, cách mã hoá, thời gian giữ: [TBD — hỏi Bảo].
+3. **Khôi phục vào DB mới trước ngày hết hạn** [TBD — Bảo xem ngày hết hạn trên Render]. DB đích phải trống và chạy PostgreSQL 17 trở lên. Đặt DB đích ở đâu: [TBD — hỏi Bảo: Render trả phí, Render Free mới hay nhà cung cấp khác].
+
+   ```powershell
+   ./tools/db/restore-db.ps1 -DumpFile ..\work\backups\staging-db\staging-db-<ngày-giờ>.dump
+   ```
+
+   Dán URL của DB **đích**. Script đọc lại file, dừng nếu đích dưới PostgreSQL 17 hoặc đã có bảng trong `public`, `staging`, `reporting`, rồi chạy `pg_restore --no-owner --no-acl --single-transaction --exit-on-error` ([pg-backup.psm1:295-304](../../../tools/db/pg-backup.psm1#L295)). User của DB đích thành chủ mọi đối tượng; lỗi ở đâu thì rollback cả lượt, DB đích giữ nguyên.
+4. **Kiểm.** So `TargetRows` script in ra với `SourceRows` ở bước 1. Sau khi API trỏ sang DB mới: `/api/healthz` trả lời, `GET /api/products` có sản phẩm, đăng nhập được bằng một tài khoản cũ.
+
+**Thứ tự khi chuyển hẳn sang DB mới.** Tạm dừng API (Render → dịch vụ → **Suspend**) rồi mới sao lưu lần cuối, để không có ghi mới sau lúc dump. Khôi phục **trước khi** API trỏ vào DB mới: API khởi động là chạy `prisma migrate deploy` rồi seed ([docker-entrypoint.sh:6-13](../../../apps/api/docker-entrypoint.sh)), DB đích có bảng thì script dừng. Khôi phục và kiểm xong mới đổi `DATABASE_URL` của API (Blueprint đang lấy từ `fashion-shop-db`, [render.yaml:35-38](../../../render.yaml)) rồi **Resume**. Đã lỡ thì chạy lại với `-Force`: script bắt gõ lại `<nhãn đầu của host>/<tên DB>` của DB đích, vì DB cũ và mới tạo từ cùng Blueprint đều tên `fashion_shop` ([render.yaml:66](../../../render.yaml)), rồi thêm `--clean --if-exists` để xoá và tạo lại mọi đối tượng có trong file dump trong cùng transaction; đối tượng không có trong dump giữ nguyên. Bảng `_prisma_migrations` đi theo dump, nên `migrate deploy` lần sau không còn migration nào để chạy (suy luận, chưa chạy Prisma trên DB khôi phục).
+
+Diễn tập ngày 12/11 trên máy, không chạm Render. Nguồn là DB dev `fashion_shop` (chỉ đọc); đích là DB tạm `fs_backup_restore_check` thuộc một role **không** phải superuser, mô phỏng user Render sở hữu DB (suy luận). Dump 1,37 MB, 362 mục TOC, 56 bảng. Khôi phục vào DB trống cho `products=90, product_variants=339, users=4, orders=22` và 15 dòng `_prisma_migrations`, khớp nguồn; 200 quan hệ đều thuộc role đích. Lần hai không `-Force` bị chặn; `-Force` khôi phục lại vẫn khớp; sai mật khẩu thì dừng, không để `.partial`, không in mật khẩu. Hai wrapper chạy đầu-cuối với `Read-Host` giả lập; ô che ký tự thật chưa gõ tay. DB và role tạm đã xoá.
 
 ## Xem log và sửa khi hỏng
 
@@ -116,7 +141,7 @@ Không đưa database URL hoặc file dump vào Git. Trước migration có rủ
 | Log triển khai | GitHub → **Actions** → **CD staging** |
 | Quay về bản trước | Render → **Events** → lượt cũ → **Rollback**; Vercel → **Deployments** → lượt cũ → **Promote to Production** |
 
-## Sáu cái bẫy đã biết
+## Bảy cái bẫy đã biết
 
 **Gọi lần đầu rất chậm.** Gói miễn phí của Render cho máy chủ ngủ sau một thời gian không ai dùng, đánh thức mất khoảng một phút. Lúc trình bày thì mở trang trước vài phút. Bước đợi trong `cd-staging.yml` đã cho tới 10 phút vì lý do này.
 
