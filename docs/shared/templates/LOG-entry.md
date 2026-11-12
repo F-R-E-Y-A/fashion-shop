@@ -6,7 +6,7 @@ owner: Bảo
 ---
 # Mẫu một mục trong `LOG.md`
 
-**Chức năng:** Hai khung để chép vào cuối một LOG: mục *thay đổi* (có commit, có số đo) và mục *quyết định* (có phương án, có trạng thái).
+**Chức năng:** Hai khung để chép vào cuối một LOG: mục *thay đổi* (có commit, có số đo) và mục *quyết định* (có phương án, trạng thái, phản biện, bằng chứng).
 
 `docs/LOG.md` nhận quyết định chạm cả nhóm; `docs/features/<x>/LOG.md` nhận quyết định và thay đổi của một feature. Chỉ thêm vào cuối. Mẫu này chép từ cách làm đã chạy ổn ở một dự án khác của Bảo, rút gọn cho ba người.
 
@@ -48,6 +48,17 @@ Bằng chứng: `lệnh` → kết quả. Nợ sinh ra: `ND-NN`. Tài liệu đ�
 
 **Chọn B** vì <…>. Trade-off chấp nhận: <…>.
 
+### Phản biện
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| Câu hỏi phản biện | <ai hỏi, hỏi gì> | |
+| AI gợi ý | <công cụ và bản: gợi ý gì> | giữ · bỏ · sửa |
+| AI sai | <sai gì; mã `H-NN` trong sổ lỗi AI ở kho docs> | <ai bắt, bắt bằng gì> |
+| Người phản biện | <ai, nói gì> | |
+
+**Kết luận:** <một câu>.
+**Bằng chứng:** [<tệp>:<dòng>](https://github.com/F-R-E-Y-A/fashion-shop/blob/<mã-commit>/<đường-dẫn>#L<dòng>) · `lệnh` → kết quả.
+
 ### Kết quả mong đợi → thực tế
 Mong đợi: <lệnh hoặc chỉ số kiểm, khi nào kiểm>.
 Thực tế: <điền sau; ngày · bằng chứng · khớp không>.
@@ -59,3 +70,11 @@ Thực tế: <điền sau; ngày · bằng chứng · khớp không>.
 Số `NNN` là một dãy chung cho mọi LOG: `grep -rhoE "adr-[0-9]{3}" docs | sort | tail -1` rồi cộng một. Hai pull request cùng lấy một số thì người gộp sau đổi số của mình; `npm run docs:lint` báo số trùng.
 
 Trạng thái đi theo thứ tự **đề xuất → đã chốt → thay thế bởi ADR-MMM → huỷ**. Chỉ người đổi trạng thái; agent chỉ viết `đề xuất`. Muốn đổi một quyết định đã chốt thì thêm mục mới, rồi sửa đúng dòng `Trạng thái` của mục cũ thành `thay thế bởi ADR-MMM`.
+
+## Mục Phản biện: ghi gì, không ghi gì
+
+- **Ghi đúng những gì đã xảy ra**, hàng nào không có thì bỏ hàng đó; không bịa cho đủ bảng. Người phản biện có thể là thành viên, giảng viên, hoặc một agent khác.
+- **AI sai** là khi AI khẳng định hay đề xuất một điều mà bằng chứng cho thấy sai. Lỗi đáng rút kinh nghiệm thì cấp mã `H-NN` trong `ai-log/hallucinations.md` ở [kho docs](https://github.com/F-R-E-Y-A/docs), ở đây chỉ nhắc mã.
+- **Bằng chứng là link theo mã commit đã đẩy**, trỏ tới đúng tệp và dòng (`/blob/<mã>/<tệp>#L<dòng>`), bấm vào là thấy. Commit chưa đẩy thì link trả 404: đẩy xong mới điền.
+- **Quyết định cũ đã ghi thì không sửa**: bổ sung phản biện bằng một mục mới ở cuối LOG, nhắc neo `#adr-NNN` của mục cũ.
+- Nhật ký tuần ở kho docs viết lại cho dễ đọc và **dẫn link về mục LOG**, không chép nguyên.
