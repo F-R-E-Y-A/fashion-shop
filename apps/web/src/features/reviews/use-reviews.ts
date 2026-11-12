@@ -162,6 +162,12 @@ export function useSaveReview() {
         client.invalidateQueries({ queryKey: reviewKeys.product(review.product.slug) }),
       ]);
     },
+    // Gui lai sau loi mang ma lan dau da ghi: may chu bao trung. Tai lai de dong do roi danh sach cho.
+    onError: async (error, args) => {
+      if (args.mode === 'create' && requestErrorCode(error) === 'REVIEW_ALREADY_EXISTS') {
+        await client.invalidateQueries({ queryKey: reviewKeys.mine(user?.id ?? '') });
+      }
+    },
   });
 }
 

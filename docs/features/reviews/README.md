@@ -58,5 +58,5 @@ Kiểm thử HTTP dùng kho ảnh giả. **Chưa tải ảnh thật lên Cloudin
 
 - Ảnh mồ côi trên kho ([ND-19](../../TECH_DEBT.md)): worker dọn theo lô trên nhánh ([ADR-056](../uploads/LOG.md#adr-056)), chờ Bảo chốt. Ảnh đã xoá có thể còn trên CDN tới 30 ngày vì Cloudinary tắt `invalidate` mặc định.
 - Câu hỏi về `STAFF` và đổi trả: [use-cases.md](use-cases.md) mục câu hỏi còn treo.
-- Web chưa giữ nội dung khi gửi đánh giá mà không rõ kết quả: lỗi mạng thì báo thử lại, gửi lại mà lần đầu đã ghi thì nhận 409. PR #98 có cách giữ nội dung theo người dùng và dòng đơn, chưa lấy sang.
+- Gửi đánh giá mà không rõ kết quả: lỗi mạng thì hộp giữ nội dung và báo thử lại; gửi lại mà lần đầu đã ghi (409) thì báo đã ghi nhận và tải lại danh sách chờ. Còn thiếu: đóng hộp là mất nội dung đang viết; PR #98 giữ nội dung trong `sessionStorage` theo người dùng và dòng đơn, chưa lấy sang.
 - Luật khác PR #98 (hoàn tiền, hạn 30 ngày, chữ sạch hiện ngay, tên công khai, 1.500 ký tự, gửi trùng): theo bản này, chờ Tài xác nhận ([ADR-058](LOG.md#adr-058)).

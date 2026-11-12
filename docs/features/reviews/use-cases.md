@@ -54,7 +54,7 @@ Là một **khách hàng đã nhận hàng**, tôi muốn **chấm sao, nhận x
 
 ### Tiêu chí chấp nhận
 - **AC1** (thuận) Chỉ dòng đơn đã giao mới đánh giá được; đơn hoàn một phần vẫn viết được, hoàn toàn bộ hoặc đang xét thanh toán (`PAYMENT_REVIEW`) thì 422; danh sách chờ kèm hạn 30 ngày; web: trang đơn mời đánh giá đúng số dòng còn chờ của đơn đó, đơn không còn dòng chờ thì không mời
-- **AC2** (thuận) Chữ sạch không ảnh: hiện ngay, điểm sản phẩm cập nhật; mỗi dòng đơn một đánh giá, gửi hai lần cùng lúc cũng chỉ tạo một; bài đã xoá mềm vẫn giữ chỗ dòng đơn (409)
+- **AC2** (thuận) Chữ sạch không ảnh: hiện ngay, điểm sản phẩm cập nhật; mỗi dòng đơn một đánh giá, gửi hai lần cùng lúc cũng chỉ tạo một; bài đã xoá mềm vẫn giữ chỗ dòng đơn (409); web: gửi lại sau lỗi mạng mà lần đầu đã ghi (409) thì báo đã ghi nhận, sang tab "Đã đánh giá", dòng rời danh sách chờ
 - **AC3** (âm) Dòng đơn của người khác: 404, không lộ dòng đó có tồn tại
 - **AC4** (biên) Quá 30 ngày từ lúc giao: hết hạn, không còn trong danh sách chờ
 - **AC5** (âm) Ảnh: chỉ ảnh trong thư mục của mình, đã tải xong, đúng định dạng; có ảnh thì chờ duyệt; kho ảnh lỗi khi kiểm thì 503 và không tạo đánh giá

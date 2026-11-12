@@ -242,6 +242,58 @@ describe('UC-11.1 khách viết và sửa đánh giá', () => {
     expect(await screen.findByText('Chờ duyệt')).toBeInTheDocument();
   });
 
+  it('UC-11.1/AC2 gửi lại sau lỗi mạng mà lần đầu đã ghi (409): báo đã ghi nhận, sang tab đã đánh giá, dòng rời danh sách chờ', async () => {
+    let posts = 0;
+    request.mockImplementation(async (path: string, options?: { method?: string }) => {
+      if (path === '/reviews/eligible') return posts === 0 ? eligible : eligible.slice(1);
+      if (path === '/reviews' && options?.method === 'POST') {
+        posts += 1;
+        // Lan dau may chu da ghi nhung tra loi mat tren duong; lan hai may chu bao trung.
+        if (posts === 1) throw new TypeError('Failed to fetch');
+        throw new ApiError({
+          statusCode: 409,
+          code: 'REVIEW_ALREADY_EXISTS',
+          message: 'Bạn đã đánh giá sản phẩm này trong đơn hàng.',
+          path: '/reviews',
+          timestamp: '',
+        });
+      }
+      if (path.startsWith('/reviews/mine')) return minePage([mine({ status: 'APPROVED' })]);
+      throw new Error(`Không mong đợi ${path}`);
+    });
+    show('/tai-khoan/danh-gia?don=o1');
+
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Viết đánh giá' }))[0]!);
+    const dialog = screen.getByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('radio', { name: '5 sao, Tuyệt vời' }));
+    const content = within(dialog).getByRole('textbox', { name: /Nhận xét/ });
+    fireEvent.change(content, { target: { value: 'Áo đẹp, vải dày.' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Gửi đánh giá' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Không gửi được đánh giá. Kiểm tra kết nối rồi thử lại.',
+    );
+    expect(content).toHaveValue('Áo đẹp, vải dày.');
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Gửi đánh giá' }));
+    expect(
+      await screen.findByText('Đánh giá cho sản phẩm này đã được ghi nhận từ lần gửi trước.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole('tab', { name: 'Đã đánh giá' })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      ),
+    );
+    expect(await screen.findByText('Đang hiển thị')).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByRole('tab', { name: /^Chờ đánh giá/ })).toHaveTextContent(
+        'Chờ đánh giá (2)',
+      ),
+    );
+    expect(posts).toBe(2);
+  });
+
   it('UC-11.1/AC7 sửa một lần: điền sẵn nội dung cũ; không đổi ảnh thì không gửi trường media', async () => {
     request.mockImplementation(async (path: string, options?: { method?: string }) => {
       if (path === '/reviews/eligible') return [];

@@ -184,6 +184,11 @@ export function MyReviewsPage() {
           setNotice(savedNotice(review));
           go({ tab: 'da-danh-gia' });
         }}
+        onAlreadySaved={() => {
+          setTarget(null);
+          setNotice('Đánh giá cho sản phẩm này đã được ghi nhận từ lần gửi trước.');
+          go({ tab: 'da-danh-gia' });
+        }}
       />
       {removing && (
         <ConfirmDialog

@@ -1,6 +1,6 @@
 import { type ChangeEvent, useEffect, useId, useRef, useState } from 'react';
 
-import { ApiError } from '@/core';
+import { ApiError, requestErrorCode } from '@/core';
 import { ConfirmDialog } from '@/ui';
 
 import {
@@ -70,24 +70,37 @@ export function ReviewFormDialog({
   target,
   onClose,
   onSaved,
+  onAlreadySaved,
 }: {
   target: ReviewTarget | null;
   onClose(): void;
   onSaved(review: MyReview): void;
+  /** Gui moi ma may chu bao dong don da co danh gia: lan gui truoc da ghi, chi mat tra loi. */
+  onAlreadySaved(): void;
 }) {
   if (!target) return null;
   const key = target.mode === 'create' ? target.item.orderItemId : target.review.id;
-  return <ReviewForm key={key} target={target} onClose={onClose} onSaved={onSaved} />;
+  return (
+    <ReviewForm
+      key={key}
+      target={target}
+      onClose={onClose}
+      onSaved={onSaved}
+      onAlreadySaved={onAlreadySaved}
+    />
+  );
 }
 
 function ReviewForm({
   target,
   onClose,
   onSaved,
+  onAlreadySaved,
 }: {
   target: ReviewTarget;
   onClose(): void;
   onSaved(review: MyReview): void;
+  onAlreadySaved(): void;
 }) {
   const formId = useId();
   const save = useSaveReview();
@@ -203,7 +216,14 @@ function ReviewForm({
             // Khong doi anh thi khong gui media: giu ca anh nap tay (khong co khoa).
             input: photosChanged ? { ...fields, media } : fields,
           };
-    save.mutate(args, { onSuccess: onSaved });
+    save.mutate(args, {
+      onSuccess: onSaved,
+      onError: (error) => {
+        if (args.mode === 'create' && requestErrorCode(error) === 'REVIEW_ALREADY_EXISTS') {
+          onAlreadySaved();
+        }
+      },
+    });
   };
 
   return (
