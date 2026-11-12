@@ -15,7 +15,7 @@ Import qua `index.ts`. OrdersService chỉ ghi Order/OrderItem/OrderStatusHistor
 - `adminList({ statuses?, attention?, q?, page, pageSize })`: mọi khách, cho màn quản trị; `attention` là `PAYMENT_REVIEW`, lệnh hoàn `RECEIVED` hoặc đơn hủy có payment `SUCCEEDED` ([ADR-038](../../../../../docs/LOG.md#adr-038)).
 - Snapshot `get` kèm các dòng `REFUND*` của payment để Checkout tính sổ hoàn không cần query thêm.
 - `byKey(key, tx)`: idempotency cho Checkout đã giữ khoá Cart.
-- `pending(userId, tx?)`: đơn chờ trả tiền còn hạn của chủ. Checkout dùng để giữ luật một đơn giữ hàng mỗi khách ([ADR-029](../../../../../docs/LOG.md#adr-029)).
+- `pending(userId, tx?)`: đơn chờ trả tiền còn hạn của chủ. Checkout dùng để giữ luật một đơn giữ hàng mỗi khách ([ADR-034](../../../../../docs/LOG.md#adr-034)).
 - `lock(id, tx)`: advisory lock của đơn; lấy sau khoá Cart, trước khoá Inventory.
 - `create(input, tx)`, `transition(id, status, tx, actor?)`: chỉ orchestrator gọi trong transaction chung. Mã đơn `FR` + `yymmdd` giờ Việt Nam + 8 ký tự base32 Crockford, 16 ký tự để khách đọc qua điện thoại; cột unique chặn trùng ([newOrderCode](orders.service.ts#L16)). Đơn tạo trước đổi này giữ mã 34 ký tự cũ.
 - `transition` chỉ đi theo bảng `ORDER_TRANSITIONS` ([orders.service.ts](orders.service.ts)): update có điều kiện trạng thái nguồn, sai bước thì 409 và không ghi lịch sử. Tiền về bất thường ở mọi trạng thái đều vào được `PAYMENT_REVIEW`, nên settlement không bị chặn.
@@ -25,4 +25,4 @@ Import qua `index.ts`. OrdersService chỉ ghi Order/OrderItem/OrderStatusHistor
   - `deliveredItems(userId, statuses, deliveredSince, excludeIds)`: dòng đơn có lần giao từ `deliveredSince`, trừ dòng đã đánh giá; tối đa 100, mới nhất trước ([orders.service.ts:255](orders.service.ts#L255)).
   - `purchasedItems(ids)`: bản chụp nhiều dòng một lượt, cho danh sách đánh giá.
 
-Không import Payments ngược vào Orders. Snapshot tiền dùng Decimal/string. [ADR-027](../../../../../docs/LOG.md#adr-027).
+Không import Payments ngược vào Orders. Snapshot tiền dùng Decimal/string. [ADR-032](../../../../../docs/LOG.md#adr-032).
