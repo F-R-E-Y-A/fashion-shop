@@ -30,6 +30,26 @@ export interface AdminOrderQuery {
   page: number;
   pageSize: number;
 }
+
+export interface OrderReviewEligibilityItem {
+  orderItemId: string;
+  productVariantId: string;
+  productId: string;
+}
+
+export interface OrderReviewEligibility {
+  orderId: string;
+  hasDeliveredHistory: boolean;
+  items: OrderReviewEligibilityItem[];
+}
+
+export interface OrderItemReviewEligibility {
+  orderId: string;
+  orderItemId: string;
+  productVariantId: string;
+  productId: string;
+  hasDeliveredHistory: boolean;
+}
 const CODE_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 
 /**
@@ -93,6 +113,80 @@ export class OrdersService {
     });
     if (!order) throw new NotFoundException('Không tìm thấy đơn hàng.');
     return order;
+  }
+
+  /**
+   * Helper chi doc cho phan he reviews: lay danh sach dong hang va bang chung giao hang DELIVERED cua dung chu don.
+   * Khong tra payment ledger, thong tin the hoac dia chi khach.
+   */
+  async getReviewEligibility(
+    orderId: string,
+    userId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<OrderReviewEligibility> {
+    const order = await (tx ?? this.prisma).order.findFirst({
+      where: { id: orderId, userId },
+      select: {
+        id: true,
+        statusHistory: { select: { status: true } },
+        items: {
+          select: {
+            id: true,
+            productVariantId: true,
+            productVariant: {
+              select: { productId: true },
+            },
+          },
+          orderBy: { productVariantId: 'asc' },
+        },
+      },
+    });
+    if (!order) throw new NotFoundException('Không tìm thấy đơn hàng.');
+    const hasDeliveredHistory = order.statusHistory.some((h) => h.status === 'DELIVERED');
+    return {
+      orderId: order.id,
+      hasDeliveredHistory,
+      items: order.items.map((item) => ({
+        orderItemId: item.id,
+        productVariantId: item.productVariantId,
+        productId: item.productVariant.productId,
+      })),
+    };
+  }
+
+  /**
+   * Helper chi doc cho phan he reviews: xac thuc dong hang orderItem thuoc don cua dung chu va kiem tra DELIVERED.
+   */
+  async getOrderItemReviewEligibility(
+    orderItemId: string,
+    userId: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<OrderItemReviewEligibility> {
+    const item = await (tx ?? this.prisma).orderItem.findFirst({
+      where: { id: orderItemId, order: { userId } },
+      select: {
+        id: true,
+        orderId: true,
+        productVariantId: true,
+        productVariant: {
+          select: { productId: true },
+        },
+        order: {
+          select: {
+            statusHistory: { select: { status: true } },
+          },
+        },
+      },
+    });
+    if (!item) throw new NotFoundException('Không tìm thấy dòng hàng cần đánh giá.');
+    const hasDeliveredHistory = item.order.statusHistory.some((h) => h.status === 'DELIVERED');
+    return {
+      orderId: item.orderId,
+      orderItemId: item.id,
+      productVariantId: item.productVariantId,
+      productId: item.productVariant.productId,
+      hasDeliveredHistory,
+    };
   }
 
   async lock(id: string, tx: Prisma.TransactionClient) {
