@@ -35,7 +35,9 @@ export interface ReviewWorld {
   /** Don COD cua buyer da giao xong: du dieu kien danh gia. */
   deliveredItem(quantity?: number): Promise<PlacedItem>;
   /** Giao don roi viet danh gia; tra than phan hoi 201. */
-  review(body: Record<string, unknown>): Promise<{ id: string; status: string }>;
+  review(
+    body: Record<string, unknown>,
+  ): Promise<{ id: string; status: string; orderItemId: string }>;
 }
 
 /**
@@ -134,7 +136,7 @@ export async function setupReviewWorld(t: TestApp): Promise<ReviewWorld> {
       .set(buyer.auth)
       .send({ orderItemId, ...body })
       .expect(201);
-    return response.body as { id: string; status: string };
+    return response.body as { id: string; status: string; orderItemId: string };
   };
 
   return {

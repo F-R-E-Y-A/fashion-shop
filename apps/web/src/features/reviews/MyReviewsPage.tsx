@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 
-import { ErrorNote, Loading, Pager } from '@/ui';
+import { ConfirmDialog, ErrorNote, Loading, Pager } from '@/ui';
 
 import { ReviewBody, ShopReply } from './ReviewCard.js';
 import { ReviewFormDialog, type ReviewTarget } from './ReviewFormDialog.js';
@@ -12,7 +12,7 @@ import {
   STATUS_LABELS,
 } from './reviews.api.js';
 import styles from './Reviews.module.css';
-import { useEligibleReviews, useMyReviews } from './use-reviews.js';
+import { useDeleteReview, useEligibleReviews, useMyReviews } from './use-reviews.js';
 
 function ProductLine({ product, detail }: { product: ReviewProduct; detail: string }) {
   return (
@@ -51,6 +51,8 @@ export function MyReviewsPage() {
   const mine = useMyReviews(page, tab === 'done');
   const [target, setTarget] = useState<ReviewTarget | null>(null);
   const [notice, setNotice] = useState('');
+  const [removing, setRemoving] = useState<MyReview | null>(null);
+  const remove = useDeleteReview();
   const pending = (eligible.data ?? []).filter((item) => !orderId || item.orderId === orderId);
   const go = (next: Record<string, string>) => setParams(next);
 
@@ -155,6 +157,9 @@ export function MyReviewsPage() {
                       Sửa (1 lần, trước {formatReviewDate(review.editDeadline)})
                     </button>
                   )}
+                  <button type="button" className={styles.link} onClick={() => setRemoving(review)}>
+                    Xoá
+                  </button>
                 </div>
               </li>
             ))}
@@ -180,6 +185,43 @@ export function MyReviewsPage() {
           go({ tab: 'da-danh-gia' });
         }}
       />
+      {removing && (
+        <ConfirmDialog
+          open
+          title="Xoá đánh giá"
+          subject={removing.product.name}
+          impacts={[
+            'Đánh giá và ảnh gỡ khỏi trang sản phẩm; điểm sản phẩm tính lại.',
+            'Không viết lại được đánh giá cho sản phẩm này của đơn này.',
+          ]}
+          confirmLabel="Xoá đánh giá"
+          pendingLabel="Đang xoá…"
+          tone="danger"
+          pending={remove.isPending}
+          onClose={() => {
+            setRemoving(null);
+            remove.reset();
+          }}
+          onConfirm={() =>
+            remove.mutate(removing, {
+              onSuccess: () => {
+                setRemoving(null);
+                setNotice('Đã xoá đánh giá.');
+                // Xoa bai cuoi cua trang sau cung thi lui mot trang, khong de trang rong.
+                if (page > 1 && mine.data?.items.length === 1) {
+                  go({ tab: 'da-danh-gia', trang: String(page - 1) });
+                }
+              },
+            })
+          }
+        >
+          {remove.isError && (
+            <p className={styles.error} role="alert">
+              Không xoá được đánh giá. Kiểm tra kết nối rồi thử lại.
+            </p>
+          )}
+        </ConfirmDialog>
+      )}
     </div>
   );
 }

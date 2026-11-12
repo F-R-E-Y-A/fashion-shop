@@ -24,7 +24,7 @@ owner: Bảo
 |---|---|---|
 | Orders | `purchasedItem`, `deliveredItems`, `purchasedItems` | Ai được viết, hạn 30 ngày, bản chụp sản phẩm lúc mua |
 | Products | `storefrontProductId`, `updateRatingSummary` | Trang công khai 404 như trang chi tiết; ghi điểm sao |
-| Uploads | `resolveReviewMedia` trước giao dịch; `attach`, `release` trong giao dịch | Kiểm ảnh trên kho (song song) trước khi gắn; lấy phiếu chờ của ảnh mới; ảnh bị thay vào hàng xoá để worker dọn theo lô ([ADR-056](../../../../../docs/features/uploads/LOG.md#adr-056)) |
+| Uploads | `resolveReviewMedia` trước giao dịch; `attach`, `release` trong giao dịch | Kiểm ảnh trên kho (song song) trước khi gắn; lấy phiếu chờ của ảnh mới; ảnh bị thay hoặc của bài bị xoá vào hàng xoá để worker dọn theo lô ([ADR-056](../../../../../docs/features/uploads/LOG.md#adr-056)) |
 | Auth | `AuthGuard`, `RequireRoles(ADMIN)`, `CurrentUser` | Khách, quản trị; `OptionalAuthGuard` cho danh sách công khai |
 
 ## Tệp
@@ -32,7 +32,7 @@ owner: Bảo
 | Tệp | Vai trò |
 |---|---|
 | `review-policy.ts` | Hàm thuần: hạn viết và sửa, luật cần duyệt tay, chuẩn hoá chữ, tên hiển thị, làm tròn điểm. Có `review-policy.spec.ts` |
-| `reviews.service.ts` | Khách: tổng hợp, danh sách, chờ đánh giá, viết, sửa, bình chọn, báo cáo |
+| `reviews.service.ts` | Khách: tổng hợp, danh sách, chờ đánh giá, viết, sửa, xoá, bình chọn, báo cáo |
 | `admin-reviews.service.ts` | Quản trị: hàng đợi, duyệt, ẩn, phản hồi, bỏ báo cáo; ghi `audit_logs` |
 | `review-ratings.service.ts` | Gom điểm từ đánh giá `APPROVED` chưa xoá rồi gọi Products |
 | `review-rows.ts` | `select` của Prisma và hàm đổi dòng sang response; trang công khai không có email hay userId |
@@ -42,6 +42,7 @@ owner: Bảo
 
 - **Thứ tự khoá:** dòng `reviews` trước, dòng `products` sau. Mọi đường ghi điểm theo cùng thứ tự nên không khoá chéo ([admin-reviews.service.ts:23](admin-reviews.service.ts#L23)).
 - **Sửa của khách:** `updateMany` có điều kiện `editCount` cũ, chưa `REJECTED`, chưa xoá. Hai lần sửa đồng thời thì một lần thắng ([reviews.service.ts:321](reviews.service.ts#L321)).
+- **Xoá của khách:** khoá dòng `reviews` bằng `FOR UPDATE` rồi mới đặt `deleted_at` và đọc trạng thái; bài đang hiện thì tính lại điểm sau đó, cùng thứ tự khoá với quản trị ([reviews.service.ts:383](reviews.service.ts#L383)). Xoá mềm giữ `order_item_id` nên viết lại 409 ([ADR-059](../../../../../docs/features/reviews/LOG.md#adr-059)).
 - **Duyệt và ẩn của quản trị:** gửi kèm `editCount` đã thấy; khách sửa sau khi trang quản trị tải thì 409 `REVIEW_CHANGED`, không đổi trạng thái.
 - **Ảnh:** khoá ảnh `UNIQUE`; trùng khoá khi tạo thì phân biệt "đã có đánh giá" với "ảnh đã gắn chỗ khác" bằng cách đọc lại ([reviews.service.ts:276](reviews.service.ts#L276)).
 - **Phiếu hữu ích, báo cáo:** `createMany` với `skipDuplicates`, bấm lại không đếm thêm. Báo cáo chỉ đánh dấu cho quản trị, không tự ẩn.

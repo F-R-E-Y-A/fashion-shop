@@ -292,6 +292,107 @@ describe('UC-11.1 viet va sua danh gia san pham (PostgreSQL)', () => {
     expect(await product()).toMatchObject({ ratingAverage: 5, ratingCount: 1 });
   });
 
+  it('UC-11.1/AC12 khach xoa danh gia dang hien: go khoi trang cong khai va trang cua minh, diem tinh lai; dong don khong viet lai duoc', async () => {
+    const kept = await w.review({ rating: 2, content: 'Giữ lại' });
+    const gone = await w.review({ rating: 5, content: 'Sẽ xoá' });
+    expect(await product()).toMatchObject({ ratingAverage: 3.5, ratingCount: 2 });
+
+    await t.http.delete(`/api/reviews/${gone.id}`).set(w.buyer.auth).expect(204);
+
+    expect(await product()).toMatchObject({ ratingAverage: 2, ratingCount: 1 });
+    const ids = (body: { items: { id: string }[] }) => body.items.map((item) => item.id);
+    const mine = await t.http.get('/api/reviews/mine').set(w.buyer.auth).expect(200);
+    expect(ids(mine.body)).toEqual([kept.id]);
+    const list = await t.http.get(`/api/products/${w.productSlug}/reviews`).expect(200);
+    expect(ids(list.body)).toEqual([kept.id]);
+    // Xoa mem giu cho dong don: khong vao lai danh sach cho, viet lai 409, sua 404.
+    expect(await eligible(w.buyer)).toEqual([]);
+    const again = await post(w.buyer, { orderItemId: gone.orderItemId, rating: 1 }).expect(409);
+    expect(again.body.code).toBe('REVIEW_ALREADY_EXISTS');
+    await t.http.patch(`/api/reviews/${gone.id}`).set(w.buyer.auth).send({ rating: 1 }).expect(404);
+  });
+
+  it('UC-11.1/AC12 xoa bai co anh dang cho duyet: roi hang cho quan tri, anh vao hang xoa, diem khong doi', async () => {
+    const photo = await uploadPhoto(t, storage, w.buyer);
+    const { orderItemId } = await w.deliveredItem();
+    const created = (
+      await post(w.buyer, {
+        orderItemId,
+        rating: 1,
+        content: 'Có ảnh',
+        media: [{ key: photo }],
+      }).expect(201)
+    ).body;
+    expect(created.status).toBe('PENDING');
+    const queue = async () =>
+      (await t.http.get('/api/admin/reviews').set(w.admin.auth).expect(200)).body.items.map(
+        (item: { id: string }) => item.id,
+      );
+    expect(await queue()).toEqual([created.id]);
+
+    await t.http.delete(`/api/reviews/${created.id}`).set(w.buyer.auth).expect(204);
+
+    expect(await queue()).toEqual([]);
+    expect(await product()).toMatchObject({ ratingAverage: 0, ratingCount: 0 });
+    expect(await t.prisma.reviewMedia.count({ where: { reviewId: created.id } })).toBe(0);
+    // Anh vao hang xoa cung giao dich xoa danh gia; worker xoa tren kho o luot sau.
+    expect(storage.removed).toEqual([]);
+    expect(
+      await t.prisma.mediaUpload.findMany({ select: { storageKey: true, status: true } }),
+    ).toEqual([{ storageKey: photo, status: 'DISCARDED' }]);
+    await t.app.get(MediaCleanupService).sweep();
+    expect(storage.removed).toEqual([photo]);
+  });
+
+  it('UC-11.1/AC12 xoa dung luc quan tri duyet: diem san pham cuoi cung khong tinh bai da xoa', async () => {
+    const photo = await uploadPhoto(t, storage, w.buyer);
+    const { orderItemId } = await w.deliveredItem();
+    const created = (
+      await post(w.buyer, { orderItemId, rating: 5, media: [{ key: photo }] }).expect(201)
+    ).body;
+    const [removed, approved] = await Promise.all([
+      t.http.delete(`/api/reviews/${created.id}`).set(w.buyer.auth),
+      t.http
+        .post(`/api/admin/reviews/${created.id}/approve`)
+        .set(w.admin.auth)
+        .send({ editCount: 0 }),
+    ]);
+    expect(removed.status).toBe(204);
+    // Duyet truoc thi lenh xoa doi khoa roi tinh lai diem; xoa truoc thi duyet nhan 404.
+    expect([200, 404]).toContain(approved.status);
+    expect(await product()).toMatchObject({ ratingAverage: 0, ratingCount: 0 });
+  });
+
+  it('UC-11.1/AC12 bai da bi an van xoa duoc; diem khong doi vi bai an khong tinh', async () => {
+    const shown = await w.review({ rating: 4, content: 'Đang hiện' });
+    const hidden = await w.review({ rating: 1, content: 'Sẽ bị ẩn' });
+    await t.http
+      .post(`/api/admin/reviews/${hidden.id}/reject`)
+      .set(w.admin.auth)
+      .send({ note: 'Không liên quan sản phẩm', editCount: 0 })
+      .expect(200);
+    expect(await product()).toMatchObject({ ratingAverage: 4, ratingCount: 1 });
+
+    await t.http.delete(`/api/reviews/${hidden.id}`).set(w.buyer.auth).expect(204);
+
+    expect(await product()).toMatchObject({ ratingAverage: 4, ratingCount: 1 });
+    const mine = await t.http.get('/api/reviews/mine').set(w.buyer.auth).expect(200);
+    expect(mine.body.items.map((item: { id: string }) => item.id)).toEqual([shown.id]);
+  });
+
+  it('UC-11.1/AC13 xoa bai cua nguoi khac hay bai da xoa: 404, khong lo bai co ton tai; chua dang nhap 401; ma sai 400', async () => {
+    const review = await w.review({ rating: 4, content: 'Của tôi' });
+    const foreign = await t.http.delete(`/api/reviews/${review.id}`).set(w.other.auth).expect(404);
+    expect(foreign.body.code).toBe('REVIEW_NOT_FOUND');
+    await t.http.delete(`/api/reviews/${review.id}`).expect(401);
+    await t.http.delete('/api/reviews/khong-phai-uuid').set(w.buyer.auth).expect(400);
+    expect(await product()).toMatchObject({ ratingAverage: 4, ratingCount: 1 });
+
+    await t.http.delete(`/api/reviews/${review.id}`).set(w.buyer.auth).expect(204);
+    const twice = await t.http.delete(`/api/reviews/${review.id}`).set(w.buyer.auth).expect(404);
+    expect(twice.body.code).toBe('REVIEW_NOT_FOUND');
+  });
+
   it('UC-11.1/AC8 an danh che ten; trang cong khai khong bao gio co email hay userId', async () => {
     const anonymous = await w.review({ rating: 5, content: 'Ổn', isAnonymous: true });
     const mine = await t.http.get('/api/reviews/mine').set(w.buyer.auth).expect(200);

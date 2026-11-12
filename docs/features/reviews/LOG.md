@@ -90,3 +90,42 @@ Thực tế: (điền sau khi Tài duyệt).
 
 ### Điều kiện xem lại
 Tài không đồng ý luật nào ở trên thì thêm mục mới cho luật đó.
+
+<a id="adr-059"></a>
+## 2026-11-12 · ADR-059 — Khách xoá được đánh giá của mình lúc nào cũng được; xoá mềm, dòng đơn không viết lại được, ảnh vào hàng xoá
+
+**Loại:** quyết định · **Phạm vi:** module `reviews` (`DELETE /api/reviews/:id`), web `features/reviews` (tab "Đã đánh giá") · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- Kế hoạch tuần ở kho docs ghi "Viết, sửa, xóa đánh giá"; tới `06ef9d7` khách chưa xoá được: `reviews.controller.ts` chỉ có `DELETE :id/helpful`.
+- Cột `reviews.deleted_at` có sẵn và mọi truy vấn đọc đã lọc `deletedAt: null` ([reviews.service.ts:66](../../../apps/api/src/modules/reviews/reviews.service.ts#L66)). Bài xoá mềm vẫn giữ `order_item_id` unique nên viết lại 409 (bài `UC-11.1/AC2` ở `431a706`).
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Không cho xoá | Đơn giản; đánh giá xấu không bị rút | Trái kế hoạch tuần; khách không gỡ được chữ và ảnh của chính mình | Dễ |
+| B. Xoá cứng, cho viết lại | Khách viết lại từ đầu | Lách được luật sửa một lần và kiểm duyệt: bài bị ẩn thì xoá rồi viết lại; mất dấu vết khi có tranh chấp | Khó: dữ liệu đã mất |
+| **C. Xoá mềm lúc nào cũng được, dòng đơn giữ chỗ (409), ảnh vào hàng xoá (chọn)** | Khách gỡ được chữ và ảnh; không lách được luật; CSDL còn dấu vết | Xoá nhầm thì không viết lại được dòng đơn đó | Dễ: muốn cho viết lại thì đổi điều kiện kiểm trùng |
+| Không làm gì | Không tốn công | Thiếu phần "xóa" của kế hoạch tuần | — |
+
+**Chọn C** vì giữ được quyền của khách với nội dung của mình mà không mở đường lách BR5 (sửa một lần) và BR4 (kiểm duyệt). Trade-off chấp nhận: khách xoá nhầm mất quyền đánh giá dòng đơn đó, hộp xác nhận ghi rõ điều này; ảnh đã xoá có thể còn trên CDN tới 30 ngày như ảnh bị thay khi sửa ([ADR-056](../uploads/LOG.md#adr-056)).
+
+Các luật đi kèm:
+- Khoá dòng `reviews` bằng `FOR UPDATE` trước khi đặt `deleted_at` và đọc trạng thái, rồi mới tính lại điểm (khoá `products` sau), cùng thứ tự với quản trị duyệt hay ẩn ([ADR-054](#adr-054)). Xoá đúng lúc quản trị duyệt thì điểm cuối cùng không tính bài đã xoá ([reviews.service.ts:383](../../../apps/api/src/modules/reviews/reviews.service.ts#L383)).
+- Bài của người khác hay đã xoá: 404 `REVIEW_NOT_FOUND`. Web coi 404 khi xoá là đã xong (xoá ở tab khác) và tải lại danh sách.
+- Phiếu hữu ích, báo cáo của bài đã xoá giữ trong CSDL; bài không còn hiện ở trang công khai, trang của khách hay hàng chờ quản trị.
+
+### Phản biện
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| Câu hỏi phản biện | Claude Code tự hỏi: khách xoá nhầm thì sao, có nên cho viết lại? | giữ C: cho viết lại là mở lại đường lách kiểm duyệt; hộp xác nhận ghi "Không viết lại được đánh giá cho sản phẩm này của đơn này." |
+
+**Kết luận:** Chọn C, chờ Bảo chốt.
+**Bằng chứng:** `npx vitest run --project http test/reviews.http.spec.ts` (apps/api) → 1 tệp, 19 bài qua, gồm 5 bài `UC-11.1/AC12`, `AC13` (xoá bài đang hiện, bài có ảnh chờ duyệt, bài đã ẩn, xoá đúng lúc quản trị duyệt, 404/401/400). `npx vitest run src/features/reviews` (apps/web) → 3 tệp, 21 bài qua.
+
+### Kết quả mong đợi → thực tế
+Mong đợi: sau khi gộp, khách xoá được trên staging; điểm sản phẩm và trang công khai đổi ngay; ảnh của bài đã xoá biến khỏi kho sau một lượt worker.
+Thực tế: (điền sau khi gộp và chạy thử trên staging).
+
+### Điều kiện xem lại
+Khách phàn nàn xoá nhầm nhiều lần; có tranh chấp cần khôi phục bài đã xoá; có đổi trả (`returns`) chạy thật.

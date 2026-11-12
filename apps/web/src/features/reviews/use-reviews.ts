@@ -6,6 +6,7 @@ import {
   apiRequest,
   type ApiRequestOptions,
   postExternalForm,
+  requestErrorCode,
   shouldRetryRequest,
 } from '@/core';
 import { useAuth, useOptionalAuth } from '@/features/account';
@@ -156,6 +157,31 @@ export function useSaveReview() {
             body: args.input,
           }),
     onSuccess: async (review) => {
+      await Promise.all([
+        client.invalidateQueries({ queryKey: reviewKeys.mine(user?.id ?? '') }),
+        client.invalidateQueries({ queryKey: reviewKeys.product(review.product.slug) }),
+      ]);
+    },
+  });
+}
+
+/**
+ * Xoa danh gia cua minh. Da xoa o tab khac hay lan bam truoc (404) thi voi khach la xong roi: coi
+ * nhu thanh cong va tai lai danh sach. Xong thi lam moi "cua toi" (gom danh sach cho) va cache cong
+ * khai cua san pham do.
+ */
+export function useDeleteReview() {
+  const { user, authenticatedRequest } = useAuth();
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (review: Pick<MyReview, 'id' | 'product'>) => {
+      try {
+        await authenticatedRequest<void>(`/reviews/${review.id}`, { method: 'DELETE' });
+      } catch (error) {
+        if (requestErrorCode(error) !== 'REVIEW_NOT_FOUND') throw error;
+      }
+    },
+    onSuccess: async (_result, review) => {
       await Promise.all([
         client.invalidateQueries({ queryKey: reviewKeys.mine(user?.id ?? '') }),
         client.invalidateQueries({ queryKey: reviewKeys.product(review.product.slug) }),

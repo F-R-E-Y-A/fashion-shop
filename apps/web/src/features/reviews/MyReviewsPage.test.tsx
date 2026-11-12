@@ -4,6 +4,8 @@ import type { ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ApiError } from '@/core';
+
 import { MyReviewsPage } from './MyReviewsPage.js';
 import { ReviewOrderPrompt } from './ReviewOrderPrompt.js';
 import type { MyReview, ReviewableItem } from './reviews.api.js';
@@ -283,5 +285,68 @@ describe('UC-11.1 khách viết và sửa đánh giá', () => {
     expect(await screen.findByText('Lý do ẩn: Có số điện thoại.')).toBeInTheDocument();
     expect(screen.getByText('Đã ẩn')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Sửa/ })).not.toBeInTheDocument();
+  });
+
+  it('UC-11.1/AC12 xoá: hỏi lại kèm hậu quả, gửi DELETE, báo đã xoá và tải lại danh sách', async () => {
+    let deleted = false;
+    request.mockImplementation(async (path: string, options?: { method?: string }) => {
+      if (path === '/reviews/eligible') return [];
+      if (path.startsWith('/reviews/mine')) {
+        return minePage(deleted ? [] : [mine({ status: 'APPROVED' })]);
+      }
+      if (path === '/reviews/r1' && options?.method === 'DELETE') {
+        deleted = true;
+        return undefined;
+      }
+      throw new Error(`Không mong đợi ${path}`);
+    });
+    show('/tai-khoan/danh-gia?tab=da-danh-gia');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Xoá' }));
+    const dialog = screen.getByRole('dialog', { name: 'Xoá đánh giá' });
+    expect(dialog).toHaveTextContent('Không viết lại được đánh giá cho sản phẩm này của đơn này.');
+    expect(sent('DELETE', '/reviews/r1')).toHaveLength(0);
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Xoá đánh giá' }));
+
+    await waitFor(() => expect(sent('DELETE', '/reviews/r1')).toHaveLength(1));
+    expect(await screen.findByText('Đã xoá đánh giá.')).toBeInTheDocument();
+    expect(await screen.findByText('Bạn chưa viết đánh giá nào.')).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('UC-11.1/AC12 xoá lỗi mạng thì báo trong hộp, giữ bài; đã xoá ở tab khác (404) thì coi như xong', async () => {
+    let attempts = 0;
+    request.mockImplementation(async (path: string, options?: { method?: string }) => {
+      if (path === '/reviews/eligible') return [];
+      if (path.startsWith('/reviews/mine')) {
+        return minePage(attempts < 2 ? [mine({ status: 'APPROVED' })] : []);
+      }
+      if (path === '/reviews/r1' && options?.method === 'DELETE') {
+        attempts += 1;
+        if (attempts === 1) throw new TypeError('Failed to fetch');
+        throw new ApiError({
+          statusCode: 404,
+          code: 'REVIEW_NOT_FOUND',
+          message: 'Không tìm thấy đánh giá.',
+          path: '/reviews/r1',
+          timestamp: '',
+        });
+      }
+      throw new Error(`Không mong đợi ${path}`);
+    });
+    show('/tai-khoan/danh-gia?tab=da-danh-gia');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Xoá' }));
+    const dialog = screen.getByRole('dialog', { name: 'Xoá đánh giá' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Xoá đánh giá' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent(
+      'Không xoá được đánh giá. Kiểm tra kết nối rồi thử lại.',
+    );
+    expect(screen.getByText('Áo đẹp, vải dày.')).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Xoá đánh giá' }));
+    expect(await screen.findByText('Đã xoá đánh giá.')).toBeInTheDocument();
+    expect(await screen.findByText('Bạn chưa viết đánh giá nào.')).toBeInTheDocument();
+    expect(attempts).toBe(2);
   });
 });

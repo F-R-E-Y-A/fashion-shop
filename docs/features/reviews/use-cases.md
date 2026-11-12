@@ -14,7 +14,7 @@ owner: Bảo
 | **Người sở hữu mã** | Bảo, module `reviews` (đọc `orders`, ghi điểm qua `products`, ảnh qua `uploads`) |
 | **Tác nhân** | Khách vãng lai, Khách hàng (đã đăng nhập), Quản trị viên (`ADMIN`) |
 | **Dữ liệu** | `reviews`, `review_media`, `review_helpful_votes`, `review_reports`; hai cột điểm trên `products` |
-| **Quyết định** | [ADR-054](LOG.md#adr-054) luật đánh giá, [ADR-055](../uploads/LOG.md#adr-055) kho ảnh |
+| **Quyết định** | [ADR-054](LOG.md#adr-054) luật đánh giá, [ADR-055](../uploads/LOG.md#adr-055) kho ảnh, [ADR-059](LOG.md#adr-059) khách xoá đánh giá |
 
 Cách đọc: mỗi AC mang loại `thuận`, `âm` hoặc `biên` ([LOG#adr-047](../../LOG.md#adr-047)). AC có chữ "web" kiểm ở `apps/web/src/features/reviews/*.test.tsx`, còn lại kiểm ở `apps/api/test/*reviews*.http.spec.ts`. Ma trận bài nào kiểm AC nào: `npm run evidence:trace -- --uc UC-11`.
 
@@ -30,12 +30,14 @@ Là một **khách hàng đã nhận hàng**, tôi muốn **chấm sao, nhận x
 3. Mỗi ảnh: web xin phiếu, tải thẳng lên kho ảnh, nhận khoá ảnh ([ADR-055](../uploads/LOG.md#adr-055)).
 4. Khách gửi. Máy chủ kiểm quyền, kiểm từng ảnh trên kho, quyết định hiện ngay hay chờ duyệt (BR4), tính lại điểm sản phẩm nếu hiện ngay.
 5. Web báo kết quả và chuyển sang tab "Đã đánh giá".
+6. Ở tab "Đã đánh giá", khách sửa được một lần (BR5) hoặc xoá (BR9).
 
 ### Luồng phụ và ngoại lệ
 - **E1** Dòng đơn của người khác hoặc không có: 404 như không tồn tại.
 - **E2** Đơn chưa giao, đã hoàn toàn bộ hoặc đã hủy: 422 `REVIEW_NOT_ALLOWED`. Quá hạn: 422 `REVIEW_WINDOW_CLOSED`.
 - **E3** Đã đánh giá dòng này: 409 `REVIEW_ALREADY_EXISTS`.
 - **E4** Ảnh không thuộc thư mục của mình, chưa tải xong, sai định dạng hay quá 5 MB, gửi trùng: 422 `INVALID_MEDIA`. Kho ảnh lỗi: 503 `UPLOADS_UNAVAILABLE`. Máy chủ chưa bật kho ảnh: web ẩn ô chọn ảnh.
+- **E5** Xoá đánh giá của người khác hoặc đã xoá: 404 `REVIEW_NOT_FOUND`. Web coi 404 khi xoá là đã xong (xoá ở tab khác) và tải lại danh sách.
 
 ### Quy tắc nghiệp vụ
 | Mã | Quy tắc |
@@ -48,6 +50,7 @@ Là một **khách hàng đã nhận hàng**, tôi muốn **chấm sao, nhận x
 | BR6 | Điểm sản phẩm chỉ tính đánh giá đang hiện, chưa xoá; trung bình làm tròn 2 chữ số |
 | BR7 | Ẩn tên: hiện chữ cái đầu và cuối, ví dụ `N*****h`. Trang công khai không bao giờ có email hay mã người dùng |
 | BR8 | Ảnh tải lên mà 24 giờ chưa gắn vào đánh giá thì bị xoá khỏi kho; gửi đánh giá kèm ảnh đang bị dọn thì 422, khách tải lại ảnh ([ADR-056](../uploads/LOG.md#adr-056)) |
+| BR9 | Khách xoá đánh giá của mình lúc nào cũng được, kể cả bài chờ duyệt hay đã bị ẩn. Xoá mềm: dòng đơn giữ chỗ nên không viết lại được (409); ảnh vào hàng xoá; bài đang hiện thì điểm tính lại trong cùng giao dịch ([ADR-059](LOG.md#adr-059)) |
 
 ### Tiêu chí chấp nhận
 - **AC1** (thuận) Chỉ dòng đơn đã giao mới đánh giá được; đơn hoàn một phần vẫn viết được, hoàn toàn bộ hoặc đang xét thanh toán (`PAYMENT_REVIEW`) thì 422; danh sách chờ kèm hạn 30 ngày; web: trang đơn mời đánh giá đúng số dòng còn chờ của đơn đó, đơn không còn dòng chờ thì không mời
@@ -61,6 +64,8 @@ Là một **khách hàng đã nhận hàng**, tôi muốn **chấm sao, nhận x
 - **AC9** (âm) Dữ liệu sai (sao ngoài 1–5 hoặc số lẻ), kể cả trường lạ (`userId`, `moderationStatus`): 400
 - **AC10** (thuận, web) Form kiểm trước khi gửi: chưa chọn sao, ảnh lỗi, ảnh đang tải; ảnh tải thẳng lên kho bằng phiếu, token của cửa hàng không đi sang kho; gửi xong chuyển sang tab "Đã đánh giá" kèm thông báo
 - **AC11** (biên) Ảnh tải lên quá 24 giờ chưa gắn bị xoá khỏi kho theo lô tối đa 100 ảnh mỗi lệnh; ảnh mới 23 giờ 59 phút và ảnh đã gắn giữ nguyên; hai lượt dọn chồng nhau không xoá trùng; kho lỗi thì thử lại sau hạn thuê; ảnh đang bị dọn không gắn được (422)
+- **AC12** (thuận) Khách xoá đánh giá của mình, kể cả bài chờ duyệt hay đã bị ẩn: gỡ khỏi trang công khai, trang của mình và hàng chờ quản trị; điểm tính lại; ảnh vào hàng xoá; dòng đơn không viết lại được (409), không sửa được (404); xoá đúng lúc quản trị duyệt thì điểm cuối cùng không tính bài đã xoá; web: hỏi lại kèm hậu quả, lỗi mạng thì báo trong hộp và giữ bài, bài đã xoá ở nơi khác (404) thì coi như xong
+- **AC13** (âm) Xoá bài của người khác hoặc bài đã xoá: 404 `REVIEW_NOT_FOUND`, không lộ bài có tồn tại; chưa đăng nhập 401; mã sai 400
 
 ---
 

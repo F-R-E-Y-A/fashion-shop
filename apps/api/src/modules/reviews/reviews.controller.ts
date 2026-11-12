@@ -102,6 +102,17 @@ export class ReviewsController {
     return this.reviews.update(user.id, id, request);
   }
 
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Xoa danh gia cua minh (xoa mem); dong don do khong viet lai duoc, anh vao hang xoa',
+  })
+  @ApiNoContentResponse({ description: 'Da xoa' })
+  @ApiNotFoundResponse({ description: 'REVIEW_NOT_FOUND: khong phai cua minh hoac da xoa' })
+  remove(@CurrentUser() user: CurrentUserType, @Param() { id }: ReviewIdParam): Promise<void> {
+    return this.reviews.remove(user.id, id);
+  }
+
   @Post(':id/helpful')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Bam huu ich; bam lai khong cong them' })

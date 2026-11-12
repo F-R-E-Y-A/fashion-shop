@@ -375,6 +375,38 @@ export class ReviewsService {
     return toMyReview(row, item ?? undefined, now);
   }
 
+  /**
+   * Khach xoa danh gia cua minh luc nao cung duoc, ke ca bai cho duyet hay da bi an (ADR-059). Xoa
+   * mem de giu cho dong don: viet lai thi 409, nen khong lach duoc luat sua mot lan hay kiem duyet.
+   * Anh vao hang xoa; bai dang hien thi diem san pham tinh lai trong cung giao dich.
+   */
+  async remove(userId: string, reviewId: string): Promise<void> {
+    await this.prisma.$transaction(async (transaction) => {
+      // Khoa dong reviews truoc dong products (thu tu cua ADR-054): quan tri dang duyet hay an cung
+      // bai thi mot ben doi ben kia, va trang thai doc duoi khoa la trang thai cuoi cung.
+      const locked = await transaction.$queryRaw<{ id: string }[]>`
+        SELECT id FROM public.reviews
+        WHERE id = ${reviewId}::uuid AND user_id = ${userId}::uuid AND deleted_at IS NULL
+        FOR UPDATE`;
+      if (locked.length === 0) throw reviewNotFound();
+      const removed = await transaction.review.update({
+        where: { id: reviewId },
+        data: { deletedAt: new Date() },
+        select: {
+          productId: true,
+          moderationStatus: true,
+          media: { select: { storageKey: true } },
+        },
+      });
+      const keys = removed.media.flatMap((media) => (media.storageKey ? [media.storageKey] : []));
+      await this.uploads.release(userId, keys, transaction);
+      await transaction.reviewMedia.deleteMany({ where: { reviewId } });
+      if (removed.moderationStatus === 'APPROVED') {
+        await this.ratings.recompute(removed.productId, transaction);
+      }
+    });
+  }
+
   /** Bam lai khong cong them: INSERT ... ON CONFLICT DO NOTHING roi chi tang dem khi chen duoc. */
   async vote(userId: string, reviewId: string): Promise<HelpfulVoteResponse> {
     return this.prisma.$transaction(async (transaction) => {
