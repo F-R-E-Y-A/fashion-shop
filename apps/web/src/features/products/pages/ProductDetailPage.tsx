@@ -4,6 +4,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 
 import { ApiError, formatPrice, pageTitle } from '@/core';
 import { AddToCartButton } from '@/features/cart';
+import { ProductReviewsSection } from '@/features/reviews';
 import { ErrorNote, SkeletonDetail } from '@/ui';
 
 import { getProductDetail, getRelatedProducts, productKeys } from '../api/index.js';
@@ -283,6 +284,7 @@ export function ProductDetailPage() {
           {data.careInstructions && <p>Bảo quản: {data.careInstructions}</p>}
         </div>
       </article>
+      <ProductReviewsSection slug={data.slug} />
       {related.data && related.data.length > 0 && (
         <section className={styles.related}>
           <SectionHeader title="CÓ THỂ BẠN SẼ THÍCH" to={`/danh-muc/${data.categorySlug}`} />

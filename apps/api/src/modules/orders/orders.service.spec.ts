@@ -80,3 +80,97 @@ describe('buoc chuyen trang thai don', () => {
     expect(create).not.toHaveBeenCalled();
   });
 });
+
+describe('getReviewEligibility & getOrderItemReviewEligibility', () => {
+  it('nem NotFoundException khi don khong ton tai hoac khong thuoc chu', async () => {
+    const prisma = {
+      order: { findFirst: vi.fn().mockResolvedValue(null) },
+    };
+    const service = new OrdersService(prisma as never);
+    await expect(service.getReviewEligibility('order-1', 'user-1')).rejects.toThrow(
+      'Không tìm thấy đơn hàng.',
+    );
+  });
+
+  it('tra dung eligibility va hasDeliveredHistory dua vao statusHistory', async () => {
+    const prisma = {
+      order: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'order-1',
+          statusHistory: [
+            { status: 'CONFIRMED' },
+            { status: 'DELIVERED' },
+            { status: 'PARTIALLY_REFUNDED' },
+          ],
+          items: [
+            {
+              id: 'item-1',
+              productVariantId: 'var-1',
+              productVariant: { productId: 'prod-1' },
+            },
+          ],
+        }),
+      },
+    };
+    const service = new OrdersService(prisma as never);
+    const res = await service.getReviewEligibility('order-1', 'user-1');
+    expect(res.hasDeliveredHistory).toBe(true);
+    expect(res.items).toEqual([
+      {
+        orderItemId: 'item-1',
+        productVariantId: 'var-1',
+        productId: 'prod-1',
+      },
+    ]);
+  });
+
+  it('hasDeliveredHistory la false khi don chua tung DELIVERED', async () => {
+    const prisma = {
+      order: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'order-2',
+          statusHistory: [{ status: 'CONFIRMED' }, { status: 'PROCESSING' }],
+          items: [],
+        }),
+      },
+    };
+    const service = new OrdersService(prisma as never);
+    const res = await service.getReviewEligibility('order-2', 'user-1');
+    expect(res.hasDeliveredHistory).toBe(false);
+  });
+
+  it('getOrderItemReviewEligibility nem NotFoundException khi dong hang khong thuoc chu', async () => {
+    const prisma = {
+      orderItem: { findFirst: vi.fn().mockResolvedValue(null) },
+    };
+    const service = new OrdersService(prisma as never);
+    await expect(service.getOrderItemReviewEligibility('item-x', 'user-1')).rejects.toThrow(
+      'Không tìm thấy dòng hàng cần đánh giá.',
+    );
+  });
+
+  it('getOrderItemReviewEligibility tra thong tin dong hang va DELIVERED', async () => {
+    const prisma = {
+      orderItem: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: 'item-1',
+          orderId: 'order-1',
+          productVariantId: 'var-1',
+          productVariant: { productId: 'prod-1' },
+          order: {
+            statusHistory: [{ status: 'PROCESSING' }, { status: 'DELIVERED' }],
+          },
+        }),
+      },
+    };
+    const service = new OrdersService(prisma as never);
+    const res = await service.getOrderItemReviewEligibility('item-1', 'user-1');
+    expect(res).toEqual({
+      orderId: 'order-1',
+      orderItemId: 'item-1',
+      productVariantId: 'var-1',
+      productId: 'prod-1',
+      hasDeliveredHistory: true,
+    });
+  });
+});

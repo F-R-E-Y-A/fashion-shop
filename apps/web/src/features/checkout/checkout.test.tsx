@@ -545,4 +545,59 @@ describe('PH-11 checkout UI', () => {
     expect(await screen.findByText(/Địa chỉ này chưa có biểu phí giao hàng./)).toBeInTheDocument();
     expect(screen.queryByText('Chưa chọn sản phẩm để thanh toán')).not.toBeInTheDocument();
   });
+  it('Issue #96: trang đơn: lỗi tải context review hiện thông báo và nút thử lại, bấm thử lại thì tải thành công', async () => {
+    const deliveredOrder = {
+      ...order('DELIVERED'),
+      items: [
+        {
+          id: 'item-1',
+          variantId: 'v1',
+          price: '200000',
+          quantity: 1,
+          snapshot: { name: 'Áo thử', variantLabel: 'Đen / M', productSlug: 'ao-thu' },
+        },
+      ],
+    };
+
+    request.mockImplementation((path: string) => {
+      if (path === '/orders/o1') return Promise.resolve(deliveredOrder);
+      if (path === '/orders/o1/reviews') {
+        return Promise.reject(new Error('Lỗi mạng khi tải context'));
+      }
+      return Promise.resolve({});
+    });
+
+    show('/don-hang/o1');
+
+    expect(await screen.findByRole('heading', { name: 'Đã giao hàng' })).toBeInTheDocument();
+    expect(await screen.findByText('Lỗi mạng khi tải context')).toBeInTheDocument();
+    const retryBtn = screen.getByRole('button', { name: 'Thử lại' });
+    expect(retryBtn).toBeInTheDocument();
+
+    // Sửa mock cho lần retry tiếp theo
+    request.mockImplementation((path: string) => {
+      if (path === '/orders/o1') return Promise.resolve(deliveredOrder);
+      if (path === '/orders/o1/reviews') {
+        return Promise.resolve({
+          orderId: 'o1',
+          items: [
+            {
+              orderItemId: 'item-1',
+              productVariantId: 'v1',
+              productId: 'p1',
+              eligible: true,
+              reasonCode: null,
+              review: null,
+            },
+          ],
+        });
+      }
+      return Promise.resolve({});
+    });
+
+    fireEvent.click(retryBtn);
+
+    expect(await screen.findByRole('button', { name: 'Viết đánh giá' })).toBeInTheDocument();
+    expect(screen.queryByText('Lỗi mạng khi tải context')).not.toBeInTheDocument();
+  });
 });

@@ -5,6 +5,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { formatDateTime, formatPrice } from '@/core';
 import { useAuth } from '@/features/account';
 import { cartKeys } from '@/features/cart';
+import { getOrderReviewsContext, OrderReviewItem, reviewKeys } from '@/features/reviews';
 import { ConfirmDialog } from '@/ui';
 
 import styles from './Checkout.module.css';
@@ -43,6 +44,16 @@ export function OrderPage() {
     gcTime: 0,
   });
   const order = result.data;
+  const reviewsResult = useQuery({
+    queryKey:
+      order?.id && user?.id ? reviewKeys.orderContext(user.id, order.id) : ['disabled-reviews'],
+    queryFn: ({ signal }) => getOrderReviewsContext(request, order!.id, signal),
+    enabled: Boolean(order?.id && user?.id),
+    gcTime: 0,
+  });
+  const reviewContextMap = new Map(
+    reviewsResult.data?.items.map((item) => [item.productVariantId, item]),
+  );
   useEffect(() => {
     if (order && order.status !== 'PENDING_PAYMENT' && order.checkoutFingerprint)
       forgetCheckout(user!.id, order.checkoutFingerprint);
@@ -272,6 +283,15 @@ export function OrderPage() {
                         <p className={styles.itemMeta}>
                           {item.snapshot.variantLabel} · {formatPrice(item.price)} × {item.quantity}
                         </p>
+                        <OrderReviewItem
+                          key={`${order.id}:${reviewContextMap.get(item.variantId)?.orderItemId ?? item.variantId}`}
+                          orderId={order.id}
+                          itemContext={reviewContextMap.get(item.variantId)}
+                          loading={reviewsResult.isPending}
+                          contextError={reviewsResult.error}
+                          onRetryContext={() => void reviewsResult.refetch()}
+                          onReviewSubmitted={() => void reviewsResult.refetch()}
+                        />
                       </div>
                       <p className={styles.itemTotal}>
                         {formatPrice(String(Number(item.price) * item.quantity))}

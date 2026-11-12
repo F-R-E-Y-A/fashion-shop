@@ -9,6 +9,7 @@ import { CheckoutModule } from './modules/checkout/index.js';
 import { HealthModule } from './modules/health/index.js';
 import { ProductsModule } from './modules/products/index.js';
 import { PromotionsModule } from './modules/promotions/index.js';
+import { ReviewsModule } from './modules/reviews/index.js';
 import { UsersModule } from './modules/users/index.js';
 
 /**
@@ -35,6 +36,7 @@ import { UsersModule } from './modules/users/index.js';
     CheckoutModule,
     ProductsModule,
     PromotionsModule,
+    ReviewsModule,
     UsersModule,
   ],
 })
