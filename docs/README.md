@@ -143,7 +143,7 @@ Chạy cả cụm trên máy như môi trường thật: `npm run prod:up`, mở
 | Câu hỏi | Mở |
 |---|---|
 | Luật viết tài liệu, hệ mã `PH-NN`, `UC-NN.m`, `ADR`, `ND` | [AGENTS.md](../AGENTS.md) |
-| Feature này làm gì, tới đâu, API mới nào | `features/<module>/README.md`: [products](features/products/README.md) · [auth](features/auth/README.md) · [cart](features/cart/README.md) · [users](features/users/README.md) · [inventory](features/inventory/README.md) · [platform](features/platform/README.md) |
+| Feature này làm gì, tới đâu, API mới nào | `features/<module>/README.md`: [products](features/products/README.md) · [auth](features/auth/README.md) · [cart](features/cart/README.md) · [users](features/users/README.md) · [inventory](features/inventory/README.md) · [reviews](features/reviews/README.md) · [uploads](features/uploads/README.md) · [platform](features/platform/README.md) |
 | Nghiệp vụ đúng là gì, tiêu chí chấp nhận | `features/<module>/use-cases.md`; danh mục ở [shared/use-case-index.md](shared/use-case-index.md) |
 | Vì sao làm vậy | [LOG.md](LOG.md) (toàn hệ thống) và `features/<module>/LOG.md` |
 | Đường dẫn API nhận gì, trả gì | Swagger `/api/docs`; quy ước ở [shared/api.md](shared/api.md) |
