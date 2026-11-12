@@ -11,7 +11,7 @@ owner: Bảo
 | Mục | Hiện trạng |
 |---|---|
 | Người sở hữu | Bảo; `apps/api/src/modules/reviews`, `apps/web/src/features/reviews` |
-| Dòng việc | PH-01, nhánh `feature/ph-01-reviews`; PR vào `develop` mở 12/11, chờ Tài duyệt. Cùng phạm vi PR #98 của Tài: bản này làm nền, bài kiểm còn thiếu đã lấy từ PR #98 ([ADR-058](LOG.md#adr-058)) |
+| Dòng việc | PH-01, nhánh `feature/ph-01-reviews`; [PR #107](https://github.com/F-R-E-Y-A/fashion-shop/pull/107) vào `develop` mở 12/11, chờ Tài duyệt. Cùng phạm vi PR #98 của Tài: bản này làm nền, bài kiểm còn thiếu đã lấy từ PR #98 ([ADR-058](LOG.md#adr-058)) |
 | Ca sử dụng | [UC-11.1, UC-11.2, UC-11.3](use-cases.md) (UC-11.3 là mã mới) |
 | Quyết định | [ADR-054](LOG.md#adr-054) luật đánh giá; [ADR-055](../uploads/LOG.md#adr-055) kho ảnh; [ADR-056](../uploads/LOG.md#adr-056) dọn ảnh theo lô, ảnh thu nhỏ; [ADR-058](LOG.md#adr-058) bản này làm nền thay PR #98 |
 | Hợp đồng module | [reviews/README.md](../../../apps/api/src/modules/reviews/README.md), [uploads/README.md](../../../apps/api/src/modules/uploads/README.md) |
@@ -47,7 +47,8 @@ Chưa có, cố ý: video, xu thưởng khi đánh giá, lọc theo phân loại
 | `npx vitest run --project http test/media-cleanup.http.spec.ts test/reviews.http.spec.ts test/reviews-public.http.spec.ts test/admin-reviews.http.spec.ts` (apps/api), trước khi lấy bài từ PR #98 | 4 tệp, 28 bài qua, 145 s |
 | `npx vitest run src/features/reviews` (apps/web) | 3 tệp, 19 bài qua |
 | `npm run test:http -w apps/api` (cả bộ, chạy trước khi thêm UC-11.3/AC7) | 38 tệp, 589 bài qua, 1947 s |
-| `npm run test:e2e -w apps/web` | 18 bài qua |
+| `npm run test:e2e -w apps/web` (trước khi có E2E-08) | 18 bài qua |
+| `npx playwright test e2e/reviews.spec.ts` (apps/web) | E2E-08: 1 bài qua, 1,2 phút. Đặt COD, admin giao; trang đơn mời đánh giá; viết ở 360 px, hiện ngay ở trang sản phẩm (1280 và 360 px, không lộ email); admin ẩn kèm lý do thì trang về trạng thái trống, khách thấy lý do và hết nút sửa |
 | `npm run evidence:trace -- --uc UC-11 --check` (trên `431a706`) | exit 0; 25/25 AC có bài tự động; AC âm và AC biên có ở cả 3 use case |
 
 Kiểm thử HTTP dùng kho ảnh giả. **Chưa tải ảnh thật lên Cloudinary lần nào**: cần Bảo tạo tài khoản, đặt `CLOUDINARY_URL` trên Render rồi thử một đánh giá có ảnh ([TECH_DEBT ND-20](../../TECH_DEBT.md)).
@@ -56,7 +57,6 @@ Kiểm thử HTTP dùng kho ảnh giả. **Chưa tải ảnh thật lên Cloudin
 
 - Ảnh mồ côi trên kho ([ND-19](../../TECH_DEBT.md)): worker dọn theo lô trên nhánh ([ADR-056](../uploads/LOG.md#adr-056)), chờ Bảo chốt. Ảnh đã xoá có thể còn trên CDN tới 30 ngày vì Cloudinary tắt `invalidate` mặc định.
 - Câu hỏi về `STAFF` và đổi trả: [use-cases.md](use-cases.md) mục câu hỏi còn treo.
-- Chưa có bài E2E cho đánh giá; đang viết trên nhánh này.
 - Khách chưa xoá được đánh giá của mình, dù kế hoạch tuần ở kho docs ghi "Viết, sửa, xóa đánh giá"; đang làm trên nhánh này.
 - Web chưa giữ nội dung khi gửi đánh giá mà không rõ kết quả: lỗi mạng thì báo thử lại, gửi lại mà lần đầu đã ghi thì nhận 409. PR #98 có cách giữ nội dung theo người dùng và dòng đơn, chưa lấy sang.
 - Luật khác PR #98 (hoàn tiền, hạn 30 ngày, chữ sạch hiện ngay, tên công khai, 1.500 ký tự, gửi trùng): theo bản này, chờ Tài xác nhận ([ADR-058](LOG.md#adr-058)).
