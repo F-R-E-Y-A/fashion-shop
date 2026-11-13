@@ -184,7 +184,13 @@ describe('UC-13.1 tồn kho web', () => {
       url.pathname === '/api/admin/inventory' ? d.promise : undefined,
     );
     await screen.findByText('Đang tải tồn kho…');
-    const req = t.requests.find((r) => r.url.pathname === '/api/admin/inventory')!;
+    // Chu "dang tai" hien ngay khi query pending, truoc effect cua useQuery goi fetch; khi ca bo
+    // chay song song, findByText co luc tra truoc request. Cho chinh request roi moi dang xuat.
+    const req = await waitFor(() => {
+      const sent = t.requests.find((r) => r.url.pathname === '/api/admin/inventory');
+      expect(sent).toBeDefined();
+      return sent!;
+    });
     await act(async () => t.auth().logout());
     expect(req.init?.signal?.aborted).toBe(true);
     await act(async () => d.resolve(reply(page)));

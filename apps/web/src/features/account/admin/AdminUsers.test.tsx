@@ -123,6 +123,7 @@ describe('UC-02.1 Quản trị tài khoản — cổng ADMIN và đường dẫn
       'Mã giảm giá',
       'Người dùng',
       'Đơn hàng',
+      'Đánh giá',
     ]);
     expect(screen.getByRole('link', { name: 'Tổng quan' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Cửa hàng' })).toHaveAttribute('href', '/');

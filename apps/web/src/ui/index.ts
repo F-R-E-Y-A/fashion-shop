@@ -4,5 +4,6 @@ export { ConfirmDialog } from './ConfirmDialog.js';
 export { Empty, ErrorNote, Loading } from './Feedback.js';
 export { SearchIcon } from './icons.js';
 export { default as layout } from './Layout.module.css';
+export { Lightbox, type LightboxImage } from './Lightbox.js';
 export { Pager } from './Pager.js';
 export { SkeletonDetail, SkeletonGrid } from './Skeleton.js';

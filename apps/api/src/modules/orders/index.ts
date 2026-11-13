@@ -5,3 +5,4 @@ export {
   OrdersReportingReader,
   type TopSellingProductFact,
 } from './orders-reporting.reader.js';
+export type { PurchasedItem } from './purchased-items.js';
