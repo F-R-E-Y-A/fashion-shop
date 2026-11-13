@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useCallback, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 
 import { ApiError } from '@/core';
@@ -9,7 +9,7 @@ import {
   useAdminForbidden,
   useAuth,
 } from '@/features/account';
-import { Loading } from '@/ui';
+import { ActionFeedback, Loading } from '@/ui';
 
 import {
   type AdminPromotionDetail,
@@ -70,8 +70,31 @@ export function AdminPromotionDetailPage() {
   const [initialSyncedId, setInitialSyncedId] = useState<string | null>(null);
 
   // Trạng thái thông báo và submitting
+  const sessionEpoch = getSessionEpoch();
+  const sessionScope = `${actorId}:${sessionEpoch}`;
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [notice, setNotice] = useState<{ text: string; error?: boolean } | null>(null);
+  const [notice, setNoticeState] = useState<{
+    key: number;
+    scope: string;
+    text: string;
+    error?: boolean;
+  } | null>(null);
+  const setNotice = useCallback(
+    (next: { text: string; error?: boolean } | null) => {
+      if (!next) {
+        setNoticeState(null);
+        return;
+      }
+      setNoticeState((prev) => ({
+        ...next,
+        key: (prev?.key ?? 0) + 1,
+        scope: sessionScope,
+      }));
+    },
+    [sessionScope],
+  );
+  const clearNotice = useCallback(() => setNoticeState(null), []);
+  const scopedNotice = notice?.scope === sessionScope ? notice : null;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
 
@@ -423,7 +446,7 @@ export function AdminPromotionDetailPage() {
             <div role="alert" className={`${styles.banner} ${styles.bannerWarning}`}>
               <div className={styles.bannerTitle}>Kết quả chưa được xác nhận</div>
               <div>
-                {notice?.text ??
+                {scopedNotice?.text ??
                   'Chưa rõ kết quả cập nhật do gián đoạn kết nối. Hệ thống đã tạm khóa để tránh gửi trùng lặp.'}
               </div>
               <div className={styles.bannerActions}>
@@ -439,37 +462,29 @@ export function AdminPromotionDetailPage() {
             </div>
           )}
 
-          {notice && !uncertainMarker && (
-            <div
-              role="status"
-              className={`${styles.banner} ${notice.error ? styles.bannerConflict : styles.bannerSuccess}`}
-            >
-              <div className={styles.bannerTitle}>{notice.error ? 'Chú ý' : 'Thành công'}</div>
-              <div>{notice.text}</div>
-              {notice.error && (
-                <div className={styles.bannerActions}>
-                  <button
-                    type="button"
-                    className={`${styles.btn} ${styles.btnSecondary}`}
-                    onClick={handleReload}
-                  >
-                    Tải lại dữ liệu mới nhất
-                  </button>
-                </div>
-              )}
-            </div>
+          {scopedNotice && !uncertainMarker && (
+            <ActionFeedback
+              noticeKey={scopedNotice.key}
+              sessionScope={sessionScope}
+              tone={scopedNotice.error ? 'error' : 'success'}
+              message={scopedNotice.text}
+              onDismiss={clearNotice}
+              action={
+                scopedNotice.error
+                  ? { label: 'Tải lại dữ liệu mới nhất', onClick: handleReload }
+                  : undefined
+              }
+            />
           )}
 
           {statusAction.notice && (
-            <div
-              role="status"
-              className={`${styles.banner} ${statusAction.notice.error ? styles.bannerError : styles.bannerSuccess}`}
-            >
-              <div className={styles.bannerTitle}>
-                {statusAction.notice.error ? 'Lỗi' : 'Thành công'}
-              </div>
-              <div>{statusAction.notice.text}</div>
-            </div>
+            <ActionFeedback
+              noticeKey={statusAction.notice.key}
+              sessionScope={statusAction.sessionScope}
+              tone={statusAction.notice.error ? 'error' : 'success'}
+              message={statusAction.notice.text}
+              onDismiss={statusAction.clearNotice}
+            />
           )}
 
           <form onSubmit={handleSave} noValidate>

@@ -62,6 +62,7 @@ describe('UC-04.2 trang thai products va cache', () => {
     expect(
       await screen.findByRole('button', { name: 'Kiểm tra lại trạng thái' }),
     ).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Đóng thông báo' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Ngừng bán' })).toBeDisabled();
     fireEvent.click(screen.getByRole('button', { name: 'Kiểm tra lại trạng thái' }));
     await screen.findByText(/Đã đối chiếu trạng thái hiện tại/);
@@ -324,13 +325,12 @@ describe('UC-04.2 trang thai products va cache', () => {
       'href',
       path.replace('&page=2', ''),
     );
-    await waitFor(() =>
-      expect(
-        screen
-          .getByText(disabled ? /Đã gỡ ngừng bán thủ công\./ : /Đã ngừng bán thủ công\./)
-          .closest('[tabindex="-1"]'),
-      ).toHaveFocus(),
+    const notice = await screen.findByText(
+      disabled ? /Đã gỡ ngừng bán thủ công\./ : /Đã ngừng bán thủ công\./,
     );
+    expect(notice.closest('[role="status"]')).toBeInTheDocument();
+    expect(notice.closest('[tabindex="-1"]')).not.toHaveFocus();
+    await waitFor(() => expect(screen.getByRole('main')).toHaveFocus());
     expect(
       api.requests.filter((r) => r.method === 'GET' && r.path.startsWith('/api/admin/products')),
     ).toHaveLength(2);

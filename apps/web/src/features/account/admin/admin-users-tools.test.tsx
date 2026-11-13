@@ -372,7 +372,9 @@ describe('UC-02.1 Issue #48 — thao tác nhanh trên danh sách', () => {
     await confirmIn('Mở khóa');
 
     const notice = await screen.findByText(/Đã mở khóa tài khoản/u);
-    expect(notice.closest('[tabindex="-1"]')).toHaveFocus();
+    expect(notice.closest('[role="status"]')).toBeInTheDocument();
+    expect(notice.closest('[tabindex="-1"]')).not.toHaveFocus();
+    expect(screen.getByRole('main')).toHaveFocus();
     // Truoc khi API tra ve: dong van con nhung bao ro khong con khop, khong tu tru total.
     expect(within(row).getByText('Không còn khớp bộ lọc')).toBeInTheDocument();
     expect(within(row).getByText('Đang hoạt động')).toBeInTheDocument();

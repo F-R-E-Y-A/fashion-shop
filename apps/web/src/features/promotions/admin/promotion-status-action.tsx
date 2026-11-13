@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { type RefObject, useRef, useState, useSyncExternalStore } from 'react';
+import { type RefObject, useCallback, useRef, useState, useSyncExternalStore } from 'react';
 
 import { ApiError, configureUncertainQueryDefaults } from '@/core';
 import { adminAccessGeneration, useAdminForbidden, useAuth } from '@/features/account';
@@ -22,7 +22,8 @@ export interface PromotionStatusActionState {
   target: StatusTarget | null;
   openDialog(promo: AdminPromotionItem, openerElement?: HTMLElement | null): void;
   closeDialog(): void;
-  notice: { text: string; error?: boolean } | null;
+  notice: { key: number; text: string; error?: boolean } | null;
+  sessionScope: string;
   clearNotice(): void;
   isPending: boolean;
   isItemLocked(id: string): boolean;
@@ -37,8 +38,29 @@ export function usePromotionStatusAction(onSuccess?: () => void): PromotionStatu
   const actorId = user?.id ?? '';
   const { guardQuery } = useAdminForbidden(actorId, getSessionEpoch);
 
+  const epoch = getSessionEpoch();
+  const sessionScope = `${actorId}:${epoch}`;
   const [target, setTarget] = useState<StatusTarget | null>(null);
-  const [notice, setNotice] = useState<{ text: string; error?: boolean } | null>(null);
+  const [notice, setNoticeState] = useState<{
+    key: number;
+    scope: string;
+    text: string;
+    error?: boolean;
+  } | null>(null);
+  const noticeIdRef = useRef(0);
+  const setNotice = useCallback(
+    (next: { text: string; error?: boolean } | null) => {
+      if (!next) {
+        setNoticeState(null);
+        return;
+      }
+      noticeIdRef.current += 1;
+      setNoticeState({ ...next, key: noticeIdRef.current, scope: sessionScope });
+    },
+    [sessionScope],
+  );
+  const clearNotice = useCallback(() => setNoticeState(null), []);
+  const scopedNotice = notice?.scope === sessionScope ? notice : null;
   const openerRef = useRef<HTMLElement | null>(null);
 
   const lockedStatusIds = useSyncExternalStore(
@@ -286,8 +308,9 @@ export function usePromotionStatusAction(onSuccess?: () => void): PromotionStatu
     target,
     openDialog,
     closeDialog,
-    notice,
-    clearNotice: () => setNotice(null),
+    notice: scopedNotice,
+    sessionScope,
+    clearNotice,
     isPending: mutation.isPending,
     isItemLocked,
     recheckStatus,
