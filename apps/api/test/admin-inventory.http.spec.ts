@@ -200,7 +200,7 @@ describe('UC-13.1 tồn kho admin HTTP PostgreSQL', () => {
     expect(result.body.movements).toMatchObject({ total: 3, page: 2, totalPages: 3 });
     expect(result.body.movements.items[0].id).toBe(ids[1]);
     expect(Object.keys(result.body.movements.items[0]).sort()).toEqual(
-      ['id', 'movementType', 'quantityDelta', 'createdAt'].sort(),
+      ['id', 'movementType', 'quantityDelta', 'reason', 'createdAt'].sort(),
     );
   });
 
@@ -385,5 +385,46 @@ describe('UC-13.1 tồn kho admin HTTP PostgreSQL', () => {
     const itemIds = fullRes.body.items.map((i: { id: string }) => i.id);
     expect(itemIds).not.toContain(vAbove.id);
     expect(itemIds).not.toContain(vNoInventory.id);
+  });
+
+  it('UC-13.2/UC-13.3 nhập kho RECEIPT, điều chỉnh ADJUSTMENT kèm lý do và chặn giảm dưới reservedQuantity', async () => {
+    await t.prisma.inventory.upsert({
+      where: { productVariantId: variantId },
+      create: { productVariantId: variantId, quantityOnHand: 5 },
+      update: { quantityOnHand: 5 },
+    });
+
+    // 1. Nhập thêm 10 đơn vị (RECEIPT)
+    const receiptRes = await t.http
+      .post(`${path}/${variantId}/adjust`)
+      .set(headers())
+      .send({ type: 'RECEIPT', quantity: 10, reason: 'Nhập lô hàng mùa thu' })
+      .expect(200);
+    expect(receiptRes.body).toMatchObject({
+      quantityOnHand: 15,
+      reservedQuantity: 0,
+      availableQuantity: 15,
+    });
+    expect(receiptRes.body.movements.items[0]).toMatchObject({
+      movementType: 'RECEIPT',
+      quantityDelta: 10,
+      reason: 'Nhập lô hàng mùa thu',
+    });
+
+    // 2. Điều chỉnh kiểm kê về 12 (ADJUSTMENT -> delta -3)
+    const adjustRes = await t.http
+      .post(`${path}/${variantId}/adjust`)
+      .set(headers())
+      .send({ type: 'ADJUSTMENT', quantity: 12, reason: 'Kiểm kê cuối tháng' })
+      .expect(200);
+    expect(adjustRes.body).toMatchObject({
+      quantityOnHand: 12,
+      availableQuantity: 12,
+    });
+    expect(adjustRes.body.movements.items[0]).toMatchObject({
+      movementType: 'ADJUSTMENT',
+      quantityDelta: -3,
+      reason: 'Kiểm kê cuối tháng',
+    });
   });
 });

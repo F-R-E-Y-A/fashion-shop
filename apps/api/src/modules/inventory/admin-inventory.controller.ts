@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Header, Param, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiForbiddenResponse,
@@ -52,6 +62,7 @@ export class AdminInventoryController {
   }
 
   @Post(':id/adjust')
+  @HttpCode(HttpStatus.OK)
   @Header('Cache-Control', 'no-store')
   @ApiOkResponse({ type: AdminInventoryDetail })
   @ApiNotFoundResponse({ description: 'Không tìm thấy biến thể' })

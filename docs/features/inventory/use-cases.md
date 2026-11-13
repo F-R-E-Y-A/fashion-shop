@@ -1,8 +1,8 @@
 ---
-title: Quản trị tồn kho chỉ đọc — đặc tả UC-13.1
-updated: 2026-11-10
-status: đề xuất, đang triển khai Issue81
-owner: Tài; Duy review nghiệp vụ
+title: Quản trị tồn kho — đặc tả UC-13.1, UC-13.2, UC-13.3
+updated: 2026-11-13
+status: đang dùng
+owner: Tài, Duy
 ---
 # UC-13.1 — Xem tồn kho theo biến thể
 
@@ -39,7 +39,7 @@ StockMovement ghi thay đổi tồn vật lý; giữ/nhả reservation không t�
   tổng và dòng cùng snapshot. Không có biến động hiện rỗng, không tạo lịch sử giả.
 - **AC4** (thuận/âm) URL/back giữ trang, tải/lỗi/rỗng và cập nhật rõ ràng; tiếng Việt,
   Espresso/Ivory/Copper, font/token hiện có, desktop bảng/mobile360 có nhãn và thao tác bàn phím.
-  Không có nút ghi dữ liệu; trạng thái null ghi “Chưa có dữ liệu”.
+  Trạng thái null ghi “Chưa có dữ liệu”; trang chi tiết có nút mở hộp thoại **Nhập / Điều chỉnh tồn** ([ADR-060](LOG.md#adr-060)).
 - **AC5** (âm) Query thuộc actor và cache phiên, authenticatedRequest + AbortSignal + guardQuery;
   logout/đổi epoch/403 hủy hoặc vô hiệu hóa response cũ, không phục hồi dữ liệu. Không tự retry4xx;
   polling dừng khi có lỗi, nút Thử lại là hành động chủ động.
