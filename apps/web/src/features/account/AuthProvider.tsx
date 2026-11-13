@@ -394,3 +394,11 @@ export function useAuth(): AuthContextValue {
   if (!context) throw new Error('useAuth phai duoc dung ben trong AuthProvider');
   return context;
 }
+
+/**
+ * Nhu useAuth nhung tra null ngoai AuthProvider: cho thanh phan cong khai (danh gia san pham) nhung
+ * vao trang khong bat dang nhap va duoc kiem thu ma khong can dung ca phien.
+ */
+export function useOptionalAuth(): AuthContextValue | null {
+  return useContext(AuthContext);
+}

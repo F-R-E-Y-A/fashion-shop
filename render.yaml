@@ -51,6 +51,9 @@ services:
       # Dia chi web tren Vercel, dien trong dashboard sau khi tao du an Vercel.
       - key: CORS_ORIGINS
         sync: false
+      # Kho anh danh gia (ADR-055): cloudinary://<key>:<secret>@<cloud>. De trong thi tat tai anh.
+      - key: CLOUDINARY_URL
+        sync: false
 
   # Bo dem rate limit/OTP dung chung. Free Key Value khong luu du lieu qua lan restart.
   - type: keyvalue
