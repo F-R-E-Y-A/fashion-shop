@@ -28,7 +28,16 @@ import { orderListPath, parseOrderListSearch } from './order-list-query.js';
 
 type Dialog =
   | {
-      kind: 'confirmCod' | 'startProcessing' | 'cancelRefund' | 'markDelivered' | 'deliveryFailed';
+      kind:
+        | 'confirmCod'
+        | 'startProcessing'
+        | 'cancelRefund'
+        | 'markDelivered'
+        | 'deliveryFailed'
+        | 'createShipment'
+        | 'shipmentInTransit'
+        | 'shipmentDelivered'
+        | 'shipmentFailed';
     }
   | { kind: 'refund' | 'resolve'; ledger: PaymentLedger };
 
@@ -92,6 +101,29 @@ function AdminOrderDetail() {
             return await post(`/admin/orders/${id}/confirm-cod`);
           case 'startProcessing':
             return await post(`/admin/orders/${id}/start-processing`);
+          case 'createShipment':
+            return await post(`/admin/orders/${id}/shipment`, { carrierName: 'GHN' });
+          case 'shipmentInTransit':
+            return await post('/shipping/webhook', {
+              orderId: id,
+              status: 'IN_TRANSIT',
+              carrierName: 'GHN',
+              note: 'Shipper đã lấy hàng và đang giao',
+            });
+          case 'shipmentDelivered':
+            return await post('/shipping/webhook', {
+              orderId: id,
+              status: 'DELIVERED',
+              carrierName: 'GHN',
+              note: 'Đã giao thành công đến khách',
+            });
+          case 'shipmentFailed':
+            return await post('/shipping/webhook', {
+              orderId: id,
+              status: 'FAILED',
+              carrierName: 'GHN',
+              note: text.trim() || 'Giao hàng thất bại',
+            });
           case 'cancelRefund':
             return await post(`/admin/orders/${id}/cancel-refund`, { reason: text.trim() });
           case 'markDelivered':
@@ -357,6 +389,32 @@ function AdminOrderDetail() {
                       {order.address.province}
                     </dd>
                   </div>
+                  {order.shipment && (
+                    <>
+                      <div>
+                        <dt>Đơn vị vận chuyển</dt>
+                        <dd>{order.shipment.carrierName || 'GHN'}</dd>
+                      </div>
+                      <div>
+                        <dt>Mã vận đơn</dt>
+                        <dd>
+                          <code>{order.shipment.trackingNumber || 'Chưa tạo'}</code>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Trạng thái vận chuyển</dt>
+                        <dd>
+                          {order.shipment.status === 'PENDING'
+                            ? 'Chờ lấy hàng'
+                            : order.shipment.status === 'IN_TRANSIT'
+                              ? 'Đang giao'
+                              : order.shipment.status === 'DELIVERED'
+                                ? 'Đã giao'
+                                : 'Giao thất bại'}
+                        </dd>
+                      </div>
+                    </>
+                  )}
                 </dl>
               </section>
 
@@ -374,6 +432,46 @@ function AdminOrderDetail() {
                     >
                       Xác nhận và giao COD
                     </button>
+                  )}
+                  {['CONFIRMED', 'PROCESSING'].includes(order.status) && !order.shipment && (
+                    <button
+                      type="button"
+                      className={styles.primaryButton}
+                      disabled={action.isPending || needsRecheck}
+                      onClick={() => open({ kind: 'createShipment' })}
+                    >
+                      Tạo vận đơn hãng (GHN)
+                    </button>
+                  )}
+                  {order.shipment && order.shipment.status === 'PENDING' && (
+                    <button
+                      type="button"
+                      className={styles.primaryButton}
+                      disabled={action.isPending || needsRecheck}
+                      onClick={() => open({ kind: 'shipmentInTransit' })}
+                    >
+                      Mô phỏng: Shipper lấy hàng
+                    </button>
+                  )}
+                  {order.shipment && order.shipment.status === 'IN_TRANSIT' && (
+                    <>
+                      <button
+                        type="button"
+                        className={styles.primaryButton}
+                        disabled={action.isPending || needsRecheck}
+                        onClick={() => open({ kind: 'shipmentDelivered' })}
+                      >
+                        Mô phỏng: Giao thành công
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.dangerButton}
+                        disabled={action.isPending || needsRecheck}
+                        onClick={() => open({ kind: 'shipmentFailed' })}
+                      >
+                        Mô phỏng: Giao thất bại
+                      </button>
+                    </>
                   )}
                   {order.actions.startProcessing && (
                     <button
@@ -539,11 +637,17 @@ function AdminOrderDetail() {
 
 const hasAction = (order: AdminOrder) =>
   Object.values(order.actions).some(Boolean) ||
+  ['CONFIRMED', 'PROCESSING'].includes(order.status) ||
+  Boolean(order.shipment) ||
   order.ledgers.some((ledger) => ledger.refundableAmount || ledger.pendingRefund?.resolvable);
 
 const TITLE: Record<Dialog['kind'], string> = {
   confirmCod: 'Xác nhận và giao COD',
   startProcessing: 'Bắt đầu xử lý',
+  createShipment: 'Tạo vận đơn GHN',
+  shipmentInTransit: 'Mô phỏng Webhook: Shipper lấy hàng (IN_TRANSIT)',
+  shipmentDelivered: 'Mô phỏng Webhook: Giao thành công (DELIVERED)',
+  shipmentFailed: 'Mô phỏng Webhook: Giao thất bại (FAILED)',
   cancelRefund: 'Hủy và hoàn tiền',
   markDelivered: 'Đánh dấu đã giao',
   deliveryFailed: 'Ghi giao thất bại',
@@ -553,6 +657,10 @@ const TITLE: Record<Dialog['kind'], string> = {
 const TONE: Record<Dialog['kind'], 'danger' | 'primary'> = {
   confirmCod: 'primary',
   startProcessing: 'primary',
+  createShipment: 'primary',
+  shipmentInTransit: 'primary',
+  shipmentDelivered: 'primary',
+  shipmentFailed: 'danger',
   cancelRefund: 'danger',
   markDelivered: 'primary',
   deliveryFailed: 'danger',
@@ -562,6 +670,10 @@ const TONE: Record<Dialog['kind'], 'danger' | 'primary'> = {
 const DONE: Record<Dialog['kind'], string> = {
   confirmCod: 'Đã xác nhận đơn COD và chốt kho.',
   startProcessing: 'Đơn chuyển sang đang xử lý.',
+  createShipment: 'Đã tạo vận đơn vận chuyển GHN.',
+  shipmentInTransit: 'Webhook: Hãng đã lấy hàng, đơn chuyển sang Đang giao.',
+  shipmentDelivered: 'Webhook: Giao hàng thành công, đơn chuyển sang Đã giao.',
+  shipmentFailed: 'Webhook: Giao thất bại, hàng trả về kho và đơn hủy.',
   cancelRefund: 'Đã hủy đơn, hàng về kho. Kiểm tra kết quả hoàn bên dưới.',
   markDelivered: 'Đã ghi nhận giao hàng.',
   deliveryFailed: 'Đã ghi giao thất bại, hàng trả về kho.',
@@ -582,6 +694,26 @@ function impacts(dialog: Dialog, order: AdminOrder): string[] {
       return [
         'Đã gọi khách xác nhận đơn.',
         'Kho bị trừ, đơn không còn tự hủy sau 3 ngày; khách không tự hủy được nữa.',
+      ];
+    case 'createShipment':
+      return [
+        'Tạo mã vận đơn GHN cho đơn hàng.',
+        'Đơn chuyển sang Đang xử lý nếu đang ở Đã thanh toán.',
+      ];
+    case 'shipmentInTransit':
+      return [
+        'Mô phỏng sự kiện webhook khi shipper đã lấy hàng từ kho.',
+        'Đơn chuyển sang trạng thái Đang giao.',
+      ];
+    case 'shipmentDelivered':
+      return [
+        'Mô phỏng sự kiện webhook giao hàng thành công.',
+        'Đơn chuyển sang Đã giao và xác nhận thanh toán COD (nếu có).',
+      ];
+    case 'shipmentFailed':
+      return [
+        'Mô phỏng sự kiện webhook giao hàng thất bại.',
+        'Hàng được cộng lại vào kho và đơn chuyển sang Đã hủy.',
       ];
     case 'startProcessing':
       return ['Khách không còn tự hủy và nhận hoàn tiền tự động được nữa.'];

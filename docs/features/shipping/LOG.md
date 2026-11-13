@@ -13,3 +13,9 @@ owner: Duy
 **Loại:** thay đổi mã và dữ liệu nền · **Commit:** chưa commit, nền `e7d419437ccfaba8016336b614d9ba820735d518`.
 
 Bảo uỷ quyền chọn phí hợp shop thời trang. Dùng cấu hình ShippingZone/Rate sẵn có, 30.000đ và ngưỡng 500.000đ để luồng đặt hàng hoạt động trước khi ghép carrier/voucher. Không hardcode miễn ship vào web; server trả quote và Order giữ snapshot. [ADR-032](../../LOG.md#adr-032), [README](README.md).
+
+## 2026-11-13 · PH-02 — vận đơn và webhook cập nhật từ hãng vận chuyển
+
+**Loại:** thay đổi mã và lược đồ · **Commit:** đề xuất.
+
+Bổ sung trường `carrier_name` vào bảng `shipments`. Cung cấp API cho Admin tạo vận đơn, webhook nhận sự kiện từ đơn vị vận chuyển (GHN/GHTK) để tự động cập nhật trạng thái đơn (SHIPPED, DELIVERED, CANCELLED hoàn kho khi giao thất bại), và giao diện theo dõi tiến trình giao hàng trực quan cho khách hàng. [README](README.md).

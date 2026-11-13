@@ -247,6 +247,90 @@ export function OrderPage() {
                 )}
             </section>
 
+            {order.shipment && (
+              <section className={styles.section} aria-labelledby="shipping-tracking-title">
+                <h2 id="shipping-tracking-title" className={styles.sectionTitle}>
+                  Theo dõi vận chuyển
+                </h2>
+                <div className={styles.shippingCard}>
+                  <div className={styles.shippingHeader}>
+                    <span className={styles.carrierBadge}>
+                      Đơn vị vận chuyển: {order.shipment.carrierName || 'GHN'}
+                    </span>
+                    <span className={styles.trackingCode}>
+                      Mã vận đơn:{' '}
+                      <strong>{order.shipment.trackingNumber || 'Đang cập nhật'}</strong>
+                    </span>
+                  </div>
+                  {(() => {
+                    const isFailed =
+                      order.shipment.status === 'FAILED' || order.shipment.status === 'RETURNED';
+                    const isDelivered =
+                      order.shipment.status === 'DELIVERED' || order.status === 'DELIVERED';
+                    const isInTransit =
+                      order.shipment.status === 'IN_TRANSIT' || order.status === 'SHIPPED';
+                    const isPending = order.shipment.status === 'PENDING';
+
+                    const step1Status = 'done';
+                    const step2Status =
+                      isDelivered || isInTransit ? 'done' : isPending ? 'active' : 'pending';
+                    const step3Status = isDelivered ? 'done' : isInTransit ? 'active' : 'pending';
+                    const step4Status = isFailed ? 'failed' : isDelivered ? 'done' : 'pending';
+
+                    return (
+                      <div className={styles.timeline}>
+                        <div className={styles.timelineStep} data-status={step1Status}>
+                          <span className={styles.timelineDot}>✓</span>
+                          <span className={styles.timelineLabel}>Shop đã xác nhận</span>
+                        </div>
+                        <div className={styles.timelineStep} data-status={step2Status}>
+                          <span className={styles.timelineDot}>
+                            {step2Status === 'done' ? '✓' : step2Status === 'active' ? '●' : '○'}
+                          </span>
+                          <span className={styles.timelineLabel}>
+                            Đơn vị vận chuyển đã lấy hàng
+                          </span>
+                        </div>
+                        <div className={styles.timelineStep} data-status={step3Status}>
+                          <span className={styles.timelineDot}>
+                            {step3Status === 'done' ? '✓' : step3Status === 'active' ? '●' : '○'}
+                          </span>
+                          <span className={styles.timelineLabel}>Đang giao đến bạn</span>
+                        </div>
+                        <div className={styles.timelineStep} data-status={step4Status}>
+                          <span className={styles.timelineDot}>
+                            {isFailed ? '✕' : step4Status === 'done' ? '✓' : '○'}
+                          </span>
+                          <span className={styles.timelineLabel}>
+                            {isFailed ? 'Giao hàng không thành công' : 'Giao thành công'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  <div className={styles.shippingFooter}>
+                    <span className={styles.muted}>
+                      Cập nhật lần cuối: {formatDateTime(order.shipment.updatedAt)}
+                    </span>
+                    {order.shipment.trackingNumber && (
+                      <a
+                        href={
+                          order.shipment.carrierName?.toUpperCase() === 'GHTK'
+                            ? `https://i.ghtk.vn/${order.shipment.trackingNumber}`
+                            : `https://donhang.ghn.vn/?order_code=${order.shipment.trackingNumber}`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={styles.carrierLink}
+                      >
+                        Xem trên website đơn vị vận chuyển ↗
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </section>
+            )}
+
             {order.items.length > 0 && (
               <section className={styles.section}>
                 <h2 className={styles.sectionTitle}>Sản phẩm</h2>

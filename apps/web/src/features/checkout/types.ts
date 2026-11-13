@@ -48,6 +48,15 @@ export const orderKeys = {
   detail: (userId: string, id: string) => [...orderKeys.all, userId, id] as const,
   list: (userId: string) => [...orderKeys.all, userId, 'list'] as const,
 };
+export interface ShipmentView {
+  id: string;
+  carrierName: string | null;
+  trackingNumber: string | null;
+  status: 'PENDING' | 'IN_TRANSIT' | 'DELIVERED' | 'FAILED' | 'RETURNED';
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface OrderView {
   checkoutFingerprint: string | null;
   id: string;
@@ -80,6 +89,7 @@ export interface OrderView {
   /** Khach huy duoc luc nay; cancelRefunds: huy se hoan tien tu dong (ADR-038). */
   canCancel?: boolean;
   cancelRefunds?: boolean;
+  shipment?: ShipmentView | null;
 }
 
 export const orderStatuses: Record<string, string> = {

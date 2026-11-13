@@ -333,6 +333,16 @@ export class CheckoutService {
       canCancel:
         order.status === 'PENDING_PAYMENT' || order.status === 'PENDING_CONFIRMATION' || selfRefund,
       cancelRefunds: selfRefund,
+      shipment: order.shipment
+        ? {
+            id: order.shipment.id,
+            carrierName: order.shipment.carrierName,
+            trackingNumber: order.shipment.trackingNumber,
+            status: order.shipment.status,
+            createdAt: order.shipment.createdAt.toISOString(),
+            updatedAt: order.shipment.updatedAt.toISOString(),
+          }
+        : null,
     };
   }
 
