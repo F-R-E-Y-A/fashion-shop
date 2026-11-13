@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import {
   ConflictException,
   Injectable,
@@ -142,6 +144,11 @@ export class ShippingService {
       if (!order) throw new NotFoundException('Không tìm thấy đơn hàng.');
       if (!order.shipment) throw new NotFoundException('Chưa tạo vận đơn cho đơn hàng này.');
 
+      // Điểm sửa P2: Chặn cập nhật vận chuyển nếu đơn hàng đã bị hủy
+      if (order.status === 'CANCELLED') {
+        throw new ConflictException('Đơn hàng đã bị hủy, không thể cập nhật vận chuyển.');
+      }
+
       const currentStatus = order.shipment.status as ShipmentStatus;
 
       // Xử lý sự kiện trùng (Idempotent): nếu trạng thái đã như yêu cầu, trả về kết quả hiện tại
@@ -191,7 +198,7 @@ export class ShippingService {
             await this.payments.record(
               cod.id,
               'SUCCEEDED',
-              `COD-DELIVERED:${order.orderCode}:${Date.now()}`,
+              `COD:${order.orderCode}:${randomUUID().slice(0, 8)}`,
               { note: note ?? 'Shipper giao hàng thành công', actor: actorUserId ?? 'CARRIER' },
               tx,
             );
@@ -205,7 +212,7 @@ export class ShippingService {
             await this.payments.record(
               cod.id,
               'FAILED',
-              `COD-FAILED:${order.orderCode}:${Date.now()}`,
+              `COD-FAILED:${order.orderCode}`,
               { note: note ?? 'Giao thất bại', actor: actorUserId ?? 'CARRIER' },
               tx,
             );

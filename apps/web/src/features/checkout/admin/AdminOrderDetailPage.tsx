@@ -89,11 +89,16 @@ function AdminOrderDetail() {
         () => controller.abort(new DOMException('Hết giờ chờ phản hồi', 'TimeoutError')),
         15_000,
       );
-      const post = (path: string, body?: object, headers?: Record<string, string>) =>
+      const post = (path: string, body?: object) =>
         request<unknown>(path, {
           method: 'POST',
           signal: controller.signal,
-          ...(headers ? { headers } : {}),
+          ...(body ? { body } : {}),
+        });
+      const patch = (path: string, body?: object) =>
+        request<unknown>(path, {
+          method: 'PATCH',
+          signal: controller.signal,
           ...(body ? { body } : {}),
         });
       try {
@@ -105,38 +110,20 @@ function AdminOrderDetail() {
           case 'createShipment':
             return await post(`/admin/orders/${id}/shipment`, { carrierName: 'GHN' });
           case 'shipmentInTransit':
-            return await post(
-              '/shipping/webhook',
-              {
-                orderId: id,
-                status: 'IN_TRANSIT',
-                carrierName: 'GHN',
-                note: 'Shipper đã lấy hàng và đang giao (Mô phỏng Sandbox)',
-              },
-              { 'x-carrier-token': 'freya-carrier-secret-2026' },
-            );
+            return await patch(`/admin/orders/${id}/shipment/status`, {
+              status: 'IN_TRANSIT',
+              note: 'Shipper đã lấy hàng và đang giao (Mô phỏng Sandbox)',
+            });
           case 'shipmentDelivered':
-            return await post(
-              '/shipping/webhook',
-              {
-                orderId: id,
-                status: 'DELIVERED',
-                carrierName: 'GHN',
-                note: 'Đã giao thành công đến khách (Mô phỏng Sandbox)',
-              },
-              { 'x-carrier-token': 'freya-carrier-secret-2026' },
-            );
+            return await patch(`/admin/orders/${id}/shipment/status`, {
+              status: 'DELIVERED',
+              note: 'Đã giao thành công đến khách (Mô phỏng Sandbox)',
+            });
           case 'shipmentFailed':
-            return await post(
-              '/shipping/webhook',
-              {
-                orderId: id,
-                status: 'FAILED',
-                carrierName: 'GHN',
-                note: text.trim() || 'Giao hàng thất bại (Mô phỏng Sandbox)',
-              },
-              { 'x-carrier-token': 'freya-carrier-secret-2026' },
-            );
+            return await patch(`/admin/orders/${id}/shipment/status`, {
+              status: 'FAILED',
+              note: text.trim() || 'Giao hàng thất bại (Mô phỏng Sandbox)',
+            });
           case 'cancelRefund':
             return await post(`/admin/orders/${id}/cancel-refund`, { reason: text.trim() });
           case 'markDelivered':
@@ -658,9 +645,9 @@ const TITLE: Record<Dialog['kind'], string> = {
   confirmCod: 'Xác nhận và giao COD',
   startProcessing: 'Bắt đầu xử lý',
   createShipment: 'Tạo vận đơn GHN (Mô phỏng Sandbox)',
-  shipmentInTransit: 'Mô phỏng Webhook: Shipper lấy hàng (IN_TRANSIT)',
-  shipmentDelivered: 'Mô phỏng Webhook: Giao thành công (DELIVERED)',
-  shipmentFailed: 'Mô phỏng Webhook: Giao thất bại (FAILED)',
+  shipmentInTransit: 'Cập nhật vận chuyển: Shipper lấy hàng (IN_TRANSIT)',
+  shipmentDelivered: 'Cập nhật vận chuyển: Giao thành công (DELIVERED)',
+  shipmentFailed: 'Cập nhật vận chuyển: Giao thất bại (FAILED)',
   cancelRefund: 'Hủy và hoàn tiền',
   markDelivered: 'Đánh dấu đã giao',
   deliveryFailed: 'Ghi giao thất bại',
@@ -684,9 +671,9 @@ const DONE: Record<Dialog['kind'], string> = {
   confirmCod: 'Đã xác nhận đơn COD và chốt kho.',
   startProcessing: 'Đơn chuyển sang đang xử lý.',
   createShipment: 'Đã tạo vận đơn vận chuyển GHN (Mô phỏng Sandbox).',
-  shipmentInTransit: 'Webhook: Hãng đã lấy hàng, đơn chuyển sang Đang giao.',
-  shipmentDelivered: 'Webhook: Giao hàng thành công, đơn chuyển sang Đã giao.',
-  shipmentFailed: 'Webhook: Giao thất bại, hàng trả về kho và đơn hủy.',
+  shipmentInTransit: 'Hãng đã lấy hàng, đơn chuyển sang Đang giao.',
+  shipmentDelivered: 'Giao hàng thành công, đơn chuyển sang Đã giao.',
+  shipmentFailed: 'Giao thất bại, hàng trả về kho và đơn hủy.',
   cancelRefund: 'Đã hủy đơn, hàng về kho. Kiểm tra kết quả hoàn bên dưới.',
   markDelivered: 'Đã ghi nhận giao hàng.',
   deliveryFailed: 'Đã ghi giao thất bại, hàng trả về kho.',
@@ -715,17 +702,17 @@ function impacts(dialog: Dialog, order: AdminOrder): string[] {
       ];
     case 'shipmentInTransit':
       return [
-        'Mô phỏng sự kiện webhook khi shipper đã lấy hàng từ kho.',
+        'Cập nhật trạng thái vận đơn khi shipper đã lấy hàng từ kho.',
         'Đơn chuyển sang trạng thái Đang giao.',
       ];
     case 'shipmentDelivered':
       return [
-        'Mô phỏng sự kiện webhook giao hàng thành công.',
+        'Cập nhật trạng thái vận đơn sang giao hàng thành công.',
         'Đơn chuyển sang Đã giao và xác nhận thanh toán COD (nếu có).',
       ];
     case 'shipmentFailed':
       return [
-        'Mô phỏng sự kiện webhook giao hàng thất bại.',
+        'Cập nhật trạng thái vận đơn sang giao hàng thất bại.',
         'Hàng được cộng lại vào kho và đơn chuyển sang Đã hủy.',
       ];
     case 'startProcessing':

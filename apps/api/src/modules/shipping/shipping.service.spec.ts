@@ -165,6 +165,41 @@ describe('ShippingService', () => {
       );
     });
 
+    it('chặn cập nhật trạng thái vận đơn khi đơn hàng đã bị hủy (CANCELLED)', async () => {
+      const now = new Date();
+      const mockShipment = {
+        id: 'ship-1',
+        orderId: 'ord-1',
+        carrierName: 'GHN',
+        trackingNumber: 'GHN-SBX-123',
+        status: 'PENDING',
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const mockPrisma = {
+        $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) =>
+          fn({
+            order: {
+              findUnique: vi.fn().mockResolvedValue({
+                id: 'ord-1',
+                orderCode: 'FR123',
+                status: 'CANCELLED',
+                shipment: mockShipment,
+                payments: [],
+                items: [],
+              }),
+            },
+          }),
+        ),
+      } as unknown as PrismaService;
+
+      const service = new ShippingService(mockPrisma);
+      await expect(service.updateShipmentStatus('ord-1', 'IN_TRANSIT')).rejects.toThrow(
+        new ConflictException('Đơn hàng đã bị hủy, không thể cập nhật vận chuyển.'),
+      );
+    });
+
     it('xử lý trùng trạng thái idempotent mà không cập nhật DB hay nhảy trạng thái đơn', async () => {
       const now = new Date();
       const mockShipment = {
@@ -204,6 +239,69 @@ describe('ShippingService', () => {
       expect(res.status).toBe('DELIVERED');
       expect(mockUpdate).not.toHaveBeenCalled();
       expect(mockOrders.transition).not.toHaveBeenCalled();
+    });
+
+    it('giao thành công: chuyển đơn sang DELIVERED và chốt thu COD với receipt chuẩn COD:<orderCode>:<uuid> (tương thích Reporting #112)', async () => {
+      const now = new Date();
+      const mockShipment = {
+        id: 'ship-1',
+        orderId: 'ord-1',
+        carrierName: 'GHN',
+        trackingNumber: 'GHN-SBX-123',
+        status: 'IN_TRANSIT',
+        createdAt: now,
+        updatedAt: now,
+      };
+      const mockOrders = {
+        transition: vi.fn().mockResolvedValue(undefined),
+      } as unknown as OrdersService;
+      const mockPayments = {
+        record: vi.fn().mockResolvedValue(true),
+      } as unknown as PaymentsService;
+
+      const mockPrisma = {
+        $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) =>
+          fn({
+            order: {
+              findUnique: vi.fn().mockResolvedValue({
+                id: 'ord-1',
+                orderCode: 'FR123',
+                status: 'SHIPPED',
+                shipment: mockShipment,
+                payments: [{ id: 'pay-1', gateway: 'COD', status: 'PENDING' }],
+                items: [{ productVariantId: 'var-1', quantity: 2 }],
+              }),
+            },
+            shipment: {
+              update: vi.fn().mockResolvedValue({ ...mockShipment, status: 'DELIVERED' }),
+            },
+          }),
+        ),
+      } as unknown as PrismaService;
+
+      const service = new ShippingService(mockPrisma, mockOrders, undefined, mockPayments);
+      const res = await service.updateShipmentStatus(
+        'ord-1',
+        'DELIVERED',
+        undefined,
+        'Shipper đã giao thành công',
+      );
+
+      expect(res.status).toBe('DELIVERED');
+      // Điểm sửa P2: Định dạng receipt COD SUCCEEDED phải có tiền tố COD:<orderCode>:<uuid>
+      expect(mockPayments.record).toHaveBeenCalledWith(
+        'pay-1',
+        'SUCCEEDED',
+        expect.stringMatching(/^COD:FR123:[0-9a-f]{8}$/),
+        expect.objectContaining({ note: 'Shipper đã giao thành công' }),
+        expect.anything(),
+      );
+      expect(mockOrders.transition).toHaveBeenCalledWith(
+        'ord-1',
+        'DELIVERED',
+        expect.anything(),
+        undefined,
+      );
     });
 
     it('giao thất bại: hoàn hàng về kho và hủy đơn', async () => {
@@ -259,7 +357,7 @@ describe('ShippingService', () => {
       expect(mockPayments.record).toHaveBeenCalledWith(
         'pay-1',
         'FAILED',
-        expect.stringContaining('COD-FAILED:FR123:'),
+        'COD-FAILED:FR123',
         expect.objectContaining({ note: 'Khách từ chối nhận' }),
         expect.anything(),
       );
@@ -395,6 +493,53 @@ describe('ShippingService', () => {
       expect(res.processed).toBe(false);
       expect((res as { ignored?: boolean }).ignored).toBe(true);
       expect(res.status).toBe('DELIVERED');
+    });
+
+    it('bảo vệ tính toàn vẹn khi webhook gửi sự kiện cho đơn hàng đã bị hủy (CANCELLED)', async () => {
+      const now = new Date();
+      const mockShipment = {
+        id: 'ship-1',
+        orderId: 'ord-1',
+        carrierName: 'GHN',
+        trackingNumber: 'GHN-SBX-123',
+        status: 'PENDING',
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const mockPrisma = {
+        shipment: {
+          findUnique: vi.fn().mockResolvedValue(mockShipment),
+        },
+        $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) =>
+          fn({
+            order: {
+              findUnique: vi.fn().mockResolvedValue({
+                id: 'ord-1',
+                orderCode: 'FR123',
+                status: 'CANCELLED',
+                shipment: mockShipment,
+                payments: [],
+                items: [],
+              }),
+            },
+          }),
+        ),
+      } as unknown as PrismaService;
+
+      const service = new ShippingService(mockPrisma);
+      const res = await service.handleWebhook({
+        orderId: 'ord-1',
+        status: 'IN_TRANSIT',
+      });
+
+      expect(res.received).toBe(true);
+      expect(res.processed).toBe(false);
+      expect((res as { ignored?: boolean }).ignored).toBe(true);
+      expect((res as { reason?: string }).reason).toBe(
+        'Đơn hàng đã bị hủy, không thể cập nhật vận chuyển.',
+      );
+      expect(res.status).toBe('PENDING');
     });
   });
 });

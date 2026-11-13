@@ -271,4 +271,55 @@ describe('UC-02.1/AC6, AC8 — bảo vệ dữ liệu admin dùng chung (#57)', 
     expect(screen.queryByRole('link', { name: base.orderCode })).not.toBeInTheDocument();
     expect(screen.getByText('Đang tải đơn hàng…')).toBeInTheDocument();
   });
+
+  it('UC-PH02 mô phỏng vận chuyển gọi endpoint PATCH /admin/orders/:id/shipment/status (không lộ secret webhook ở client)', async () => {
+    const orderWithShipment = {
+      ...base,
+      status: 'PROCESSING',
+      shipment: {
+        id: 's1',
+        orderId: 'o1',
+        carrierName: 'GHN',
+        trackingNumber: 'GHN-SBX-12345678',
+        status: 'PENDING' as const,
+        isMock: true,
+        createdAt: '2026-10-31T03:00:00.000Z',
+        updatedAt: '2026-10-31T03:00:00.000Z',
+      },
+    };
+
+    request.mockImplementation(async (path: string) => {
+      if (path === '/admin/orders/o1') return orderWithShipment;
+      if (path === '/admin/orders/o1/shipment/status') return { status: 'IN_TRANSIT' };
+      return {};
+    });
+
+    show('/admin/orders/o1');
+    const button = await screen.findByRole('button', { name: 'Mô phỏng: Shipper lấy hàng' });
+    fireEvent.click(button);
+
+    const dialog = screen.getByRole('dialog', {
+      name: 'Cập nhật vận chuyển: Shipper lấy hàng (IN_TRANSIT)',
+    });
+    expect(dialog).toBeInTheDocument();
+
+    const submitBtn = within(dialog).getByRole('button', {
+      name: 'Cập nhật vận chuyển: Shipper lấy hàng (IN_TRANSIT)',
+    });
+    fireEvent.click(submitBtn);
+
+    await waitFor(() => {
+      const patchCall = request.mock.calls.find(
+        ([path, options]) =>
+          path === '/admin/orders/o1/shipment/status' && options?.method === 'PATCH',
+      );
+      expect(patchCall).toBeDefined();
+      expect(patchCall![1]?.body).toEqual({
+        status: 'IN_TRANSIT',
+        note: 'Shipper đã lấy hàng và đang giao (Mô phỏng Sandbox)',
+      });
+      // Không chứa header token bí mật ở client
+      expect(patchCall![1]?.headers?.['x-carrier-token']).toBeUndefined();
+    });
+  });
 });

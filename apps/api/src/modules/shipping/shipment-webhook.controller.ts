@@ -19,8 +19,6 @@ import {
 import { ShipmentWebhookDto } from './dto/shipment.dto.js';
 import { ShippingService } from './shipping.service.js';
 
-export const DEFAULT_CARRIER_WEBHOOK_SECRET = 'freya-carrier-secret-2026';
-
 @ApiTags('shipping-webhook')
 @Controller('shipping')
 export class ShipmentWebhookController {
@@ -45,9 +43,9 @@ export class ShipmentWebhookController {
     @Headers('x-carrier-token') carrierToken: string | undefined,
     @Body() payload: ShipmentWebhookDto,
   ) {
-    const expectedSecret = process.env.SHIPPING_WEBHOOK_SECRET || DEFAULT_CARRIER_WEBHOOK_SECRET;
+    const expectedSecret = process.env.SHIPPING_WEBHOOK_SECRET;
 
-    if (!carrierToken || carrierToken !== expectedSecret) {
+    if (!expectedSecret || !carrierToken || carrierToken !== expectedSecret) {
       throw new UnauthorizedException(
         'Xác thực webhook thất bại: Thiếu hoặc sai header x-carrier-token của hãng vận chuyển.',
       );
