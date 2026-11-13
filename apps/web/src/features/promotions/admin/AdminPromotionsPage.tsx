@@ -1,5 +1,6 @@
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 
+import { AdminForbidden } from '@/features/account';
 import { Loading } from '@/ui';
 
 import {
@@ -19,19 +20,13 @@ export function AdminPromotionsPage() {
   const rawPage = searchParams.get('page');
   const rawPageSize = searchParams.get('pageSize');
 
-  const page = rawPage && /^[1-9]\d*$/.test(rawPage) ? Number(rawPage) : 1;
+  const isInvalidPage = rawPage !== null && !/^[1-9]\d*$/.test(rawPage);
+  const page = !isInvalidPage && rawPage ? Number(rawPage) : 1;
   const pageSize = rawPageSize && /^[1-9]\d*$/.test(rawPageSize) ? Number(rawPageSize) : 12;
 
   const returnToParam = `?returnTo=${encodeURIComponent(location.pathname + location.search)}`;
 
-  // Chuẩn hóa URL nếu có tham số không hợp lệ
-  if (rawPage && !/^[1-9]\d*$/.test(rawPage)) {
-    const next = new URLSearchParams(searchParams);
-    next.set('page', '1');
-    setSearchParams(next, { replace: true });
-  }
-
-  const { data, isLoading, error, refetch } = useAdminPromotions(page, pageSize);
+  const { data, forbidden, isLoading, error, refetch } = useAdminPromotions(page, pageSize);
   const statusAction = usePromotionStatusAction(() => {
     void refetch();
   });
@@ -41,6 +36,25 @@ export function AdminPromotionsPage() {
     next.set('page', String(nextPage));
     setSearchParams(next);
   };
+
+  // Chuẩn hóa URL nếu có tham số không hợp lệ mà không gọi setState trong render
+  if (isInvalidPage) {
+    const next = new URLSearchParams(searchParams);
+    next.set('page', '1');
+    return (
+      <Navigate
+        to={{
+          pathname: location.pathname,
+          search: next.toString() ? `?${next.toString()}` : '',
+        }}
+        replace
+      />
+    );
+  }
+
+  if (forbidden) {
+    return <AdminForbidden />;
+  }
 
   return (
     <div className={styles.container}>
@@ -172,7 +186,7 @@ export function AdminPromotionsPage() {
                           <Link
                             to={`/admin/promotions/${item.id}${returnToParam}`}
                             className={`${styles.btn} ${styles.btnSecondary}`}
-                            style={{ minHeight: '36px', padding: '0.25rem 0.75rem' }}
+                            style={{ minHeight: '44px', padding: '0.25rem 0.75rem' }}
                           >
                             {complex ? 'Xem' : 'Chi tiết'}
                           </Link>
@@ -181,7 +195,7 @@ export function AdminPromotionsPage() {
                               <button
                                 type="button"
                                 className={`${styles.btn} ${styles.btnSecondary}`}
-                                style={{ minHeight: '36px', padding: '0.25rem 0.75rem' }}
+                                style={{ minHeight: '44px', padding: '0.25rem 0.75rem' }}
                                 onClick={(e) => statusAction.openDialog(item, e.currentTarget)}
                                 disabled={statusAction.isItemLocked(item.id)}
                               >
@@ -192,7 +206,7 @@ export function AdminPromotionsPage() {
                                   type="button"
                                   className={`${styles.btn} ${styles.btnSecondary}`}
                                   style={{
-                                    minHeight: '36px',
+                                    minHeight: '44px',
                                     padding: '0.25rem 0.5rem',
                                     fontSize: '0.75rem',
                                   }}

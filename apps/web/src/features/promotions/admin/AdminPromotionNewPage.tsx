@@ -3,7 +3,12 @@ import { type FormEvent, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { ApiError } from '@/core';
-import { adminAccessGeneration, useAdminForbidden, useAuth } from '@/features/account';
+import {
+  adminAccessGeneration,
+  AdminForbidden,
+  useAdminForbidden,
+  useAuth,
+} from '@/features/account';
 
 import {
   type AdminPromotionItem,
@@ -27,7 +32,7 @@ export function AdminPromotionNewPage() {
   const queryClient = useQueryClient();
   const { user, authenticatedRequest: request, getSessionEpoch } = useAuth();
   const actorId = user?.id ?? '';
-  const { guardQuery } = useAdminForbidden(actorId, getSessionEpoch);
+  const { forbidden, markForbidden, guardQuery } = useAdminForbidden(actorId, getSessionEpoch);
 
   // Client-generated UUID cố định cho mỗi phiên soạn thảo form phục vụ idempotency
   const [localDraftId] = useState(() => crypto.randomUUID());
@@ -183,6 +188,10 @@ export function AdminPromotionNewPage() {
 
       // Nếu lỗi 409 Conflict hoặc 400 Bad Request
       const statusCode = err instanceof ApiError ? err.body.statusCode : 0;
+      if (statusCode === 403) {
+        markForbidden();
+        return;
+      }
       if (statusCode > 0 && statusCode < 500) {
         setSubmitError(err instanceof Error ? err.message : promotionErrorText(err));
       } else {
@@ -263,6 +272,10 @@ export function AdminPromotionNewPage() {
       setIsChecking(false);
     }
   };
+
+  if (forbidden) {
+    return <AdminForbidden />;
+  }
 
   return (
     <div className={styles.container}>
