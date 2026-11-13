@@ -172,6 +172,7 @@ describe('UC-02.1/AC9 khung admin — Issue #59', () => {
       '/admin/vouchers',
       '/admin/users',
       '/admin/orders',
+      '/admin/reviews',
     ]);
     expect(screen.getByText('admin@example.test')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Cửa hàng/ })).toHaveAttribute('href', '/');

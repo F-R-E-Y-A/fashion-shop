@@ -111,6 +111,21 @@ export const envSchema = z
     SEARCH_MODEL_DIR: z.string().optional(),
     /** Qua han nay ma chua nhung xong cau truy van thi tra ket qua chi theo luat. */
     SEARCH_SEMANTIC_TIMEOUT_MS: z.coerce.number().int().min(10).max(5000).default(300),
+    /**
+     * Kho anh danh gia (ADR-055): `cloudinary://<api_key>:<api_secret>@<cloud_name>`, lay o Dashboard
+     * Cloudinary. Bo trong thi tat tai anh: API tra 503 UPLOADS_DISABLED, giao dien an nut chon anh.
+     */
+    CLOUDINARY_URL: z
+      .union([
+        z.literal(''),
+        z
+          .string()
+          .regex(
+            /^cloudinary:\/\/[^:@\s]+:[^@\s]+@[A-Za-z0-9_-]+$/u,
+            'phai co dang cloudinary://key:secret@cloud',
+          ),
+      ])
+      .default(''),
     /** Ma commit dang chay: CI truyen GIT_SHA khi dung image; Render tu cap RENDER_GIT_COMMIT. */
     GIT_SHA: z.string().optional(),
     RENDER_GIT_COMMIT: z.string().optional(),

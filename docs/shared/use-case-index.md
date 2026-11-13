@@ -1,6 +1,6 @@
 ---
 title: Danh mục use case
-updated: 2026-11-05
+updated: 2026-11-12
 status: khuôn, chờ chuẩn hoá từ pull request #26
 owner: Duy
 ---
@@ -26,6 +26,9 @@ owner: Duy
 | UC-07.4 | Hủy đơn hàng trước giao | Khách hàng | Mục tiêu người dùng | Nên có | Vừa | PH-11 | Bảo | [Đã viết](../features/checkout/use-cases.md) |
 | UC-08.1 | Thanh toán đơn hàng trực tuyến | Khách hàng | Mục tiêu người dùng | Phải có | Cao | PH-11 | Bảo | [Đã viết](../features/payments/use-cases.md) |
 | UC-08.2 | Xác nhận thanh toán qua thông báo của cổng | Cổng thanh toán | Mục tiêu con | Phải có | Cao | PH-11 | Bảo | [Đã viết](../features/payments/use-cases.md) |
+| UC-11.1 | Đánh giá và nhận xét sản phẩm | Khách hàng | Mục tiêu người dùng | Nên có | Vừa | PH-01 | Bảo | [Đã viết, đề xuất](../features/reviews/use-cases.md) |
+| UC-11.2 | Duyệt và phản hồi đánh giá | Quản trị viên | Mục tiêu người dùng | Nên có | Thấp | PH-01 | Bảo | [Đã viết, đề xuất](../features/reviews/use-cases.md) |
+| UC-11.3 | Xem, bình chọn và báo cáo đánh giá | Khách vãng lai | Mục tiêu con | Nên có | Vừa | PH-01 | Bảo | [Mã mới, đề xuất](../features/reviews/use-cases.md) |
 | UC-12.1 | Tiếp nhận và xác nhận đơn | Quản trị viên | Mục tiêu người dùng | Phải có | Vừa | PH-11, PH-03 | Bảo (nghiệp vụ), Tài (điều hướng) | [Nghiệp vụ](../features/checkout/use-cases.md), [điều hướng](../features/orders/use-cases.md) |
 | UC-12.2 | Đóng gói và giao vận chuyển | Quản trị viên | Mục tiêu con | Phải có | Thấp | PH-11 | Bảo | [Đã viết](../features/checkout/use-cases.md) |
 | UC-14.3 | Thực hiện hoàn tiền đơn hàng | Quản trị viên | Mục tiêu con | Nên có | Cao | PH-11 | Bảo | [Đã viết](../features/payments/use-cases.md) |

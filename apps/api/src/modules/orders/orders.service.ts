@@ -5,6 +5,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { skipOf } from '../../common/pagination/page.response.js';
 import type { OrderStatus, Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
+import { type PurchasedItem, purchasedItemSelect, toPurchasedItem } from './purchased-items.js';
 
 const details = {
   items: { orderBy: { productVariantId: 'asc' as const } },
@@ -236,5 +237,51 @@ export class OrdersService {
       take: 50,
       orderBy: { paymentDueAt: 'asc' },
     });
+  }
+
+  /** Mot dong don cua dung khach (khong phai cua minh thi null), cho reviews kiem quyen viet. */
+  async purchasedItem(orderItemId: string, userId: string): Promise<PurchasedItem | null> {
+    const row = await this.prisma.orderItem.findFirst({
+      where: { id: orderItemId, order: { userId } },
+      select: purchasedItemSelect,
+    });
+    return row ? toPurchasedItem(row) : null;
+  }
+
+  /**
+   * Dong don cua khach co lan giao (DELIVERED) tu `deliveredSince`, don dang o mot trong `statuses`,
+   * tru cac dong trong `excludeIds` (phan he goi tu biet dong nao da xu ly). Moi nhat truoc, toi da
+   * 100 dong: cua so danh gia ngan nen khong can phan trang.
+   */
+  async deliveredItems(
+    userId: string,
+    statuses: readonly OrderStatus[],
+    deliveredSince: Date,
+    excludeIds: readonly string[] = [],
+  ): Promise<PurchasedItem[]> {
+    const rows = await this.prisma.orderItem.findMany({
+      where: {
+        ...(excludeIds.length > 0 ? { id: { notIn: [...excludeIds] } } : {}),
+        order: {
+          userId,
+          status: { in: [...statuses] },
+          statusHistory: { some: { status: 'DELIVERED', createdAt: { gte: deliveredSince } } },
+        },
+      },
+      select: purchasedItemSelect,
+      orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+      take: 100,
+    });
+    return rows.map(toPurchasedItem);
+  }
+
+  /** Ban chup cua nhieu dong don mot luot, de trang danh gia hien ten/anh luc mua. */
+  async purchasedItems(ids: readonly string[]): Promise<Map<string, PurchasedItem>> {
+    if (ids.length === 0) return new Map();
+    const rows = await this.prisma.orderItem.findMany({
+      where: { id: { in: [...new Set(ids)] } },
+      select: purchasedItemSelect,
+    });
+    return new Map(rows.map((row) => [row.id, toPurchasedItem(row)]));
   }
 }

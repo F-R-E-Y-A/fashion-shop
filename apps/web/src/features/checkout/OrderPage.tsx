@@ -5,6 +5,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { formatDateTime, formatPrice } from '@/core';
 import { useAuth } from '@/features/account';
 import { cartKeys } from '@/features/cart';
+import { ReviewOrderPrompt } from '@/features/reviews';
 import { ConfirmDialog } from '@/ui';
 
 import styles from './Checkout.module.css';
@@ -198,6 +199,9 @@ export function OrderPage() {
                   Shop đã hoàn {formatPrice(String(refunded))} về {gatewayLabel}. Thời gian tiền về
                   tài khoản tùy ngân hàng hoặc ví.
                 </p>
+              )}
+              {(order.status === 'DELIVERED' || order.status === 'PARTIALLY_REFUNDED') && (
+                <ReviewOrderPrompt orderId={order.id} />
               )}
               {order.refundPending && (
                 <p className={styles.notice} role="status">

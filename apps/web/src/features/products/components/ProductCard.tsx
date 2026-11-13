@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import { formatPrice } from '@/core';
+import { RatingBadge } from '@/features/reviews';
 
 import type { Product } from '../api/index.js';
 import { HighlightedText } from '../search/HighlightedText.js';
@@ -77,6 +78,12 @@ export function ProductCard({
             </p>
           )}
         </div>
+        {/* Sao nam cuoi the: the chua co danh gia khong lech hang ten va gia voi the ben canh. */}
+        {product.ratingCount ? (
+          <p className={styles.rating}>
+            <RatingBadge average={product.ratingAverage} count={product.ratingCount} />
+          </p>
+        ) : null}
       </Link>
     </li>
   );
