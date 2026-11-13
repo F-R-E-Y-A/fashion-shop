@@ -73,12 +73,50 @@ function setup(
       if (custom) return custom;
       if (url.pathname === '/api/admin/inventory')
         return reply({ ...page, page: Number(url.searchParams.get('page') ?? 1) });
+      if (url.pathname.endsWith('/adjust') && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body)) as {
+          type: string;
+          quantity: number;
+          reason: string;
+        };
+        const newQty = body.type === 'RECEIPT' ? row.quantityOnHand + body.quantity : body.quantity;
+        return reply({
+          ...row,
+          quantityOnHand: newQty,
+          availableQuantity: newQty - row.reservedQuantity,
+          asOf: page.asOf,
+          movements: {
+            items: [
+              {
+                id: 'm-new',
+                movementType: body.type,
+                quantityDelta:
+                  body.type === 'RECEIPT' ? body.quantity : body.quantity - row.quantityOnHand,
+                reason: body.reason,
+                createdAt: page.asOf,
+              },
+            ],
+            total: 1,
+            page: 1,
+            pageSize: 12,
+            totalPages: 1,
+          },
+        });
+      }
       if (url.pathname.startsWith('/api/admin/inventory/'))
         return reply({
           ...row,
           asOf: page.asOf,
           movements: {
-            items: [{ id: 'm1', movementType: 'SALE', quantityDelta: -2, createdAt: page.asOf }],
+            items: [
+              {
+                id: 'm1',
+                movementType: 'SALE',
+                quantityDelta: -2,
+                reason: 'Bán đơn freya-01',
+                createdAt: page.asOf,
+              },
+            ],
             total: 25,
             page: Number(url.searchParams.get('page') ?? 1),
             pageSize: 12,
@@ -245,4 +283,98 @@ describe('UC-13.1 tồn kho web', () => {
       expect(t.requests.filter((r) => r.url.pathname === '/api/admin/inventory')).toHaveLength(1);
     },
   );
+
+  describe('PH-13.2 Giao diện nhập / điều chỉnh tồn kèm lý do', () => {
+    it('hiển thị cột lý do trong bảng lịch sử biến động', async () => {
+      setup(`/admin/inventory/${row.id}`);
+      await screen.findByRole('heading', { name: 'Lịch sử biến động' });
+      expect(screen.getByRole('columnheader', { name: 'Lý do' })).toBeInTheDocument();
+      expect(screen.getByText('Bán đơn freya-01')).toBeInTheDocument();
+    });
+
+    it('mở modal, nhập thêm hàng (RECEIPT) và cập nhật số liệu', async () => {
+      const t = setup(`/admin/inventory/${row.id}`);
+      await screen.findByRole('heading', { name: 'Lịch sử biến động' });
+
+      // Click nut mo modal
+      fireEvent.click(screen.getByRole('button', { name: 'Nhập / Điều chỉnh tồn' }));
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', { name: 'Nhập / Điều chỉnh tồn kho' }),
+      ).toBeInTheDocument();
+
+      // Dien so luong va ly do
+      fireEvent.change(screen.getByLabelText('Số lượng nhập thêm'), {
+        target: { value: '25' },
+      });
+      fireEvent.change(screen.getByLabelText('Lý do / Ghi chú (bắt buộc)'), {
+        target: { value: 'Nhập bổ sung đợt cuối năm' },
+      });
+
+      // Submit
+      fireEvent.click(screen.getByRole('button', { name: 'Xác nhận lưu' }));
+
+      // Cho modal dong va hien thi thong bao thanh cong
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(await screen.findByText('Đã nhập thêm 25 đơn vị thành công.')).toBeInTheDocument();
+
+      // Kiem tra request gui len
+      const postReq = t.requests.find(
+        (r) => r.url.pathname.endsWith('/adjust') && r.init?.method === 'POST',
+      );
+      expect(postReq).toBeDefined();
+      expect(JSON.parse(String(postReq?.init?.body))).toEqual({
+        type: 'RECEIPT',
+        quantity: 25,
+        reason: 'Nhập bổ sung đợt cuối năm',
+      });
+    });
+
+    it('chuyển sang điều chỉnh kiểm kê (ADJUSTMENT) và từ chối khi giảm dưới lượng đang giữ', async () => {
+      setup(`/admin/inventory/${row.id}`);
+      await screen.findByRole('heading', { name: 'Lịch sử biến động' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Nhập / Điều chỉnh tồn' }));
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+      // Chon che do Dieu chinh kiem ke
+      fireEvent.click(screen.getByLabelText('Điều chỉnh kiểm kê (=)'));
+      expect(screen.getByLabelText('Số tồn thực tế sau kiểm kê')).toBeInTheDocument();
+
+      // Thu giam ton xuong 2 (nho hon reservedQuantity = 3)
+      fireEvent.change(screen.getByLabelText('Số tồn thực tế sau kiểm kê'), {
+        target: { value: '2' },
+      });
+      fireEvent.change(screen.getByLabelText('Lý do / Ghi chú (bắt buộc)'), {
+        target: { value: 'Kiểm kê kho' },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Xác nhận lưu' }));
+
+      // Phai hien thong bao loi tren alert
+      expect(
+        await screen.findByText(/Không thể điều chỉnh tồn kho \(2\) nhỏ hơn số lượng đang giữ/i),
+      ).toBeInTheDocument();
+      // Modal khong duoc dong
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    it('từ chối submit khi lý do rỗng', async () => {
+      setup(`/admin/inventory/${row.id}`);
+      await screen.findByRole('heading', { name: 'Lịch sử biến động' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Nhập / Điều chỉnh tồn' }));
+
+      fireEvent.change(screen.getByLabelText('Số lượng nhập thêm'), {
+        target: { value: '10' },
+      });
+      fireEvent.change(screen.getByLabelText('Lý do / Ghi chú (bắt buộc)'), {
+        target: { value: '   ' },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Xác nhận lưu' }));
+
+      expect(await screen.findByText('Lý do không được để trống')).toBeInTheDocument();
+    });
+  });
 });

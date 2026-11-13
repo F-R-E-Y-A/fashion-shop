@@ -1,6 +1,16 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 
 import { PageQuery } from '../../../common/pagination/page.query.js';
 
@@ -13,6 +23,13 @@ const optionalInteger = ({ obj, key }: { obj: Record<string, unknown>; key: stri
   const raw = obj[key];
   if (raw === undefined) return undefined;
   return typeof raw === 'string' && /^[1-9]\d*$/.test(raw) ? Number(raw) : NaN;
+};
+
+const quantityNumber = ({ obj, key }: { obj: Record<string, unknown>; key: string }) => {
+  const raw = obj[key];
+  if (typeof raw === 'number' && Number.isInteger(raw)) return raw;
+  if (typeof raw === 'string' && /^\d+$/.test(raw.trim())) return Number(raw.trim());
+  return NaN;
 };
 
 export class LowStockQuery {
@@ -121,8 +138,47 @@ export class AdminStockMovement {
   movementType!: string;
   @ApiProperty()
   quantityDelta!: number;
+  @ApiPropertyOptional({ example: 'Nhập lô hàng từ nhà cung cấp', nullable: true })
+  reason!: string | null;
   @ApiProperty({ format: 'date-time' })
   createdAt!: string;
+}
+
+export type StockAdjustmentType = 'RECEIPT' | 'ADJUSTMENT';
+
+export class AdminAdjustStockDto {
+  @ApiProperty({
+    enum: ['RECEIPT', 'ADJUSTMENT'],
+    example: 'RECEIPT',
+    description: 'Loại thao tác: RECEIPT (nhập thêm) hoặc ADJUSTMENT (cân bằng kiểm kê)',
+  })
+  @IsIn(['RECEIPT', 'ADJUSTMENT'], {
+    message: 'type phai la RECEIPT hoac ADJUSTMENT',
+  })
+  type!: StockAdjustmentType;
+
+  @ApiProperty({
+    type: Number,
+    example: 50,
+    description:
+      'RECEIPT: số lượng nhập thêm (> 0). ADJUSTMENT: số tồn thực tế sau kiểm kê (>= 0).',
+  })
+  @Transform(quantityNumber)
+  @IsInt({ message: 'quantity phai la so nguyen' })
+  @Min(0, { message: 'quantity nho nhat la 0' })
+  @Max(1000000, { message: 'quantity lon nhat la 1000000' })
+  quantity!: number;
+
+  @ApiProperty({
+    example: 'Nhập lô hàng từ nhà cung cấp',
+    maxLength: 255,
+    description: 'Lý do nhập hoặc điều chỉnh tồn kho',
+  })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString({ message: 'reason phai la chuoi' })
+  @IsNotEmpty({ message: 'Ly do khong duoc de trong' })
+  @MaxLength(255, { message: 'Ly do khong duoc vuot qua 255 ky tu' })
+  reason!: string;
 }
 
 export class AdminMovementPage {

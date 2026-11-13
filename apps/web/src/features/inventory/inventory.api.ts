@@ -24,11 +24,17 @@ export interface Movement {
   id: string;
   movementType: string;
   quantityDelta: number;
+  reason?: string | null;
   createdAt: string;
 }
 export interface InventoryDetail extends InventoryRow {
   asOf: string;
   movements: Page<Movement>;
+}
+export interface AdjustStockPayload {
+  type: 'RECEIPT' | 'ADJUSTMENT';
+  quantity: number;
+  reason: string;
 }
 export interface AdminLowStockItem {
   id: string;

@@ -58,6 +58,7 @@ model StockMovement {
   orderId          String?           @map("order_id") @db.Uuid
   movementType     StockMovementType @map("movement_type")
   quantityDelta    Int               @map("quantity_delta")
+  reason           String?           @db.VarChar(255)
   createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
 
   productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Restrict, onUpdate: NoAction)

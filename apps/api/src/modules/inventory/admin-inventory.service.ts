@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { skipOf, toPage } from '../../common/pagination/page.response.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import {
+  AdminAdjustStockDto,
   AdminInventoryDetail,
   AdminInventoryPage,
   AdminLowStockItem,
@@ -11,6 +12,7 @@ import {
   InventoryPageQuery,
   LowStockQuery,
 } from './dto/admin-inventory.dto.js';
+import { lockStock } from './inventory-operations.js';
 
 const selection = {
   id: true,
@@ -139,7 +141,13 @@ export class AdminInventoryService {
         if (!variant) throw new NotFoundException('Không tìm thấy biến thể');
         const items = await tx.stockMovement.findMany({
           where: { productVariantId: id },
-          select: { id: true, movementType: true, quantityDelta: true, createdAt: true },
+          select: {
+            id: true,
+            movementType: true,
+            quantityDelta: true,
+            reason: true,
+            createdAt: true,
+          },
           orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           skip: skipOf(query),
           take: query.pageSize,
@@ -156,6 +164,121 @@ export class AdminInventoryService {
             })),
             total,
             query,
+          ),
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
+  }
+
+  adjust(id: string, dto: AdminAdjustStockDto): Promise<AdminInventoryDetail> {
+    return this.prisma.$transaction(
+      async (tx) => {
+        const asOf = new Date();
+        // Khoa bien the cung thu tu voi Checkout de tranh race condition
+        await lockStock(tx, [{ variantId: id, quantity: 0 }]);
+
+        const variant = await tx.productVariant.findUnique({
+          where: { id },
+          select: selection,
+        });
+        if (!variant) throw new NotFoundException('Không tìm thấy biến thể');
+
+        const currentQty = variant.inventory?.quantityOnHand ?? null;
+        let afterQty: number;
+        let delta: number;
+
+        if (dto.type === 'RECEIPT') {
+          if (dto.quantity <= 0) {
+            throw new BadRequestException('Số lượng nhập hàng phải lớn hơn 0');
+          }
+          afterQty = (currentQty ?? 0) + dto.quantity;
+          delta = dto.quantity;
+        } else if (dto.type === 'ADJUSTMENT') {
+          if (dto.quantity < 0) {
+            throw new BadRequestException('Số lượng kiểm kê không được âm');
+          }
+          if (currentQty !== null && currentQty === dto.quantity) {
+            throw new BadRequestException('Số lượng kiểm kê trùng khớp với tồn hiện tại');
+          }
+          afterQty = dto.quantity;
+          delta = afterQty - (currentQty ?? 0);
+          if (delta === 0) {
+            throw new BadRequestException('Số lượng kiểm kê trùng khớp với tồn hiện tại');
+          }
+        } else {
+          throw new BadRequestException('Loại thao tác không hợp lệ');
+        }
+
+        if (afterQty > 1_000_000) {
+          throw new BadRequestException('Tồn kho tối đa không được vượt quá 1.000.000');
+        }
+
+        // Kiem tra luong dang giu cho don hang chua thanh toan hoac cho xac nhan
+        const held = await tx.inventoryReservation.groupBy({
+          by: ['productVariantId'],
+          where: {
+            productVariantId: id,
+            releasedAt: null,
+            expiresAt: { gt: asOf },
+          },
+          _sum: { quantity: true },
+        });
+        const reservedQuantity = held[0]?._sum.quantity ?? 0;
+
+        if (afterQty < reservedQuantity) {
+          throw new BadRequestException(
+            `Không thể điều chỉnh tồn kho (${afterQty}) nhỏ hơn số lượng đang giữ cho đơn hàng (${reservedQuantity})`,
+          );
+        }
+
+        await tx.inventory.upsert({
+          where: { productVariantId: id },
+          create: { productVariantId: id, quantityOnHand: afterQty },
+          update: { quantityOnHand: afterQty },
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            productVariantId: id,
+            movementType: dto.type,
+            quantityDelta: delta,
+            reason: dto.reason.trim(),
+          },
+        });
+
+        const items = await tx.stockMovement.findMany({
+          where: { productVariantId: id },
+          select: {
+            id: true,
+            movementType: true,
+            quantityDelta: true,
+            reason: true,
+            createdAt: true,
+          },
+          orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          take: 12,
+        });
+        const total = await tx.stockMovement.count({ where: { productVariantId: id } });
+        const availableQuantity = Math.max(0, afterQty - reservedQuantity);
+
+        return {
+          id: variant.id,
+          sku: variant.sku,
+          productName: variant.product.name,
+          colorName: variant.color.name,
+          sizeCode: variant.size.code,
+          quantityOnHand: afterQty,
+          reservedQuantity,
+          availableQuantity,
+          asOf: asOf.toISOString(),
+          movements: toPage(
+            items.map((v) => ({
+              ...v,
+              createdAt: v.createdAt.toISOString(),
+            })),
+            total,
+            { page: 1, pageSize: 12 },
           ),
         };
       },
