@@ -10,6 +10,8 @@ import { HealthModule } from './modules/health/index.js';
 import { NotificationsModule } from './modules/notifications/index.js';
 import { ProductsModule } from './modules/products/index.js';
 import { PromotionsModule } from './modules/promotions/index.js';
+import { ReviewsModule } from './modules/reviews/index.js';
+import { UploadsModule } from './modules/uploads/index.js';
 import { UsersModule } from './modules/users/index.js';
 
 /**
@@ -37,6 +39,8 @@ import { UsersModule } from './modules/users/index.js';
     NotificationsModule,
     ProductsModule,
     PromotionsModule,
+    ReviewsModule,
+    UploadsModule,
     UsersModule,
   ],
 })

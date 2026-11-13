@@ -1,6 +1,6 @@
 ---
 title: Khám phá sản phẩm và quản trị catalog — đặc tả use case
-updated: 2026-11-08
+updated: 2026-11-12
 status: đề xuất, chờ Bảo duyệt
 owner: Bảo
 ---
@@ -88,7 +88,7 @@ Là một **khách vãng lai**, tôi muốn **nhập từ khoá và thấy sản
 ### Luồng phụ và ngoại lệ
 | Mã | Tình huống | Hệ thống xử lý |
 |---|---|---|
-| E1 | Không có kết quả | API nới dần truy vấn (bỏ từ khoá, dịp mặc, màu, cỡ, giá) và ghi rõ đã bỏ gì trong `relaxed`; hết ràng buộc mà vẫn rỗng thì trả rỗng. Giao diện gợi ý các danh mục gốc và câu mẫu |
+| E1 | Không có kết quả | API nới dần phần hiểu từ câu hỏi (bỏ từ khoá, dịp mặc, màu, cỡ, giá) và ghi rõ đã bỏ gì trong `relaxed`; màu, cỡ, khoảng giá khách tự bấm giữ nguyên; hết ràng buộc mà vẫn rỗng thì trả rỗng. Giao diện gợi ý các danh mục gốc và câu mẫu |
 | E2 | Từ khoá dưới 2 ký tự | Trả 400 |
 | E3 | Từ khoá quá 120 ký tự | Trả 400 (giới hạn hiện có trong DTO liệt kê) |
 
@@ -267,39 +267,27 @@ API thực tế lấy hình dạng từ Swagger; không sao chép DTO vào đây
 
 ### Tiêu chí chấp nhận đề xuất
 
-- [ ] **AC1** Guard ngoài layout; chờ phiên/guest/CUSTOMER không gọi API admin; server kiểm 401/403/ADMIN.
-- [ ] **AC2** List/detail thấy cả bản ghi ẩn; public catalog giữ quy tắc cũ; ảnh/brand/giá nullable đúng, không lộ cột ngoài DTO.
-- [ ] **AC3** Tìm tên/SKU toàn dữ liệu, literal/hoa thường/dấu đúng, không trùng sản phẩm; total theo cùng bộ lọc với rows.
-- [ ] **AC4** Kết hợp status/sort/page/pageSize đúng, thứ tự ổn định; 400 input/query lặp/lạ/UUID sai, 404 UUID không tồn tại.
-- [ ] **AC5** Codec URL/query key/request nhất quán, Back/Forward/reload/detail return giữ điều kiện; trang vượt totalPages phục hồi được.
-- [ ] **AC6** Cache actor/epoch, AbortSignal; logout/đổi actor/đăng nhập lại cùng actor hủy/xóa dữ liệu; response muộn không phục hồi cache.
-- [ ] **AC7** 403 xóa mọi dữ liệu admin của actor và chặn query tiếp; success muộn không khôi phục dữ liệu; không đăng xuất vì 403.
-- [ ] **AC8** Đủ tải/lỗi/rỗng/no-results/403/404, không retry 4xx; đổi điều kiện không lộ tập cũ; không ghi DB qua luồng đọc.
-- [ ] **AC9** F.R.E.Y.A., CSS Modules, desktop/mobile 360px và keyboard; tên/SKU dài/null đọc được, giữ Tổng quan/Users/Orders/cửa hàng.
-- [ ] **AC10** DTO/Swagger/tests/docs và minh chứng thực tế đủ; check/build/docs lint/HTTP riêng đạt, CI và review trước merge.
+- [ ] **AC1** (âm) Guard ngoài layout; chờ phiên/guest/CUSTOMER không gọi API admin; server kiểm 401/403/ADMIN.
+- [ ] **AC2** (thuận) List/detail thấy cả bản ghi ẩn; public catalog giữ quy tắc cũ; ảnh/brand/giá nullable đúng, không lộ cột ngoài DTO.
+- [ ] **AC3** (thuận) Tìm tên/SKU toàn dữ liệu, literal/hoa thường/dấu đúng, không trùng sản phẩm; total theo cùng bộ lọc với rows.
+- [ ] **AC4** (âm) Kết hợp status/sort/page/pageSize đúng, thứ tự ổn định; 400 input/query lặp/lạ/UUID sai, 404 UUID không tồn tại.
+- [ ] **AC5** (biên) Codec URL/query key/request nhất quán, Back/Forward/reload/detail return giữ điều kiện; trang vượt totalPages phục hồi được.
+- [ ] **AC6** (biên) Cache actor/epoch, AbortSignal; logout/đổi actor/đăng nhập lại cùng actor hủy/xóa dữ liệu; response muộn không phục hồi cache.
+- [ ] **AC7** (âm) 403 xóa mọi dữ liệu admin của actor và chặn query tiếp; success muộn không khôi phục dữ liệu; không đăng xuất vì 403.
+- [ ] **AC8** (âm) Đủ tải/lỗi/rỗng/no-results/403/404, không retry 4xx; đổi điều kiện không lộ tập cũ; không ghi DB qua luồng đọc.
+- [ ] **AC9** (thuận) F.R.E.Y.A., CSS Modules, desktop/mobile 360px và keyboard; tên/SKU dài/null đọc được, giữ Tổng quan/Users/Orders/cửa hàng.
+- [ ] **AC10** (biên, tay) DTO/Swagger/tests/docs và minh chứng thực tế đủ; check/build/docs lint/HTTP riêng đạt, CI và review trước merge.
 
 ### Ngoài phạm vi và quyết định còn lại
 
 Tạo/sửa/ngừng bán, SKU/slug, upload/biến thể/danh mục thuộc Issue sau. Tài đã chọn chỉ ẩn/ngừng bán,
 giữ dữ liệu; SKU khi đã có đơn, tác động import và lưu trữ ảnh cần chốt trước mutation.
 Không thêm kho/KPI/bulk/export/STAFF. README giữ trạng thái triển khai, LOG chỉ thêm quyết định đề xuất.
-### Mở rộng trạng thái sản phẩm — Issue #65, đề xuất
-Giữ AC1–10 của lát đọc. Tài chốt giữ ngừng bán thủ công qua mọi lần import; chỉ ADMIN chủ động gỡ. Không xóa dữ liệu, không tự bật danh mục/biến thể, chọn lại giỏ hoặc sửa đơn/payment/inventory. Bật lại tính cờ hiệu lực theo ảnh nguồn hiện có; gỡ hold không đồng nghĩa mua được.
-- [ ] **AC11** PATCH trạng thái kiểm ADMIN trước validation; UUID/body/type/trường lạ/version sai400,
-  guest401/CUSTOMER403, thiếu404, version cũ409; response allowlist, no-store, không toggle.
-- [ ] **AC12** Ngừng bán đặt manual hold và tắt cờ; bật lại gỡ hold/tính điều kiện nguồn. Version chỉ tăng
-  khi hold/cờ đổi, phát hiện ABA; no-op giữ version. Migration false/0 giữ isActive cũ.
-- [ ] **AC13** Import và admin khóa cùng hàng, giữ hold kể cả có/không ảnh; lặp không tăng version vô cớ,
-  cạnh tranh cả hai thứ tự không mất cập nhật. Không đổi hợp đồng importProducts hoặc ghi bảng ngoài products.
-- [ ] **AC14** Sau ngừng bán public list/search/suggest/detail ẩn; lần đọc giỏ sau báo INACTIVE/bỏ chọn,
-  thêm mới bị chặn; bật lại không tự chọn giỏ. Đơn/payment/stock/reservation cũ giữ nguyên.
-  Checkout chỉ bảo đảm theo thời điểm đọc catalog trong giao dịch hiện có, không hủy checkout đã đọc trước.
-- [ ] **AC15** List/detail dùng chung mutation, xác nhận tên/tác động đúng; chống gửi lặp, focus khi pending,
-  đóng không hứa hủy server, trả focus về opener hoặc vùng kết quả khi dòng biến mất; mobile360px dùng được.
-- [ ] **AC16** Cache theo actor/epoch/thế hệ quyền; hủy GET cũ trước cập nhật, không đè GET version mới hơn.
-  Logout/A→B/A→A/403 chặn response mutation muộn, notice và invalidate phiên mới; kiểm cả hai hướng.
-- [ ] **AC17** Sau mutation bỏ tập danh sách cũ, refetch query đang active, total/trang từ API; không N+1,
-  giữ URL và link quay lại. Dòng rời filter/trang cuối có đường phục hồi, không tự trừ total.
-- [ ] **AC18** 400/401/403/404/409/422 có thông báo đúng, không retry4xx/mutation. 409 tải lại rồi xem và
-  xác nhận lại; 5xx/network/timeout chỉ GET đối chiếu, không cho gửi thao tác mới khi chưa xác minh được.
-  Check/build/HTTP riêng/docs lint và minh chứng phải định danh bản; CI/review người trước merge.
+AC11–18 của trạng thái sản phẩm ở [đặc tả ngừng bán](use-cases-admin-status.md).
+
+### Kiểm thủ công AC10 của quản trị
+
+Trên commit định danh, người review mở Swagger đối chiếu DTO và quyền, kiểm log check/build/HTTP
+trên DB riêng, docs lint và CI của đúng head; đối chiếu minh chứng, ghi tên người review trước merge.
+Phân loại AC1–18 không đổi nội dung nghiệp vụ; không đánh dấu hoàn tất chỉ vì có tên test.
+Phần sửa nội dung tiếp nối tại [AC19–28](use-cases-admin-content.md).

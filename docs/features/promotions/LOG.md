@@ -1,6 +1,6 @@
 ---
 title: Khuyến mãi và Mã giảm giá — nhật ký
-updated: 2026-10-27
+updated: 2026-11-09
 status: đang triển khai
 owner: Duy
 ---
@@ -48,8 +48,8 @@ Sau review PR #41 từ Bảo:
 3. DTO cập nhật khuyến mãi: Bổ sung class `UpdatePromotionDto extends PartialType(CreatePromotionDto)` để ValidationPipe hoạt động đúng metatype ở runtime, chặn các trường lạ và enum không hợp lệ.
 4. Bổ sung `apps/api/test/promotions.http.spec.ts` kiểm thử cạnh tranh 2 transaction đồng thời cho quota và các ca hồi quy HTTP validation.
 
-<a id="adr-041"></a>
-## 2026-10-27 · ADR-041 — Động cơ khuyến mãi động, phân khúc khách hàng và các mẫu thiết kế
+<a id="adr-051"></a>
+## 2026-10-27 · ADR-051 — Động cơ khuyến mãi động, phân khúc khách hàng và các mẫu thiết kế
 
 **Loại:** quyết định · **Phạm vi:** Phân hệ Khuyến mãi (`apps/api/src/modules/promotions/engine`) · **Trạng thái:** đề xuất · **Người quyết:** Duy · **Commit:** (điền khi thi hành)
 
@@ -79,3 +79,23 @@ Thực tế: 26 bài test unit engine (`rules.spec.ts`, `strategies.spec.ts`, `p
 ### Điều kiện xem lại
 
 Khi phân hệ Loyalty / Điểm thưởng tích hợp cần thêm các loại quy tắc đổi điểm hoặc tặng quà tặng kèm (gift-with-purchase).
+
+## 2026-11-09 · Hiệu đính mã quyết định khuyến mãi
+
+**Loại:** hiệu đính tài liệu · **Phạm vi:** mã và neo của quyết định ngày27/10, không đổi nội dung hay trạng thái.
+
+Mã041 đã trùng quyết định cache admin ở LOG chung sau khi ghép PR #41. Dùng051 cho quyết định khuyến mãi;
+050 đã được dùng trong PR #74 đang mở. Giữ nguyên ngày, phương án, trạng thái đề xuất và người quyếtDuy;
+không coi sửa số là duyệt quyết định nghiệp vụ. Bản hiệu đính chỉ được áp sau khi Tài cho phép ngoại lệ
+append-only của AGENTS.md; kiểm lại dãy số/PR đang mở ngay trước khi áp.
+
+## 2026-11-11 · Quản trị chiến dịch khuyến mãi đơn giản (Issue #88)
+
+**Loại:** thay đổi mã và kiểm thử (đề xuất, chờ Duy/Bảo review) · **Phạm vi:** `apps/api/src/modules/promotions`, `apps/web/src/features/promotions` · **Commit:** (chờ commit)
+
+Theo kế hoạch MVP Issue #88:
+1. **Idempotency cho tạo mới chiến dịch**: Do tên chiến dịch không bắt buộc duy nhất theo schema, API hỗ trợ client UUID v4 (`id` tùy chọn trong `CreatePromotionDto`). Khi nhận yêu cầu tạo mới với UUID đã tồn tại, nếu payload giống hệt thì trả về 201 cùng bản ghi hiện có; nếu payload khác biệt thì ném `409 Conflict`.
+2. **Kiểm soát đồng thời khi cập nhật (CAS)**: `UpdatePromotionDto` nhận `expectedUpdatedAt` tùy chọn. Trong transaction, khóa dòng bằng `SELECT ... FOR UPDATE`, đối chiếu phiên bản `updatedAt`. Nếu không khớp ném `409 Conflict`. Nếu dữ liệu cập nhật giống hệt dữ liệu hiện tại (no-op), bỏ qua lệnh UPDATE và giữ nguyên timestamp. Khi có thay đổi, ép tăng `updatedAt` đơn điệu (`Math.max(Date.now(), existing.updatedAt.getTime() + 1)`).
+3. **Ranh giới chiến dịch đơn giản và phức tạp**: Màn hình quản trị admin chỉ hỗ trợ tạo/sửa chiến dịch đơn giản (`conditions = null` hoặc object rỗng). Các chiến dịch có `conditions` phức tạp được hiển thị ở chế độ Chỉ xem (Read-Only) kèm cảnh báo giải thích và JSON viewer; vô hiệu hóa các thao tác sửa/bật-ngừng/xóa trên giao diện để tránh làm hỏng cấu hình engine của Duy.
+4. **Mặc định trạng thái form mới**: Form tạo chiến dịch mới mặc định ở trạng thái `INACTIVE`.
+5. **An toàn API admin**: Kiểm tra vai trò `ADMIN`, header `Cache-Control: no-store`, phân trang nghiêm ngặt (`strictInteger`), sắp xếp phá hòa `{ createdAt: 'desc', id: 'desc' }` trong transaction RepeatableRead.

@@ -26,9 +26,14 @@ export function AdminNavigation({ onNavigate }: { onNavigate?: () => void }) {
       {(
         [
           { path: '/admin', label: 'Tổng quan', icon: 'overview' },
+          { path: '/admin/inventory', label: 'Tồn kho', icon: 'orders' },
+          { path: '/admin/categories', label: 'Danh mục', icon: 'orders' },
           { path: '/admin/products', label: 'Sản phẩm', icon: 'orders' },
+          { path: '/admin/promotions', label: 'Khuyến mãi', icon: 'orders' },
+          { path: '/admin/vouchers', label: 'Mã giảm giá', icon: 'orders' },
           { path: '/admin/users', label: 'Người dùng', icon: 'users' },
           { path: '/admin/orders', label: 'Đơn hàng', icon: 'orders' },
+          { path: '/admin/reviews', label: 'Đánh giá', icon: 'orders' },
         ] as const
       ).map((item) => (
         <NavLink

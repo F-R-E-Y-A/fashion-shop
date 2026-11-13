@@ -9,10 +9,15 @@ import type {
   AdminProductSummary,
 } from './dto/admin-product.response.js';
 import type {
+  AdminProductContent,
+  ChangeProductContentDto,
+} from './dto/change-product-content.dto.js';
+import type {
   AdminProductStatus,
   ChangeProductStatusDto,
 } from './dto/change-product-status.dto.js';
 import type { ListAdminProductsQuery } from './dto/list-admin-products.query.js';
+import { adminContentChange } from './product-content.js';
 import { lockProductStatus, productStatusChange } from './product-status.js';
 
 const colorSelect = { code: true, name: true, hex: true } as const;
@@ -31,6 +36,8 @@ const summarySelect = {
 } satisfies Prisma.ProductSelect;
 const detailSelect = {
   ...summarySelect,
+  contentVersion: true,
+  adminContentFields: true,
   description: true,
   material: true,
   careInstructions: true,
@@ -101,6 +108,31 @@ export class AdminProductsService {
     });
   }
 
+  async changeContent(id: string, input: ChangeProductContentDto): Promise<AdminProductContent> {
+    return this.prisma.$transaction(async (tx) => {
+      const before = await lockProductStatus(tx, id);
+      if (!before) throw new NotFoundException('Không tìm thấy sản phẩm');
+      if (before.contentVersion !== input.expectedVersion)
+        throw new ConflictException('Nội dung đã thay đổi. Tải bản mới trước khi lưu.');
+      const data = adminContentChange(before, input);
+      const select = {
+        id: true,
+        name: true,
+        description: true,
+        material: true,
+        careInstructions: true,
+        contentVersion: true,
+        adminContentFields: true,
+      } as const;
+      if (!data) return tx.product.findUniqueOrThrow({ where: { id }, select });
+      return tx.product.update({
+        where: { id, contentVersion: input.expectedVersion },
+        data,
+        select,
+      });
+    });
+  }
+
   async list(query: ListAdminProductsQuery): Promise<AdminProductPage> {
     // contains dung LIKE: escape wildcard, Prisma van tham so hoa gia tri. some dung EXISTS nen khong trung product.
     const pattern = query.q?.replace(/[\\%_]/g, (char) => `\\${char}`);
@@ -141,6 +173,8 @@ export class AdminProductsService {
     if (!row) throw new NotFoundException('Không tìm thấy sản phẩm');
     return {
       ...toSummary(row),
+      contentVersion: row.contentVersion,
+      adminContentFields: row.adminContentFields,
       description: row.description,
       material: row.material,
       careInstructions: row.careInstructions,

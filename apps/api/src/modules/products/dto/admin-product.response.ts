@@ -52,6 +52,8 @@ export class AdminProductImage {
   @ApiProperty({ type: AdminProductColor, nullable: true }) color!: AdminProductColor | null;
 }
 export class AdminProductDetail extends AdminProductSummary {
+  @ApiProperty() contentVersion!: number;
+  @ApiProperty({ type: [String] }) adminContentFields!: string[];
   @ApiProperty({ type: String, nullable: true }) description!: string | null;
   @ApiProperty({ type: String, nullable: true }) material!: string | null;
   @ApiProperty({ type: String, nullable: true }) careInstructions!: string | null;

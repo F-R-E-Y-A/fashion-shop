@@ -1,6 +1,6 @@
 ---
 title: Kiểm thử — chạy thế nào, viết thế nào
-updated: 2026-11-05
+updated: 2026-11-09
 status: đang dùng
 owner: Bảo
 ---
@@ -35,6 +35,10 @@ npm run test:e2e -w apps/web      # build và bật API :3101, web :5175, seed l
 ```
 
 Cần Postgres và Redis đang chạy (`npm run db:up`) và đã `db:test:prepare`. Bài nằm ở `apps/web/e2e/`; dữ liệu do `apps/api/test/e2e/seed.ts` nạp và in ra một dòng JSON mà bài đọc qua `fixture()`. Lỗi thì xem `apps/web/playwright-report/` hoặc `npx playwright show-trace <trace.zip>`. Lý do chọn cách này: [LOG#adr-046](../LOG.md#adr-046).
+
+`apps/web/playwright-report/` và `apps/web/test-results/` là đầu ra sinh tự động, được bỏ qua trong Git,
+ESLint và Prettier. Giữ báo cáo lỗi để xem trace; chạy lại `npm run check` không quét mã đóng gói
+của trình xem báo cáo. Bài E2E, cấu hình Playwright và mã nguồn vẫn chịu lint/format như thường.
 
 ## Ba loại bài, viết ở ba chỗ
 

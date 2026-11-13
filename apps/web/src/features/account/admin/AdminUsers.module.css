@@ -116,7 +116,6 @@
 .clearButton {
   composes: clearButton from '../../../ui/AdminKit.module.css';
   justify-self: start;
-  justify-self: start;
 }
 
 .field {
@@ -171,12 +170,27 @@
 .roles {
   display: inline-flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
 }
 
 .role {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
   color: var(--ink-2);
   font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.role[data-role='ADMIN'] {
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  background: color-mix(in srgb, var(--surface) 60%, var(--paper));
+  color: var(--accent);
 }
 
 .detailHeader {
@@ -371,9 +385,6 @@
   .pageSize select {
     font-size: 16px;
   }
-}
-
-@media (max-width: 720px) {
   .table .emailCell {
     text-align: left;
   }

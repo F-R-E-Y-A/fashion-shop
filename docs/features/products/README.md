@@ -1,6 +1,6 @@
 ---
 title: Khám phá sản phẩm — bản đồ và kế hoạch PH-01
-updated: 2026-11-08
+updated: 2026-11-10
 status: đang làm
 owner: Bảo
 ---
@@ -198,8 +198,8 @@ Kiểm tra: `npm run check` exit 0 (API unit 28/28, web 27/27, crawler 50 pass, 
 ## Quản trị catalog chỉ đọc — Issue #63
 
 Tài triển khai lát đọc UC-04.2 theo [đặc tả đề xuất](use-cases.md#uc-042--quản-lý-thông-tin-sản-phẩm--lát-đọc-issue-63).
-Bản triển khai trên nhánh `feature/ph-03-admin-catalog`, đã tích hợp develop `63d9798` sau PR #60;
-trạng thái review theo [Issue #63](https://github.com/F-R-E-Y-A/fashion-shop/issues/63).
+Lát đọc đã gộp qua [PR #64](https://github.com/F-R-E-Y-A/fashion-shop/pull/64) tại `b4a056b`;
+Issue #63 đã đóng. Nhánh frontend đã đồng bộ develop `924dceb` gồm Catalog, Orders, trạng thái và khuyến mãi.
 [AdminProductsController](../../../apps/api/src/modules/products/admin-products.controller.ts#L27)
 kiểm ADMIN qua AuthModule; [service](../../../apps/api/src/modules/products/admin-products.service.ts#L70)
 đọc cả bản ghi ẩn, tách khỏi storefront. Hình dạng HTTP theo Swagger nhóm `admin-products`.
@@ -220,19 +220,30 @@ Tạo/sửa nội dung, biến thể/ảnh và danh mục thuộc đợt sau; T�
 
 ## Ngừng bán và gỡ ngừng bán — Issue #65, PR #71
 
-Nhánh `feature/ph-03-admin-product-status` đang đồng bộ develop `131480e`, đã chứa PR #64/#62/#69.
+[PR #71](https://github.com/F-R-E-Y-A/fashion-shop/pull/71) đã được Bảo approve và merge tại `bb6f648` ngày 09/11; Issue #65 đã đóng.
 Lát trạng thái mở rộng [UC-04.2/AC11–18](use-cases.md#mở-rộng-trạng-thái-sản-phẩm--issue-65-đề-xuất);
-kết quả local đã có, CI/review theo [PR #71](https://github.com/F-R-E-Y-A/fashion-shop/pull/71). Hình dạng HTTP lấy từ Swagger `admin-products`.
+CI của head `258b0ca` đạt 7/7; hình dạng HTTP lấy từ Swagger `admin-products`.
 [Admin service](../../../apps/api/src/modules/products/admin-products.service.ts) kiểm phiên bản và khóa
 cùng hàng với [import](../../../apps/api/src/modules/products/product-status.ts); import không gỡ hold thủ công.
 Một migration bổ sung hold/version, mặc định false/0 giữ cờ isActive cũ; chỉ kiểm trên DB test riêng,
-không áp lên DB phát triển. Thiết kế schema/import cần Bảo và người hiểu Cart/Checkout review trước tích hợp.
+không áp lên DB phát triển. Việc rollout DB phát triển vẫn hoãn theo yêu cầu Tài, tách khỏi nghiệm thu frontend.
 
 [Luồng chung](../../../apps/web/src/features/products/admin/product-status-action.tsx) dùng authenticatedRequest,
 actor/epoch/thế hệ quyền; list/detail xác nhận tên và tác động, ngăn gửi lặp, xử lý kết quả chưa rõ bằng GET.
 Sau thành công bỏ tập filter cũ và tải total/trang lại; không tính lại total từ một dòng.
 Không ghi dữ liệu admin bằng response phiên cũ/403 hoặc đè phiên bản mới hơn đang đọc.
 Bật lại là gỡ ngừng bán thủ công, không tự bật danh mục/biến thể hoặc chọn lại giỏ.
+
+## Danh mục quản trị đọc và ẩn hiện — Issue #79
+
+Đặc tả đề xuất [UC-04.1](use-cases-admin-categories.md) thuộc Issue #79: đọc cây phân cấp, chi tiết và chuyển đổi trạng thái hiển thị (`isActive`) an toàn qua CAS bằng `updatedAt`.
+Không tạo mới, sửa tên/slug/cha/thứ tự, không xóa và không kéo thả.
+Phân quyền ADMIN kiểm tra trước validation, allowlist và `Cache-Control: no-store`.
+Ngữ nghĩa: ẩn cha làm nhánh con không hiển thị hiệu lực (`parentHidden: true`), không đổi cờ DB con; bật cha chỉ khôi phục con có `isActive = true`.
+Số đếm: `productCount` (trực tiếp) và `subtreeProductCount` (toàn nhánh) trong cùng snapshot `RepeatableRead`.
+CAS kiểm tra `expectedUpdatedAt` ISO mili-giây, khóa hàng `FOR UPDATE`, tăng đơn điệu `GREATEST(NOW(), updated_at + 1ms)`; no-op không UPDATE và không bump catalog revision.
+Storefront và Cart phản ánh trạng thái ẩn/hiện danh mục; seed lặp bảo toàn quyết định ẩn của admin; quyết định kiến trúc đề xuất [ADR-053](LOG.md#adr-053).
+
 Giỏ lần đọc sau báo INACTIVE và bỏ chọn; thêm bị Cart từ chối theo lỗi hiện có.
 Checkout đã đọc Catalog trước khi ngừng bán có thể tiếp tục; không tự hủy/hoàn tiền đơn hoặc sửa kho.
 Kiểm bằng unit/web, [HTTP regression](../../../apps/api/test/admin-product-status.http.spec.ts) và
@@ -240,3 +251,27 @@ Kiểm bằng unit/web, [HTTP regression](../../../apps/api/test/admin-product-s
 desktop/mobile, hai hướng list/detail và focus. Zoom200% thật còn chờ kiểm; không thay bằng viewport.
 Quyết định [ADR-049](LOG.md#adr-049) vẫn đề xuất; số045 trùng quyết định đã gộp nên đã đổi số.
 ảnh/log/patch định danh bản giữ trong kho docs; chưa coi bản local là nghiệm thu toàn bộ admin.
+
+## Tổng quan admin — frontend đã gộp PR #76
+
+`/admin` giữ `AdminProductsPage` sau `RequireAdmin`, đọc `total` của danh sách sản phẩm công khai hiện có.
+Thẻ này không đếm mọi bản ghi catalog hoặc cam kết sản phẩm còn tồn; không phải dashboard doanh thu.
+Nhánh `feature/ph-03-admin-frontend-refinement` thêm H1, card theo AdminKit, trạng thái tải, lỗi và Thử lại;
+`total: 0` hiện số 0, số lớn định dạng `vi-VN`; nhãn “Sản phẩm công khai” không cam kết có tồn.
+Giữ `listProducts`, query key và hợp đồng API hiện tại.
+
+Yêu cầu trình bày nằm tại [UC-02.1/AC9](../users/use-cases.md); nguồn tổng theo UC-03.1/AC4 ở
+[use-cases.md](use-cases.md). Bài `AdminProductsPage.test.tsx` kiểm dữ liệu/feedback;
+[E2E layout](../../../apps/web/e2e/admin-layout.spec.ts) đối chiếu total qua API thật và giảm chuyển động, không thay kiểm zoom thủ công. Danh sách/chi tiết quản trị Catalog đã tích hợp từ PR #64; đợt này giữ nguyên API và
+chức năng đọc catalog. Khung, CSS dùng chung và vùng Products cần Bảo review trước gộp.
+
+## Sửa nội dung quản trị — Issue #77
+
+[AC19–28](use-cases-admin-content.md) bổ sung bốn trường nội dung, CAS riêng và bảo vệ từng trường qua import.
+[Issue77](https://github.com/F-R-E-Y-A/fashion-shop/issues/77), task/admin-product-edit trên catalog đã đồng bộ develop752b410.
+API đã cài trong admin-products; DTO/controller sinh hợp đồng tại Swagger `/api/docs`.
+Migration thêm version nội dung và danh sách trường được giữ khi import; mới áp trên DB test riêng,
+chưa rollout DB phát triển. Giữ slug/giá/trạng thái/kho/đơn theo hợp đồng cũ.
+409 giữ draft, ghép ba bản gốc/đang soạn/máy chủ; xung đột cùng trường cần người dùng chọn.
+GET tải lại giữ phần gõ thêm trong lúc chờ; timeout/network/5xx cần đối chiếu trước lưu tiếp.
+Quyết định [ADR-052](LOG.md#adr-052) còn đề xuất; chưa tự coi là đã nghiệm thu hoặc merge Issue77.

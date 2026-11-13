@@ -4,11 +4,11 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 
 import { ApiError, formatPrice, pageTitle } from '@/core';
 import { AddToCartButton } from '@/features/cart';
-import { ErrorNote, SkeletonDetail } from '@/ui';
+import { ProductReviews, RatingBadge } from '@/features/reviews';
+import { ErrorNote, Lightbox, SkeletonDetail } from '@/ui';
 
 import { getProductDetail, getRelatedProducts, productKeys } from '../api/index.js';
 import { Breadcrumb } from '../components/Breadcrumb.js';
-import { Lightbox } from '../components/Lightbox.js';
 import { ProductGrid } from '../components/ProductGrid.js';
 import { SectionHeader } from '../components/SectionHeader.js';
 import {
@@ -204,6 +204,20 @@ export function ProductDetailPage() {
         <div className={styles.info}>
           {data.brandName && <p className={styles.eyebrow}>{data.brandName}</p>}
           <h1>{data.name}</h1>
+          {data.ratingCount ? (
+            <a
+              className={styles.rating}
+              href="#danh-gia"
+              onClick={(event) => {
+                // Cuon tai cho, khong day muc lich su: ScrollManager se keo trang ve dau khi URL doi.
+                event.preventDefault();
+                document.getElementById('danh-gia')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+            >
+              <RatingBadge average={data.ratingAverage} count={data.ratingCount} />
+              <span>Xem đánh giá</span>
+            </a>
+          ) : null}
           <p className={styles.price}>
             {formatPrice(variant?.price ?? data.price)}
             {displayedListPrice && <s>{formatPrice(displayedListPrice)}</s>}
@@ -283,6 +297,7 @@ export function ProductDetailPage() {
           {data.careInstructions && <p>Bảo quản: {data.careInstructions}</p>}
         </div>
       </article>
+      <ProductReviews slug={slug} />
       {related.data && related.data.length > 0 && (
         <section className={styles.related}>
           <SectionHeader title="CÓ THỂ BẠN SẼ THÍCH" to={`/danh-muc/${data.categorySlug}`} />

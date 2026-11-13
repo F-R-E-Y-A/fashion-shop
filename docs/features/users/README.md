@@ -1,6 +1,6 @@
 ---
 title: Tài khoản người dùng — bản đồ
-updated: 2026-11-03
+updated: 2026-11-10
 status: đang làm
 owner: Tài
 ---
@@ -28,7 +28,7 @@ quản trị đầu tiên của hệ thống, nơi phân quyền theo vai ([ADR-
 | `GET /api/admin/users`, `GET /api/admin/users/:id` | Admin.1, xong |
 | `POST /api/admin/users/:id/lock`, `POST /api/admin/users/:id/unlock`, thu hồi phiên, nhật ký | Admin.2, xong |
 | Giao diện quản trị `/admin/users`, `/admin/users/:id`: guard `ADMIN`, danh sách, chi tiết, khóa và mở khóa | Admin.3, [Issue #46](https://github.com/F-R-E-Y-A/fashion-shop/issues/46), đã gộp qua [PR #47](https://github.com/F-R-E-Y-A/fashion-shop/pull/47) (`47576d4`): [mục dưới](#giao-diện-quản-trị) |
-| Tìm email, lọc trạng thái/vai/xác thực, sắp xếp, số dòng; khóa, mở khóa ngay trên danh sách | [Issue #48](https://github.com/F-R-E-Y-A/fashion-shop/issues/48), [PR #49](https://github.com/F-R-E-Y-A/fashion-shop/pull/49) vào `develop`, đang chờ review, chưa gộp |
+| Tìm email, lọc trạng thái/vai/xác thực, sắp xếp, số dòng; khóa, mở khóa ngay trên danh sách | [Issue #48](https://github.com/F-R-E-Y-A/fashion-shop/issues/48), [PR #49](https://github.com/F-R-E-Y-A/fashion-shop/pull/49) đã gộp vào `develop` |
 | Gán vai, `STAFF`, màn xem nhật ký, tạo/sửa/xóa tài khoản, thao tác hàng loạt, xuất dữ liệu | Chưa làm |
 | Hồ sơ `GET`/`PATCH /api/users/me`, khu vực hành chính, sổ địa chỉ | PH4, xong phía máy chủ: [profile-address.md](profile-address.md) |
 | Giao diện `/tai-khoan`, hồ sơ và sổ địa chỉ | Đã gộp vào develop qua PR #29 và PR #32: [profile-address.md](profile-address.md#giao-diện-web-hiện-tại) |
@@ -91,7 +91,7 @@ Anh cho khu quản trị: [LOG#adr-027](../../LOG.md#adr-027); quyết định r
 
 | Đường dẫn | Trang |
 |---|---|
-| `/admin` | Tổng quan hiện có của Bảo (`AdminProductsPage`), nay sau guard |
+| `/admin` | Tổng quan cửa hàng: số lượng sản phẩm công khai đang hoạt động (từ `listProducts`), sau guard |
 | `/admin/users` | Danh sách: `q`, `status`, `role`, `verified`, `sort`, `page`, `pageSize` (10, 20, 50; mặc định 20) trên URL, bỏ giá trị mặc định |
 | `/admin/users/:id` | Chi tiết, khóa hay mở khóa |
 | `/quan-tri` | Chuyển hướng thay thế về `/admin`, giữ query và hash |
@@ -113,6 +113,9 @@ Anh cho khu quản trị: [LOG#adr-027](../../LOG.md#adr-027); quyết định r
   được tạo lại theo actor/epoch để không giữ placeholder hoặc thông báo của lần đăng nhập trước.
 - **Khóa, mở khóa không tự gửi lại.** Chờ tối đa 15 giây; hết giờ, mất mạng hay 5xx thì báo chưa rõ kết quả và cho
   kiểm lại bằng GET.
+- **Giao diện quản trị AdminKit.** Khung sidebar Espresso, nội dung Ivory, panel trắng và nút Copper. Bảng chuyển
+  dạng thẻ độc lập tại 360px; thẻ vai trò hiển thị dạng pill badge (12px, nền tint nhẹ cho `ADMIN`); hộp xác nhận
+  có viền đỏ cảnh báo khi khóa tài khoản ([ConfirmDialog.tsx](../../../apps/web/src/ui/ConfirmDialog.tsx)).
 - **Hộp xác nhận** dùng `<dialog>` native (`showModal`); bài kiểm thử jsdom dùng stub, nên top layer và nền inert
   chỉ được chứng minh trên trình duyệt thật.
 - **Một codec điều kiện** (`list-query.ts`) đọc và ghi URL, tạo tham số API và chữ ký của query key; giá trị sai bị
@@ -171,10 +174,21 @@ Admin.1 và Admin.2 đã gộp vào `develop` (pull request #24, `aee345e`). Adm
   trị viên hoạt động cuối cùng". Admin.3 chỉ **ẩn** nút khóa tài khoản `ADMIN` ở giao diện; gọi thẳng API vẫn
   khóa được. Đề xuất một Issue phía máy chủ riêng; chưa có quyết định chấp nhận hay hạn xử lý. [TBD — hỏi Tài]
 
-## Giao diện admin — Issue #59, chưa merge
+## Khung admin đã gộp; phần hoàn thiện frontend đang chờ review
 
 Danh sách/chi tiết dùng bảng/panel trắng, chữ và khoảng cách theo AdminKit. Bộ lọc mobile thu gọn trong
 [UserFilterDisclosure](../../../apps/web/src/features/account/admin/UserFilterDisclosure.tsx); giữ nguyên input DOM, debounce, URL và request.
 Khung có drawer, focus/Escape và đường về cửa hàng; chỉ dùng sáu trường API. Guard và các bảo vệ Issue #57 giữ nguyên.
-Không có thư viện, token, API/migration mới. PR #58 đã merge tại `8fe405e`; nhánh shell đã cập nhật nền này. Check/build/docs lint và QA đã đạt local;
-còn review và CI của PR Issue #59 trước merge.
+Chiều cao drawer giới hạn theo viewport, kể cả màn thấp; nội dung dài cuộn trong hộp để link cuối không bị che khi dùng bàn phím.
+Khung Issue #59 đã gộp qua [PR #60](https://github.com/F-R-E-Y-A/fashion-shop/pull/60) tại `63d9798`.
+Nhánh `feature/ph-03-admin-frontend-refinement` đang hoàn thiện Tổng quan, badge vai và viền hộp xác nhận;
+chờ review/CI, chưa gộp. Các tiêu chí trình bày tiếp nối AC9 ở [use-cases.md](use-cases.md).
+Không có thư viện, token, API/migration mới. Catalog PR #64 và điều hướng Orders PR #62 đã gộp; nhánh frontend đồng bộ develop `924dceb`, giữ trạng thái sản phẩm PR #71 và khuyến mãi PR #41.
+Phần hoàn thiện frontend vẫn chưa gộp; không coi đây là toàn bộ admin đã xong.
+[E2E layout](../../../apps/web/e2e/admin-layout.spec.ts) kiểm drawer 640×320, vòng Tab/Escape/trả focus,
+Tổng quan 360×740/1280×800 và reduced-motion thật; zoom 200% bằng trình duyệt vẫn chờ kiểm.
+AC đã phân loại theo [testing.md](../../shared/testing.md); AC10 là checklist thủ công, không giả lập bằng test widget.
+
+Lát frontend được theo dõi tại [Issue #75](https://github.com/F-R-E-Y-A/fashion-shop/issues/75);
+[PR #76](https://github.com/F-R-E-Y-A/fashion-shop/pull/76) đã mở để nhận review. Ready không phải nghiệm thu:
+zoom 200% thật, review chéo và CI đúng head cuối vẫn phải được xác nhận trước merge.

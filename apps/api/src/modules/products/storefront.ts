@@ -101,6 +101,9 @@ export function toProductResponse(
     variants: RowVariant[];
     priceFrom: Prisma.Decimal;
     images: Array<{ url: string; color?: { name: string } | null }>;
+    /** Tuy chon de cac dong tu dung tay trong bai kiem thu cu van hop kieu; thieu thi 0. */
+    ratingAverage?: Prisma.Decimal;
+    ratingCount?: number;
   },
   opts: { preferFamily?: ColorFamily } = {},
 ): ProductResponse {
@@ -131,6 +134,8 @@ export function toProductResponse(
     listPrice: listPriceOf(row.variants, price),
     colorSwatches: colors.swatches,
     colorCount: colors.count,
+    ratingAverage: row.ratingAverage ? Number(row.ratingAverage) : 0,
+    ratingCount: row.ratingCount ?? 0,
   };
 }
 

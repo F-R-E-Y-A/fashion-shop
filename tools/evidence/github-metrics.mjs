@@ -7,8 +7,11 @@ const sinceArg = process.argv.indexOf('--since');
 const since = sinceArg > -1 ? process.argv[sinceArg + 1] : '2026-09-09';
 const repo = process.env.GITHUB_REPOSITORY ?? 'F-R-E-Y-A/fashion-shop';
 
+// Goi thang gh.exe, KHONG qua shell: tren Windows cmd.exe cat URL tai dau `&` (per_page=100 thanh
+// lenh rieng) nen lan goi dau da hong. Bo dem lon vi --paginate tra ca lich su commit va run.
 function gh(...args) {
-  const r = spawnSync('gh', args, { encoding: 'utf8', shell: process.platform === 'win32' });
+  const r = spawnSync('gh', args, { encoding: 'utf8', maxBuffer: 256 * 1024 * 1024 });
+  if (r.error) throw r.error;
   if (r.status !== 0) throw new Error(r.stderr || `gh ${args.join(' ')} that bai`);
   return JSON.parse(r.stdout || '[]');
 }
@@ -45,7 +48,9 @@ const reviewed = prs.filter((p) =>
   p.reviews.some((r) => r.state === 'APPROVED' && r.author?.login !== p.author?.login),
 );
 
-const runPages = gh('api', '--paginate', `repos/${repo}/actions/runs?per_page=100`);
+// Run tra ve doi tuong { workflow_runs } moi trang; --paginate noi cac doi tuong lien nhau (khong phai
+// JSON hop le), --slurp gom thanh mang cac trang.
+const runPages = gh('api', '--paginate', '--slurp', `repos/${repo}/actions/runs?per_page=100`);
 const runs = Array.isArray(runPages)
   ? runPages.flatMap((page) => page.workflow_runs ?? [])
   : (runPages.workflow_runs ?? []);

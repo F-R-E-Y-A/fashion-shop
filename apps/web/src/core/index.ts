@@ -13,10 +13,11 @@ export {
   type ApiRequestOptions,
   openEventStream,
   type Page,
+  postExternalForm,
   type QueryParams,
   setAccessTokenGetter,
 } from './http.js';
-export { queryClient } from './queryClient.js';
+export { configureUncertainQueryDefaults, queryClient } from './queryClient.js';
 export {
   classifyRequestError,
   requestErrorCode,

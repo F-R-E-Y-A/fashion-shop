@@ -28,7 +28,7 @@ function media(small: boolean) {
 const field = <input aria-label="Email đang nhập" defaultValue="nhap-do@example.test" />;
 
 describe('UC-02.1/AC9 bộ lọc responsive — Issue #59', () => {
-  it('mobile thu gọn, mở/đóng không tháo input hoặc mất chữ đang gõ', async () => {
+  it('UC-02.1/AC9 mobile thu gọn, mở/đóng không tháo input hoặc mất chữ đang gõ', async () => {
     media(true);
     const view = render(<UserFilterDisclosure active={1}>{field}</UserFilterDisclosure>);
     const details = view.container.querySelector('details')!;
@@ -48,7 +48,7 @@ describe('UC-02.1/AC9 bộ lọc responsive — Issue #59', () => {
     await user.click(toggle);
     expect(screen.getByRole('textbox')).toHaveValue('chu-dang-go');
   });
-  it('desktop mở mặc định; thu gọn vì breakpoint chuyển focus khỏi ô bị ẩn', () => {
+  it('UC-02.1/AC9 desktop mở mặc định; thu gọn vì breakpoint chuyển focus khỏi ô bị ẩn', () => {
     const resize = media(false);
     const view = render(<UserFilterDisclosure active={0}>{field}</UserFilterDisclosure>);
     expect(view.container.querySelector('details')).toHaveAttribute('open');
