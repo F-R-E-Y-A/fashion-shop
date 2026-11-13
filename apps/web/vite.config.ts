@@ -50,6 +50,8 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
+    // Bai go phim bang userEvent co luc vuot 5 giay mac dinh khi ca bo chay song song (src/test/setup.ts).
+    testTimeout: 15_000,
     include: ['src/**/*.test.{ts,tsx}'],
     coverage: {
       provider: 'v8',

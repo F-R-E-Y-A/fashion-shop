@@ -12,6 +12,7 @@ import { PrismaService } from '../../src/infra/prisma/prisma.service.js';
 import { RateLimiter } from '../../src/infra/rate-limit/rate-limiter.js';
 import { rateLimitKeyPrefix } from '../../src/infra/rate-limit/redis-rate-limiter.js';
 import { REDIS_CLIENT } from '../../src/infra/redis/redis.module.js';
+import { ImageStorage } from '../../src/infra/storage/image-storage.js';
 import { EMBEDDER, type Embedder } from '../../src/modules/products/search/semantic/embedder.js';
 import { FailingRateLimiter } from './failing-rate-limiter.js';
 import { FakeMailService } from './fake-mail.service.js';
@@ -39,6 +40,8 @@ export interface TestAppOptions {
   config?: Partial<Env>;
   /** Bat tim kiem ngu nghia bang bo nhung nay thay cho mo hinh that (ADR-048). */
   embedder?: Embedder;
+  /** Kho anh gia (test/helpers/fake-image-storage.ts) thay cho Cloudinary (ADR-055). */
+  imageStorage?: ImageStorage;
 }
 
 /**
@@ -58,6 +61,9 @@ async function buildTestApp(options: TestAppOptions): Promise<TestApp> {
   }
   if (options.embedder) {
     builder = builder.overrideProvider(EMBEDDER).useValue(options.embedder);
+  }
+  if (options.imageStorage) {
+    builder = builder.overrideProvider(ImageStorage).useValue(options.imageStorage);
   }
 
   const moduleRef = await builder.compile();

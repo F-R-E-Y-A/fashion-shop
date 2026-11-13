@@ -77,7 +77,13 @@ model Product {
   isActive         Boolean  @default(true) @map("is_active")
   adminDisabled    Boolean  @default(false) @map("admin_disabled")
   statusVersion    Int      @default(0) @map("status_version")
+  contentVersion   Int      @default(0) @map("content_version")
+  adminContentFields String[] @default([]) @map("admin_content_fields")
   isFeatured       Boolean  @default(false) @map("is_featured")
+  // Diem trung binh va so danh gia DA DUYET, ghi san cho the san pham va sap xep. Chi
+  // ProductsService.updateRatingSummary ghi, trong giao dich doi trang thai danh gia (ADR-054).
+  ratingAverage    Decimal  @default(0) @map("rating_average") @db.Decimal(3, 2)
+  ratingCount      Int      @default(0) @map("rating_count")
   // Doi tuong: "nam" | "nu" | "unisex" | null. Suy ra tu slug danh muc nguon luc nap (ADR-019);
   // CHECK viet tay trong migration ph01_search_audience.
   audience         String?  @db.VarChar(8)

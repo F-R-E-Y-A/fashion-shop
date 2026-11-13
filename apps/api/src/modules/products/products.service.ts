@@ -11,6 +11,7 @@ import type { ImportProductRow, ImportRowResult } from './import/import.types.js
 import { ImportRowError } from './import/import-row.error.js';
 import { sourceSlug } from './import/slug.js';
 import { validateRow } from './import/validate-row.js';
+import { importedContent } from './product-content.js';
 import { lockProductStatus, productStatusChange } from './product-status.js';
 import { audienceFrom } from './search/audience.js';
 import { withProductStock } from './stock.js';
@@ -31,7 +32,12 @@ const detailProductInclude = {
 const cartVariantInclude = {
   color: true,
   size: true,
-  product: { include: { images: { orderBy: { sortOrder: 'asc' } } } },
+  product: {
+    include: {
+      category: { include: { parent: true } },
+      images: { orderBy: { sortOrder: 'asc' } },
+    },
+  },
 } as const;
 
 type CartVariant = Prisma.ProductVariantGetPayload<{ include: typeof cartVariantInclude }>;
@@ -178,6 +184,7 @@ export class ProductsService {
           where: { id: existingProductId },
           data: {
             ...productData,
+            ...importedContent(status!, productData),
             ...productStatusChange(status!, status!.adminDisabled, row.images.length > 0),
           },
         })
@@ -389,6 +396,9 @@ export class ProductsService {
       variant.color.code === 'mac-dinh' ? null : variant.color.name,
     ].filter((part): part is string => part !== null);
 
+    const category = variant.product.category;
+    const isCategoryActive = category.isActive && (!category.parent || category.parent.isActive);
+
     return {
       variantId: variant.id,
       productId: variant.productId,
@@ -397,7 +407,37 @@ export class ProductsService {
       variantLabel: labelParts.join(' / '),
       price: (variant.salePrice ?? variant.listPrice).toString(),
       imageUrl: image?.url ?? null,
-      isActive: variant.isActive && variant.product.isActive,
+      isActive: variant.isActive && variant.product.isActive && isCategoryActive,
     };
+  }
+
+  /** Id san pham dang ban theo slug, cho trang danh gia; an hay khong ton tai thi 404 nhu trang chi tiet. */
+  async storefrontProductId(slug: string): Promise<string> {
+    const row = await this.prisma.product.findFirst({
+      where: storefrontProductWhere({ slug }),
+      select: { id: true },
+    });
+    if (!row) throw new NotFoundException(`Không tìm thấy sản phẩm: ${slug}`);
+    return row.id;
+  }
+
+  /**
+   * Ghi lai diem trung binh va so danh gia da duyet (ADR-054). Khoa dong san pham TRUOC khi goi
+   * `compute`: o READ COMMITTED moi cau lenh lay snapshot moi, nen giao dich vao sau doi khoa roi
+   * tinh lai tren du lieu da gom thay doi cua giao dich truoc, khong ghi de bang so cu.
+   */
+  async updateRatingSummary(
+    productId: string,
+    transaction: Prisma.TransactionClient,
+    compute: () => Promise<{ average: number; count: number }>,
+  ): Promise<void> {
+    await transaction.$queryRaw`SELECT id FROM public.products WHERE id = ${productId}::uuid FOR UPDATE`;
+    const { average, count } = await compute();
+    // SQL tho: @updatedAt cua Prisma khong nhay, "cap nhat luc" o trang quan tri chi doi khi shop sua
+    // san pham. Trigger muc cau lenh van tang catalog_revision de danh sach nap lai diem moi.
+    await transaction.$executeRaw`
+      UPDATE public.products
+      SET rating_average = ${average.toFixed(2)}::numeric, rating_count = ${count}
+      WHERE id = ${productId}::uuid`;
   }
 }

@@ -1,12 +1,20 @@
 import type { Prisma } from '../../generated/prisma/client.js';
+import type { ProtectedContent } from './product-content.js';
 
 /** Import va admin khoa cung hang TRUOC khi doc hold/anh va ghi bien the/anh. */
 export async function lockProductStatus(tx: Prisma.TransactionClient, id: string) {
   const rows = await tx.$queryRaw<
-    { id: string; isActive: boolean; adminDisabled: boolean; statusVersion: number }[]
+    (ProtectedContent & {
+      id: string;
+      isActive: boolean;
+      adminDisabled: boolean;
+      statusVersion: number;
+      contentVersion: number;
+    })[]
   >`
     SELECT id, is_active AS "isActive", admin_disabled AS "adminDisabled",
-      status_version AS "statusVersion"
+      status_version AS "statusVersion", name, description, material, care_instructions AS "careInstructions",
+      content_version AS "contentVersion", admin_content_fields AS "adminContentFields"
     FROM public.products WHERE id = ${id}::uuid FOR UPDATE
   `;
   return rows[0];

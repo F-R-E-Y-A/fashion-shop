@@ -5,6 +5,8 @@ import type { Env } from '../../infra/config/env.js';
 import { RateLimitModule } from '../../infra/rate-limit/rate-limit.module.js';
 import { AuthModule } from '../auth/index.js';
 import { InventoryModule } from '../inventory/index.js';
+import { AdminCategoriesController } from './admin-categories.controller.js';
+import { AdminCategoriesService } from './admin-categories.service.js';
 import { AdminProductsController } from './admin-products.controller.js';
 import { AdminProductsService } from './admin-products.service.js';
 import { CatalogEventsService } from './catalog-events.service.js';
@@ -31,6 +33,7 @@ import { SuggestRateLimitService } from './search/suggest-rate-limit.service.js'
 @Module({
   imports: [RateLimitModule, InventoryModule, AuthModule],
   controllers: [
+    AdminCategoriesController,
     AdminProductsController,
     ProductsController,
     CategoriesController,
@@ -38,6 +41,7 @@ import { SuggestRateLimitService } from './search/suggest-rate-limit.service.js'
   ],
   providers: [
     ProductsService,
+    AdminCategoriesService,
     AdminProductsService,
     CatalogEventsService,
     CategoriesService,

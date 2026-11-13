@@ -114,7 +114,14 @@ export function useProductStatusAction() {
       await client.cancelQueries({ queryKey: adminCatalogKeys.all(actor) });
       if (!current(v)) return;
       client.setQueryData<AdminCatalogDetail>(adminCatalogKeys.detail(actor, updated.id), (old) =>
-        !old || old.statusVersion > updated.statusVersion ? old : { ...old, ...updated },
+        !old || old.statusVersion > updated.statusVersion
+          ? old
+          : {
+              ...old,
+              isActive: updated.isActive,
+              adminDisabled: updated.adminDisabled,
+              statusVersion: updated.statusVersion,
+            },
       );
       // Rows co the roi filter/doi trang: bo ca tap cu, khong tu tinh total hay tai tung dong.
       await Promise.all([

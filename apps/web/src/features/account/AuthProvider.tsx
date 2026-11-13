@@ -93,6 +93,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const purgeAccountData = useCallback(() => {
     void queryClient?.cancelQueries({ queryKey: sessionQueryKeys.all });
     queryClient?.removeQueries({ queryKey: sessionQueryKeys.all });
+    void queryClient?.cancelQueries({ queryKey: ['uncertain'] });
+    queryClient?.removeQueries({ queryKey: ['uncertain'] });
   }, [queryClient]);
 
   /** Mo mot epoch moi: huy moi request cua phien truoc va xoa cache tai khoan cua no. */
@@ -391,4 +393,12 @@ export function useAuth(): AuthContextValue {
   const context = useContext(AuthContext);
   if (!context) throw new Error('useAuth phai duoc dung ben trong AuthProvider');
   return context;
+}
+
+/**
+ * Nhu useAuth nhung tra null ngoai AuthProvider: cho thanh phan cong khai (danh gia san pham) nhung
+ * vao trang khong bat dang nhap va duoc kiem thu ma khong can dung ca phien.
+ */
+export function useOptionalAuth(): AuthContextValue | null {
+  return useContext(AuthContext);
 }

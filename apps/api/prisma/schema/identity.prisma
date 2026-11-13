@@ -45,6 +45,8 @@ model User {
   orderStatusHistory OrderStatusHistory[] @relation("OrderStatusActor")
   voucherUsages      VoucherUsage[]
   reviews            Review[]
+  reviewHelpfulVotes ReviewHelpfulVote[]
+  reviewReports      ReviewReport[]
   returns            Return[]
   searchQueryLogs    SearchQueryLog[]
   wishlists          Wishlist[]
@@ -289,34 +291,135 @@ model Review {
   content          String?      @db.Text
   fitFeedback      FitFeedback? @map("fit_feedback")
   moderationStatus ReviewStatus @default(PENDING) @map("moderation_status")
+  // Ban chup "Mau / Co" cua dong don luc viet: bien the doi ten hay ngung ban thi danh gia van ghi
+  // dung thu khach da mua (ADR-054).
+  variantLabel     String?      @map("variant_label") @db.VarChar(120)
+  isAnonymous      Boolean      @default(false) @map("is_anonymous")
+  // Tu nguyen, de nguoi xem doi chieu co voi dang nguoi; CHECK pham vi viet tay trong migration.
+  heightCm         Int?         @map("height_cm") @db.SmallInt
+  weightKg         Int?         @map("weight_kg") @db.SmallInt
+  // Dem ghi san, doi cung giao dich voi bang phieu de sap xep "huu ich" khong phai gom nhom.
+  helpfulCount     Int          @default(0) @map("helpful_count")
+  reportCount      Int          @default(0) @map("report_count")
+  editCount        Int          @default(0) @map("edit_count") @db.SmallInt
+  editedAt         DateTime?    @map("edited_at") @db.Timestamptz(3)
+  // Dau vet duyet va phan hoi cua shop. Cot *_by_id khong khai quan he: chi de tra cuu, khong join.
+  moderationNote   String?      @map("moderation_note") @db.VarChar(500)
+  moderatedAt      DateTime?    @map("moderated_at") @db.Timestamptz(3)
+  moderatedById    String?      @map("moderated_by_id") @db.Uuid
+  replyContent     String?      @map("reply_content") @db.Text
+  repliedAt        DateTime?    @map("replied_at") @db.Timestamptz(3)
+  repliedById      String?      @map("replied_by_id") @db.Uuid
   deletedAt        DateTime?    @map("deleted_at") @db.Timestamptz(3)
   createdAt        DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt        DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  reviewer  User          @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  product   Product       @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  orderItem OrderItem     @relation(fields: [orderItemId], references: [id], onDelete: Restrict, onUpdate: NoAction)
-  media     ReviewMedia[]
+  reviewer     User                @relation(fields: [userId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  product      Product             @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  orderItem    OrderItem           @relation(fields: [orderItemId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  media        ReviewMedia[]
+  helpfulVotes ReviewHelpfulVote[]
+  reports      ReviewReport[]
 
   @@index([productId, moderationStatus, createdAt])
+  @@index([moderationStatus, createdAt])
   @@index([userId])
   @@map("reviews")
   @@schema("public")
 }
 
 model ReviewMedia {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  reviewId  String   @map("review_id") @db.Uuid
-  url       String   @db.VarChar
-  sortOrder Int      @map("sort_order")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reviewId     String   @map("review_id") @db.Uuid
+  url          String   @db.VarChar
+  // Khoa tren kho anh (public_id) de xoa anh cu khi danh gia doi anh; null voi anh nap tay. UNIQUE:
+  // mot anh chi thuoc mot danh gia, xoa anh cua danh gia nay khong lam vo anh cua danh gia khac.
+  storageKey   String?  @unique @map("storage_key") @db.VarChar(300)
+  // Ban thu nho cho luoi anh 72 px (ADR-056): khong tai ban 1600 px chi de ve o nho. Null voi anh nap
+  // tay, khi do web dung url.
+  thumbnailUrl String?  @map("thumbnail_url") @db.VarChar
+  sortOrder    Int      @map("sort_order")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@unique([reviewId, sortOrder])
   @@index([reviewId])
   @@map("review_media")
+  @@schema("public")
+}
+
+enum MediaUploadStatus {
+  PENDING
+  DISCARDED
+  DELETING
+
+  @@map("media_upload_status")
+  @@schema("public")
+}
+
+// So anh tren kho chua gan vao du lieu (ADR-056), thuoc phan he uploads. Cap phieu thi them PENDING;
+// gan vao danh gia thi xoa dong trong cung giao dich; go anh khoi danh gia thi them DISCARDED. Worker
+// nhan lo (DELETING, claimed_at la han thue), xoa tren kho roi xoa dong. Bang chi giu anh dang cho
+// hoac cho xoa nen khong phinh. Khong khai quan he voi users: dong ngan han, khoa tren kho da chua
+// userId.
+model MediaUpload {
+  id         String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  storageKey String            @unique @map("storage_key") @db.VarChar(300)
+  ownerId    String            @map("owner_id") @db.Uuid
+  status     MediaUploadStatus @default(PENDING)
+  attempts   Int               @default(0) @db.SmallInt
+  claimedAt  DateTime?         @map("claimed_at") @db.Timestamptz(3)
+  createdAt  DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([status, createdAt])
+  @@map("media_uploads")
+  @@schema("public")
+}
+
+enum ReviewReportReason {
+  SPAM
+  OFFENSIVE
+  IRRELEVANT
+  PRIVACY
+  OTHER
+
+  @@map("review_report_reason")
+  @@schema("public")
+}
+
+/// Moi nguoi mot phieu "huu ich" cho moi danh gia; khoa chinh doi chan bam lap.
+model ReviewHelpfulVote {
+  reviewId  String   @map("review_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([reviewId, userId])
+  @@index([userId])
+  @@map("review_helpful_votes")
+  @@schema("public")
+}
+
+/// Bao cao chi danh dau cho quan tri xem, khong tu an danh gia: tranh mot nhom bam bao cao de ha
+/// danh gia that (ADR-054).
+model ReviewReport {
+  id        String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  reviewId  String             @map("review_id") @db.Uuid
+  userId    String             @map("user_id") @db.Uuid
+  reason    ReviewReportReason
+  note      String?            @db.VarChar(500)
+  createdAt DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  review Review @relation(fields: [reviewId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([reviewId, userId])
+  @@index([userId])
+  @@map("review_reports")
   @@schema("public")
 }
 
@@ -468,10 +571,11 @@ model NormalizedProductCandidate {
 }
 
 model DailyRevenue {
-  reportDate    DateTime @id @map("report_date") @db.Date
-  orderCount    Int      @map("order_count")
-  revenueAmount Decimal  @map("revenue_amount") @db.Decimal(12, 2)
-  refreshedAt   DateTime @map("refreshed_at") @db.Timestamptz(3)
+  reportDate     DateTime @id @map("report_date") @db.Date
+  orderCount     Int      @map("order_count")
+  revenueAmount  Decimal  @map("revenue_amount") @db.Decimal(12, 2)
+  refundedAmount Decimal  @default(0) @map("refunded_amount") @db.Decimal(12, 2)
+  refreshedAt    DateTime @map("refreshed_at") @db.Timestamptz(3)
 
   @@map("daily_revenue")
   @@schema("reporting")
@@ -480,6 +584,7 @@ model DailyRevenue {
 model TopSellingProduct {
   reportDate    DateTime @map("report_date") @db.Date
   productId     String   @map("product_id") @db.Uuid
+  productName   String?  @map("product_name") @db.VarChar(255)
   quantitySold  Int      @map("quantity_sold")
   revenueAmount Decimal  @map("revenue_amount") @db.Decimal(12, 2)
   refreshedAt   DateTime @map("refreshed_at") @db.Timestamptz(3)
@@ -506,5 +611,17 @@ model LowStock {
   refreshedAt       DateTime @map("refreshed_at") @db.Timestamptz(3)
 
   @@map("low_stock")
+  @@schema("reporting")
+}
+
+model ReportSnapshotMetadata {
+  id                      String   @id @default("singleton") @db.VarChar(50)
+  snapshotVersion         BigInt   @default(0) @map("snapshot_version")
+  asOf                    DateTime @default(now()) @map("as_of") @db.Timestamptz(3)
+  lastCompletedAt         DateTime @default(now()) @map("last_completed_at") @db.Timestamptz(3)
+  metricDefinitionVersion String   @default("1.0") @map("metric_definition_version") @db.VarChar(20)
+  dataQualityNotes        String?  @map("data_quality_notes") @db.Text
+
+  @@map("report_snapshot_metadata")
   @@schema("reporting")
 }

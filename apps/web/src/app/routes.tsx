@@ -24,16 +24,29 @@ import {
   OrderPage,
   OrdersPage,
 } from '@/features/checkout';
+import { AdminInventoryDetailPage, AdminInventoryPage } from '@/features/inventory';
+import { AdminOverviewPage } from '@/features/overview';
 import {
   AdminCatalogDetailPage,
   AdminCatalogPage,
-  AdminProductsPage,
+  AdminCategoriesPage,
+  AdminCategoryDetailPage,
   CategoryPage,
   HomePage,
   ProductDetailPage,
   ProductListPage,
   SearchPage,
 } from '@/features/products';
+import {
+  AdminPromotionDetailPage,
+  AdminPromotionNewPage,
+  AdminPromotionsPage,
+  AdminVoucherDetailPage,
+  AdminVoucherNewPage,
+  AdminVouchersPage,
+} from '@/features/promotions';
+import { AdminReportsPage } from '@/features/reporting';
+import { AdminReviewsPage, MyReviewsPage } from '@/features/reviews';
 import { Loading } from '@/ui';
 
 import { AdminLayout } from './AdminLayout.js';
@@ -103,6 +116,7 @@ export function AppRoutes() {
                 <Route path="ho-so" element={<ProfilePage />} />
                 <Route path="dia-chi" element={<AddressPage />} />
                 <Route path="don-hang" element={<OrdersPage />} />
+                <Route path="danh-gia" element={<MyReviewsPage />} />
                 <Route path="doi-mat-khau" element={<ChangePasswordPage />} />
               </Route>
             </Route>
@@ -132,13 +146,25 @@ export function AppRoutes() {
           <Route path="quan-tri" element={<LegacyAdminRedirect />} />
           <Route path="admin" element={<RequireAdmin />}>
             <Route element={<AdminLayout />}>
-              <Route index element={<AdminProductsPage />} />
+              <Route index element={<AdminOverviewPage />} />
+              <Route path="reports" element={<AdminReportsPage />} />
+              <Route path="inventory" element={<AdminInventoryPage />} />
+              <Route path="inventory/:id" element={<AdminInventoryDetailPage />} />
+              <Route path="categories" element={<AdminCategoriesPage />} />
+              <Route path="categories/:id" element={<AdminCategoryDetailPage />} />
               <Route path="products" element={<AdminCatalogPage />} />
               <Route path="products/:id" element={<AdminCatalogDetailPage />} />
+              <Route path="promotions" element={<AdminPromotionsPage />} />
+              <Route path="promotions/new" element={<AdminPromotionNewPage />} />
+              <Route path="promotions/:id" element={<AdminPromotionDetailPage />} />
+              <Route path="vouchers" element={<AdminVouchersPage />} />
+              <Route path="vouchers/new" element={<AdminVoucherNewPage />} />
+              <Route path="vouchers/:id" element={<AdminVoucherDetailPage />} />
               <Route path="users" element={<AdminUsersPage />} />
               <Route path="users/:id" element={<AdminUserDetailPage />} />
               <Route path="orders" element={<AdminOrdersPage />} />
               <Route path="orders/:id" element={<AdminOrderDetailPage />} />
+              <Route path="reviews" element={<AdminReviewsPage />} />
             </Route>
           </Route>
         </Routes>

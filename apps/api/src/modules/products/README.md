@@ -32,6 +32,8 @@ Phân hệ khác lấy dữ liệu sản phẩm bằng cách tiêm `ProductsServ
 | `getVariantForCart(variantId)` | Duy, giỏ hàng (PH-02) | **Đã cài** ở `c7811ea`; `null` khi không có biến thể |
 | `getVariantsForCart(variantIds)` | Duy, trang giỏ hàng nhiều dòng | **Đã cài** ở `c7811ea`; một truy vấn, giữ thứ tự đầu vào và bỏ ID không có |
 | `importProducts(rows)` | Tài, nạp dữ liệu thật (HT-03, PH-03) | **Đã cài** ở [b2c8de0](https://github.com/F-R-E-Y-A/fashion-shop/commit/b2c8de0), kiểm dữ liệu bổ sung ở [eb8cc61](https://github.com/F-R-E-Y-A/fashion-shop/commit/eb8cc61) |
+| `storefrontProductId(slug)` | Bảo, đánh giá (`reviews`) | Cài trên nhánh `feature/ph-01-reviews`, chưa commit. Sản phẩm ẩn hoặc không có thì 404 như trang chi tiết |
+| `updateRatingSummary(productId, tx, compute)` | Bảo, đánh giá (`reviews`) | Cài trên nhánh `feature/ph-01-reviews`, chưa commit. Khoá dòng sản phẩm rồi mới gọi `compute`, ghi `rating_average`, `rating_count` bằng SQL thô nên `updated_at` không đổi; trigger vẫn tăng `catalog_revision` ([products.service.ts:429](products.service.ts#L429), [ADR-054](../../../../../docs/features/reviews/LOG.md#adr-054)) |
 
 ```ts
 /** Du lieu mot bien the de hien trong gio. Hinh dang hen trong Issue #6 va #7, cong them productSlug. */
@@ -99,7 +101,7 @@ Luật của `importProducts`, theo mô hình M2 ([erd.md](../../../../../docs/f
 
 Đổi chữ ký một hàm đã công bố thì báo ở buổi chốt Thứ Tư và ghi một mục vào `docs/features/products/LOG.md`.
 
-PH-11 bổ sung transaction tuỳ chọn cho hai hàm đọc biến thể: Cart truyền transaction đang giữ khoá owner để đọc Catalog, ghi giỏ và dựng phản hồi cùng giao dịch; không truyền thì giữ cách gọi cũ. Lỗi truy vấn được truyền về caller, không tạo sản phẩm hay giá giả. Xem [ADR-026](../../../../../docs/features/auth/LOG.md#adr-026).
+PH-11 bổ sung transaction tuỳ chọn cho hai hàm đọc biến thể: Cart truyền transaction đang giữ khoá owner để đọc Catalog, ghi giỏ và dựng phản hồi cùng giao dịch; không truyền thì giữ cách gọi cũ. Lỗi truy vấn được truyền về caller, không tạo sản phẩm hay giá giả. Xem [ADR-031](../../../../../docs/LOG.md#adr-031).
 
 Catalog đọc tồn khả dụng qua cửa `inventory/index.ts`. Danh sách, tìm kiếm, gợi ý, sản phẩm liên quan và chi tiết nhận trạng thái tồn; chi tiết có tồn từng biến thể. Thiếu bản ghi Inventory nghĩa là chưa biết tồn, không đồng nghĩa hết hàng. SSE chỉ gửi revision công khai; Swagger là nguồn hình dạng HTTP.
 
