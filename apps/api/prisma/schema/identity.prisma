@@ -571,10 +571,11 @@ model NormalizedProductCandidate {
 }
 
 model DailyRevenue {
-  reportDate    DateTime @id @map("report_date") @db.Date
-  orderCount    Int      @map("order_count")
-  revenueAmount Decimal  @map("revenue_amount") @db.Decimal(12, 2)
-  refreshedAt   DateTime @map("refreshed_at") @db.Timestamptz(3)
+  reportDate     DateTime @id @map("report_date") @db.Date
+  orderCount     Int      @map("order_count")
+  revenueAmount  Decimal  @map("revenue_amount") @db.Decimal(12, 2)
+  refundedAmount Decimal  @default(0) @map("refunded_amount") @db.Decimal(12, 2)
+  refreshedAt    DateTime @map("refreshed_at") @db.Timestamptz(3)
 
   @@map("daily_revenue")
   @@schema("reporting")
@@ -583,6 +584,7 @@ model DailyRevenue {
 model TopSellingProduct {
   reportDate    DateTime @map("report_date") @db.Date
   productId     String   @map("product_id") @db.Uuid
+  productName   String?  @map("product_name") @db.VarChar(255)
   quantitySold  Int      @map("quantity_sold")
   revenueAmount Decimal  @map("revenue_amount") @db.Decimal(12, 2)
   refreshedAt   DateTime @map("refreshed_at") @db.Timestamptz(3)
@@ -609,5 +611,17 @@ model LowStock {
   refreshedAt       DateTime @map("refreshed_at") @db.Timestamptz(3)
 
   @@map("low_stock")
+  @@schema("reporting")
+}
+
+model ReportSnapshotMetadata {
+  id                      String   @id @default("singleton") @db.VarChar(50)
+  snapshotVersion         BigInt   @default(0) @map("snapshot_version")
+  asOf                    DateTime @default(now()) @map("as_of") @db.Timestamptz(3)
+  lastCompletedAt         DateTime @default(now()) @map("last_completed_at") @db.Timestamptz(3)
+  metricDefinitionVersion String   @default("1.0") @map("metric_definition_version") @db.VarChar(20)
+  dataQualityNotes        String?  @map("data_quality_notes") @db.Text
+
+  @@map("report_snapshot_metadata")
   @@schema("reporting")
 }

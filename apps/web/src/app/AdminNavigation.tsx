@@ -26,6 +26,7 @@ export function AdminNavigation({ onNavigate }: { onNavigate?: () => void }) {
       {(
         [
           { path: '/admin', label: 'Tổng quan', icon: 'overview' },
+          { path: '/admin/reports', label: 'Báo cáo', icon: 'orders' },
           { path: '/admin/inventory', label: 'Tồn kho', icon: 'orders' },
           { path: '/admin/categories', label: 'Danh mục', icon: 'orders' },
           { path: '/admin/products', label: 'Sản phẩm', icon: 'orders' },

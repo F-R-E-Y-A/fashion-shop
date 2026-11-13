@@ -45,6 +45,7 @@ import {
   AdminVoucherNewPage,
   AdminVouchersPage,
 } from '@/features/promotions';
+import { AdminReportsPage } from '@/features/reporting';
 import { AdminReviewsPage, MyReviewsPage } from '@/features/reviews';
 import { Loading } from '@/ui';
 
@@ -146,6 +147,7 @@ export function AppRoutes() {
           <Route path="admin" element={<RequireAdmin />}>
             <Route element={<AdminLayout />}>
               <Route index element={<AdminOverviewPage />} />
+              <Route path="reports" element={<AdminReportsPage />} />
               <Route path="inventory" element={<AdminInventoryPage />} />
               <Route path="inventory/:id" element={<AdminInventoryDetailPage />} />
               <Route path="categories" element={<AdminCategoriesPage />} />
