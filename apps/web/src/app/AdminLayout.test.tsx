@@ -165,6 +165,7 @@ describe('UC-02.1/AC9 khung admin — Issue #59', () => {
         .map((link) => link.getAttribute('href')),
     ).toEqual([
       '/admin',
+      '/admin/reports',
       '/admin/inventory',
       '/admin/categories',
       '/admin/products',
