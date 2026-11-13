@@ -3,9 +3,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { OrderStatus, Prisma } from '../../generated/prisma/client.js';
 import {
+  attachPostCommitHooks,
   newOrderCode,
   ORDER_TRANSITIONS,
   OrdersService,
+  type PostCommitHook,
+  runPostCommitHooks,
   statusesLeadingTo,
 } from './orders.service.js';
 
@@ -78,5 +81,139 @@ describe('buoc chuyen trang thai don', () => {
       new OrdersService({} as never).transition('o1', 'CONFIRMED', tx),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(create).not.toHaveBeenCalled();
+  });
+});
+
+describe('thông báo sau transaction (Review PR 74)', () => {
+  it('transition: rollback thì không chạy post-commit hook và không gửi thông báo/mail', async () => {
+    const mockNotifications = {
+      handleOrderStatusChange: vi.fn().mockResolvedValue(undefined),
+    };
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const createHistory = vi.fn().mockResolvedValue({});
+    const findUnique = vi.fn().mockResolvedValue({
+      id: 'o1',
+      orderCode: 'FR26111300000001',
+      customerEmail: 'customer@example.test',
+      userId: 'u1',
+      totalAmount: { toString: () => '200000' },
+      status: 'PROCESSING',
+    });
+
+    const tx = {
+      order: { updateMany, findUnique },
+      orderStatusHistory: { create: createHistory },
+    } as unknown as Prisma.TransactionClient;
+
+    const postCommitHooks: PostCommitHook[] = [];
+    attachPostCommitHooks(tx, postCommitHooks);
+
+    const service = new OrdersService({} as never, mockNotifications as never);
+
+    await service.transition('o1', 'SHIPPED', tx, 'admin-1');
+
+    // Trong transaction: hook đã gom lại nhưng CHƯA chạy
+    expect(mockNotifications.handleOrderStatusChange).not.toHaveBeenCalled();
+    expect(postCommitHooks).toHaveLength(1);
+
+    // Giả lập transaction rollback (lỗi ở bước sau): không gọi runPostCommitHooks
+    // -> Notifications hoàn toàn không được gọi
+    expect(mockNotifications.handleOrderStatusChange).not.toHaveBeenCalled();
+
+    // Giả lập transaction commit thành công: gọi runPostCommitHooks
+    await runPostCommitHooks(postCommitHooks);
+    expect(mockNotifications.handleOrderStatusChange).toHaveBeenCalledWith(
+      {
+        id: 'o1',
+        orderCode: 'FR26111300000001',
+        customerEmail: 'customer@example.test',
+        userId: 'u1',
+        status: 'SHIPPED',
+        totalAmount: '200000',
+      },
+      'SHIPPED',
+      'PROCESSING',
+    );
+  });
+
+  it('create: rollback thì không gửi thông báo/mail tạo đơn', async () => {
+    const mockNotifications = {
+      handleOrderStatusChange: vi.fn().mockResolvedValue(undefined),
+    };
+    const mockCreated = {
+      id: 'o2',
+      orderCode: 'FR26111300000002',
+      customerEmail: 'customer@example.test',
+      userId: 'u1',
+      status: 'PENDING_PAYMENT',
+      totalAmount: { toString: () => '500000' },
+    };
+    const createOrder = vi.fn().mockResolvedValue(mockCreated);
+    const tx = {
+      order: { create: createOrder },
+    } as unknown as Prisma.TransactionClient;
+
+    const postCommitHooks: PostCommitHook[] = [];
+    attachPostCommitHooks(tx, postCommitHooks);
+
+    const service = new OrdersService({} as never, mockNotifications as never);
+
+    await service.create(
+      {
+        userId: 'u1',
+        email: 'customer@example.test',
+        key: 'k1',
+        fingerprint: 'fp1',
+        due: new Date(),
+        address: {} as never,
+        shippingRateId: 'sr1',
+        subtotal: '470000',
+        shipping: '30000',
+        total: '500000',
+        items: [],
+      },
+      tx,
+    );
+
+    // Chưa commit: không gọi thông báo
+    expect(mockNotifications.handleOrderStatusChange).not.toHaveBeenCalled();
+    expect(postCommitHooks).toHaveLength(1);
+
+    // Giả lập commit
+    await runPostCommitHooks(postCommitHooks);
+    expect(mockNotifications.handleOrderStatusChange).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'o2', orderCode: 'FR26111300000002' }),
+      'PENDING_PAYMENT',
+    );
+  });
+
+  it('bắt lỗi và log khi gửi thông báo thất bại, không để lỗi lọt ra ngoài', async () => {
+    const mockNotifications = {
+      handleOrderStatusChange: vi.fn().mockRejectedValue(new Error('SMTP down')),
+    };
+    const updateMany = vi.fn().mockResolvedValue({ count: 1 });
+    const createHistory = vi.fn().mockResolvedValue({});
+    const findUnique = vi.fn().mockResolvedValue({
+      id: 'o1',
+      orderCode: 'FR26111300000001',
+      customerEmail: 'customer@example.test',
+      userId: 'u1',
+      totalAmount: { toString: () => '200000' },
+      status: 'PROCESSING',
+    });
+
+    const tx = {
+      order: { updateMany, findUnique },
+      orderStatusHistory: { create: createHistory },
+    } as unknown as Prisma.TransactionClient;
+
+    const postCommitHooks: PostCommitHook[] = [];
+    attachPostCommitHooks(tx, postCommitHooks);
+
+    const service = new OrdersService({} as never, mockNotifications as never);
+    await service.transition('o1', 'SHIPPED', tx, 'admin-1');
+
+    // Chạy hook không ném lỗi ra ngoài
+    await expect(runPostCommitHooks(postCommitHooks)).resolves.not.toThrow();
   });
 });

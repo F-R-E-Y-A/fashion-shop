@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { StrictMode } from 'react';
@@ -42,25 +43,32 @@ function media() {
     });
 }
 function mount(path = '/admin/users') {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, gcTime: 0 },
+    },
+  });
   return render(
     <StrictMode>
-      <MemoryRouter initialEntries={[path]}>
-        <Routes>
-          <Route path="admin" element={<AdminLayout />}>
-            <Route index element={<h1>Tổng quan thật</h1>} />
-            <Route path="categories" element={<h1>Danh sách danh mục</h1>} />
-            <Route path="categories/:id" element={<h1>Chi tiết danh mục</h1>} />
-            <Route path="users" element={<h1>Danh sách hiện có</h1>} />
-            <Route path="products" element={<h1>Danh sách sản phẩm</h1>} />
-            <Route path="products/:id" element={<h1>Chi tiết sản phẩm</h1>} />
-            <Route path="promotions" element={<h1>Danh sách khuyến mãi</h1>} />
-            <Route path="vouchers" element={<h1>Danh sách mã giảm giá</h1>} />
-            <Route path="vouchers/:id" element={<h1>Chi tiết mã giảm giá</h1>} />
-            <Route path="orders" element={<h1>Đơn hiện có</h1>} />
-          </Route>
-          <Route path="/" element={<h1>Cửa hàng hiện có</h1>} />
-        </Routes>
-      </MemoryRouter>
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter initialEntries={[path]}>
+          <Routes>
+            <Route path="admin" element={<AdminLayout />}>
+              <Route index element={<h1>Tổng quan thật</h1>} />
+              <Route path="categories" element={<h1>Danh sách danh mục</h1>} />
+              <Route path="categories/:id" element={<h1>Chi tiết danh mục</h1>} />
+              <Route path="users" element={<h1>Danh sách hiện có</h1>} />
+              <Route path="products" element={<h1>Danh sách sản phẩm</h1>} />
+              <Route path="products/:id" element={<h1>Chi tiết sản phẩm</h1>} />
+              <Route path="promotions" element={<h1>Danh sách khuyến mãi</h1>} />
+              <Route path="vouchers" element={<h1>Danh sách mã giảm giá</h1>} />
+              <Route path="vouchers/:id" element={<h1>Chi tiết mã giảm giá</h1>} />
+              <Route path="orders" element={<h1>Đơn hiện có</h1>} />
+            </Route>
+            <Route path="/" element={<h1>Cửa hàng hiện có</h1>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
     </StrictMode>,
   );
 }
@@ -176,5 +184,10 @@ describe('UC-02.1/AC9 khung admin — Issue #59', () => {
     ]);
     expect(screen.getByText('admin@example.test')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Cửa hàng/ })).toHaveAttribute('href', '/');
+  });
+  it('hiển thị chuông thông báo quản trị viên trên topbar', async () => {
+    media();
+    mount();
+    expect(await screen.findByRole('button', { name: /Thông báo/ })).toBeInTheDocument();
   });
 });

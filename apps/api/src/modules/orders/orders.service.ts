@@ -1,12 +1,39 @@
 import { randomBytes } from 'node:crypto';
 
-import { ConflictException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { ConflictException, Injectable, Logger, NotFoundException, Optional } from '@nestjs/common';
 
 import { skipOf } from '../../common/pagination/page.response.js';
 import type { OrderStatus, Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { NotificationsService } from '../notifications/index.js';
 import { type PurchasedItem, purchasedItemSelect, toPurchasedItem } from './purchased-items.js';
+
+export const POST_COMMIT_HOOKS = Symbol('POST_COMMIT_HOOKS');
+export type PostCommitHook = () => Promise<void>;
+
+export function attachPostCommitHooks(
+  tx: Prisma.TransactionClient,
+  collector: PostCommitHook[],
+): void {
+  const target = tx as unknown as Record<symbol, PostCommitHook[]>;
+  if (!target[POST_COMMIT_HOOKS]) {
+    target[POST_COMMIT_HOOKS] = collector;
+  }
+}
+
+export function registerPostCommitHook(tx: Prisma.TransactionClient, hook: PostCommitHook): void {
+  const target = tx as unknown as Record<symbol, PostCommitHook[] | undefined>;
+  const hooks = target[POST_COMMIT_HOOKS];
+  if (hooks) {
+    hooks.push(hook);
+  }
+}
+
+export async function runPostCommitHooks(hooks: PostCommitHook[]): Promise<void> {
+  for (const hook of hooks) {
+    await hook();
+  }
+}
 
 const details = {
   items: { orderBy: { productVariantId: 'asc' as const } },
@@ -86,6 +113,8 @@ export interface NewOrder {
 
 @Injectable()
 export class OrdersService {
+  private readonly logger = new Logger(OrdersService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     @Optional() private readonly notifications?: NotificationsService,
@@ -210,19 +239,25 @@ export class OrdersService {
       include: details,
     });
     if (this.notifications) {
-      void this.notifications
-        .handleOrderStatusChange(
-          {
-            id: created.id,
-            orderCode: created.orderCode,
-            customerEmail: created.customerEmail,
-            userId: created.userId,
-            status: created.status,
-            totalAmount: created.totalAmount.toString(),
-          },
-          status,
-        )
-        .catch(() => {});
+      const orderPayload = {
+        id: created.id,
+        orderCode: created.orderCode,
+        customerEmail: created.customerEmail,
+        userId: created.userId,
+        status: created.status,
+        totalAmount: created.totalAmount.toString(),
+      };
+      const notifyTask: PostCommitHook = async () => {
+        try {
+          await this.notifications!.handleOrderStatusChange(orderPayload, status);
+        } catch (error) {
+          this.logger.error(
+            `Lỗi gửi thông báo tạo đơn ${orderPayload.orderCode}: ${(error as Error).message}`,
+            (error as Error).stack,
+          );
+        }
+      };
+      registerPostCommitHook(tx, notifyTask);
     }
     return created;
   }
@@ -233,7 +268,7 @@ export class OrdersService {
     status: OrderStatus,
     tx: Prisma.TransactionClient,
     actorUserId?: string,
-  ) {
+  ): Promise<PostCommitHook | null> {
     let existing: {
       id: string;
       orderCode: string;
@@ -270,21 +305,29 @@ export class OrdersService {
     await tx.orderStatusHistory.create({ data: { orderId: id, status, actorUserId } });
 
     if (existing && this.notifications) {
-      void this.notifications
-        .handleOrderStatusChange(
-          {
-            id: existing.id,
-            orderCode: existing.orderCode,
-            customerEmail: existing.customerEmail,
-            userId: existing.userId,
-            status,
-            totalAmount: existing.totalAmount.toString(),
-          },
-          status,
-          existing.status,
-        )
-        .catch(() => {});
+      const orderPayload = {
+        id: existing.id,
+        orderCode: existing.orderCode,
+        customerEmail: existing.customerEmail,
+        userId: existing.userId,
+        status,
+        totalAmount: existing.totalAmount.toString(),
+      };
+      const previousStatus = existing.status;
+      const notifyTask: PostCommitHook = async () => {
+        try {
+          await this.notifications!.handleOrderStatusChange(orderPayload, status, previousStatus);
+        } catch (error) {
+          this.logger.error(
+            `Lỗi gửi thông báo chuyển trạng thái đơn ${orderPayload.orderCode} (${previousStatus} -> ${status}): ${(error as Error).message}`,
+            (error as Error).stack,
+          );
+        }
+      };
+      registerPostCommitHook(tx, notifyTask);
+      return notifyTask;
     }
+    return null;
   }
 
   /** `skip`: don worker da xu ly trong tick nay, de don loi khong lap lai trong cung tick. */

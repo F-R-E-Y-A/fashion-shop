@@ -194,7 +194,7 @@ export function StoreLayout() {
         </div>
         <div className={styles.actions}>
           <SearchTrigger />
-          {isAuthenticated && <NotificationBell autoFetch={false} />}
+          {isAuthenticated && <NotificationBell autoFetch />}
           <CartLink />
           <div className={styles.account} aria-live="polite">
             {isLoading && <span className={styles.accountStatus}>Đang khôi phục phiên…</span>}

@@ -11,15 +11,6 @@ export const SAMPLE_NOTIFICATIONS = [
     link: '/admin',
     isRead: false,
   },
-  {
-    id: '00000000-0000-4000-9000-000000000002',
-    forAdmin: false,
-    type: NotificationType.SYSTEM,
-    title: 'Chào mừng bạn đến với F.R.E.Y.A. Fashion',
-    message: 'Khám phá bộ sưu tập thời trang mới nhất và nhận ưu đãi độc quyền.',
-    link: '/',
-    isRead: false,
-  },
 ];
 
 export async function seedNotifications(prisma: PrismaClient): Promise<{ notifications: number }> {

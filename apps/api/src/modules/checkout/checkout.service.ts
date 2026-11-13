@@ -15,7 +15,13 @@ import type { Env } from '../../infra/config/env.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { CartService } from '../cart/index.js';
 import { InventoryService } from '../inventory/index.js';
-import { type OrderDetails, OrdersService } from '../orders/index.js';
+import {
+  attachPostCommitHooks,
+  type OrderDetails,
+  OrdersService,
+  type PostCommitHook,
+  runPostCommitHooks,
+} from '../orders/index.js';
 import { type GatewayCode, PaymentsService, SETTLEMENT_BUFFER_MINUTES } from '../payments/index.js';
 import { ShippingService } from '../shipping/index.js';
 import { CheckoutAddressService } from '../users/index.js';
@@ -181,8 +187,10 @@ export class CheckoutService {
     ip: string,
   ) {
     const code = input.gateway ?? 'VNPAY';
+    const postCommitHooks: PostCommitHook[] = [];
     const result = await this.prisma.$transaction(
       async (tx) => {
+        attachPostCommitHooks(tx, postCommitHooks);
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`checkout:${input.idempotencyKey}`}, 0))`;
         await this.cart.lockForCheckout(user.id, tx);
         const prior = await this.orders.byKey(input.idempotencyKey, tx);
@@ -272,6 +280,7 @@ export class CheckoutService {
       },
       { timeout: 15_000 },
     );
+    await runPostCommitHooks(postCommitHooks);
     if (code !== 'COD') await this.payments.launchLatest(result.id, ip);
     return this.view(await this.orders.get(result.id, user.id));
   }
@@ -341,14 +350,18 @@ export class CheckoutService {
     userId: string,
     work: (order: OrderDetails, tx: Prisma.TransactionClient) => Promise<T>,
   ) {
-    return this.prisma.$transaction(
+    const postCommitHooks: PostCommitHook[] = [];
+    const result = await this.prisma.$transaction(
       async (tx) => {
+        attachPostCommitHooks(tx, postCommitHooks);
         await this.cart.lockForCheckout(userId, tx);
         await this.orders.lock(id, tx);
         return work(await this.orders.get(id, userId, tx), tx);
       },
       { timeout: 15_000 },
     );
+    await runPostCommitHooks(postCommitHooks);
+    return result;
   }
 
   stockItems(order: OrderDetails) {

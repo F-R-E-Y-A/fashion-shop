@@ -1,4 +1,14 @@
-import { Controller, Get, Param, Patch, Post, Query, Sse, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+  Sse,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AuthGuard, CurrentUser, type CurrentUserType } from '../auth/index.js';
@@ -36,7 +46,7 @@ export class NotificationsController {
   @ApiOkResponse({ type: NotificationResponse })
   markAsRead(
     @CurrentUser() user: CurrentUserType,
-    @Param('id') id: string,
+    @Param('id', ParseUUIDPipe) id: string,
   ): Promise<NotificationResponse> {
     return this.notifications.markAsRead(id, user.id, false);
   }

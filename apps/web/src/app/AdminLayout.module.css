@@ -129,6 +129,11 @@
   gap: 10px;
   min-width: 0;
 }
+.topbarEnd {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
 .breadcrumb {
   display: flex;
   align-items: center;

@@ -35,6 +35,7 @@ export function NotificationBell({ isAdmin = false, autoFetch = true }: Notifica
     queryFn: ({ signal }) => getNotifications(isAdmin, signal),
     enabled: shouldFetch && (Boolean(user) || isAdmin),
     staleTime: 10_000,
+    refetchInterval: 30_000,
   });
 
   const markReadMutation = useMutation({
@@ -71,25 +72,6 @@ export function NotificationBell({ isAdmin = false, autoFetch = true }: Notifica
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [open]);
-
-  // Lắng nghe SSE thời gian thực nếu hỗ trợ EventSource
-  useEffect(() => {
-    if (typeof EventSource === 'undefined') return;
-    const streamUrl = isAdmin ? '/api/admin/notifications/stream' : '/api/notifications/stream';
-    let eventSource: EventSource | null = null;
-    try {
-      eventSource = new EventSource(streamUrl, { withCredentials: true });
-      eventSource.addEventListener('notification', () => {
-        void queryClient.invalidateQueries({ queryKey });
-      });
-    } catch {
-      // Bỏ qua lỗi kết nối SSE
-    }
-
-    return () => {
-      eventSource?.close();
-    };
-  }, [isAdmin, queryClient, queryKey]);
 
   const items = data?.items ?? [];
   const unreadCount = data?.unreadCount ?? 0;

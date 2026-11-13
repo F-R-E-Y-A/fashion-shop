@@ -196,4 +196,36 @@ describe('NotificationBell', () => {
       expect(mockApiGet).toHaveBeenCalledWith('/admin/notifications', undefined, expect.anything());
     });
   });
+
+  it('xử lý an toàn khi API trả 401 Unauthorized (không crash, hiển thị 0 chưa đọc)', async () => {
+    mockApiGet.mockRejectedValueOnce({
+      statusCode: 401,
+      code: 'UNAUTHORIZED',
+      message: 'Phiên đăng nhập đã hết hạn',
+    });
+
+    renderWithClient(<NotificationBell />);
+
+    const button = await screen.findByRole('button', { name: /Thông báo \(0 chưa đọc\)/ });
+    expect(button).toBeInTheDocument();
+    expect(screen.queryByText('1')).not.toBeInTheDocument();
+  });
+
+  it('không tự động tải thông báo trước khi mở nếu autoFetch = false', async () => {
+    renderWithClient(<NotificationBell autoFetch={false} />);
+    expect(mockApiGet).not.toHaveBeenCalled();
+
+    const user = userEvent.setup();
+    mockApiGet.mockResolvedValueOnce({
+      items: [],
+      unreadCount: 0,
+    });
+
+    const button = screen.getByRole('button', { name: /Thông báo \(0 chưa đọc\)/ });
+    await user.click(button);
+
+    await waitFor(() => {
+      expect(mockApiGet).toHaveBeenCalled();
+    });
+  });
 });

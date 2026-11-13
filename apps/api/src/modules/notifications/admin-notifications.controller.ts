@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Patch, Post, Query, Sse } from '@nestjs/common';
+import { Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, Sse } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { RequireRoles } from '../auth/index.js';
@@ -31,7 +31,7 @@ export class AdminNotificationsController {
   @Patch(':id/read')
   @ApiOperation({ summary: 'Đánh dấu một thông báo quản trị viên là đã đọc' })
   @ApiOkResponse({ type: NotificationResponse })
-  markAsRead(@Param('id') id: string): Promise<NotificationResponse> {
+  markAsRead(@Param('id', ParseUUIDPipe) id: string): Promise<NotificationResponse> {
     return this.notifications.markAsRead(id, undefined, true);
   }
 
