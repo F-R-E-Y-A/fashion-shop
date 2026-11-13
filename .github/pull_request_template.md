@@ -25,7 +25,7 @@ Closes #
 - [ ] Có bài kiểm thử cho phần lõi, tên bài ghi mã tiêu chí chấp nhận dạng `UC-NN.m/ACk`
 - [ ] Đã cập nhật `docs/features/<module>/` (README, use-cases nếu nghiệp vụ đổi); có quyết định thì có mục `ADR` trong `LOG.md`; `npm run docs:lint` sạch
 - [ ] Chạy được trên máy người khác sau khi kéo về, không cần sửa tay
-- [ ] Tích hợp liên tục báo xanh cả sáu chặng
+- [ ] Tích hợp liên tục báo xanh cả bảy chặng
 
 ## Sử dụng AI
 
