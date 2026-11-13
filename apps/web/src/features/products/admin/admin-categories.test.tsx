@@ -818,4 +818,128 @@ describe('Admin Categories UI (UC-04.1/AC2, AC6)', () => {
     const cartCache = view.client.getQueryState(cartKeys.all);
     expect(cartCache?.isInvalidated).toBe(true);
   });
+
+  it('UC-04.1/AC2 hiển thị 4 chỉ số KPI không đếm trùng subtreeProductCount và không đổi khi tìm kiếm', async () => {
+    const api = backend();
+    api.state.override = (r) =>
+      r.path === '/api/admin/categories' ? reply(sampleTree) : undefined;
+    mountCatalog('/admin/categories');
+
+    // sampleTree gồm 4 node: Áo (effectiveActive=true, productCount=5, subtree=15),
+    // Áo thun (effectiveActive=true, productCount=10, subtree=10),
+    // Quần (effectiveActive=false, productCount=0, subtree=3),
+    // Quần dài (effectiveActive=false, productCount=3, subtree=3)
+    expect(await screen.findByTestId('kpi-total-categories')).toHaveTextContent('4');
+    expect(screen.getByTestId('kpi-visible-categories')).toHaveTextContent('2');
+    expect(screen.getByTestId('kpi-hidden-categories')).toHaveTextContent('2');
+    // Chỉ cộng productCount (5 + 10 + 0 + 8 = 23), không cộng subtreeProductCount (41)
+    expect(screen.getByTestId('kpi-categorized-products')).toHaveTextContent('23');
+
+    // Khi tìm kiếm thu hẹp danh sách, KPI vẫn giữ nguyên số liệu toàn cây
+    const user = userEvent.setup();
+    const searchInput = screen.getByRole('searchbox', {
+      name: 'Tìm theo tên danh mục hoặc slug',
+    });
+    await user.type(searchInput, 'ao-thun');
+    expect(screen.getByTestId('kpi-total-categories')).toHaveTextContent('4');
+    expect(screen.getByTestId('kpi-categorized-products')).toHaveTextContent('23');
+  });
+
+  it('UC-04.1/AC2 tìm kiếm theo tên/slug giữ cha làm ngữ cảnh và phân biệt cây rỗng với không có kết quả', async () => {
+    const api = backend();
+    api.state.override = (r) =>
+      r.path === '/api/admin/categories' ? reply(sampleTree) : undefined;
+    mountCatalog('/admin/categories');
+
+    await screen.findByTestId('category-row-ao');
+    const user = userEvent.setup();
+    const searchInput = screen.getByRole('searchbox', {
+      name: 'Tìm theo tên danh mục hoặc slug',
+    });
+
+    // Tìm theo slug của danh mục con "quan-dai" -> giữ cha "Quần" làm ngữ cảnh, ẩn nhánh "Áo"
+    await user.type(searchInput, 'quan-dai');
+    expect(screen.getByTestId('category-row-quan')).toBeInTheDocument();
+    expect(screen.getByTestId('category-row-quan-dai')).toBeInTheDocument();
+    expect(screen.queryByTestId('category-row-ao')).not.toBeInTheDocument();
+
+    // Không có kết quả khớp -> hiển thị thông báo không tìm thấy (khác "Chưa có danh mục")
+    await user.clear(searchInput);
+    await user.type(searchInput, 'khong-ton-tai');
+    expect(screen.getByText(/Không tìm thấy danh mục phù hợp/)).toBeInTheDocument();
+    expect(screen.queryByText('Chưa có danh mục nào trong hệ thống.')).not.toBeInTheDocument();
+
+    // Bấm "Xóa tìm kiếm" khôi phục lại toàn bộ cây
+    await user.click(screen.getByRole('button', { name: 'Xóa tìm kiếm' }));
+    expect(screen.getByTestId('category-row-ao')).toBeInTheDocument();
+    expect(screen.getByTestId('category-row-quan')).toBeInTheDocument();
+  });
+
+  it('UC-04.1/AC6 mở/thu gọn từng nhánh, Mở hết/Thu gọn và khôi phục trạng thái sau khi xóa tìm kiếm', async () => {
+    const api = backend();
+    api.state.override = (r) =>
+      r.path === '/api/admin/categories' ? reply(sampleTree) : undefined;
+    mountCatalog('/admin/categories');
+
+    await screen.findByTestId('category-row-ao');
+    const user = userEvent.setup();
+
+    // Thu gọn nhánh "Áo", giữ nhánh "Quần" đang mở
+    await user.click(screen.getByRole('button', { name: 'Thu gọn nhánh Áo' }));
+    expect(screen.queryByTestId('category-row-ao-thun')).not.toBeInTheDocument();
+    expect(screen.getByTestId('category-row-quan-dai')).toBeInTheDocument();
+
+    // Tìm "ao-thun" -> tự động mở nhánh "Áo" để thấy con khớp
+    const searchInput = screen.getByRole('searchbox', {
+      name: 'Tìm theo tên danh mục hoặc slug',
+    });
+    await user.type(searchInput, 'ao-thun');
+    expect(screen.getByTestId('category-row-ao')).toBeInTheDocument();
+    expect(screen.getByTestId('category-row-ao-thun')).toBeInTheDocument();
+
+    // Xóa tìm kiếm -> khôi phục đúng trạng thái trước tìm kiếm ("Áo" vẫn thu gọn, "Quần" vẫn mở)
+    await user.click(screen.getByRole('button', { name: 'Xóa' }));
+    expect(screen.queryByTestId('category-row-ao-thun')).not.toBeInTheDocument();
+    expect(screen.getByTestId('category-row-quan-dai')).toBeInTheDocument();
+
+    // Nút Mở hết và Thu gọn toàn cây
+    await user.click(screen.getByRole('button', { name: 'Mở hết' }));
+    expect(screen.getByTestId('category-row-ao-thun')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Thu gọn' }));
+    expect(screen.queryByTestId('category-row-ao-thun')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('category-row-quan-dai')).not.toBeInTheDocument();
+  });
+
+  it('UC-04.1/AC6 trạng thái tải, lỗi, cây rỗng và 403 không hiển thị thẻ KPI số 0', async () => {
+    const api = backend();
+    const pending = deferred<Response>();
+    api.state.override = (r) => (r.path === '/api/admin/categories' ? pending.promise : undefined);
+    const view = mountCatalog('/admin/categories');
+
+    // Đang tải -> chưa hiển thị KPI
+    expect(screen.queryByTestId('kpi-total-categories')).not.toBeInTheDocument();
+
+    // Trả về cây rỗng -> hiển thị trạng thái rỗng, không hiển thị KPI 0
+    await act(async () => {
+      pending.resolve(reply([]));
+    });
+    expect(await screen.findByText('Chưa có danh mục nào trong hệ thống.')).toBeInTheDocument();
+    expect(screen.queryByTestId('kpi-total-categories')).not.toBeInTheDocument();
+
+    // Lỗi 500 -> hiển thị alert, không hiển thị KPI
+    api.state.override = (r) => (r.path === '/api/admin/categories' ? failure(500) : undefined);
+    await act(async () => {
+      await view.client.invalidateQueries();
+    });
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    expect(screen.queryByTestId('kpi-total-categories')).not.toBeInTheDocument();
+
+    // 403 -> hiển thị AdminForbidden, không hiển thị KPI
+    api.state.override = (r) => (r.path === '/api/admin/categories' ? failure(403) : undefined);
+    await act(async () => {
+      await view.client.invalidateQueries();
+    });
+    expect(await screen.findByText(/Không đủ quyền/)).toBeInTheDocument();
+    expect(screen.queryByTestId('kpi-total-categories')).not.toBeInTheDocument();
+  });
 });

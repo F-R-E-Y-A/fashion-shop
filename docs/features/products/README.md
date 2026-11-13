@@ -241,6 +241,7 @@ Không tạo mới, sửa tên/slug/cha/thứ tự, không xóa và không kéo 
 Phân quyền ADMIN kiểm tra trước validation, allowlist và `Cache-Control: no-store`.
 Ngữ nghĩa: ẩn cha làm nhánh con không hiển thị hiệu lực (`parentHidden: true`), không đổi cờ DB con; bật cha chỉ khôi phục con có `isActive = true`.
 Số đếm: `productCount` (trực tiếp) và `subtreeProductCount` (toàn nhánh) trong cùng snapshot `RepeatableRead`.
+Giao diện cây (`/admin/categories`): hiển thị 4 chỉ số KPI toàn cây (không đếm trùng `subtreeProductCount`, ẩn khi đang tải/lỗi/403), lọc client theo tên/slug giữ cha làm ngữ cảnh, mở/thu gọn từng nhánh hoặc toàn cây (khôi phục trạng thái sau khi xóa tìm kiếm) và thẻ accordion trên 360px theo chuẩn AdminKit.
 CAS kiểm tra `expectedUpdatedAt` ISO mili-giây, khóa hàng `FOR UPDATE`, tăng đơn điệu `GREATEST(NOW(), updated_at + 1ms)`; no-op không UPDATE và không bump catalog revision.
 Storefront và Cart phản ánh trạng thái ẩn/hiện danh mục; seed lặp bảo toàn quyết định ẩn của admin; quyết định kiến trúc đề xuất [ADR-053](LOG.md#adr-053).
 
