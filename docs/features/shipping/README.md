@@ -14,14 +14,15 @@ Seed tạo zone nội địa và rate 30.000đ cho xã hoạt động; chạy l�
 
 ## 2. Vận đơn và theo dõi giao hàng (Shipment & Tracking)
 
-Luồng vận chuyển (Duy - PH-02):
-1. **Admin tạo vận đơn**: Admin tạo vận đơn trên F.R.E.Y.A qua `POST /api/admin/orders/:id/shipment`, nhận mã vận đơn hãng (GHN/GHTK).
-2. **Shipper giao hàng**: Shipper cập nhật trạng thái trên app hãng vận chuyển.
-3. **Webhook cập nhật**: Hãng gửi webhook về `POST /api/shipping/webhook` với trạng thái `IN_TRANSIT`, `DELIVERED`, hoặc `FAILED`.
-4. **Đồng bộ trạng thái**:
+Luồng vận chuyển mô phỏng Sandbox (Duy - PH-02):
+1. **Admin tạo vận đơn**: Admin tạo vận đơn qua `POST /api/admin/orders/:id/shipment`, nhận mã vận đơn mô phỏng `GHN-SBX-...` (`isMock: true`).
+2. **Shipper giao hàng**: Shipper / hệ thống đối tác mô phỏng gửi cập nhật qua webhook.
+3. **Webhook cập nhật**: Endpoint `POST /api/shipping/webhook` yêu cầu xác thực header bí mật `x-carrier-token`. Tách danh tính hãng khỏi `actorUserId` (chỉ ghi nhận UUID của người dùng trong hệ thống; webhook lưu `undefined` để tránh lỗi cú pháp UUID).
+4. **Ma trận chuyển trạng thái**: Kiểm tra bước chuyển hợp lệ `canTransitionShipment`, chặn lùi trạng thái khi nhận sự kiện cũ/đến muộn (ví dụ đơn đã `DELIVERED` không bị lùi về `IN_TRANSIT`), xử lý sự kiện trùng lặp dạng idempotent.
+5. **Đồng bộ trạng thái**:
    - `IN_TRANSIT` -> Đơn chuyển `SHIPPED`
    - `DELIVERED` -> Đơn chuyển `DELIVERED`, tự động chốt thanh toán COD nếu có
    - `FAILED` / `RETURNED` -> Đơn chuyển `CANCELLED`, hoàn tồn kho qua `InventoryService.restock()`
-5. **Khách theo dõi**: Trang chi tiết đơn hàng (`/don-hang/:id`) hiển thị timeline 4 bước: Shop xác nhận -> Đơn vị vận chuyển đã lấy hàng -> Đang giao đến bạn -> Giao thành công, kèm link tra cứu trên website hãng.
+6. **Khách theo dõi**: Trang chi tiết đơn hàng (`/don-hang/:id`) hiển thị timeline 4 bước: Shop xác nhận -> Đơn vị vận chuyển đã lấy hàng -> Đang giao đến bạn -> Giao thành công, hiển thị nhãn Sandbox rõ ràng thay vì link sang trang hãng thật gây 404.
 
 [Nhật ký](LOG.md) · [ADR-032](../../LOG.md#adr-032).

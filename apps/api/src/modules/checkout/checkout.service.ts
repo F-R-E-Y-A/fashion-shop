@@ -339,6 +339,7 @@ export class CheckoutService {
             carrierName: order.shipment.carrierName,
             trackingNumber: order.shipment.trackingNumber,
             status: order.shipment.status,
+            isMock: true,
             createdAt: order.shipment.createdAt.toISOString(),
             updatedAt: order.shipment.updatedAt.toISOString(),
           }

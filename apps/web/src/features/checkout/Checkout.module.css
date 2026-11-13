@@ -819,6 +819,11 @@
 .carrierLink:hover {
   text-decoration: none;
 }
+.sandboxNotice {
+  font-size: var(--s-1);
+  color: var(--muted);
+  font-style: italic;
+}
 
 @media (max-width: 880px) {
   .grid {

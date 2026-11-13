@@ -72,6 +72,8 @@ export class ShipmentResponse {
   @ApiPropertyOptional({ type: String, nullable: true }) trackingNumber!: string | null;
   @ApiProperty({ enum: ['PENDING', 'IN_TRANSIT', 'DELIVERED', 'FAILED', 'RETURNED'] })
   status!: string;
+  @ApiPropertyOptional({ type: Boolean, description: 'Đánh dấu vận đơn mô phỏng (Sandbox)' })
+  isMock?: boolean;
   @ApiProperty() createdAt!: string;
   @ApiProperty() updatedAt!: string;
 }

@@ -12,7 +12,12 @@ import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { InventoryService } from '../inventory/index.js';
 import { OrdersService } from '../orders/index.js';
 import { PaymentsService } from '../payments/index.js';
-import type { ShipmentResponse, ShipmentStatus, ShipmentWebhookDto } from './dto/shipment.dto.js';
+import {
+  canTransitionShipment,
+  type ShipmentResponse,
+  type ShipmentStatus,
+  type ShipmentWebhookDto,
+} from './dto/shipment.dto.js';
 
 @Injectable()
 export class ShippingService {
@@ -56,6 +61,7 @@ export class ShippingService {
       carrierName: shipment.carrierName,
       trackingNumber: shipment.trackingNumber,
       status: shipment.status as ShipmentStatus,
+      isMock: true,
       createdAt: shipment.createdAt.toISOString(),
       updatedAt: shipment.updatedAt.toISOString(),
     };
@@ -85,9 +91,10 @@ export class ShippingService {
       }
 
       const carrierName = dto.carrierName?.trim() || 'GHN';
+      // Sinh mã vận đơn mô phỏng có tiền tố -SBX- để phân biệt rõ với mã tra cứu thật
       const trackingNumber =
         dto.trackingNumber?.trim() ||
-        `${carrierName.toUpperCase()}${order.orderCode.replace(/^FR/, '')}`;
+        `${carrierName.toUpperCase()}-SBX-${order.orderCode.replace(/^FR/, '')}`;
 
       const shipment = await tx.shipment.upsert({
         where: { orderId },
@@ -114,6 +121,7 @@ export class ShippingService {
         carrierName: shipment.carrierName,
         trackingNumber: shipment.trackingNumber,
         status: shipment.status as ShipmentStatus,
+        isMock: true,
         createdAt: shipment.createdAt.toISOString(),
         updatedAt: shipment.updatedAt.toISOString(),
       };
@@ -133,6 +141,29 @@ export class ShippingService {
       });
       if (!order) throw new NotFoundException('Không tìm thấy đơn hàng.');
       if (!order.shipment) throw new NotFoundException('Chưa tạo vận đơn cho đơn hàng này.');
+
+      const currentStatus = order.shipment.status as ShipmentStatus;
+
+      // Xử lý sự kiện trùng (Idempotent): nếu trạng thái đã như yêu cầu, trả về kết quả hiện tại
+      if (currentStatus === status) {
+        return {
+          id: order.shipment.id,
+          orderId: order.shipment.orderId,
+          carrierName: order.shipment.carrierName,
+          trackingNumber: order.shipment.trackingNumber,
+          status: currentStatus,
+          isMock: true,
+          createdAt: order.shipment.createdAt.toISOString(),
+          updatedAt: order.shipment.updatedAt.toISOString(),
+        };
+      }
+
+      // Kiểm tra ma trận chuyển trạng thái: chặn lùi trạng thái (ví dụ đã DELIVERED không thể lùi về IN_TRANSIT)
+      if (!canTransitionShipment(currentStatus, status)) {
+        throw new ConflictException(
+          `Không thể chuyển trạng thái vận đơn từ ${currentStatus} sang ${status}.`,
+        );
+      }
 
       const updatedShipment = await tx.shipment.update({
         where: { orderId },
@@ -198,6 +229,7 @@ export class ShippingService {
         carrierName: updatedShipment.carrierName,
         trackingNumber: updatedShipment.trackingNumber,
         status: updatedShipment.status as ShipmentStatus,
+        isMock: true,
         createdAt: updatedShipment.createdAt.toISOString(),
         updatedAt: updatedShipment.updatedAt.toISOString(),
       };
@@ -227,18 +259,37 @@ export class ShippingService {
       });
     }
 
-    const updated = await this.updateShipmentStatus(
-      shipment.orderId,
-      payload.status,
-      payload.carrierName ?? 'CARRIER_WEBHOOK',
-      payload.note,
-    );
+    try {
+      // Điểm sửa P1: Webhook bên ngoài KHÔNG truyền chuỗi carrierName vào actorUserId.
+      // Cột actor_user_id trong bảng order_status_history là UUID trỏ tới User.id.
+      // Truyền undefined để DB ghi NULL hợp lệ thay vì lỗi syntax UUID và rollback.
+      const updated = await this.updateShipmentStatus(
+        shipment.orderId,
+        payload.status,
+        undefined,
+        payload.note,
+      );
 
-    return {
-      received: true,
-      processed: true,
-      orderId: shipment.orderId,
-      status: updated.status,
-    };
+      return {
+        received: true,
+        processed: true,
+        orderId: shipment.orderId,
+        status: updated.status,
+      };
+    } catch (err) {
+      // Điểm sửa P2: Bắt ConflictException khi có sự kiện đến muộn hoặc lùi trạng thái không hợp lệ.
+      // Trả về 200 kèm ignored: true để hãng không retry liên tục mà vẫn bảo vệ tính toàn vẹn DB.
+      if (err instanceof ConflictException) {
+        return {
+          received: true,
+          processed: false,
+          orderId: shipment.orderId,
+          status: shipment.status,
+          ignored: true,
+          reason: err.message,
+        };
+      }
+      throw err;
+    }
   }
 }

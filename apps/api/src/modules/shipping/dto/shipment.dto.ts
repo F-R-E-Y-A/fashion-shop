@@ -13,6 +13,24 @@ export type ShipmentStatus = (typeof ShipmentStatus)[keyof typeof ShipmentStatus
 
 export const SHIPMENT_STATUSES = Object.values(ShipmentStatus);
 
+/**
+ * Ma trận bước chuyển hợp lệ của vận đơn.
+ * - Chặn lùi trạng thái (ví dụ đã DELIVERED thì không thể lùi về IN_TRANSIT hay PENDING do sự kiện đến muộn).
+ * - DELIVERED và RETURNED là trạng thái kết thúc (terminal states).
+ */
+export const SHIPMENT_TRANSITIONS: Record<ShipmentStatus, readonly ShipmentStatus[]> = {
+  PENDING: ['IN_TRANSIT', 'FAILED', 'RETURNED'],
+  IN_TRANSIT: ['DELIVERED', 'FAILED', 'RETURNED'],
+  DELIVERED: [],
+  FAILED: ['RETURNED'],
+  RETURNED: [],
+};
+
+export function canTransitionShipment(current: ShipmentStatus, target: ShipmentStatus): boolean {
+  if (current === target) return true;
+  return SHIPMENT_TRANSITIONS[current]?.includes(target) ?? false;
+}
+
 export class CreateShipmentDto {
   @ApiPropertyOptional({ example: 'GHN', maxLength: 100 })
   @IsOptional()
@@ -20,7 +38,7 @@ export class CreateShipmentDto {
   @MaxLength(100)
   carrierName?: string;
 
-  @ApiPropertyOptional({ example: 'GHN123456789VN', maxLength: 200 })
+  @ApiPropertyOptional({ example: 'GHN-SBX-12345678', maxLength: 200 })
   @IsOptional()
   @IsString()
   @MaxLength(200)
@@ -45,7 +63,7 @@ export class ShipmentWebhookDto {
   @IsUUID('all', { message: 'orderId phải là UUID' })
   orderId?: string;
 
-  @ApiPropertyOptional({ example: 'GHN123456789VN' })
+  @ApiPropertyOptional({ example: 'GHN-SBX-12345678' })
   @IsOptional()
   @IsString()
   @MaxLength(200)
@@ -74,6 +92,8 @@ export class ShipmentResponse {
   @ApiPropertyOptional({ type: String, nullable: true }) carrierName!: string | null;
   @ApiPropertyOptional({ type: String, nullable: true }) trackingNumber!: string | null;
   @ApiProperty({ enum: SHIPMENT_STATUSES }) status!: ShipmentStatus;
+  @ApiPropertyOptional({ type: Boolean, description: 'Đánh dấu vận đơn mô phỏng (Sandbox)' })
+  isMock?: boolean;
   @ApiProperty() createdAt!: string;
   @ApiProperty() updatedAt!: string;
 }

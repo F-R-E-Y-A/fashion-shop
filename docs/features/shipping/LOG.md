@@ -18,4 +18,4 @@ Bảo uỷ quyền chọn phí hợp shop thời trang. Dùng cấu hình Shippi
 
 **Loại:** thay đổi mã và lược đồ · **Commit:** đề xuất.
 
-Bổ sung trường `carrier_name` vào bảng `shipments`. Cung cấp API cho Admin tạo vận đơn, webhook nhận sự kiện từ đơn vị vận chuyển (GHN/GHTK) để tự động cập nhật trạng thái đơn (SHIPPED, DELIVERED, CANCELLED hoàn kho khi giao thất bại), và giao diện theo dõi tiến trình giao hàng trực quan cho khách hàng. [README](README.md).
+Bổ sung trường `carrier_name` vào bảng `shipments`. Cung cấp API cho Admin tạo vận đơn (mô phỏng Sandbox `GHN-SBX-...`), webhook nhận sự kiện từ đơn vị vận chuyển với header xác thực bí mật `x-carrier-token`, kiểm tra ma trận chuyển trạng thái idempotent chặn lùi đơn, tách danh tính hãng khỏi UUID actor người dùng, và giao diện theo dõi tiến trình giao hàng trực quan cho khách hàng. [README](README.md).

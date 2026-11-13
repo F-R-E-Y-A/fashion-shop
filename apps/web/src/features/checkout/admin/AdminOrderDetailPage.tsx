@@ -89,10 +89,11 @@ function AdminOrderDetail() {
         () => controller.abort(new DOMException('Hết giờ chờ phản hồi', 'TimeoutError')),
         15_000,
       );
-      const post = (path: string, body?: object) =>
+      const post = (path: string, body?: object, headers?: Record<string, string>) =>
         request<unknown>(path, {
           method: 'POST',
           signal: controller.signal,
+          ...(headers ? { headers } : {}),
           ...(body ? { body } : {}),
         });
       try {
@@ -104,26 +105,38 @@ function AdminOrderDetail() {
           case 'createShipment':
             return await post(`/admin/orders/${id}/shipment`, { carrierName: 'GHN' });
           case 'shipmentInTransit':
-            return await post('/shipping/webhook', {
-              orderId: id,
-              status: 'IN_TRANSIT',
-              carrierName: 'GHN',
-              note: 'Shipper đã lấy hàng và đang giao',
-            });
+            return await post(
+              '/shipping/webhook',
+              {
+                orderId: id,
+                status: 'IN_TRANSIT',
+                carrierName: 'GHN',
+                note: 'Shipper đã lấy hàng và đang giao (Mô phỏng Sandbox)',
+              },
+              { 'x-carrier-token': 'freya-carrier-secret-2026' },
+            );
           case 'shipmentDelivered':
-            return await post('/shipping/webhook', {
-              orderId: id,
-              status: 'DELIVERED',
-              carrierName: 'GHN',
-              note: 'Đã giao thành công đến khách',
-            });
+            return await post(
+              '/shipping/webhook',
+              {
+                orderId: id,
+                status: 'DELIVERED',
+                carrierName: 'GHN',
+                note: 'Đã giao thành công đến khách (Mô phỏng Sandbox)',
+              },
+              { 'x-carrier-token': 'freya-carrier-secret-2026' },
+            );
           case 'shipmentFailed':
-            return await post('/shipping/webhook', {
-              orderId: id,
-              status: 'FAILED',
-              carrierName: 'GHN',
-              note: text.trim() || 'Giao hàng thất bại',
-            });
+            return await post(
+              '/shipping/webhook',
+              {
+                orderId: id,
+                status: 'FAILED',
+                carrierName: 'GHN',
+                note: text.trim() || 'Giao hàng thất bại (Mô phỏng Sandbox)',
+              },
+              { 'x-carrier-token': 'freya-carrier-secret-2026' },
+            );
           case 'cancelRefund':
             return await post(`/admin/orders/${id}/cancel-refund`, { reason: text.trim() });
           case 'markDelivered':
@@ -393,7 +406,7 @@ function AdminOrderDetail() {
                     <>
                       <div>
                         <dt>Đơn vị vận chuyển</dt>
-                        <dd>{order.shipment.carrierName || 'GHN'}</dd>
+                        <dd>{order.shipment.carrierName || 'GHN'} (Mô phỏng Sandbox)</dd>
                       </div>
                       <div>
                         <dt>Mã vận đơn</dt>
@@ -440,7 +453,7 @@ function AdminOrderDetail() {
                       disabled={action.isPending || needsRecheck}
                       onClick={() => open({ kind: 'createShipment' })}
                     >
-                      Tạo vận đơn hãng (GHN)
+                      Tạo vận đơn GHN (Sandbox)
                     </button>
                   )}
                   {order.shipment && order.shipment.status === 'PENDING' && (
@@ -644,7 +657,7 @@ const hasAction = (order: AdminOrder) =>
 const TITLE: Record<Dialog['kind'], string> = {
   confirmCod: 'Xác nhận và giao COD',
   startProcessing: 'Bắt đầu xử lý',
-  createShipment: 'Tạo vận đơn GHN',
+  createShipment: 'Tạo vận đơn GHN (Mô phỏng Sandbox)',
   shipmentInTransit: 'Mô phỏng Webhook: Shipper lấy hàng (IN_TRANSIT)',
   shipmentDelivered: 'Mô phỏng Webhook: Giao thành công (DELIVERED)',
   shipmentFailed: 'Mô phỏng Webhook: Giao thất bại (FAILED)',
@@ -670,7 +683,7 @@ const TONE: Record<Dialog['kind'], 'danger' | 'primary'> = {
 const DONE: Record<Dialog['kind'], string> = {
   confirmCod: 'Đã xác nhận đơn COD và chốt kho.',
   startProcessing: 'Đơn chuyển sang đang xử lý.',
-  createShipment: 'Đã tạo vận đơn vận chuyển GHN.',
+  createShipment: 'Đã tạo vận đơn vận chuyển GHN (Mô phỏng Sandbox).',
   shipmentInTransit: 'Webhook: Hãng đã lấy hàng, đơn chuyển sang Đang giao.',
   shipmentDelivered: 'Webhook: Giao hàng thành công, đơn chuyển sang Đã giao.',
   shipmentFailed: 'Webhook: Giao thất bại, hàng trả về kho và đơn hủy.',
@@ -697,7 +710,7 @@ function impacts(dialog: Dialog, order: AdminOrder): string[] {
       ];
     case 'createShipment':
       return [
-        'Tạo mã vận đơn GHN cho đơn hàng.',
+        'Tạo mã vận đơn mô phỏng GHN-SBX-... cho đơn hàng.',
         'Đơn chuyển sang Đang xử lý nếu đang ở Đã thanh toán.',
       ];
     case 'shipmentInTransit':

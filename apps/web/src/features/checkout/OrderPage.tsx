@@ -255,7 +255,7 @@ export function OrderPage() {
                 <div className={styles.shippingCard}>
                   <div className={styles.shippingHeader}>
                     <span className={styles.carrierBadge}>
-                      Đơn vị vận chuyển: {order.shipment.carrierName || 'GHN'}
+                      Đơn vị vận chuyển: {order.shipment.carrierName || 'GHN'} (Mô phỏng Sandbox)
                     </span>
                     <span className={styles.trackingCode}>
                       Mã vận đơn:{' '}
@@ -312,19 +312,26 @@ export function OrderPage() {
                     <span className={styles.muted}>
                       Cập nhật lần cuối: {formatDateTime(order.shipment.updatedAt)}
                     </span>
-                    {order.shipment.trackingNumber && (
-                      <a
-                        href={
-                          order.shipment.carrierName?.toUpperCase() === 'GHTK'
-                            ? `https://i.ghtk.vn/${order.shipment.trackingNumber}`
-                            : `https://donhang.ghn.vn/?order_code=${order.shipment.trackingNumber}`
-                        }
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={styles.carrierLink}
-                      >
-                        Xem trên website đơn vị vận chuyển ↗
-                      </a>
+                    {order.shipment.isMock || order.shipment.trackingNumber?.includes('-SBX-') ? (
+                      <span className={styles.sandboxNotice}>
+                        (Vận đơn thử nghiệm sandbox nội bộ phục vụ đồ án Freya, không tra cứu trên
+                        cổng thực tế)
+                      </span>
+                    ) : (
+                      order.shipment.trackingNumber && (
+                        <a
+                          href={
+                            order.shipment.carrierName?.toUpperCase() === 'GHTK'
+                              ? `https://i.ghtk.vn/${order.shipment.trackingNumber}`
+                              : `https://donhang.ghn.vn/?order_code=${order.shipment.trackingNumber}`
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={styles.carrierLink}
+                        >
+                          Xem trên website đơn vị vận chuyển ↗
+                        </a>
+                      )
                     )}
                   </div>
                 </div>
