@@ -1,13 +1,15 @@
-import { Body, Controller, Get, Header, Param, Patch } from '@nestjs/common';
+import { Body, Controller, Get, Header, Param, Patch, Post } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiConflictResponse,
+  ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
   ApiUnauthorizedResponse,
+  ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 
 import { RequireRoles, RoleCode } from '../auth/index.js';
@@ -18,6 +20,8 @@ import {
   AdminCategoryVisibilityResponse,
   ChangeCategoryVisibilityDto,
 } from './dto/change-category-visibility.dto.js';
+import { CreateCategoryDto } from './dto/create-category.dto.js';
+import { UpdateCategoryDto } from './dto/update-category.dto.js';
 
 @ApiTags('admin-categories')
 @Controller('admin/categories')
@@ -47,6 +51,39 @@ export class AdminCategoriesController {
   @ApiNotFoundResponse({ description: 'UUID hợp lệ nhưng danh mục không tồn tại' })
   detail(@Param() { id }: AdminCategoryIdParam): Promise<AdminCategoryDetail> {
     return this.categories.findById(id);
+  }
+
+  @Post()
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary: 'Tạo danh mục mới (mặc định ẩn isActive=false), idempotent theo UUID v4',
+  })
+  @ApiCreatedResponse({ type: AdminCategoryDetail })
+  @ApiNotFoundResponse({ description: 'Danh mục cha không tồn tại' })
+  @ApiConflictResponse({ description: 'Trùng slug hoặc trùng UUID với nội dung khác' })
+  @ApiUnprocessableEntityResponse({
+    description: 'Vi phạm cây 2 cấp hoặc danh mục cha đang có sản phẩm trực tiếp',
+  })
+  create(@Body() input: CreateCategoryDto): Promise<AdminCategoryDetail> {
+    return this.categories.create(input);
+  }
+
+  @Patch(':id')
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary: 'Cập nhật tên, thứ tự, danh mục cha với CAS (slug giữ bất biến)',
+  })
+  @ApiOkResponse({ type: AdminCategoryDetail })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy danh mục hoặc danh mục cha' })
+  @ApiConflictResponse({ description: 'Xung đột phiên bản CAS: tải lại và xác nhận lại' })
+  @ApiUnprocessableEntityResponse({
+    description: 'Vi phạm cây 2 cấp, tự làm cha, hoặc cha mục tiêu đang có sản phẩm',
+  })
+  update(
+    @Param() { id }: AdminCategoryIdParam,
+    @Body() input: UpdateCategoryDto,
+  ): Promise<AdminCategoryDetail> {
+    return this.categories.update(id, input);
   }
 
   @Patch(':id/visibility')

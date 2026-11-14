@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { JwtService } from '@nestjs/jwt';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
@@ -570,6 +572,595 @@ describe('Admin Categories HTTP API (UC-04.1)', () => {
       const cartVariant = await productsService.getVariantForCart(productInAoThun.variants[0]!.id);
       expect(cartVariant).toBeDefined();
       expect(cartVariant?.isActive).toBe(false);
+    });
+  });
+
+  describe('Đợt 1 Quản trị danh mục: Tạo, Sửa, Phân cấp 2 cấp & Concurrency (Issue #120)', () => {
+    it('POST /api/admin/categories từ chối 401/403 với khách hoặc customer', async () => {
+      const payload = { id: randomUUID(), name: 'Danh mục mới' };
+      await t.http.post('/api/admin/categories').send(payload).expect(401);
+      await t.http.post('/api/admin/categories').set(customerAuth()).send(payload).expect(403);
+    });
+
+    it('POST /api/admin/categories tạo danh mục mặc định ẩn (isActive=false), tự sinh slug và hỗ trợ idempotent retry', async () => {
+      const id = randomUUID();
+      const res = await t.http
+        .post('/api/admin/categories')
+        .set(adminAuth())
+        .send({ id, name: 'Áo Khoác Đầm Mới', sortOrder: 12 })
+        .expect(201);
+
+      expect(res.body).toMatchObject({
+        id,
+        name: 'Áo Khoác Đầm Mới',
+        slug: 'ao-khoac-dam-moi',
+        parentId: null,
+        sortOrder: 12,
+        isActive: false,
+        effectiveActive: false,
+      });
+
+      // Retry cùng UUID & payload -> trả lại thành công idempotent (không tạo bản ghi thứ 2)
+      const retry = await t.http
+        .post('/api/admin/categories')
+        .set(adminAuth())
+        .send({ id, name: 'Áo Khoác Đầm Mới', slug: 'ao-khoac-dam-moi', sortOrder: 12 })
+        .expect(201);
+      expect(retry.body.id).toBe(id);
+
+      // Retry cùng UUID nhưng payload khác -> 409
+      await t.http
+        .post('/api/admin/categories')
+        .set(adminAuth())
+        .send({ id, name: 'Tên Khác', sortOrder: 12 })
+        .expect(409);
+
+      // Tạo với slug đã tồn tại nhưng UUID khác -> 409
+      await t.http
+        .post('/api/admin/categories')
+        .set(adminAuth())
+        .send({ id: randomUUID(), name: 'Áo Khoác Đầm Mới', slug: 'ao-khoac-dam-moi' })
+        .expect(409);
+    });
+
+    it('CODEX: POST và PATCH từ chối null cho các trường không nullable (name, sortOrder) bằng HTTP 400', async () => {
+      const validId = randomUUID();
+      // POST với name: null
+      await t.http
+        .post('/api/admin/categories')
+        .set(adminAuth())
+        .send({ id: validId, name: null })
+        .expect(400);
+
+      // POST với sortOrder: null
+      await t.http
+        .post('/api/admin/categories')
+        .set(adminAuth())
+        .send({ id: validId, name: 'Valid Name', sortOrder: null })
+        .expect(400);
+
+      // Tạo một danh mục hợp lệ trước
+      const created = await t.http
+        .post('/api/admin/categories')
+        .set(adminAuth())
+        .send({ id: validId, name: 'Danh Mục Test Null' })
+        .expect(201);
+
+      // PATCH với name: null
+      await t.http
+        .patch(`/api/admin/categories/${validId}`)
+        .set(adminAuth())
+        .send({ name: null, expectedUpdatedAt: created.body.updatedAt })
+        .expect(400);
+
+      // PATCH với sortOrder: null
+      await t.http
+        .patch(`/api/admin/categories/${validId}`)
+        .set(adminAuth())
+        .send({ sortOrder: null, expectedUpdatedAt: created.body.updatedAt })
+        .expect(400);
+
+      // PATCH với parentId: null là hợp lệ (đưa về root)
+      await t.http
+        .patch(`/api/admin/categories/${validId}`)
+        .set(adminAuth())
+        .send({ parentId: null, expectedUpdatedAt: created.body.updatedAt })
+        .expect(200);
+    });
+
+    it('POST /api/admin/categories chặn tạo con dưới danh mục cấp 2 hoặc danh mục có sản phẩm trực tiếp (422)', async () => {
+      const level2 = await t.prisma.category.findUniqueOrThrow({ where: { slug: 'ao-thun' } });
+      expect(level2.parentId).not.toBeNull();
+
+      // Cha là cấp 2 -> 422
+      await t.http
+        .post('/api/admin/categories')
+        .set(adminAuth())
+        .send({ id: randomUUID(), name: 'Con cấp 3', parentId: level2.id })
+        .expect(422);
+
+      // Tạo danh mục gốc rỗng rồi gắn 1 sản phẩm trực tiếp -> không thể thêm con (422)
+      const rootId = randomUUID();
+      await t.http
+        .post('/api/admin/categories')
+        .set(adminAuth())
+        .send({ id: rootId, name: 'Gốc có sản phẩm' })
+        .expect(201);
+
+      await t.prisma.product.create({
+        data: {
+          name: 'Sản phẩm trực tiếp',
+          slug: 'san-pham-truc-tiep-cat-test',
+          categoryId: rootId,
+          isActive: true,
+          priceFrom: 100000,
+        },
+      });
+
+      await t.http
+        .post('/api/admin/categories')
+        .set(adminAuth())
+        .send({ id: randomUUID(), name: 'Con của gốc có SP', parentId: rootId })
+        .expect(422);
+    });
+
+    it('PATCH /api/admin/categories/:id cập nhật tên, thứ tự, đổi cha an toàn, kiểm CAS trước no-op và giữ slug bất biến', async () => {
+      const rootAId = randomUUID();
+      const rootBId = randomUUID();
+      const childId = randomUUID();
+
+      const resA = await t.http
+        .post('/api/admin/categories')
+        .set(adminAuth())
+        .send({ id: rootAId, name: 'Gốc A Test', sortOrder: 1 })
+        .expect(201);
+      await t.http
+        .post('/api/admin/categories')
+        .set(adminAuth())
+        .send({ id: rootBId, name: 'Gốc B Test', sortOrder: 2 })
+        .expect(201);
+      const resChild = await t.http
+        .post('/api/admin/categories')
+        .set(adminAuth())
+        .send({ id: childId, name: 'Con Test', parentId: rootAId, sortOrder: 3 })
+        .expect(201);
+
+      // Gửi slug trong PATCH bị từ chối (400 forbidNonWhitelisted)
+      await t.http
+        .patch(`/api/admin/categories/${childId}`)
+        .set(adminAuth())
+        .send({ slug: 'doi-slug', expectedUpdatedAt: resChild.body.updatedAt })
+        .expect(400);
+
+      // Self-parent bị 422
+      await t.http
+        .patch(`/api/admin/categories/${childId}`)
+        .set(adminAuth())
+        .send({ parentId: childId, expectedUpdatedAt: resChild.body.updatedAt })
+        .expect(422);
+
+      // Gốc A đang có con -> không thể chuyển thành con của Gốc B (422)
+      await t.http
+        .patch(`/api/admin/categories/${rootAId}`)
+        .set(adminAuth())
+        .send({ parentId: rootBId, expectedUpdatedAt: resA.body.updatedAt })
+        .expect(422);
+
+      // No-op với token đúng -> giữ nguyên updatedAt
+      const noopRes = await t.http
+        .patch(`/api/admin/categories/${childId}`)
+        .set(adminAuth())
+        .send({ name: 'Con Test', sortOrder: 3, expectedUpdatedAt: resChild.body.updatedAt })
+        .expect(200);
+      expect(noopRes.body.updatedAt).toBe(resChild.body.updatedAt);
+
+      // Sửa tên, thứ tự, chuyển cha sang Gốc B
+      const patchRes = await t.http
+        .patch(`/api/admin/categories/${childId}`)
+        .set(adminAuth())
+        .send({
+          name: 'Con Đã Đổi Tên',
+          parentId: rootBId,
+          sortOrder: 9,
+          expectedUpdatedAt: resChild.body.updatedAt,
+        })
+        .expect(200);
+      expect(patchRes.body.name).toBe('Con Đã Đổi Tên');
+      expect(patchRes.body.parentId).toBe(rootBId);
+      expect(patchRes.body.sortOrder).toBe(9);
+      expect(patchRes.body.slug).toBe('con-test');
+
+      // CAS trước no-op: gửi lại expectedUpdatedAt cũ dù payload giống hệt server hiện tại -> vẫn 409
+      await t.http
+        .patch(`/api/admin/categories/${childId}`)
+        .set(adminAuth())
+        .send({
+          name: 'Con Đã Đổi Tên',
+          parentId: rootBId,
+          sortOrder: 9,
+          expectedUpdatedAt: resChild.body.updatedAt,
+        })
+        .expect(409);
+    });
+
+    it('adminManagedFields bảo vệ name/parentId/sortOrder admin đã sửa qua seedCatalog', async () => {
+      const cat = await t.prisma.category.findUniqueOrThrow({ where: { slug: 'ao-khoac' } });
+      const patched = await t.http
+        .patch(`/api/admin/categories/${cat.id}`)
+        .set(adminAuth())
+        .send({
+          name: 'Áo Khoác Admin Đặt',
+          sortOrder: 77,
+          expectedUpdatedAt: cat.updatedAt.toISOString(),
+        })
+        .expect(200);
+      expect(patched.body.name).toBe('Áo Khoác Admin Đặt');
+
+      await seedCatalog(t.prisma);
+
+      const afterSeed = await t.prisma.category.findUniqueOrThrow({ where: { id: cat.id } });
+      expect(afterSeed.name).toBe('Áo Khoác Admin Đặt');
+      expect(afterSeed.sortOrder).toBe(77);
+      expect(afterSeed.adminManagedFields).toEqual(expect.arrayContaining(['name', 'sortOrder']));
+    });
+
+    it('Hai POST đồng thời cùng UUID+payload trả kết quả idempotent không 500; cùng slug khác UUID chỉ 1 thành công và 1 trả 409', async () => {
+      const sharedId = randomUUID();
+      const [r1, r2] = await Promise.all([
+        t.http
+          .post('/api/admin/categories')
+          .set(adminAuth())
+          .send({ id: sharedId, name: 'Đồng Thời Cùng UUID', sortOrder: 1 }),
+        t.http
+          .post('/api/admin/categories')
+          .set(adminAuth())
+          .send({ id: sharedId, name: 'Đồng Thời Cùng UUID', sortOrder: 1 }),
+      ]);
+      expect([r1.status, r2.status]).toEqual([201, 201]);
+      expect(r1.body.id).toBe(sharedId);
+      expect(r2.body.id).toBe(sharedId);
+
+      const [s1, s2] = await Promise.all([
+        t.http
+          .post('/api/admin/categories')
+          .set(adminAuth())
+          .send({ id: randomUUID(), name: 'Trùng Slug Race', slug: 'trung-slug-race' }),
+        t.http
+          .post('/api/admin/categories')
+          .set(adminAuth())
+          .send({ id: randomUUID(), name: 'Trùng Slug Race', slug: 'trung-slug-race' }),
+      ]);
+      const statuses = [s1.status, s2.status].sort((a, b) => a - b);
+      expect(statuses).toEqual([201, 409]);
+    });
+
+    it('Concurrency: khóa theo thứ tự tránh deadlock khi A->B và B->A đồng thời, và chặn cây 3 cấp khi POST con của A đua với PATCH A->B', async () => {
+      const idA = randomUUID();
+      const idB = randomUUID();
+      const aRes = await t.http
+        .post('/api/admin/categories')
+        .set(adminAuth())
+        .send({ id: idA, name: 'Node A Race' })
+        .expect(201);
+      const bRes = await t.http
+        .post('/api/admin/categories')
+        .set(adminAuth())
+        .send({ id: idB, name: 'Node B Race' })
+        .expect(201);
+
+      // 1. A->B vs B->A: không deadlock (không 500), tối đa 1 thành công, bên còn lại 422
+      const [ab, ba] = await Promise.all([
+        t.http
+          .patch(`/api/admin/categories/${idA}`)
+          .set(adminAuth())
+          .send({ parentId: idB, expectedUpdatedAt: aRes.body.updatedAt }),
+        t.http
+          .patch(`/api/admin/categories/${idB}`)
+          .set(adminAuth())
+          .send({ parentId: idA, expectedUpdatedAt: bRes.body.updatedAt }),
+      ]);
+      const cycleStatuses = [ab.status, ba.status].sort((a, b) => a - b);
+      expect(cycleStatuses).toEqual([200, 422]);
+
+      // Reset về 2 node gốc độc lập để kiểm POST con của A đua với PATCH A->B
+      const idC = randomUUID();
+      const idD = randomUUID();
+      const cRes = await t.http
+        .post('/api/admin/categories')
+        .set(adminAuth())
+        .send({ id: idC, name: 'Node C Race' })
+        .expect(201);
+      await t.http
+        .post('/api/admin/categories')
+        .set(adminAuth())
+        .send({ id: idD, name: 'Node D Race' })
+        .expect(201);
+
+      const [addChild, moveC] = await Promise.all([
+        t.http
+          .post('/api/admin/categories')
+          .set(adminAuth())
+          .send({ id: randomUUID(), name: 'Child of C', parentId: idC }),
+        t.http
+          .patch(`/api/admin/categories/${idC}`)
+          .set(adminAuth())
+          .send({ parentId: idD, expectedUpdatedAt: cRes.body.updatedAt }),
+      ]);
+      const hierarchyStatuses = [addChild.status, moveC.status].sort((a, b) => a - b);
+      expect(hierarchyStatuses).toEqual([201, 422]);
+    });
+
+    async function waitForBlockedQueries(
+      expectedBlockedCount = 1,
+      timeoutMs = 5000,
+    ): Promise<void> {
+      const start = Date.now();
+      while (Date.now() - start < timeoutMs) {
+        const res = await t.prisma.$queryRaw<{ count: number }[]>`
+          SELECT count(*)::int as count
+          FROM pg_locks l
+          JOIN pg_stat_activity a ON l.pid = a.pid
+          WHERE NOT l.granted AND a.state = 'active'
+        `;
+        const count = res[0]?.count ?? 0;
+        if (count >= expectedBlockedCount) return;
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      throw new Error(`Timeout waiting for ${expectedBlockedCount} blocked queries in pg_locks`);
+    }
+
+    const sendPostAsync = (path: string, body: unknown) =>
+      new Promise<{ status: number; body: Record<string, unknown> }>((resolve, reject) => {
+        t.http
+          .post(path)
+          .set(adminAuth())
+          .send(body as object)
+          .end((err, res) =>
+            err
+              ? reject(err)
+              : resolve(res as unknown as { status: number; body: Record<string, unknown> }),
+          );
+      });
+
+    const sendPatchAsync = (path: string, body: unknown) =>
+      new Promise<{ status: number; body: Record<string, unknown> }>((resolve, reject) => {
+        t.http
+          .patch(path)
+          .set(adminAuth())
+          .send(body as object)
+          .end((err, res) =>
+            err
+              ? reject(err)
+              : resolve(res as unknown as { status: number; body: Record<string, unknown> }),
+          );
+      });
+
+    it('Concurrency gate Chiều 1: Thêm danh mục con thắng trước, Import chạy sau bị từ chối (không bao giờ vừa có con vừa có sản phẩm)', async () => {
+      const productsService = t.app.get(ProductsService);
+      const catAId = randomUUID();
+      await t.http
+        .post('/api/admin/categories')
+        .set(adminAuth())
+        .send({ id: catAId, name: 'Gate Cat A', slug: 'gate-cat-a' })
+        .expect(201);
+
+      let releaseGate!: () => void;
+      const gateEntered = new Promise<void>((resolve) => {
+        const txPromise = t.prisma.$transaction(
+          async (tx) => {
+            await tx.$queryRaw`SELECT id FROM "categories" WHERE id = ${catAId}::uuid FOR UPDATE`;
+            resolve();
+            await new Promise<void>((r) => {
+              releaseGate = r;
+            });
+          },
+          { timeout: 15000 },
+        );
+        void txPromise;
+      });
+      await gateEntered;
+
+      const postChildPromise = sendPostAsync('/api/admin/categories', {
+        id: randomUUID(),
+        name: 'Child Gate A',
+        parentId: catAId,
+      });
+
+      await waitForBlockedQueries(1);
+      releaseGate();
+
+      const childRes = await postChildPromise;
+      expect(childRes.status).toBe(201);
+
+      const importRes = await productsService.importProducts([
+        {
+          sourceKey: 'gate-order-a',
+          name: 'SP Gate A',
+          categorySlug: 'gate-cat-a',
+          images: [],
+          variants: [{ sku: 'GATE-SKU-A', listPrice: '150000' }],
+        },
+      ]);
+
+      expect(importRes[0]?.status).toBe('failed');
+      const childCount = await t.prisma.category.count({ where: { parentId: catAId } });
+      const prodCount = await t.prisma.product.count({ where: { categoryId: catAId } });
+      expect(childCount).toBe(1);
+      expect(prodCount).toBe(0);
+    });
+
+    it('Concurrency gate Chiều 2: Import thắng trước, Thêm danh mục con chạy sau bị từ chối bằng 422', async () => {
+      const productsService = t.app.get(ProductsService);
+      const catBId = randomUUID();
+      await t.http
+        .post('/api/admin/categories')
+        .set(adminAuth())
+        .send({ id: catBId, name: 'Gate Cat B', slug: 'gate-cat-b' })
+        .expect(201);
+
+      let releaseGate!: () => void;
+      const gateEntered = new Promise<void>((resolve) => {
+        const txPromise = t.prisma.$transaction(
+          async (tx) => {
+            await tx.$queryRaw`SELECT id FROM "categories" WHERE id = ${catBId}::uuid FOR UPDATE`;
+            resolve();
+            await new Promise<void>((r) => {
+              releaseGate = r;
+            });
+          },
+          { timeout: 15000 },
+        );
+        void txPromise;
+      });
+      await gateEntered;
+
+      const importPromise = productsService.importProducts([
+        {
+          sourceKey: 'gate-order-b',
+          name: 'SP Gate B',
+          categorySlug: 'gate-cat-b',
+          images: [],
+          variants: [{ sku: 'GATE-SKU-B', listPrice: '150000' }],
+        },
+      ]);
+
+      await waitForBlockedQueries(1);
+      releaseGate();
+
+      const importRes = await importPromise;
+      expect(importRes[0]?.status).toBe('created');
+
+      const childRes = await t.http
+        .post('/api/admin/categories')
+        .set(adminAuth())
+        .send({ id: randomUUID(), name: 'Child Gate B', parentId: catBId });
+
+      expect(childRes.status).toBe(422);
+      expect(childRes.body.message).toContain(
+        'Không thể thêm danh mục con vào danh mục đang có sản phẩm trực tiếp',
+      );
+
+      const childCount = await t.prisma.category.count({ where: { parentId: catBId } });
+      const prodCount = await t.prisma.product.count({ where: { categoryId: catBId } });
+      expect(childCount).toBe(0);
+      expect(prodCount).toBe(1);
+    });
+
+    it('Concurrency gate: cả hai request xếp hàng sau khóa, gate mở chỉ cho phép duy nhất một bên thành công', async () => {
+      const productsService = t.app.get(ProductsService);
+      const catCId = randomUUID();
+      await t.http
+        .post('/api/admin/categories')
+        .set(adminAuth())
+        .send({ id: catCId, name: 'Gate Cat C', slug: 'gate-cat-c' })
+        .expect(201);
+
+      let releaseGate!: () => void;
+      const gateEntered = new Promise<void>((resolve) => {
+        const txPromise = t.prisma.$transaction(
+          async (tx) => {
+            await tx.$queryRaw`SELECT id FROM "categories" WHERE id = ${catCId}::uuid FOR UPDATE`;
+            resolve();
+            await new Promise<void>((r) => {
+              releaseGate = r;
+            });
+          },
+          { timeout: 15000 },
+        );
+        void txPromise;
+      });
+      await gateEntered;
+
+      const postChildPromise = sendPostAsync('/api/admin/categories', {
+        id: randomUUID(),
+        name: 'Child Gate C',
+        parentId: catCId,
+      });
+      const importPromise = productsService.importProducts([
+        {
+          sourceKey: 'gate-order-c',
+          name: 'SP Gate C',
+          categorySlug: 'gate-cat-c',
+          images: [],
+          variants: [{ sku: 'GATE-SKU-C', listPrice: '150000' }],
+        },
+      ]);
+
+      // Xác minh cả hai query đều đã bị chặn trong hàng đợi pg_locks trước khi mở khóa
+      await waitForBlockedQueries(2);
+      releaseGate();
+
+      const [childRes, importRes] = await Promise.all([postChildPromise, importPromise]);
+      const childCount = await t.prisma.category.count({ where: { parentId: catCId } });
+      const prodCount = await t.prisma.product.count({ where: { categoryId: catCId } });
+
+      expect(childCount > 0 && prodCount > 0).toBe(false);
+      if (childRes.status === 201) {
+        expect(importRes[0]?.status).toBe('failed');
+      } else {
+        expect(childRes.status).toBe(422);
+        expect(importRes[0]?.status).toBe('created');
+      }
+    });
+
+    it('Concurrency gate giữa seedCatalog và Admin PATCH: khóa hàng bảo vệ CAS và adminManagedFields', async () => {
+      const catD = await t.prisma.category.findUniqueOrThrow({ where: { slug: 'ao-khoac' } });
+
+      // Chiều 1: Admin PATCH chờ khóa hàng, sau khi unblock cập nhật thành công và seedCatalog không ghi đè
+      let releaseGate1!: () => void;
+      const gateEntered1 = new Promise<void>((resolve) => {
+        const txPromise = t.prisma.$transaction(
+          async (tx) => {
+            await tx.$queryRaw`SELECT id FROM "categories" WHERE id = ${catD.id}::uuid FOR UPDATE`;
+            resolve();
+            await new Promise<void>((r) => {
+              releaseGate1 = r;
+            });
+          },
+          { timeout: 15000 },
+        );
+        void txPromise;
+      });
+      await gateEntered1;
+
+      const patchPromise = sendPatchAsync(`/api/admin/categories/${catD.id}`, {
+        name: 'Áo Khoác Gate Admin',
+        sortOrder: 89,
+        expectedUpdatedAt: catD.updatedAt.toISOString(),
+      });
+
+      await waitForBlockedQueries(1);
+      releaseGate1();
+
+      const patched = await patchPromise;
+      expect(patched.status).toBe(200);
+      expect(patched.body.name).toBe('Áo Khoác Gate Admin');
+
+      // Chạy seedCatalog: bảo vệ trường admin đã đặt
+      await seedCatalog(t.prisma);
+      const afterSeed = await t.prisma.category.findUniqueOrThrow({ where: { id: catD.id } });
+      expect(afterSeed.name).toBe('Áo Khoác Gate Admin');
+      expect(afterSeed.sortOrder).toBe(89);
+      expect(afterSeed.adminManagedFields).toEqual(expect.arrayContaining(['name', 'sortOrder']));
+
+      // Chiều 2: Khi seed hoặc giao dịch khác đã commit trước (làm thay đổi updatedAt), PATCH giữ token cũ bị từ chối 409
+      const freshCat = await t.prisma.category.findUniqueOrThrow({ where: { id: catD.id } });
+      const staleToken = freshCat.updatedAt.toISOString();
+
+      // Giả lập giao dịch khác cập nhật bump updatedAt
+      await t.prisma.category.update({
+        where: { id: catD.id },
+        data: { updatedAt: new Date(freshCat.updatedAt.getTime() + 1000) },
+      });
+
+      await t.http
+        .patch(`/api/admin/categories/${catD.id}`)
+        .set(adminAuth())
+        .send({
+          name: 'Áo Khoác Mới Nữa',
+          expectedUpdatedAt: staleToken,
+        })
+        .expect(409);
     });
   });
 });
