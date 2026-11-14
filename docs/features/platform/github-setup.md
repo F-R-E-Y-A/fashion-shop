@@ -198,7 +198,7 @@ Hai bạn sẽ nhận thư mời, phải bấm chấp nhận thì quyền mới 
 
 ## 6. Bảo vệ nhánh: hiện làm được tới đâu
 
-> **Cập nhật 14/11:** phần dưới là phân tích lúc kho còn riêng tư. Từ 01/11 kho công khai, `develop` được khoá bằng ruleset `develop-bat-buoc-review` (26305126): 1 approve của người khác, 6 kiểm tự động phải xanh, cấm xoá và đẩy đè; chưa bắt cập nhật nhánh trước khi gộp. Merge queue (gộp lần lượt, kiểm trên bản ghép) đề xuất ở [ADR-066](LOG.md#adr-066). Xem `gh api repos/F-R-E-Y-A/fashion-shop/rulesets/26305126` và [ADR-065](LOG.md#adr-065).
+> **Cập nhật 14/11:** phần dưới là phân tích lúc kho còn riêng tư. Từ 01/11 kho công khai, `develop` được khoá bằng ruleset `develop-bat-buoc-review` (26305126): 1 approve của người khác, 6 kiểm tự động phải xanh, cấm xoá và đẩy đè; chưa bắt cập nhật nhánh trước khi gộp. Xem `gh api repos/F-R-E-Y-A/fashion-shop/rulesets/26305126` và [ADR-065](LOG.md#adr-065).
 
 Bảo đã có GitHub Pro qua Education, nhưng kho thuộc tổ chức thì theo gói của tổ chức, và `F-R-E-Y-A` đang ở gói Free. Bốn phương án:
 
