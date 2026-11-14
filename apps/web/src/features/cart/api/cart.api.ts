@@ -62,6 +62,10 @@ export const updateCartItem = (variantId: string, quantity: number): Promise<Car
 export const selectCartItem = (variantId: string, isSelected: boolean): Promise<Cart> =>
   apiPatch<Cart>(`/cart/items/${variantId}`, { isSelected }, cartHeaders());
 
+/** Doi dong gio sang bien the khac cung san pham; may chu gop dong neu bien the moi da co. */
+export const switchCartItemVariant = (variantId: string, toVariantId: string): Promise<Cart> =>
+  apiPatch<Cart>(`/cart/items/${variantId}`, { toVariantId }, cartHeaders());
+
 export const removeCartItem = (variantId: string): Promise<Cart> =>
   apiDel<Cart>(`/cart/items/${variantId}`, cartHeaders());
 

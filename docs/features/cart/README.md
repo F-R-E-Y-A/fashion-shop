@@ -1,6 +1,6 @@
 ---
 title: Giỏ hàng — bản đồ PH-02
-updated: 2026-10-18
+updated: 2026-11-14
 status: đã tích hợp, tiếp tục nghiệm thu
 owner: Duy
 ---
@@ -67,6 +67,7 @@ Lịch sử đối chiếu ở [LOG.md](LOG.md).
 | Thiếu dữ liệu Inventory | Hiện chưa cập nhật tồn kho; chưa đủ điều kiện checkout |
 | Thêm mới vượt tồn đã biết | Trả lỗi để người dùng chọn lại số lượng |
 | Gộp giỏ sau đăng nhập | Giữ ownership và khoá nguyên tử; dòng mới giữ trạng thái chọn từ guest |
+| Đổi màu/cỡ ngay trong giỏ (`PATCH /cart/items/:variantId` với `toVariantId`) | Chỉ sang biến thể cùng sản phẩm, còn bán; biến thể mới đã có trong giỏ thì gộp số lượng; kiểm tồn trên số lượng sau gộp; dòng kết quả được chọn ([cart.service.ts](../../../apps/api/src/modules/cart/cart.service.ts) `switchVariant`). Web: bấm nhãn phân loại mở `ui/VariantPicker` |
 
 Các trạng thái tính tại [cart.service.ts:126](../../../apps/api/src/modules/cart/cart.service.ts#L126); merge tại [cart.service.ts:248](../../../apps/api/src/modules/cart/cart.service.ts#L248). Cart không tạo reservation hay trừ kho; Checkout giữ hàng khi xác nhận sang payment. Dòng đang được chọn nhưng thiếu tồn/dữ liệu vẫn bỏ chọn được, không bắt xoá; còn dòng không đủ điều kiện thì không chọn lại được ([CartPage.tsx:37](../../../apps/web/src/features/cart/pages/CartPage.tsx#L37)). Hàng đang giữ cho đơn chờ thanh toán của chính khách cũng làm dòng thành hết hàng và bị bỏ chọn; Checkout gọi `reselectReleased` khi hủy/hết hạn đơn để chọn lại ([cart.service.ts:70](../../../apps/api/src/modules/cart/cart.service.ts#L70)). Trong lúc giữ, giỏ vẫn hiện hết hàng cho chính khách (suy luận: cần trừ reservation của chủ giỏ khỏi tồn khả dụng, chưa làm).
 
