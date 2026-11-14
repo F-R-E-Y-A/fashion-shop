@@ -3,7 +3,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom';
 
 import { formatDateTime, formatPrice } from '@/core';
 import { AdminForbidden } from '@/features/account';
-import { ConfirmDialog } from '@/ui';
+import { ActionFeedback, ConfirmDialog } from '@/ui';
 
 import { type AdminVoucher, voucherErrorText, voucherStatusBadge } from './admin-vouchers.api.js';
 import styles from './AdminVouchers.module.css';
@@ -41,6 +41,7 @@ export function AdminVouchersPage() {
     dialogProps,
     notice,
     noticeRef,
+    sessionScope,
     clearNotice,
     recheckCurrent,
     pending: isStatusPending,
@@ -127,33 +128,23 @@ export function AdminVouchersPage() {
       </header>
 
       {notice && (
-        <div
-          ref={noticeRef}
-          tabIndex={-1}
-          className={`${styles.notice} ${notice.error ? styles.noticeError : styles.noticeSuccess}`}
-          role="status"
-        >
-          <span>{notice.text}</span>
-          {notice.recheck && recheckCurrent && (
-            <button
-              type="button"
-              className={styles.recheckButton}
-              onClick={recheckCurrent}
-              disabled={isStatusChecking}
-            >
-              Kiểm tra lại trạng thái
-            </button>
-          )}
-          {!notice.recheck && (
-            <button
-              type="button"
-              className={styles.actionButton}
-              onClick={clearNotice}
-              aria-label="Đóng thông báo"
-            >
-              ✕
-            </button>
-          )}
+        <div ref={noticeRef} tabIndex={-1}>
+          <ActionFeedback
+            noticeKey={notice.key}
+            sessionScope={sessionScope}
+            tone={notice.recheck ? 'warning' : notice.error ? 'error' : 'success'}
+            message={notice.text}
+            onDismiss={clearNotice}
+            action={
+              notice.recheck && recheckCurrent
+                ? {
+                    label: 'Kiểm tra lại trạng thái',
+                    onClick: recheckCurrent,
+                    disabled: isStatusChecking,
+                  }
+                : undefined
+            }
+          />
         </div>
       )}
 

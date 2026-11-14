@@ -1,5 +1,5 @@
 import { useIsMutating, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { type ComponentProps, useEffect, useRef, useState } from 'react';
+import { type ComponentProps, useCallback, useEffect, useRef, useState } from 'react';
 
 import { ApiError, classifyRequestError } from '@/core';
 import {
@@ -37,13 +37,27 @@ export function useVoucherStatusAction() {
   const { markForbidden, guardQuery } = useAdminForbidden(actor, getSessionEpoch);
 
   const [target, setTarget] = useState<VoucherActionTarget | null>(null);
-  const [notice, setNotice] = useState<VoucherActionNotice | null>(null);
+  const [notice, setNotice] = useState<
+    (VoucherActionNotice & { key: number; scope: string }) | null
+  >(null);
   const [checking, setChecking] = useState(false);
   const [focus, setFocus] = useState(0);
 
   const noticeRef = useRef<HTMLDivElement>(null);
   const opener = useRef<HTMLElement | null>(null);
   const opened = useRef(false);
+  const noticeIdRef = useRef(0);
+  const sessionScope = `${actor}:${epoch}`;
+  const scopedNotice = notice?.scope === sessionScope ? notice : null;
+
+  const clearNotice = useCallback(() => setNotice(null), []);
+  const showNotice = (next: VoucherActionNotice) => {
+    noticeIdRef.current += 1;
+    setNotice({ ...next, key: noticeIdRef.current, scope: sessionScope });
+    if (next.error) {
+      setFocus((f) => f + 1);
+    }
+  };
 
   const checkKey = [...adminVouchersKeys.all(actor), 'uncertain-status', epoch];
   const check = useQuery<VoucherActionTarget | null>({
@@ -165,43 +179,39 @@ export function useVoucherStatusAction() {
           return;
         }
 
-        setNotice({
+        showNotice({
           text: `Đã xác nhận: mã giảm giá ${fresh.code} hiện ${fresh.status === 'ACTIVE' ? 'đang hoạt động' : 'đã ngừng hoạt động'}.`,
         });
       } else {
-        setNotice({
+        showNotice({
           text: `Mã giảm giá ${fresh.code} vẫn giữ trạng thái cũ trên máy chủ (yêu cầu có thể vẫn đang được xử lý). Vui lòng nhấn kiểm tra lại sau giây lát.`,
           error: true,
         });
       }
-      setFocus((f) => f + 1);
     } catch (err) {
       if (err instanceof SessionChangedError) return;
 
       if (err instanceof ApiError && err.body.statusCode === 403) {
         markForbidden();
         setNeedsCheck(null);
-        setNotice({
+        showNotice({
           text: 'Tài khoản của bạn không còn quyền quản trị.',
           error: true,
         });
-        setFocus((f) => f + 1);
         return;
       }
 
       if (err instanceof ApiError && err.body.statusCode === 404) {
         setNeedsCheck(null);
         await client.invalidateQueries({ queryKey: adminVouchersKeys.all(actor) });
-        setNotice({ text: 'Mã giảm giá không còn tồn tại trên hệ thống.', error: true });
-        setFocus((f) => f + 1);
+        showNotice({ text: 'Mã giảm giá không còn tồn tại trên hệ thống.', error: true });
         return;
       }
-      setNotice({
+      showNotice({
         text: 'Chưa đối chiếu được trạng thái trên máy chủ. Vui lòng bấm kiểm tra lại.',
         error: true,
         recheck: true,
       });
-      setFocus((f) => f + 1);
     } finally {
       setChecking(false);
     }
@@ -254,56 +264,50 @@ export function useVoucherStatusAction() {
       }
 
       setNeedsCheck(null);
-      setNotice({
+      showNotice({
         text: `Đã ${nextStatus === 'ACTIVE' ? 'kích hoạt' : 'ngừng hoạt động'} mã giảm giá ${updated.code} thành công.`,
       });
-      setFocus((f) => f + 1);
     } catch (err) {
       if (err instanceof SessionChangedError) return;
 
       if (err instanceof ApiError && err.body.statusCode === 403) {
         markForbidden();
         setNeedsCheck(null);
-        setNotice({
+        showNotice({
           text: 'Tài khoản của bạn không còn quyền quản trị.',
           error: true,
         });
-        setFocus((f) => f + 1);
         return;
       }
 
       if (err instanceof ApiError && err.body.statusCode === 409) {
         await client.invalidateQueries({ queryKey: adminVouchersKeys.all(actor) });
-        setNotice({
+        showNotice({
           text: 'Mã giảm giá đã được thay đổi trên máy chủ bởi người khác. Danh sách đã được làm mới, vui lòng thử lại.',
           error: true,
         });
-        setFocus((f) => f + 1);
         return;
       }
 
       const classification = classifyRequestError(err, 'mutation');
       if (classification === 'invalid') {
-        setNotice({ text: 'Dữ liệu không hợp lệ.', error: true });
-        setFocus((f) => f + 1);
+        showNotice({ text: 'Dữ liệu không hợp lệ.', error: true });
         return;
       }
 
       if (classification === 'not-found') {
         await client.invalidateQueries({ queryKey: adminVouchersKeys.all(actor) });
-        setNotice({ text: 'Không tìm thấy mã giảm giá trên máy chủ.', error: true });
-        setFocus((f) => f + 1);
+        showNotice({ text: 'Không tìm thấy mã giảm giá trên máy chủ.', error: true });
         return;
       }
 
       // 5xx / Network / Timeout -> Uncertain status
       setNeedsCheck(current);
-      setNotice({
+      showNotice({
         text: 'Chưa rõ kết quả thao tác do gián đoạn kết nối. Vui lòng đối chiếu trạng thái trước khi thực hiện thao tác mới.',
         error: true,
         recheck: true,
       });
-      setFocus((f) => f + 1);
     }
   }
 
@@ -334,9 +338,10 @@ export function useVoucherStatusAction() {
     open,
     close,
     dialogProps,
-    notice,
+    notice: scopedNotice,
     noticeRef,
-    clearNotice: () => setNotice(null),
+    sessionScope,
+    clearNotice,
     recheckCurrent: needsCheck ? () => recheck(needsCheck) : undefined,
     pending,
     checking,
