@@ -124,6 +124,10 @@ export function AdminInventoryDetailPage() {
         },
       );
       if (!stillCurrent()) return;
+      void queryClient.invalidateQueries({
+        queryKey: inventoryKeys.all(actorId),
+        refetchType: 'none',
+      });
       await query.refetch();
       if (!stillCurrent()) return;
       setIsModalOpen(false);

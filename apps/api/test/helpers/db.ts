@@ -23,6 +23,15 @@ export async function resetDatabase(prisma: PrismaClient): Promise<void> {
     await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${list} RESTART IDENTITY CASCADE`);
   }
 
+  const reportingTables = await prisma.$queryRaw<{ tablename: string }[]>`
+    SELECT tablename FROM pg_tables
+    WHERE schemaname = 'reporting'
+  `;
+  if (reportingTables.length > 0) {
+    const repList = reportingTables.map((t) => `"reporting"."${t.tablename}"`).join(', ');
+    await prisma.$executeRawUnsafe(`TRUNCATE TABLE ${repList} RESTART IDENTITY CASCADE`);
+  }
+
   await seedCatalog(prisma);
   await Promise.all([seedTestCatalogProducts(prisma), seedIdentity(prisma)]);
 }
