@@ -1,6 +1,7 @@
 import {
   Controller,
   Get,
+  Header,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -26,6 +27,7 @@ export class NotificationsController {
   constructor(private readonly notifications: NotificationsService) {}
 
   @Get()
+  @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Lấy danh sách thông báo của tài khoản hiện tại' })
   @ApiOkResponse({ type: NotificationListResponse })
   list(
@@ -36,12 +38,14 @@ export class NotificationsController {
   }
 
   @Get('unread-count')
+  @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Lấy số lượng thông báo chưa đọc của tài khoản' })
   getUnreadCount(@CurrentUser() user: CurrentUserType): Promise<{ unreadCount: number }> {
     return this.notifications.getUnreadCount(user.id, false);
   }
 
   @Patch(':id/read')
+  @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Đánh dấu một thông báo là đã đọc' })
   @ApiOkResponse({ type: NotificationResponse })
   markAsRead(
@@ -52,6 +56,7 @@ export class NotificationsController {
   }
 
   @Post('mark-all-read')
+  @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Đánh dấu tất cả thông báo của tài khoản là đã đọc' })
   markAllAsRead(@CurrentUser() user: CurrentUserType): Promise<{ count: number }> {
     return this.notifications.markAllAsRead(user.id, false);

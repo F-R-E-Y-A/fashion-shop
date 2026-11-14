@@ -316,6 +316,16 @@ export function CheckoutPage() {
               <span>Tiền hàng ({count} món)</span>
               <span>{formatPrice(quote.subtotalAmount)}</span>
             </p>
+            <label className={styles.promotion}>
+              Khuyến mãi
+              <input
+                aria-label="Khuyến mãi"
+                value=""
+                readOnly
+                disabled
+                placeholder="Chưa áp dụng"
+              />
+            </label>
             <p className={styles.row}>
               <span>Giảm giá</span>
               <span>{formatPrice(quote.discountAmount)}</span>

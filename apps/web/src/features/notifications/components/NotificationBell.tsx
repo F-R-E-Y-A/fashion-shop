@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { isAdminQueryForActor } from '@/core';
 import { useAuth } from '@/features/account';
 
 import {
@@ -19,42 +20,87 @@ interface NotificationBellProps {
   autoFetch?: boolean;
 }
 
+const FOCUSABLE_SELECTOR =
+  'button:not(:disabled), [href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])';
+
 export function NotificationBell({ isAdmin = false, autoFetch = true }: NotificationBellProps) {
-  const { user } = useAuth();
+  const auth = useAuth();
+  const user = auth?.user ?? null;
+  const request =
+    typeof auth?.authenticatedRequest === 'function' ? auth.authenticatedRequest : undefined;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [forbiddenActorId, setForbiddenActorId] = useState<string | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
+  const bellButtonRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
 
-  const queryKey = isAdmin ? notificationKeys.adminList() : notificationKeys.userList(user?.id);
+  const actorId = user?.id ?? '';
+  const forbidden = isAdmin && Boolean(actorId) && forbiddenActorId === actorId;
+
+  const handleForbidden = useCallback(() => {
+    if (!isAdmin || !actorId) return;
+    setForbiddenActorId(actorId);
+    setOpen(false);
+    const filters = {
+      predicate: (query: Parameters<typeof isAdminQueryForActor>[0]) =>
+        isAdminQueryForActor(query, actorId),
+    };
+    void queryClient.cancelQueries(filters);
+    queryClient.removeQueries(filters);
+  }, [actorId, isAdmin, queryClient]);
+
+  const queryKey = isAdmin
+    ? notificationKeys.adminList(user?.id)
+    : notificationKeys.userList(user?.id);
 
   const shouldFetch = open || autoFetch;
 
   const { data } = useQuery<NotificationListResponse>({
     queryKey,
-    queryFn: ({ signal }) => getNotifications(isAdmin, signal),
-    enabled: shouldFetch && (Boolean(user) || isAdmin),
+    queryFn: ({ signal }) =>
+      getNotifications(isAdmin, signal, {
+        request,
+        onForbidden: handleForbidden,
+      }),
+    enabled: shouldFetch && Boolean(user) && !forbidden,
     staleTime: 10_000,
     refetchInterval: 30_000,
   });
 
   const markReadMutation = useMutation({
-    mutationFn: (id: string) => markNotificationRead(id, isAdmin),
+    mutationFn: (id: string) =>
+      markNotificationRead(id, isAdmin, {
+        request,
+        onForbidden: handleForbidden,
+      }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey });
     },
   });
 
   const markAllMutation = useMutation({
-    mutationFn: () => markAllNotificationsRead(isAdmin),
+    mutationFn: () =>
+      markAllNotificationsRead(isAdmin, {
+        request,
+        onForbidden: handleForbidden,
+      }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey });
     },
   });
 
-  // Đóng popover khi click ngoài hoặc bấm phím Escape
+  // Đưa focus vào hộp thông báo khi mở, giữ Tab trong hộp và đóng bằng click ngoài / Escape trả focus
   useEffect(() => {
     if (!open) return;
+
+    const dialogEl = popoverRef.current;
+    if (dialogEl) {
+      const firstFocusable = dialogEl.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+      (firstFocusable ?? dialogEl).focus();
+    }
+
     const handlePointerDown = (event: PointerEvent) => {
       if (wrapRef.current && !wrapRef.current.contains(event.target as Node)) {
         setOpen(false);
@@ -62,7 +108,32 @@ export function NotificationBell({ isAdmin = false, autoFetch = true }: Notifica
     };
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        event.preventDefault();
         setOpen(false);
+        bellButtonRef.current?.focus();
+        return;
+      }
+      if (event.key === 'Tab' && popoverRef.current) {
+        const focusables = Array.from(
+          popoverRef.current.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+        );
+        if (focusables.length === 0) {
+          event.preventDefault();
+          popoverRef.current.focus();
+          return;
+        }
+        const first = focusables[0]!;
+        const last = focusables[focusables.length - 1]!;
+        const active = document.activeElement as HTMLElement | null;
+        if (event.shiftKey) {
+          if (active === first || !popoverRef.current.contains(active)) {
+            event.preventDefault();
+            last.focus();
+          }
+        } else if (active === last || !popoverRef.current.contains(active)) {
+          event.preventDefault();
+          first.focus();
+        }
       }
     };
     window.addEventListener('pointerdown', handlePointerDown);
@@ -89,6 +160,7 @@ export function NotificationBell({ isAdmin = false, autoFetch = true }: Notifica
   return (
     <div className={styles.wrap} ref={wrapRef}>
       <button
+        ref={bellButtonRef}
         type="button"
         className={styles.bellButton}
         aria-label={`Thông báo (${unreadCount} chưa đọc)`}
@@ -118,7 +190,13 @@ export function NotificationBell({ isAdmin = false, autoFetch = true }: Notifica
       </button>
 
       {open && (
-        <div className={styles.popover} role="dialog" aria-label="Danh sách thông báo">
+        <div
+          ref={popoverRef}
+          className={styles.popover}
+          role="dialog"
+          aria-label="Danh sách thông báo"
+          tabIndex={-1}
+        >
           <div className={styles.header}>
             <h3 className={styles.title}>Thông báo</h3>
             {unreadCount > 0 && (

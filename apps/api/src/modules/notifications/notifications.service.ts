@@ -138,6 +138,9 @@ export class NotificationsService {
    * Lấy số lượng thông báo chưa đọc.
    */
   async getUnreadCount(userId?: string, forAdmin = false): Promise<{ unreadCount: number }> {
+    if (!forAdmin && !userId) {
+      return { unreadCount: 0 };
+    }
     const where: Prisma.NotificationWhereInput = forAdmin
       ? { forAdmin: true, isRead: false }
       : { userId, forAdmin: false, isRead: false };
@@ -150,6 +153,9 @@ export class NotificationsService {
    * Đánh dấu 1 thông báo là đã đọc.
    */
   async markAsRead(id: string, userId?: string, forAdmin = false): Promise<NotificationResponse> {
+    if (!forAdmin && !userId) {
+      throw new NotFoundException('Không tìm thấy thông báo hoặc bạn không có quyền.');
+    }
     const notification = await this.prisma.notification.findFirst({
       where: {
         id,
@@ -173,6 +179,9 @@ export class NotificationsService {
    * Đánh dấu toàn bộ thông báo là đã đọc.
    */
   async markAllAsRead(userId?: string, forAdmin = false): Promise<{ count: number }> {
+    if (!forAdmin && !userId) {
+      return { count: 0 };
+    }
     const where: Prisma.NotificationWhereInput = forAdmin
       ? { forAdmin: true, isRead: false }
       : { userId, forAdmin: false, isRead: false };

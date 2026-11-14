@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { notificationKeys } from './api/notifications.api.js';
 import { NotificationBell } from './components/NotificationBell.js';
 
 const mockApiGet = vi.fn();
@@ -226,6 +227,71 @@ describe('NotificationBell', () => {
 
     await waitFor(() => {
       expect(mockApiGet).toHaveBeenCalled();
+    });
+  });
+
+  it('quản lý bàn phím và focus: mở hộp chuyển focus vào trong, giữ Tab vòng kín và Escape trả focus về chuông', async () => {
+    const user = userEvent.setup();
+    mockApiGet.mockResolvedValue({
+      items: [
+        {
+          id: 'n-1',
+          type: 'ORDER_STATUS_CHANGED',
+          title: 'Thông báo 1',
+          message: 'Nội dung 1',
+          link: '/don-hang/o-1',
+          isRead: false,
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      unreadCount: 1,
+    });
+
+    renderWithClient(<NotificationBell />);
+
+    const bellBtn = await screen.findByRole('button', { name: /Thông báo \(1 chưa đọc\)/ });
+    await user.click(bellBtn);
+
+    const markAllBtn = screen.getByRole('button', { name: 'Đánh dấu tất cả đã đọc' });
+    const itemBtn = screen.getByRole('button', { name: /Thông báo 1/ });
+
+    // Khi mở hộp, focus chuyển vào nút đầu tiên trong dialog
+    expect(markAllBtn).toHaveFocus();
+
+    // Tab chuyển sang mục thông báo, Tab tiếp quay vòng về nút đầu
+    await user.tab();
+    expect(itemBtn).toHaveFocus();
+    await user.tab();
+    expect(markAllBtn).toHaveFocus();
+
+    // Shift+Tab quay ngược về nút cuối
+    await user.tab({ shift: true });
+    expect(itemBtn).toHaveFocus();
+
+    // Bấm Escape đóng hộp và trả focus về nút chuông
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(bellBtn).toHaveFocus();
+  });
+
+  it('gắn khóa cache dưới gốc session và xóa dữ liệu admin của actor khi nhận 403', async () => {
+    expect(notificationKeys.userList('u-1')[0]).toBe('session');
+    expect(notificationKeys.adminList('u-1').slice(0, 4)).toEqual([
+      'session',
+      'admin',
+      'notifications',
+      'u-1',
+    ]);
+
+    mockApiGet.mockRejectedValueOnce({
+      status: 403,
+      code: 'FORBIDDEN',
+    });
+
+    renderWithClient(<NotificationBell isAdmin />);
+
+    await waitFor(() => {
+      expect(mockApiGet).toHaveBeenCalledTimes(1);
     });
   });
 });

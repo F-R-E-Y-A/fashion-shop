@@ -33,22 +33,22 @@ Bảng `Notification` nằm trong `orders.prisma` (Duy quản lý) theo [ADR-050
 
 ## Hợp đồng với phân hệ khác
 
-- **`OrdersService`:** Ghi nhận post-commit hook qua `WeakMap<Prisma.TransactionClient, PostCommitHook[]>` (`attachPostCommitHooks`, `registerPostCommitHook`, `runPostCommitHooks`) khi đơn hàng được tạo hoặc chuyển trạng thái (`transition`), đảm bảo chỉ gửi thông báo và email sau khi `$transaction` đã commit và tách biệt hoàn toàn giữa các transaction Proxy của Prisma 7.10.
+- **`OrdersService` & `ShippingService`:** Ghi nhận post-commit hook qua `WeakMap<Prisma.TransactionClient, PostCommitHook[]>` (`attachPostCommitHooks`, `registerPostCommitHook`, `runPostCommitHooks`) khi đơn hàng được tạo hoặc chuyển trạng thái (`transition`), kể cả khi chuyển trạng thái đơn từ luồng vận đơn/webhook của `ShippingService`, đảm bảo chỉ gửi thông báo và email sau khi `$transaction` đã commit và tách biệt hoàn toàn giữa các transaction Proxy của Prisma 7.10.
 - **`MailService`:** Sử dụng hạ tầng gửi email giao dịch sẵn có tại `apps/api/src/infra/mail/`.
 
 ## Giao diện
 
-- Component `NotificationBell` tại `apps/web/src/features/notifications/components/NotificationBell.tsx`.
+- Component `NotificationBell` tại `apps/web/src/features/notifications/components/NotificationBell.tsx` (quản lý focus vào dialog khi mở, giữ vòng `Tab`/`Shift+Tab`, `Escape` đóng và trả focus về chuông, khóa cache theo `sessionQueryKeys` và xóa cache admin khi nhận `403`).
 - Gắn vào thanh điều hướng cửa hàng tại `apps/web/src/app/StoreLayout.tsx` và thanh điều hướng quản trị tại `apps/web/src/app/AdminLayout.tsx` (`autoFetch` bật mặc định).
 
 ## Kiểm thử và nghiệm thu
 
 | Tiêu chí | Bài kiểm thử | Kết quả |
 |---|---|---|
-| Đơn vị backend service | `apps/api/src/modules/notifications/notifications.service.spec.ts` | 4/4 pass |
-| Post-commit hooks (WeakMap & rollback) | `apps/api/src/modules/orders/orders.service.spec.ts` | 12/12 pass |
+| Đơn vị backend service | `apps/api/src/modules/notifications/notifications.service.spec.ts` | 7/7 pass |
+| Post-commit hooks (WeakMap & rollback) | `apps/api/src/modules/orders/orders.service.spec.ts` · `apps/api/src/modules/shipping/shipping.service.spec.ts` | 12/12 · 22/22 pass |
 | Đặt 2 đơn liên tiếp qua HTTP tạo đủ 2 thông báo | `apps/api/test/cod.http.spec.ts` | pass |
-| Chuông thông báo frontend | `apps/web/src/features/notifications/notifications.test.tsx` | 8/8 pass |
+| Chuông thông báo frontend (focus/keyboard, 403, session cache) | `apps/web/src/features/notifications/notifications.test.tsx` | 10/10 pass |
 
 ## Trạng thái hôm nay (2026-11-14)
 

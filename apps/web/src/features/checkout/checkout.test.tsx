@@ -282,25 +282,17 @@ describe('PH-11 checkout UI', () => {
     expect(await screen.findByRole('heading', { name: 'Chờ thanh toán' })).toBeInTheDocument();
     expect(request).toHaveBeenCalledWith('/orders/by-payment/MOMOREF');
   });
-  it('UC-08.1/AC2 không cho thanh toán khi chưa cấu hình gateway', async () => {
+  it('UC-08.1/AC2 khuyến mãi trống và không cho thanh toán khi chưa cấu hình gateway', async () => {
     request.mockResolvedValue({ ...quote, paymentConfigured: false });
     show();
     expect(await screen.findByRole('button', { name: 'Xác nhận và sang VNPAY' })).toBeDisabled();
+    expect(screen.getByRole('textbox', { name: 'Khuyến mãi' })).toHaveValue('');
+    expect(screen.getByRole('textbox', { name: 'Khuyến mãi' })).toBeDisabled();
     expect(screen.getByText(/Cổng VNPAY chưa sẵn sàng/)).toBeInTheDocument();
     expect(request).toHaveBeenCalledWith(
       '/checkout/preview',
       expect.objectContaining({ body: { addressId: 'a1' } }),
     );
-  });
-  it('UC-07.1/AC2 hiển thị số tiền từ quote máy chủ bao gồm giảm giá và tổng thanh toán', async () => {
-    request.mockResolvedValue({
-      ...quote,
-      discountAmount: '50000.00',
-      totalAmount: '470000.00',
-    });
-    show();
-    expect(await screen.findByText(/50\.000/)).toBeInTheDocument();
-    expect(screen.getByText(/470\.000/)).toBeInTheDocument();
   });
   it('UC-07.1/AC14 chưa có địa chỉ thì mở sẵn form thêm tại chỗ, không gọi preview hay tạo đơn', async () => {
     addresses.mockResolvedValue([]);

@@ -12,7 +12,12 @@ import { Decimal } from 'decimal.js';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { InventoryService } from '../inventory/index.js';
-import { OrdersService } from '../orders/index.js';
+import {
+  attachPostCommitHooks,
+  OrdersService,
+  type PostCommitHook,
+  runPostCommitHooks,
+} from '../orders/index.js';
 import { PaymentsService } from '../payments/index.js';
 import {
   canTransitionShipment,
@@ -74,7 +79,9 @@ export class ShippingService {
     dto: { carrierName?: string; trackingNumber?: string },
     actorUserId?: string,
   ): Promise<ShipmentResponse> {
-    return this.prisma.$transaction(async (tx) => {
+    const postCommitHooks: PostCommitHook[] = [];
+    const result = await this.prisma.$transaction(async (tx) => {
+      attachPostCommitHooks(tx, postCommitHooks);
       if (this.orders) await this.orders.lock(orderId, tx);
 
       const order = await tx.order.findUnique({
@@ -137,6 +144,8 @@ export class ShippingService {
         updatedAt: shipment.updatedAt.toISOString(),
       };
     });
+    await runPostCommitHooks(postCommitHooks);
+    return result;
   }
 
   async updateShipmentStatus(
@@ -145,7 +154,9 @@ export class ShippingService {
     actorUserId?: string,
     note?: string,
   ): Promise<ShipmentResponse> {
-    return this.prisma.$transaction(async (tx) => {
+    const postCommitHooks: PostCommitHook[] = [];
+    const result = await this.prisma.$transaction(async (tx) => {
+      attachPostCommitHooks(tx, postCommitHooks);
       // Khoá đơn trước khi đọc trạng thái, cùng khoá với các thao tác admin (OrdersService.lock):
       // webhook gửi lại đồng thời với admin bấm "Đã giao" không cùng vượt qua bước kiểm trạng thái.
       if (this.orders) await this.orders.lock(orderId, tx);
@@ -260,6 +271,8 @@ export class ShippingService {
         updatedAt: updatedShipment.updatedAt.toISOString(),
       };
     });
+    await runPostCommitHooks(postCommitHooks);
+    return result;
   }
 
   async handleWebhook(payload: ShipmentWebhookDto) {
