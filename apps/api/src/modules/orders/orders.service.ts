@@ -20,6 +20,7 @@ const details = {
     },
   },
   statusHistory: { orderBy: { createdAt: 'asc' as const } },
+  shipment: true,
 };
 
 export interface AdminOrderQuery {

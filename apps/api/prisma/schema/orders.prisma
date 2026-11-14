@@ -193,9 +193,11 @@ model OrderStatusHistory {
   @@schema("public")
 }
 
+/// Van don giao hang. PH-02, Phan Ngoc Duy.
 model Shipment {
   id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   orderId        String         @unique @map("order_id") @db.Uuid
+  carrierName    String?        @map("carrier_name") @db.VarChar(100)
   trackingNumber String?        @map("tracking_number") @db.VarChar
   status         ShipmentStatus @default(PENDING)
   createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
