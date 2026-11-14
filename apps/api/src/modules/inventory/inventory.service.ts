@@ -53,7 +53,7 @@ export class InventoryService {
   /**
    * Hang da chot (SALE) nhung chua roi tay khach — khach huy truoc khi shop xu ly hoac COD giao
    * that bai — tro lai kho dung mot lan: dong RETURN unique theo (don, bien the) chan cong trung.
-   * Hang da giao roi tra lai thuoc luong doi tra, khong di qua day (ADR-038).
+   * Hang da giao roi tra lai di qua restockReturned (ADR-038, ADR-067).
    */
   async restock(orderId: string, items: StockItem[], tx: Prisma.TransactionClient) {
     await lockStock(tx, items);
@@ -64,6 +64,36 @@ export class InventoryService {
       await tx.inventory.update({
         where: { productVariantId: item.variantId },
         data: { quantityOnHand: { increment: item.quantity } },
+      });
+      await tx.stockMovement.create({
+        data: {
+          orderId,
+          productVariantId: item.variantId,
+          movementType: 'RETURN',
+          quantityDelta: item.quantity,
+        },
+      });
+    }
+    return true;
+  }
+
+  /**
+   * Hang da giao, khach tra lai va shop da nhan ve kho (ADR-067): cong dung cac mon tra. Dong RETURN
+   * unique theo (don, bien the) nen moi bien the chi cong mot lan moi don; da co dong thi tra false,
+   * caller bao 409 thay vi coi la thanh cong.
+   */
+  async restockReturned(orderId: string, items: StockItem[], tx: Prisma.TransactionClient) {
+    await lockStock(tx, items);
+    const variantIds = items.map((item) => item.variantId);
+    const already = await tx.stockMovement.count({
+      where: { orderId, movementType: 'RETURN', productVariantId: { in: variantIds } },
+    });
+    if (already) return false;
+    for (const item of items) {
+      await tx.inventory.upsert({
+        where: { productVariantId: item.variantId },
+        update: { quantityOnHand: { increment: item.quantity } },
+        create: { productVariantId: item.variantId, quantityOnHand: item.quantity },
       });
       await tx.stockMovement.create({
         data: {
