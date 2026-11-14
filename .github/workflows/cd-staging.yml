@@ -2,9 +2,12 @@
 #
 # Chia lam hai vi hai ung dung o hai noi:
 #   may chu API  -> Render (goi deploy hook, Render tu dung image tu apps/api/Dockerfile)
-#   giao dien    -> Vercel (tu dung va tu trien khai khi thay commit moi tren develop)
+#   giao dien    -> Vercel (tu dung va tu trien khai khi thay commit moi tren develop, KHONG cho CI;
+#                   han che da biet, ghi o docs/features/platform/staging.md)
 #
 # Chay SAU khi CI xanh, khong chay song song: bao dam thu len moi truong thu la thu da qua kiem.
+# Moi commit tren develop co mot luot CI rieng (ci.yml), nen moi lan gop co mot luot CD rieng.
+# Nhom cd-staging chi giu MOT luot cho: gop sat nhau (duoi ~3 phut/luot CD) thi luot o giua van bi thay.
 # Can dat truoc (xem docs/features/platform/staging.md):
 #   secret cua kho (Settings > Secrets and variables > Actions):
 #     RENDER_DEPLOY_HOOK_URL   dia chi hook lay trong Render, Settings > Deploy Hook
@@ -39,19 +42,46 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Can lich su de so commit voi ban staging dang chay (buoc ben duoi).
+          fetch-depth: 0
+
+      - name: Bo qua neu staging da chay ban chua commit nay
+        # CI cua tung commit tren develop chay song song (ci.yml), nen commit cu co the xanh SAU commit moi.
+        # Neu staging da chay mot ban chua commit nay thi khong dung lai, tranh lui staging ve ban cu.
+        # Chay tay (workflow_dispatch) thi luon dung lai: dung khi can cuu may chu treo.
+        id: guard
+        if: github.event_name == 'workflow_run'
+        env:
+          API: ${{ vars.STAGING_API_URL }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          cur=$(curl -fsS --max-time 60 "$API/api/healthz" | jq -r '.gitSha // empty' || true)
+          echo "Staging dang chay: ${cur:-khong doc duoc}"
+          if [ -n "$cur" ] && git cat-file -e "${cur}^{commit}" 2>/dev/null \
+            && git merge-base --is-ancestor "$SHA" "$cur"; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::Bo qua: staging da chay $cur, ban nay da chua $SHA."
+          fi
 
       - name: Goi Render dung va trien khai may chu
+        if: steps.guard.outputs.skip != 'true'
         env:
           HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
         run: |
           if [ -z "$HOOK" ]; then
             echo "::error::Chua dat RENDER_DEPLOY_HOOK_URL. Xem docs/features/platform/staging.md muc Dung lan dau."
             exit 1
           fi
-          curl -fsS --max-time 30 -X POST "$HOOK" -o deploy.json
+          # Ghim commit (ref): Render dung DUNG commit vua qua CI, khong lay commit moi nhat cua develop
+          # (commit moi nhat co the chua chay xong CI). https://render.com/docs/deploy-hooks
+          case "$HOOK" in *\?*) sep='&' ;; *) sep='?' ;; esac
+          curl -fsS --max-time 30 -X POST "${HOOK}${sep}ref=${SHA}" -o deploy.json
           cat deploy.json
 
       - name: Doi may chu chay dung commit vua gop
+        if: steps.guard.outputs.skip != 'true'
         # /api/healthz tra gitSha, nho vay biet chac dang goi vao BAN MOI chu khong phai ban cu con song.
         # Render goi free ngu khi khong ai dung nen lan danh thuc dau co the cham.
         # Moi lan goi co tran --max-time: may chu treo (giu ket noi, khong tra loi) thi curl khong cho mai.
@@ -79,6 +109,7 @@ jobs:
           exit 1
 
       - name: Kiem nhanh duong dan chinh
+        if: steps.guard.outputs.skip != 'true'
         env:
           API: ${{ vars.STAGING_API_URL }}
         run: |
@@ -96,6 +127,9 @@ jobs:
             echo "| | |"
             echo "|---|---|"
             echo "| Commit | \`${{ github.event.workflow_run.head_sha || github.sha }}\` |"
+            # tools/evidence/github-metrics.mjs dem rieng lan khong dung lai bang ket qua buoc
+            # "Goi Render dung va trien khai may chu" (skipped); dong nay de nguoi doc log thay ngay.
+            echo "| Ket qua | ${{ steps.guard.outputs.skip == 'true' && 'bo qua: da co trong ban moi hon' || 'da trien khai' }} |"
             echo "| May chu | ${{ vars.STAGING_API_URL }}/api/healthz |"
             echo "| Giao dien | ${{ vars.STAGING_WEB_URL }} |"
             echo "| Dac ta API | ${{ vars.STAGING_API_URL }}/api/docs |"
