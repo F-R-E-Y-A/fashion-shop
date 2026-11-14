@@ -7,6 +7,7 @@ import { useAuth } from '@/features/account';
 
 import {
   getNotifications,
+  isForbiddenError,
   markAllNotificationsRead,
   markNotificationRead,
   type NotificationItem,
@@ -39,17 +40,23 @@ export function NotificationBell({ isAdmin = false, autoFetch = true }: Notifica
   const actorId = user?.id ?? '';
   const forbidden = isAdmin && Boolean(actorId) && forbiddenActorId === actorId;
 
-  const handleForbidden = useCallback(() => {
-    if (!isAdmin || !actorId) return;
-    setForbiddenActorId(actorId);
-    setOpen(false);
+  const purgeAdminActorQueries = useCallback(() => {
+    if (!actorId) return;
     const filters = {
       predicate: (query: Parameters<typeof isAdminQueryForActor>[0]) =>
         isAdminQueryForActor(query, actorId),
     };
     void queryClient.cancelQueries(filters);
     queryClient.removeQueries(filters);
-  }, [actorId, isAdmin, queryClient]);
+  }, [actorId, queryClient]);
+
+  const handleForbidden = useCallback(() => {
+    if (!isAdmin || !actorId) return;
+    setForbiddenActorId(actorId);
+    setOpen(false);
+    purgeAdminActorQueries();
+    queueMicrotask(purgeAdminActorQueries);
+  }, [actorId, isAdmin, purgeAdminActorQueries]);
 
   const queryKey = isAdmin
     ? notificationKeys.adminList(user?.id)
@@ -65,8 +72,9 @@ export function NotificationBell({ isAdmin = false, autoFetch = true }: Notifica
         onForbidden: handleForbidden,
       }),
     enabled: shouldFetch && Boolean(user) && !forbidden,
+    retry: false,
     staleTime: 10_000,
-    refetchInterval: 30_000,
+    refetchInterval: (query) => (query.state.error || forbidden ? false : 30_000),
   });
 
   const markReadMutation = useMutation({
@@ -78,6 +86,11 @@ export function NotificationBell({ isAdmin = false, autoFetch = true }: Notifica
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey });
     },
+    onError: (err) => {
+      if (isAdmin && isForbiddenError(err)) {
+        handleForbidden();
+      }
+    },
   });
 
   const markAllMutation = useMutation({
@@ -88,6 +101,11 @@ export function NotificationBell({ isAdmin = false, autoFetch = true }: Notifica
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey });
+    },
+    onError: (err) => {
+      if (isAdmin && isForbiddenError(err)) {
+        handleForbidden();
+      }
     },
   });
 

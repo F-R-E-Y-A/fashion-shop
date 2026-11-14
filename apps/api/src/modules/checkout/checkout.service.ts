@@ -280,8 +280,8 @@ export class CheckoutService {
       },
       { timeout: 15_000 },
     );
-    await runPostCommitHooks(postCommitHooks);
     if (code !== 'COD') await this.payments.launchLatest(result.id, ip);
+    await runPostCommitHooks(postCommitHooks);
     return this.view(await this.orders.get(result.id, user.id));
   }
 

@@ -180,6 +180,55 @@ describe('NotificationsService', () => {
     warnSpy.mockRestore();
   });
 
+  it('handleOrderStatusChange giải phóng ngay lập tức không bị treo khi MailService.send bị treo', async () => {
+    // Giả lập SMTP bị pending vô hạn (hỏng kết nối, server mail không trả ACK)
+    const hangingMail = {
+      send: vi.fn().mockReturnValue(new Promise(() => {})),
+    } as unknown as MailService;
+    const service = new NotificationsService(mockPrisma, hangingMail);
+    mockNotification.create.mockResolvedValue({
+      id: 'n4',
+      userId: 'u1',
+      forAdmin: false,
+      type: NotificationType.ORDER_STATUS_CHANGED,
+      title: 'T',
+      message: 'M',
+      link: '/don-hang/o1',
+      isRead: false,
+      orderId: 'o1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    // Phải hoàn thành ngay, không bị treo theo SMTP
+    let finished = false;
+    const promise = service
+      .handleOrderStatusChange(
+        {
+          id: 'o1',
+          orderCode: 'FR003',
+          customerEmail: 'khach@example.com',
+          userId: 'u1',
+          status: 'SHIPPED',
+        },
+        'SHIPPED',
+      )
+      .then(() => {
+        finished = true;
+      });
+
+    await Promise.race([
+      promise,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout: SMTP blocked execution')), 500),
+      ),
+    ]);
+
+    expect(finished).toBe(true);
+    expect(hangingMail.send).toHaveBeenCalledTimes(1);
+    expect(mockNotification.create).toHaveBeenCalled();
+  });
+
   it('ListNotificationsQuery chuyển đổi chính xác unreadOnly=false và từ chối giá trị sai', async () => {
     const falseQuery = plainToInstance(ListNotificationsQuery, { unreadOnly: 'false' });
     expect(falseQuery.unreadOnly).toBe(false);

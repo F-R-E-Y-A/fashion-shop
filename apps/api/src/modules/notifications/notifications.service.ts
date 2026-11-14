@@ -238,14 +238,15 @@ export class NotificationsService {
       });
     }
 
-    // 3. Gửi email thông báo cho khách hàng
+    // 3. Gửi email thông báo cho khách hàng (bất đồng bộ để không chặn thanh toán/đơn hàng khi SMTP chậm/treo)
     if (order.customerEmail) {
-      await this.mail
-        .send({
-          to: order.customerEmail,
-          subject: `[F.R.E.Y.A.] ${statusMeta.title}`,
-          text: `${statusMeta.message}\n\nMã đơn hàng: ${order.orderCode}\nXem chi tiết tại: ${link}`,
-          html: `
+      try {
+        void this.mail
+          .send({
+            to: order.customerEmail,
+            subject: `[F.R.E.Y.A.] ${statusMeta.title}`,
+            text: `${statusMeta.message}\n\nMã đơn hàng: ${order.orderCode}\nXem chi tiết tại: ${link}`,
+            html: `
             <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
               <h2 style="color: #6b3e26;">F.R.E.Y.A. Fashion</h2>
               <h3>${statusMeta.title}</h3>
@@ -257,12 +258,17 @@ export class NotificationsService {
               <p>Cảm ơn quý khách đã tin tưởng mua sắm tại F.R.E.Y.A.</p>
             </div>
           `,
-        })
-        .catch((error: unknown) => {
-          this.logger.warn(
-            `Không gửi được email thông báo đơn ${order.orderCode}: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        });
+          })
+          .catch((error: unknown) => {
+            this.logger.warn(
+              `Không gửi được email thông báo đơn ${order.orderCode}: ${error instanceof Error ? error.message : String(error)}`,
+            );
+          });
+      } catch (error: unknown) {
+        this.logger.warn(
+          `Không gửi được email thông báo đơn ${order.orderCode}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
   }
 

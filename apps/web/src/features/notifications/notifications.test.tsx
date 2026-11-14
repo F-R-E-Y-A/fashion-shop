@@ -4,7 +4,13 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { notificationKeys } from './api/notifications.api.js';
+import {
+  getNotifications,
+  isForbiddenError,
+  markAllNotificationsRead,
+  markNotificationRead,
+  notificationKeys,
+} from './api/notifications.api.js';
 import { NotificationBell } from './components/NotificationBell.js';
 
 const mockApiGet = vi.fn();
@@ -292,6 +298,60 @@ describe('NotificationBell', () => {
 
     await waitFor(() => {
       expect(mockApiGet).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('notifications API error propagation & 403 regression', () => {
+    it('isForbiddenError nhận diện đúng mã 403 từ ApiError, status, statusCode hoặc response', () => {
+      expect(isForbiddenError({ status: 403 })).toBe(true);
+      expect(isForbiddenError({ statusCode: 403 })).toBe(true);
+      expect(isForbiddenError({ body: { statusCode: 403 } })).toBe(true);
+      expect(isForbiddenError({ response: { status: 403 } })).toBe(true);
+      expect(isForbiddenError({ status: 500 })).toBe(false);
+      expect(isForbiddenError(new Error('fail'))).toBe(false);
+    });
+
+    it('getNotifications ném lỗi từ request được truyền vào thay vì nuốt lỗi', async () => {
+      const customError = new Error('request failed');
+      const mockRequest = vi.fn().mockRejectedValue(customError);
+
+      await expect(getNotifications(false, undefined, { request: mockRequest })).rejects.toThrow(
+        'request failed',
+      );
+      expect(mockRequest).toHaveBeenCalledWith('/notifications', { signal: undefined });
+    });
+
+    it('getNotifications ném lỗi 403 và kích hoạt onForbidden khi isAdmin=true', async () => {
+      const forbiddenError = { status: 403, message: 'Forbidden' };
+      const mockRequest = vi.fn().mockRejectedValue(forbiddenError);
+      const onForbidden = vi.fn();
+
+      await expect(
+        getNotifications(true, undefined, { request: mockRequest, onForbidden }),
+      ).rejects.toEqual(forbiddenError);
+      expect(onForbidden).toHaveBeenCalledTimes(1);
+    });
+
+    it('markNotificationRead ném lỗi từ request và kích hoạt onForbidden khi 403', async () => {
+      const forbiddenError = { statusCode: 403 };
+      const mockRequest = vi.fn().mockRejectedValue(forbiddenError);
+      const onForbidden = vi.fn();
+
+      await expect(
+        markNotificationRead('n-1', true, { request: mockRequest, onForbidden }),
+      ).rejects.toEqual(forbiddenError);
+      expect(onForbidden).toHaveBeenCalledTimes(1);
+    });
+
+    it('markAllNotificationsRead ném lỗi từ request và kích hoạt onForbidden khi 403', async () => {
+      const forbiddenError = { body: { statusCode: 403 } };
+      const mockRequest = vi.fn().mockRejectedValue(forbiddenError);
+      const onForbidden = vi.fn();
+
+      await expect(
+        markAllNotificationsRead(true, { request: mockRequest, onForbidden }),
+      ).rejects.toEqual(forbiddenError);
+      expect(onForbidden).toHaveBeenCalledTimes(1);
     });
   });
 });
