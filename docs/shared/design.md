@@ -1,6 +1,6 @@
 ---
 title: Chuẩn giao diện chung
-updated: 2026-11-03
+updated: 2026-11-14
 status: đang dùng, nhận diện F.R.E.Y.A. đã chốt
 owner: Bảo
 ---
@@ -49,6 +49,21 @@ Thành phần nào hai feature trở lên cần thì đưa vào `ui/`; một fea
 5. **Tiếp cận cơ bản:** thẻ tương tác là `button` hoặc `a` thật, không gắn `onClick` vào `div`; trường nhập có nhãn; trạng thái tải có `role="status"`, lỗi có `role="alert"` như `Feedback.tsx` đã làm.
 6. **Chữ trên giao diện tiếng Việt có dấu**; tên biến và tệp tiếng Anh ([code.md](code.md)).
 7. **Đường dẫn trang tiếng Việt không dấu, nối gạch ngang**, khai ở `app/routes.tsx` và chỉ ở đó: `/san-pham/:slug`, `/danh-muc/:slug`, `/gio-hang`, `/dang-nhap`. Ngoại lệ đề xuất: khu quản trị dùng `/admin/*`, chữ trên trang vẫn tiếng Việt, mọi trang nằm sau `RequireAdmin` ([LOG#adr-027](../LOG.md#adr-027)).
+
+## Phản hồi thao tác quản trị
+
+`ActionFeedback` trong `ui/` hiển thị banner trong nội dung trang. Thành công dùng
+`role="status"`, không giành focus, tự đóng sau 5 giây và có nút đóng. Timer tạm dừng
+khi hover hoặc focus, tiếp tục thời gian còn lại khi cả hai kết thúc; mỗi thông báo
+mới có định danh riêng và caller truyền phạm vi phiên. Thay callback không reset timer.
+
+Lỗi/cảnh báo dùng `role="alert"`, không tự đóng. Cảnh báo chưa xác định có nút đối chiếu
+không cho đóng mất đường xử lý. Đóng banner chỉ đổi phần trình bày, không xóa marker,
+mở khóa mutation hoặc thay cache. Validation và trang mất quyền giữ cơ chế riêng.
+
+Áp dụng tại Users, Products, Vouchers và danh sách/chi tiết Promotions; Categories
+được tích hợp riêng sau đợt UI Danh mục. `ConfirmDialog` trả focus về nút mở; nếu nút
+đã bị gỡ khỏi DOM thì dùng vị trí dự phòng. Không thêm dependency hoặc đổi token.
 
 ## Chưa có, sẽ có
 

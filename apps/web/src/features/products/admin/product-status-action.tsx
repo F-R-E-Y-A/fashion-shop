@@ -5,7 +5,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { type ComponentProps, useEffect, useRef, useState } from 'react';
+import { type ComponentProps, useCallback, useEffect, useRef, useState } from 'react';
 
 import { ApiError, classifyRequestError } from '@/core';
 import {
@@ -14,7 +14,7 @@ import {
   useAdminForbidden,
   useAuth,
 } from '@/features/account';
-import { ConfirmDialog } from '@/ui';
+import { ActionFeedback, ConfirmDialog } from '@/ui';
 
 import {
   type AdminCatalogDetail,
@@ -50,7 +50,10 @@ export function useProductStatusAction() {
   const epoch = getSessionEpoch();
   const { markForbidden, guardQuery } = useAdminForbidden(actor, getSessionEpoch);
   const [target, setTarget] = useState<Target | null>(null);
-  const [notice, setNotice] = useState<Notice | null>(null);
+  const [notice, setNotice] = useState<(Notice & { key: number; scope: string }) | null>(null);
+  const noticeIdRef = useRef(0);
+  const sessionScope = `${actor}:${epoch}`;
+  const scopedNotice = notice?.scope === sessionScope ? notice : null;
   // Giữ yêu cầu chưa rõ qua điều hướng list/detail; logout/403 xóa cùng cache phiên.
   const checkKey = [...adminCatalogKeys.all(actor), 'uncertain-status', epoch];
   const check = useQuery<Target | null>({
@@ -70,15 +73,20 @@ export function useProductStatusAction() {
   useEffect(() => {
     if (focus) noticeRef.current?.focus();
   }, [focus]);
+  const clearNotice = useCallback(() => setNotice(null), []);
+  const showNotice = (next: Notice) => {
+    noticeIdRef.current += 1;
+    setNotice({ ...next, key: noticeIdRef.current, scope: sessionScope });
+  };
   const current = (v: { epoch: number; access: number }) =>
     getSessionEpoch() === v.epoch && adminAccessGeneration(client, actor) === v.access;
   const stamp = () => ({ epoch: getSessionEpoch(), access: adminAccessGeneration(client, actor) });
   const finish = (next: Notice) => {
-    setNotice(next);
+    showNotice(next);
     setTarget(null);
     if (opened.current || !opener.current?.isConnected) {
       opened.current = false;
-      setFocus((n) => n + 1);
+      if (next.error) setFocus((n) => n + 1);
     }
   };
   const refreshLists = () => client.resetQueries({ queryKey: adminCatalogKeys.lists(actor) });
@@ -220,7 +228,7 @@ export function useProductStatusAction() {
       await refreshLists();
       if (!current(v)) return;
       setNeedsCheck(null);
-      setNotice({
+      showNotice({
         text: 'Đã đối chiếu trạng thái hiện tại. Bạn có thể xem và xác nhận thao tác mới.',
       });
     } catch (error) {
@@ -229,9 +237,9 @@ export function useProductStatusAction() {
         await refreshLists();
         if (!current(v)) return;
         setNeedsCheck(null);
-        setNotice({ error: true, text: 'Sản phẩm không còn tồn tại.' });
+        showNotice({ error: true, text: 'Sản phẩm không còn tồn tại.' });
       } else
-        setNotice({
+        showNotice({
           error: true,
           recheck: true,
           text: 'Chưa đối chiếu được trạng thái. Kiểm tra kết nối rồi thử lại.',
@@ -273,14 +281,17 @@ export function useProductStatusAction() {
       setTarget(product);
     },
     notice:
-      needsCheck && !notice?.recheck
+      needsCheck && !scopedNotice?.recheck
         ? {
+            key: `uncertain-${needsCheck.id}`,
             error: true,
             recheck: true,
             text: 'Có yêu cầu chưa xác định kết quả. Kiểm tra lại trạng thái trước thao tác tiếp theo.',
           }
-        : notice,
+        : scopedNotice,
     noticeRef,
+    sessionScope,
+    clearNotice,
     checking,
     recheck,
     dialogProps,
@@ -290,28 +301,32 @@ export function useProductStatusAction() {
 
 export type ProductStatusAction = ReturnType<typeof useProductStatusAction>;
 export function ProductStatusFeedback({ action }: { action: ProductStatusAction }) {
-  const { noticeRef, notice, pending, checking, recheck, dialogProps } = action;
+  const { noticeRef, notice, pending, checking, recheck, dialogProps, sessionScope, clearNotice } =
+    action;
+  const tone = notice?.recheck ? 'warning' : notice?.error ? 'error' : 'success';
   return (
     <>
       <div ref={noticeRef} tabIndex={-1} className={styles.noticeSlot}>
-        <div role="status">{notice && !notice.error && <p>{notice.text}</p>}</div>
         {pending && (
           <p role="status">Đang xử lý yêu cầu. Đóng hộp không hủy thao tác trên máy chủ.</p>
         )}
-        {notice?.error && (
-          <div role="alert">
-            <p>{notice.text}</p>
-            {notice.recheck && (
-              <button
-                className={styles.statusButton}
-                type="button"
-                disabled={checking}
-                onClick={() => void recheck()}
-              >
-                {checking ? 'Đang đối chiếu…' : 'Kiểm tra lại trạng thái'}
-              </button>
-            )}
-          </div>
+        {notice && (
+          <ActionFeedback
+            noticeKey={notice.key}
+            sessionScope={sessionScope}
+            tone={tone}
+            message={notice.text}
+            onDismiss={clearNotice}
+            action={
+              notice.recheck
+                ? {
+                    label: checking ? 'Đang đối chiếu…' : 'Kiểm tra lại trạng thái',
+                    onClick: () => void recheck(),
+                    disabled: checking,
+                  }
+                : undefined
+            }
+          />
         )}
       </div>
       <ConfirmDialog {...dialogProps} />

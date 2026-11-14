@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { StrictMode } from 'react';
+import { StrictMode, useRef } from 'react';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { ConfirmDialog } from './ConfirmDialog.js';
@@ -51,5 +51,40 @@ describe('ConfirmDialog (ADR-039)', () => {
     (screen.getByRole('dialog') as HTMLDialogElement).close();
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('trả focus về vị trí dự phòng khi nút mở biến mất trước lúc đóng hộp', () => {
+    function Harness({ showOpener, open }: { showOpener: boolean; open: boolean }) {
+      const openerRef = useRef<HTMLButtonElement>(null);
+      const fallbackRef = useRef<HTMLHeadingElement>(null);
+      return (
+        <main>
+          <h1 ref={fallbackRef} tabIndex={-1}>
+            Tiêu đề trang
+          </h1>
+          {showOpener && (
+            <button ref={openerRef} type="button">
+              Mở hộp
+            </button>
+          )}
+          <ConfirmDialog
+            open={open}
+            {...props}
+            onClose={() => undefined}
+            returnFocusRef={openerRef}
+            fallbackFocusRef={fallbackRef}
+          />
+        </main>
+      );
+    }
+
+    const { rerender } = render(<Harness showOpener open={false} />);
+    const opener = screen.getByRole('button', { name: 'Mở hộp' });
+    opener.focus();
+
+    rerender(<Harness showOpener open />);
+    rerender(<Harness showOpener={false} open={false} />);
+
+    expect(document.activeElement).toBe(screen.getByRole('heading', { name: 'Tiêu đề trang' }));
   });
 });

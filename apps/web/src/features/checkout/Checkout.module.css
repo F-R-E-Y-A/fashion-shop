@@ -694,6 +694,137 @@
   background: var(--accent);
 }
 
+/* Shipping Tracking Timeline */
+.shippingCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.shippingHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.carrierBadge {
+  display: inline-block;
+  padding: 4px 10px;
+  background: var(--espresso);
+  color: var(--on-dark);
+  font-size: var(--s-1);
+  font-weight: 600;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+}
+.trackingCode {
+  font-size: var(--s0);
+  color: var(--foreground);
+}
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 8px 0;
+  padding-left: 6px;
+}
+.timelineStep {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  position: relative;
+}
+.timelineStep::before {
+  content: '';
+  position: absolute;
+  top: 20px;
+  left: 7px;
+  bottom: -14px;
+  width: 2px;
+  background: var(--border);
+}
+.timelineStep:last-child::before {
+  display: none;
+}
+.timelineDot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+}
+.timelineStep[data-status='done'] .timelineDot {
+  background: var(--espresso);
+  border-color: var(--espresso);
+  color: #fff;
+}
+.timelineStep[data-status='active'] .timelineDot {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(184, 80, 66, 0.2);
+}
+.timelineStep[data-status='pending'] .timelineDot {
+  background: var(--surface);
+  border-color: var(--border);
+}
+.timelineStep[data-status='failed'] .timelineDot {
+  background: #c0392b;
+  border-color: #c0392b;
+  color: #fff;
+}
+.timelineLabel {
+  font-size: var(--s0);
+  line-height: 1.4;
+}
+.timelineStep[data-status='done'] .timelineLabel {
+  color: var(--foreground);
+  font-weight: 500;
+}
+.timelineStep[data-status='active'] .timelineLabel {
+  color: var(--accent);
+  font-weight: 600;
+}
+.timelineStep[data-status='pending'] .timelineLabel {
+  color: var(--muted);
+}
+.timelineStep[data-status='failed'] .timelineLabel {
+  color: #c0392b;
+  font-weight: 500;
+}
+.shippingFooter {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  border-top: 1px dashed var(--border);
+  padding-top: 12px;
+}
+.carrierLink {
+  color: var(--accent);
+  font-size: var(--s-1);
+  text-decoration: underline;
+  font-weight: 500;
+}
+.carrierLink:hover {
+  text-decoration: none;
+}
+.sandboxNotice {
+  font-size: var(--s-1);
+  color: var(--muted);
+  font-style: italic;
+}
+
 @media (max-width: 880px) {
   .grid {
     grid-template-columns: 1fr;

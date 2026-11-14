@@ -64,8 +64,11 @@ for (const viewport of [
         { exact: true },
       );
       await expect(success).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Ngừng bán', exact: true })).toBeVisible();
-      await expect(page.locator('div[tabindex="-1"]').filter({ has: success })).toBeFocused();
+      const feedback = page.getByRole('status').filter({ has: success });
+      await expect(feedback).toBeVisible();
+      await expect(feedback.getByRole('button', { name: 'Đóng thông báo' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Ngừng bán', exact: true })).toBeFocused();
+      await expect(success).toBeHidden({ timeout: 8000 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );
@@ -163,7 +166,11 @@ for (const viewport of [
         { exact: true },
       );
       await expect(success).toBeVisible();
-      await expect(page.locator('div[tabindex="-1"]').filter({ has: success })).toBeFocused();
+      const feedback = page.getByRole('status').filter({ has: success });
+      await expect(feedback).toBeVisible();
+      await expect(feedback.getByRole('button', { name: 'Đóng thông báo' })).toBeVisible();
+      await expect(editBtn).toBeFocused();
+      await expect(success).toBeHidden({ timeout: 8000 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );

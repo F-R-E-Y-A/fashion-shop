@@ -16,10 +16,13 @@ on:
   push:
     branches: [develop, main]
 
-# Mot nhanh chi giu mot luot chay: day commit moi thi huy luot cu de tiet kiem phut Actions.
+# Pull request: moi PR chi giu mot luot, day commit moi thi huy luot cu (luot cu khong con gia tri).
+# Push len develop/main: MOI COMMIT mot nhom rieng, khong huy nhau. Truoc day gop don thi luot CI cua
+# commit giua bi huy, CD cua no bi bo qua (13/11: 4 lan gop, 1 lan trien khai), va khong biet lan gop
+# nao lam do. Kho cong khai nen phut Actions khong tinh phi.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   NODE_VERSION: '24'

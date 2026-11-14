@@ -20,4 +20,9 @@ export class UpdateCartItemDto {
   @ValidateIf((_object, value) => value !== undefined)
   @IsBoolean()
   isSelected?: boolean;
+
+  /** Doi dong gio sang bien the khac CUNG san pham (doi mau, co). Khong gui kem quantity, isSelected. */
+  @ValidateIf((_object, value) => value !== undefined)
+  @IsUUID()
+  toVariantId?: string;
 }
