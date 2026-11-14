@@ -39,7 +39,7 @@ StockMovement ghi thay đổi tồn vật lý; giữ/nhả reservation không t�
   tổng và dòng cùng snapshot. Không có biến động hiện rỗng, không tạo lịch sử giả.
 - **AC4** (thuận/âm) URL/back giữ trang, tải/lỗi/rỗng và cập nhật rõ ràng; tiếng Việt,
   Espresso/Ivory/Copper, font/token hiện có, desktop bảng/mobile360 có nhãn và thao tác bàn phím.
-  Trạng thái null ghi “Chưa có dữ liệu”; trang chi tiết có nút mở hộp thoại **Nhập / Điều chỉnh tồn** ([ADR-060](LOG.md#adr-060)).
+  Trạng thái null ghi “Chưa có dữ liệu”; trang chi tiết có nút mở hộp thoại `ConfirmDialog` **Nhập / Điều chỉnh tồn** (hỗ trợ vòng Tab, Escape, trả focus và xử lý mất quyền 403 qua `markForbidden`, [ADR-060](LOG.md#adr-060)).
 - **AC5** (âm) Query thuộc actor và cache phiên, authenticatedRequest + AbortSignal + guardQuery;
   logout/đổi epoch/403 hủy hoặc vô hiệu hóa response cũ, không phục hồi dữ liệu. Không tự retry4xx;
   polling dừng khi có lỗi, nút Thử lại là hành động chủ động.

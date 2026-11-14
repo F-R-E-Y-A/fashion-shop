@@ -202,11 +202,15 @@ describe('UC-13.1 quản trị tồn chỉ đọc', () => {
     it('RECEIPT: nhập thêm hàng thành công, cộng vào tồn hiện tại và ghi StockMovement kèm reason', async () => {
       const { service, tx, prisma } = setup();
 
-      const result = await service.adjust('v1', {
-        type: 'RECEIPT',
-        quantity: 15,
-        reason: 'Nhập lô hàng Yody tháng 11',
-      });
+      const result = await service.adjust(
+        'v1',
+        {
+          type: 'RECEIPT',
+          quantity: 15,
+          reason: 'Nhập lô hàng Yody tháng 11',
+        },
+        'admin-user-1',
+      );
 
       // Khoa advisory lock truoc khi thuc hien
       expect(tx.$executeRaw).toHaveBeenCalled();
@@ -218,18 +222,19 @@ describe('UC-13.1 quản trị tồn chỉ đọc', () => {
         update: { quantityOnHand: 25 },
       });
 
-      // Ghi bien dong kho
+      // Ghi bien dong kho kem actorUserId
       expect(tx.stockMovement.create).toHaveBeenCalledWith({
         data: {
           productVariantId: 'v1',
           movementType: 'RECEIPT',
           quantityDelta: 15,
           reason: 'Nhập lô hàng Yody tháng 11',
+          actorUserId: 'admin-user-1',
         },
       });
 
       expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
-        isolationLevel: 'RepeatableRead',
+        isolationLevel: 'ReadCommitted',
       });
 
       expect(result).toMatchObject({
@@ -297,6 +302,7 @@ describe('UC-13.1 quản trị tồn chỉ đọc', () => {
           movementType: 'ADJUSTMENT',
           quantityDelta: -4,
           reason: 'Hàng rách 4 chiếc khi kiểm kho',
+          actorUserId: null,
         },
       });
 

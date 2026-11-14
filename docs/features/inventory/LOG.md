@@ -32,7 +32,7 @@ Phân hệ Inventory trước đây mới chỉ hỗ trợ xem tồn kho chỉ �
 | Phương án | Được gì | Mất gì | Đảo ngược được không |
 |---|---|---|---|
 | A. Cập nhật trực tiếp tồn mà không lưu lịch sử | Đơn giản, không cần migration | Mất khả năng đối soát K3 ([reconcile-inventory.sql:47](../../../tools/db/reconcile-inventory.sql#L47)), không giải trình được lý do chênh lệch | Khó |
-| **B. Thêm cột reason vào stock_movements, thêm API điều chỉnh và Modal trên UI (chọn)** | Giữ nguyên bất biến đối soát số cái, bắt buộc nhập lý do, chống race condition bằng lockStock, chặn giảm dưới lượng đang giữ | Cần thêm migration cho orders.prisma | Dễ |
+| **B. Thêm cột reason và actor_user_id vào stock_movements, thêm API điều chỉnh và ConfirmDialog trên UI (chọn)** | Giữ nguyên bất biến đối soát số cái, bắt buộc nhập lý do, ghi nhận quản trị viên thao tác, chống race condition bằng lockStock + ReadCommitted, chặn giảm dưới lượng đang giữ | Cần thêm migration cho orders.prisma | Dễ |
 | Không làm gì | Quản trị viên không thể nhập hàng hay điều chỉnh tồn trên web | Không đáp ứng yêu cầu vận hành kho | Dễ |
 
 **Chọn B** vì bảo đảm trọn vẹn bất biến "tồn vật lý = tổng biến động kho" và bảo vệ an toàn cho các đơn hàng đang giữ chỗ của khách.
@@ -40,7 +40,7 @@ Phân hệ Inventory trước đây mới chỉ hỗ trợ xem tồn kho chỉ �
 ### Phản biện
 | Bên | Nội dung | Kết cục |
 |---|---|---|
-| Câu hỏi phản biện | Có nguy cơ xung đột khóa khi khách đang thanh toán cùng lúc quản trị viên điều chỉnh tồn không? | Sử dụng hàm lockStock dùng chung cơ chế khóa advisory lock theo thứ tự biến thể trong giao dịch RepeatableRead để serialize các thao tác. |
+| Câu hỏi phản biện | Có nguy cơ xung đột khóa hoặc đọc snapshot cũ khi khách đang giữ hàng cùng lúc quản trị viên điều chỉnh tồn không? | Sử dụng hàm lockStock dùng chung cơ chế khóa advisory lock theo thứ tự biến thể trong giao dịch ReadCommitted (để sau khi chờ lock sẽ thấy ngay các reservation vừa commit), còn list/detail chỉ đọc thì giữ RepeatableRead. |
 | Người phản biện | Nếu quản trị viên kiểm kê giảm tồn xuống dưới số lượng đang giữ cho các đơn chờ xử lý thì sao? | Chặn với BadRequestException: không cho phép tồn mới nhỏ hơn reservedQuantity. |
 
 **Kết luận:** Cung cấp chức năng nhập kho (RECEIPT) và điều chỉnh kiểm kê (ADJUSTMENT) an toàn, minh bạch lý do và bảo vệ luồng thanh toán.

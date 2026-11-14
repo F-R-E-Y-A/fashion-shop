@@ -171,12 +171,17 @@ export class AdminInventoryService {
     );
   }
 
-  adjust(id: string, dto: AdminAdjustStockDto): Promise<AdminInventoryDetail> {
+  adjust(
+    id: string,
+    dto: AdminAdjustStockDto,
+    actorUserId?: string,
+  ): Promise<AdminInventoryDetail> {
     return this.prisma.$transaction(
       async (tx) => {
-        const asOf = new Date();
-        // Khoa bien the cung thu tu voi Checkout de tranh race condition
+        // Khoa bien the cung thu tu voi Checkout de tranh race condition;
+        // dung ReadCommitted de sau khi lay duoc lock thi doc snapshot moi nhat (bao gom luong dat giu vua commit).
         await lockStock(tx, [{ variantId: id, quantity: 0 }]);
+        const asOf = new Date();
 
         const variant = await tx.productVariant.findUnique({
           where: { id },
@@ -244,6 +249,7 @@ export class AdminInventoryService {
             movementType: dto.type,
             quantityDelta: delta,
             reason: dto.reason.trim(),
+            actorUserId: actorUserId ?? null,
           },
         });
 
@@ -282,7 +288,7 @@ export class AdminInventoryService {
           ),
         };
       },
-      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+      { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
     );
   }
 }

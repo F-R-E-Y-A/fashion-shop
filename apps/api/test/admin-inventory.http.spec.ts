@@ -4,11 +4,13 @@ import { JwtService } from '@nestjs/jwt';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { grantAdminRole } from '../src/modules/auth/grant-admin-role.js';
+import { lockStock } from '../src/modules/inventory/inventory-operations.js';
 import { createTestApp, type TestApp } from './helpers/create-test-app.js';
 import { resetDatabase } from './helpers/db.js';
 
 describe('UC-13.1 tồn kho admin HTTP PostgreSQL', () => {
   let t: TestApp;
+  let adminId: string;
   let token: string;
   let customer: string;
   let variantId: string;
@@ -26,6 +28,7 @@ describe('UC-13.1 tồn kho admin HTTP PostgreSQL', () => {
     const admin = await t.prisma.user.create({
       data: { email: 'inventory-admin@example.test', passwordHash: 'test-only', status: 'ACTIVE' },
     });
+    adminId = admin.id;
     await grantAdminRole(t.prisma, admin.email);
     token = await t.app.get(JwtService).signAsync({ sub: admin.id, ver: admin.authVersion });
     const user = await t.prisma.user.create({
@@ -426,5 +429,58 @@ describe('UC-13.1 tồn kho admin HTTP PostgreSQL', () => {
       quantityDelta: -3,
       reason: 'Kiểm kê cuối tháng',
     });
+
+    // Kiểm tra actorUserId được ghi nhận trong bảng stock_movements
+    const latestMovement = await t.prisma.stockMovement.findFirstOrThrow({
+      where: { id: adjustRes.body.movements.items[0].id },
+    });
+    expect(latestMovement.actorUserId).toBe(adminId);
+
+    // 3. Concurrency ReadCommitted: giao dịch giữ hàng commit trong lúc adjust chờ advisory lock
+    let releaseHoldTx!: () => void;
+    const holdTxReady = new Promise<void>((resolve) => {
+      void t.prisma.$transaction(async (tx) => {
+        await lockStock(tx, [{ variantId, quantity: 0 }]);
+        resolve();
+        await new Promise<void>((done) => {
+          releaseHoldTx = done;
+        });
+        const order = await tx.order.create({
+          data: {
+            orderCode: 'INVENTORY-HOLD-CONCURRENT',
+            customerEmail: 'concurrent@example.test',
+            status: 'PENDING_PAYMENT',
+            shippingAddressSnapshot: { fixture: true },
+            subtotalAmount: '100',
+            discountAmount: '0',
+            shippingFeeAmount: '0',
+            totalAmount: '100',
+          },
+        });
+        await tx.inventoryReservation.create({
+          data: {
+            productVariantId: variantId,
+            orderId: order.id,
+            quantity: 8,
+            expiresAt: new Date(Date.now() + 60_000),
+          },
+        });
+      });
+    });
+
+    await holdTxReady;
+    // Khởi chạy request giảm tồn xuống 1 trong khi lock đang bị giữ; sau 50ms nhả lock để reservation=8 commit trước
+    const adjustPromise = t.http
+      .post(`${path}/${variantId}/adjust`)
+      .set(headers())
+      .send({ type: 'ADJUSTMENT', quantity: 1, reason: 'Thử giảm dưới lượng vừa giữ' });
+    setTimeout(() => releaseHoldTx(), 50);
+
+    const concurrentRes = await adjustPromise;
+    expect(concurrentRes.status).toBe(400);
+    expect(
+      (await t.prisma.inventory.findUniqueOrThrow({ where: { productVariantId: variantId } }))
+        .quantityOnHand,
+    ).toBe(12);
   });
 });

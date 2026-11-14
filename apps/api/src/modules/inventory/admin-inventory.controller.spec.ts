@@ -77,9 +77,13 @@ describe('AdminInventoryController (UC-13.1 / Issue #92 / PH-13)', () => {
       quantity: 20,
       reason: 'Nhập lô hàng Yody',
     });
-    const result = await controller.adjust({ id: 'v-1' }, dto);
+    const result = await controller.adjust({ id: 'v-1' }, dto, {
+      id: 'admin-1',
+      email: 'admin@example.test',
+      roles: ['ADMIN'],
+    });
 
-    expect(service.adjust).toHaveBeenCalledWith('v-1', dto);
+    expect(service.adjust).toHaveBeenCalledWith('v-1', dto, 'admin-1');
     expect(result).toBe(mockDetail);
   });
 

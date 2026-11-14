@@ -1,12 +1,24 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { AppRoutes } from '@/app';
 import { type AuthenticatedUser, AuthProvider, useAuth } from '@/features/account';
 
 import { inventoryKeys, quantity, readPage } from './inventory.api.js';
+
+beforeAll(() => {
+  const proto = HTMLDialogElement.prototype as HTMLDialogElement & { showModal(): void };
+  proto.showModal = function showModal(this: HTMLDialogElement) {
+    this.setAttribute('open', '');
+  };
+  proto.close = function close(this: HTMLDialogElement) {
+    if (!this.hasAttribute('open')) return;
+    this.removeAttribute('open');
+    setTimeout(() => this.dispatchEvent(new Event('close')), 0);
+  };
+});
 
 const actor: AuthenticatedUser = {
   id: 'a0000000-0000-4000-8000-000000000001',
@@ -375,6 +387,62 @@ describe('UC-13.1 tồn kho web', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Xác nhận lưu' }));
 
       expect(await screen.findByText('Lý do không được để trống')).toBeInTheDocument();
+    });
+
+    it('POST điều chỉnh trả 403 đóng hộp thoại, xóa cache quản trị của actor và hiển thị Không đủ quyền truy cập', async () => {
+      const t = setup(`/admin/inventory/${row.id}`, actor, (url, init) => {
+        if (url.pathname.endsWith('/adjust') && init?.method === 'POST') {
+          return error(403);
+        }
+        return undefined;
+      });
+      await screen.findByRole('heading', { name: 'Lịch sử biến động' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Nhập / Điều chỉnh tồn' }));
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText('Số lượng nhập thêm'), {
+        target: { value: '10' },
+      });
+      fireEvent.change(screen.getByLabelText('Lý do / Ghi chú (bắt buộc)'), {
+        target: { value: 'Nhập hàng khi vừa bị thu hồi quyền' },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Xác nhận lưu' }));
+
+      await screen.findByRole('heading', { name: 'Không đủ quyền truy cập' });
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(
+        t.client
+          .getQueriesData({ queryKey: inventoryKeys.all(actor.id) })
+          .every(([, data]) => data === undefined),
+      ).toBe(true);
+    });
+
+    it('quản lý bàn phím và focus: mở hộp đặt focus vào Hủy, giữ vòng Tab, Escape đóng hộp và trả focus về nút mở', async () => {
+      setup(`/admin/inventory/${row.id}`);
+      await screen.findByRole('heading', { name: 'Lịch sử biến động' });
+
+      const openBtn = screen.getByRole('button', { name: 'Nhập / Điều chỉnh tồn' });
+      openBtn.focus();
+      fireEvent.click(openBtn);
+
+      const dialog = screen.getByRole('dialog');
+      const cancelBtn = screen.getByRole('button', { name: 'Hủy' });
+      const confirmBtn = screen.getByRole('button', { name: 'Xác nhận lưu' });
+
+      // Khi mở hộp, focus chuyển vào nút Hủy bên trong dialog
+      expect(document.activeElement).toBe(cancelBtn);
+
+      // Tab từ nút cuối cùng (Xác nhận lưu) vòng lại phần tử đầu tiên trong hộp
+      confirmBtn.focus();
+      fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: false });
+      expect(dialog.contains(document.activeElement)).toBe(true);
+
+      // Escape (sự kiện cancel trên dialog) đóng hộp và trả focus về nút mở
+      fireEvent(dialog, new Event('cancel', { cancelable: true }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(document.activeElement).toBe(openBtn);
     });
   });
 });

@@ -1,9 +1,15 @@
-import { type FormEvent, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 
-import { formatDateTime } from '@/core';
-import { AdminForbidden, useAuth } from '@/features/account';
-import { ErrorNote, Loading, Pager } from '@/ui';
+import { classifyRequestError, formatDateTime } from '@/core';
+import {
+  adminAccessGeneration,
+  AdminForbidden,
+  SessionChangedError,
+  useAuth,
+} from '@/features/account';
+import { ConfirmDialog, ErrorNote, Loading, Pager } from '@/ui';
 
 import {
   type InventoryDetail,
@@ -17,15 +23,18 @@ import { inventoryError, useInventory } from './use-inventory.js';
 
 export function AdminInventoryDetailPage() {
   const { id = '' } = useParams();
-  const { user, authenticatedRequest } = useAuth();
+  const { user, authenticatedRequest, getSessionEpoch } = useAuth();
+  const queryClient = useQueryClient();
+  const actorId = user?.id ?? '';
   const [params, setParams] = useSearchParams();
   const page = readPage(params.get('page'));
   const returnPage = readPage(params.get('returnPage'));
-  const { query, data, forbidden } = useInventory<InventoryDetail>(
-    inventoryKeys.detail(user?.id ?? '', id, page),
+  const { query, data, forbidden, markForbidden } = useInventory<InventoryDetail>(
+    inventoryKeys.detail(actorId, id, page),
     `/admin/inventory/${encodeURIComponent(id)}?page=${page}`,
   );
 
+  const adjustButtonRef = useRef<HTMLButtonElement>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [adjustType, setAdjustType] = useState<'RECEIPT' | 'ADJUSTMENT'>('RECEIPT');
   const [adjustQuantity, setAdjustQuantity] = useState('');
@@ -36,8 +45,8 @@ export function AdminInventoryDetailPage() {
 
   if (forbidden) return <AdminForbidden />;
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const handleConfirmAdjust = async () => {
+    if (isSubmitting) return;
     setFormError(null);
 
     const trimmedQty = adjustQuantity.trim();
@@ -95,8 +104,14 @@ export function AdminInventoryDetailPage() {
       return;
     }
 
+    const epoch = getSessionEpoch();
+    const access = adminAccessGeneration(queryClient, actorId);
+    const stillCurrent = () =>
+      getSessionEpoch() === epoch && adminAccessGeneration(queryClient, actorId) === access;
+
     try {
       setIsSubmitting(true);
+      if (!stillCurrent()) throw new SessionChangedError();
       await authenticatedRequest<InventoryDetail>(
         `/admin/inventory/${encodeURIComponent(id)}/adjust`,
         {
@@ -108,7 +123,9 @@ export function AdminInventoryDetailPage() {
           },
         },
       );
+      if (!stillCurrent()) return;
       await query.refetch();
+      if (!stillCurrent()) return;
       setIsModalOpen(false);
       setSuccessMessage(
         adjustType === 'RECEIPT'
@@ -116,6 +133,12 @@ export function AdminInventoryDetailPage() {
           : `Đã điều chỉnh tồn kho thành ${num.toLocaleString('vi-VN')} đơn vị thành công.`,
       );
     } catch (err: unknown) {
+      if (!stillCurrent() || err instanceof SessionChangedError) return;
+      if (classifyRequestError(err, 'mutation') === 'forbidden') {
+        markForbidden();
+        setIsModalOpen(false);
+        return;
+      }
       const message = err instanceof Error ? err.message : 'Có lỗi xảy ra khi cập nhật tồn kho';
       setFormError(message);
     } finally {
@@ -142,6 +165,7 @@ export function AdminInventoryDetailPage() {
         </button>
         {data && (
           <button
+            ref={adjustButtonRef}
             type="button"
             className={styles.adjustBtn}
             onClick={() => {
@@ -239,136 +263,101 @@ export function AdminInventoryDetailPage() {
             />
           </section>
 
-          {isModalOpen && (
-            <div
-              className={styles.modalOverlay}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="modal-adjust-title"
-              onClick={(e) => {
-                if (e.target === e.currentTarget && !isSubmitting) setIsModalOpen(false);
-              }}
-            >
-              <div className={styles.modal}>
-                <div className={styles.modalHeader}>
-                  <h2 id="modal-adjust-title" className={styles.modalTitle}>
-                    Nhập / Điều chỉnh tồn kho
-                  </h2>
-                  <p className={styles.modalSubtitle}>
-                    {data.productName} ({data.colorName} / {data.sizeCode}) · SKU: {data.sku}
-                  </p>
+          <ConfirmDialog
+            open={isModalOpen}
+            tone="primary"
+            title="Nhập / Điều chỉnh tồn kho"
+            subject={`${data.productName} (${data.colorName} / ${data.sizeCode}) · SKU: ${data.sku}`}
+            impacts={[
+              `Tồn hiện tại: ${quantity(data.quantityOnHand)} · Đang giữ: ${quantity(data.reservedQuantity)} · Khả dụng: ${quantity(data.availableQuantity)}`,
+              'Ghi nhận biến động tồn vật lý kèm lý do vào lịch sử kho.',
+            ]}
+            confirmLabel="Xác nhận lưu"
+            pendingLabel="Đang lưu…"
+            pending={isSubmitting}
+            returnFocusRef={adjustButtonRef}
+            onClose={() => {
+              if (!isSubmitting) setIsModalOpen(false);
+            }}
+            onConfirm={() => void handleConfirmAdjust()}
+          >
+            <div className={styles.modalBody}>
+              {formError && (
+                <div className={styles.errorAlert} role="alert">
+                  {formError}
                 </div>
-                <form onSubmit={handleSubmit}>
-                  <div className={styles.modalBody}>
-                    <div className={styles.infoBox}>
-                      <div className={styles.infoItem}>
-                        <span>Tồn hiện tại</span>
-                        <span>{quantity(data.quantityOnHand)}</span>
-                      </div>
-                      <div className={styles.infoItem}>
-                        <span>Đang giữ</span>
-                        <span>{quantity(data.reservedQuantity)}</span>
-                      </div>
-                      <div className={styles.infoItem}>
-                        <span>Khả dụng</span>
-                        <span>{quantity(data.availableQuantity)}</span>
-                      </div>
-                    </div>
+              )}
 
-                    {formError && (
-                      <div className={styles.errorAlert} role="alert">
-                        {formError}
-                      </div>
-                    )}
-
-                    <div className={styles.field}>
-                      <label id="adjust-type-label">Loại thao tác</label>
-                      <div
-                        className={styles.radioGroup}
-                        role="radiogroup"
-                        aria-labelledby="adjust-type-label"
-                      >
-                        <label className={styles.radioLabel}>
-                          <input
-                            type="radio"
-                            name="adjustType"
-                            value="RECEIPT"
-                            checked={adjustType === 'RECEIPT'}
-                            onChange={() => setAdjustType('RECEIPT')}
-                            disabled={isSubmitting}
-                          />
-                          Nhập thêm hàng (+)
-                        </label>
-                        <label className={styles.radioLabel}>
-                          <input
-                            type="radio"
-                            name="adjustType"
-                            value="ADJUSTMENT"
-                            checked={adjustType === 'ADJUSTMENT'}
-                            onChange={() => setAdjustType('ADJUSTMENT')}
-                            disabled={isSubmitting}
-                          />
-                          Điều chỉnh kiểm kê (=)
-                        </label>
-                      </div>
-                    </div>
-
-                    <div className={styles.field}>
-                      <label htmlFor="adjust-quantity">
-                        {adjustType === 'RECEIPT'
-                          ? 'Số lượng nhập thêm'
-                          : 'Số tồn thực tế sau kiểm kê'}
-                      </label>
-                      <input
-                        id="adjust-quantity"
-                        type="number"
-                        min={adjustType === 'RECEIPT' ? 1 : 0}
-                        max={1000000}
-                        className={styles.input}
-                        value={adjustQuantity}
-                        onChange={(e) => setAdjustQuantity(e.target.value)}
-                        placeholder={
-                          adjustType === 'RECEIPT'
-                            ? 'VD: 50'
-                            : `Tối thiểu ${data.reservedQuantity} (lượng đang giữ)`
-                        }
-                        required
-                        disabled={isSubmitting}
-                      />
-                    </div>
-
-                    <div className={styles.field}>
-                      <label htmlFor="adjust-reason">Lý do / Ghi chú (bắt buộc)</label>
-                      <textarea
-                        id="adjust-reason"
-                        rows={3}
-                        className={styles.textarea}
-                        value={adjustReason}
-                        onChange={(e) => setAdjustReason(e.target.value)}
-                        placeholder="VD: Nhập lô hàng NCC Yody, Hàng rách hỏng do ẩm ướt, Kiểm kê định kỳ..."
-                        maxLength={255}
-                        required
-                        disabled={isSubmitting}
-                      />
-                    </div>
-                  </div>
-                  <div className={styles.modalFooter}>
-                    <button
-                      type="button"
-                      className={styles.cancelBtn}
-                      onClick={() => setIsModalOpen(false)}
+              <div className={styles.field}>
+                <label id="adjust-type-label">Loại thao tác</label>
+                <div
+                  className={styles.radioGroup}
+                  role="radiogroup"
+                  aria-labelledby="adjust-type-label"
+                >
+                  <label className={styles.radioLabel}>
+                    <input
+                      type="radio"
+                      name="adjustType"
+                      value="RECEIPT"
+                      checked={adjustType === 'RECEIPT'}
+                      onChange={() => setAdjustType('RECEIPT')}
                       disabled={isSubmitting}
-                    >
-                      Hủy
-                    </button>
-                    <button type="submit" className={styles.submitBtn} disabled={isSubmitting}>
-                      {isSubmitting ? 'Đang lưu…' : 'Xác nhận lưu'}
-                    </button>
-                  </div>
-                </form>
+                    />
+                    Nhập thêm hàng (+)
+                  </label>
+                  <label className={styles.radioLabel}>
+                    <input
+                      type="radio"
+                      name="adjustType"
+                      value="ADJUSTMENT"
+                      checked={adjustType === 'ADJUSTMENT'}
+                      onChange={() => setAdjustType('ADJUSTMENT')}
+                      disabled={isSubmitting}
+                    />
+                    Điều chỉnh kiểm kê (=)
+                  </label>
+                </div>
+              </div>
+
+              <div className={styles.field}>
+                <label htmlFor="adjust-quantity">
+                  {adjustType === 'RECEIPT' ? 'Số lượng nhập thêm' : 'Số tồn thực tế sau kiểm kê'}
+                </label>
+                <input
+                  id="adjust-quantity"
+                  type="number"
+                  min={adjustType === 'RECEIPT' ? 1 : 0}
+                  max={1000000}
+                  className={styles.input}
+                  value={adjustQuantity}
+                  onChange={(e) => setAdjustQuantity(e.target.value)}
+                  placeholder={
+                    adjustType === 'RECEIPT'
+                      ? 'VD: 50'
+                      : `Tối thiểu ${data.reservedQuantity} (lượng đang giữ)`
+                  }
+                  required
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              <div className={styles.field}>
+                <label htmlFor="adjust-reason">Lý do / Ghi chú (bắt buộc)</label>
+                <textarea
+                  id="adjust-reason"
+                  rows={3}
+                  className={styles.textarea}
+                  value={adjustReason}
+                  onChange={(e) => setAdjustReason(e.target.value)}
+                  placeholder="VD: Nhập lô hàng NCC Yody, Hàng rách hỏng do ẩm ướt, Kiểm kê định kỳ..."
+                  maxLength={255}
+                  required
+                  disabled={isSubmitting}
+                />
               </div>
             </div>
-          )}
+          </ConfirmDialog>
         </>
       )}
     </div>

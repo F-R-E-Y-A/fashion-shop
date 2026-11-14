@@ -46,10 +46,11 @@ Endpoint `GET /api/admin/inventory/low-stock?threshold=5&limit=5` hỗ trợ T�
 
 ## Nhập và điều chỉnh tồn kho — PH-13 (UC-13.2, UC-13.3, ADR-060)
 
-Endpoint `POST /api/admin/inventory/:id/adjust` và hộp thoại **Nhập / Điều chỉnh tồn** trên trang chi tiết tồn kho (`/admin/inventory/:id`):
+Endpoint `POST /api/admin/inventory/:id/adjust` và hộp thoại **Nhập / Điều chỉnh tồn** (`ConfirmDialog`) trên trang chi tiết tồn kho (`/admin/inventory/:id`):
 - Hỗ trợ hai chế độ: `RECEIPT` (nhập thêm hàng dương vào tồn vật lý) và `ADJUSTMENT` (đặt lại tồn vật lý theo kiểm kê thực tế).
-- Bắt buộc nhập lý do (`reason`, tối đa 255 ký tự) và lưu vào cột `reason` của bảng `stock_movements`, hiển thị trực tiếp trên bảng lịch sử biến động.
-- Khoá biến thể bằng `lockStock` trong giao dịch `RepeatableRead`; chặn điều chỉnh tồn vật lý thấp hơn lượng đang giữ (`reservedQuantity`) còn hiệu lực.
+- Bắt buộc nhập lý do (`reason`, tối đa 255 ký tự) và lưu kèm `actor_user_id` vào bảng `stock_movements`, hiển thị trực tiếp lý do trên bảng lịch sử biến động.
+- Khoá biến thể bằng `lockStock` trong giao dịch `ReadCommitted` (lấy `asOf` sau khi giữ khoá để thấy các lượt giữ hàng vừa commit); chặn điều chỉnh tồn vật lý thấp hơn lượng đang giữ (`reservedQuantity`) còn hiệu lực.
+- Trên giao diện, hộp thoại dùng `ConfirmDialog` chuẩn (giữ vòng Tab, phím Escape, trả focus về nút mở) và xử lý `403` bằng `markForbidden` (đóng hộp thoại, xóa cache quản trị theo phiên).
 
 ## Đối soát tồn kho (K3)
 

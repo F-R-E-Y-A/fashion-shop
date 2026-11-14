@@ -18,7 +18,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
-import { RequireRoles, RoleCode } from '../auth/index.js';
+import { CurrentUser, type CurrentUserType, RequireRoles, RoleCode } from '../auth/index.js';
 import { AdminInventoryService } from './admin-inventory.service.js';
 import {
   AdminAdjustStockDto,
@@ -69,7 +69,11 @@ export class AdminInventoryController {
   @ApiBadRequestResponse({
     description: 'Số lượng hoặc lý do không hợp lệ, hoặc nhỏ hơn lượng đang giữ cho đơn hàng',
   })
-  adjust(@Param() { id }: InventoryVariantParam, @Body() dto: AdminAdjustStockDto) {
-    return this.inventory.adjust(id, dto);
+  adjust(
+    @Param() { id }: InventoryVariantParam,
+    @Body() dto: AdminAdjustStockDto,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    return this.inventory.adjust(id, dto, user.id);
   }
 }
