@@ -16,6 +16,9 @@ vi.mock('@/features/cart', () => ({
   cartKeys: { all: ['cart'], current: () => ['cart', 'current'] },
   getCart: () => Promise.resolve({ cartId: '', items: [], total: '0', itemCount: 0 }),
 }));
+vi.mock('@/features/notifications', () => ({
+  NotificationBell: () => null,
+}));
 
 import { AuthProvider, useAuth } from './AuthProvider.js';
 import { ChangePasswordPage } from './pages/ChangePasswordPage.js';

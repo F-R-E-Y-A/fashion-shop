@@ -138,6 +138,8 @@ export function createAdminBackend(options: {
       return json(undefined, 204);
     }
     if (pathname === '/cart') return json({ items: [], itemCount: 0 });
+    if (pathname === '/notifications' || pathname === '/admin/notifications')
+      return json({ items: [], total: 0, unreadCount: 0, page: 1, pageSize: 20 });
     if (pathname.startsWith('/products'))
       return json({ items: [], total: 42, page: 1, pageSize: 1, totalPages: 42 });
     if (!pathname.startsWith('/admin/users'))
@@ -235,7 +237,11 @@ export function createAdminBackend(options: {
   return {
     state,
     requests,
-    adminRequests: () => requests.filter((item) => item.path.startsWith('/api/admin/')),
+    adminRequests: () =>
+      requests.filter(
+        (item) =>
+          item.path.startsWith('/api/admin/') && !item.path.startsWith('/api/admin/notifications'),
+      ),
     posts: () =>
       requests.filter((item) => item.method === 'POST' && item.path.startsWith('/api/admin/')),
     hold(match: (request: RecordedRequest) => boolean, options: { ignoreAbort?: boolean } = {}) {

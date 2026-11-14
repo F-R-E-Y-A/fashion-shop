@@ -29,6 +29,9 @@ vi.mock('@/features/cart', () => ({
   mergeCart: async () => null,
   CartPage: () => <p>Trang giỏ hàng</p>,
 }));
+vi.mock('@/features/notifications', () => ({
+  NotificationBell: () => null,
+}));
 
 const request = vi.fn<(path: string, options?: RequestInit) => Promise<Response>>();
 function response(body: unknown, status = 200): Response {

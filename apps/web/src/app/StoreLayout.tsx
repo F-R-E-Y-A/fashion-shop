@@ -5,6 +5,7 @@ import { Link, NavLink, Outlet } from 'react-router-dom';
 import { STORE_NAME, STORE_TAGLINE } from '@/core';
 import { hasAdminRole, useAuth } from '@/features/account';
 import { cartKeys, getCart } from '@/features/cart';
+import { NotificationBell } from '@/features/notifications';
 import { CategoryMenu, SearchTrigger } from '@/features/products';
 
 import styles from './StoreLayout.module.css';
@@ -193,6 +194,7 @@ export function StoreLayout() {
         </div>
         <div className={styles.actions}>
           <SearchTrigger />
+          {isAuthenticated && <NotificationBell autoFetch />}
           <CartLink />
           <div className={styles.account} aria-live="polite">
             {isLoading && <span className={styles.accountStatus}>Đang khôi phục phiên…</span>}

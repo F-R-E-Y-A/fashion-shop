@@ -51,6 +51,7 @@ model User {
   searchQueryLogs    SearchQueryLog[]
   wishlists          Wishlist[]
   recentlyViewed     RecentlyViewed[]
+  notifications      Notification[]
 
   @@map("users")
   @@schema("public")
