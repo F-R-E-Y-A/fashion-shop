@@ -1,6 +1,6 @@
 ---
 title: UC-01 Tài khoản và xác thực — đặc tả use case
-updated: 2026-11-02
+updated: 2026-11-14
 status: nháp
 owner: Tài
 ---
@@ -100,3 +100,22 @@ bài chưa ghi mã; AC4–AC10 ghi mã trong tên bài.
 
 - Mã `UC-01.4` và cách hợp nhất với bản ở PR #26. [TBD — hỏi Duy]
 - Có cần đăng xuất vô hiệu ngay cả access token không; hiện token còn sống tới hết `JWT_ACCESS_TTL`.
+
+---
+
+## UC-01.5 · Quên mật khẩu và đặt lại mật khẩu ba bước
+
+### Câu chuyện người dùng
+Là một **khách hàng**, tôi muốn **xác thực mã OTP trước rồi mới nhập mật khẩu mới**, để **phát hiện sớm mã sai/hết hạn mà không phải nhập lại mật khẩu nhiều lần và vẫn bảo vệ tài khoản khi có tranh chấp phiên**.
+
+### Luồng chính
+| Bước | Tác nhân làm | Hệ thống đáp |
+|---|---|---|
+| 1 | Nhập email ở `/quen-mat-khau` | Gửi `POST /api/auth/forgot-password`, luôn hiện thông báo chung và chuyển sang `/dat-lai-mat-khau` |
+| 2 | Nhập OTP 6 số (hoặc gửi lại sau 60s, hoặc đổi email) | `POST /api/auth/verify-password-reset-otp` consume OTP và trả `resetToken` ngắn hạn (10 phút, giữ trong React memory) |
+| 3 | Nhập mật khẩu mới + xác nhận | `POST /api/auth/reset-password` đổi mật khẩu, tăng `authVersion`, thu hồi mọi refresh token, gửi mail thông báo (timeout 3s) |
+
+### Luồng phụ và tiêu chí chấp nhận
+- **Reload mất grant:** Sau bước 2, nếu tải lại trang (`resetToken` trong memory mất), UI hiển thị cảnh báo hết phiên và nút **Yêu cầu mã mới** thay vì quay lại form OTP đã consume.
+- **Đổi email khi đang verify:** Hủy/bỏ qua response xác thực của email cũ để không gắn `resetToken` của tài khoản A vào màn hình của tài khoản B.
+- **Tranh chấp và hết hạn tại máy chủ:** Lock dòng `users` (`FOR NO KEY UPDATE`), kiểm tra `authVersion` và `expiresAt` tại thời điểm claim sau khi có khóa; hỗ trợ dual-contract (`resetToken` hoặc `{ email, code }`) trong giai đoạn rollout.
