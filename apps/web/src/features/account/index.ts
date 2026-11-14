@@ -17,7 +17,7 @@ export {
   type CreateAddressInput,
   listAddresses,
 } from './api/profile-address.api.js';
-export { AuthProvider, useAuth } from './AuthProvider.js';
+export { AuthProvider, useAuth, useOptionalAuth } from './AuthProvider.js';
 export { AddressForm } from './components/AddressForm.js';
 export { AccountLayout } from './pages/AccountLayout.js';
 export { AddressPage } from './pages/AddressPage.js';

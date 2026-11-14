@@ -1,6 +1,6 @@
 ---
 title: Nền tảng — nhật ký quyết định và thay đổi
-updated: 2026-09-28
+updated: 2026-11-12
 status: đang dùng
 owner: Bảo
 ---
@@ -96,3 +96,43 @@ Compose đã có Mailpit và Redis (`docker-compose.yml:28`, `:40`); README cũ 
 `gh run view 37128704142 -R F-R-E-Y-A/fashion-shop --log-failed` đọc ngày 04/10 trả `Chua dat RENDER_DEPLOY_HOOK_URL`. CI thành công không đồng nghĩa CD đã deploy thành công. Blueprint, entrypoint và staging.md có thay đổi local từ phiên trước, chưa commit/push; phiên tổng hợp giữ nguyên chúng. Backup local ghi trong SESSION ngày 03/10 chưa chứng minh restore hoặc backup cloud.
 
 Code-tour sửa hướng dẫn pool thành cấu hình `max` của pg.Pool theo adapter đang cài và tài liệu node-postgres; không thay pool runtime. Các log cũ giữ là lịch sử, không sửa hồi tố trạng thái quyết định.
+
+---
+
+<a id="adr-057"></a>
+## 2026-11-12 · ADR-057 — Sao lưu DB môi trường thử bằng script chạy tay: `pg_dump -Fc` trong image `postgres:17-alpine` có sẵn, khôi phục chỉ vào DB trống trong một transaction
+
+**Loại:** quyết định · **Phạm vi:** nền tảng: `tools/db/`, DB `fashion-shop-db` trên Render, runbook [staging.md](staging.md) mục "Dữ liệu và backup" · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- DB thử là PostgreSQL 17 gói Free ([render.yaml:63-68](../../../render.yaml)). Render Free không có backup hay PITR, DB hết hạn sau 30 ngày ([staging.md](staging.md) mục "Dữ liệu và backup"). Ngày hết hạn: [TBD — Bảo xem trên Render].
+- Trước việc này kho không có script sao lưu. Lần nạp catalog ngày 08/11 dùng `pg_dump` và `psql` gõ tay ([staging.md](staging.md) mục 4).
+- Kho đang công khai: `gh repo view F-R-E-Y-A/fashion-shop --json visibility` → `PUBLIC` (12/11).
+- File dump chứa email và mật khẩu đã băm của người dùng.
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Nâng DB lên gói trả phí của Render | Render tự sao lưu; khôi phục theo thời điểm trong 3 ngày (Hobby) hoặc 7 ngày (Pro) | Có phí; PITR ngắn hạn, vẫn cần bản sao ngoài Render để giữ lâu | Dễ |
+| B. Workflow GitHub Actions theo lịch chạy `pg_dump`, lưu artifact | Tự chạy, không phụ thuộc máy ai | Thêm secret URL DB vào GitHub. Kho công khai nên artifact phải mã hoá trước khi tải lên (suy luận: người đọc được kho thì tải được artifact), thêm một khoá phải giữ | Dễ |
+| **C. Script chạy tay trên máy Bảo (chọn)**: `pg_dump -Fc` trong image đã có; URL nhập qua ô che, vào container bằng `-e TÊN`; ghi `.partial`, đọc lại bằng `pg_restore --list` rồi mới đổi tên; khôi phục chỉ vào DB trống với `--single-transaction --exit-on-error` | Không thêm tài khoản, secret hay gói; không tải gì; file hỏng lộ ra ngay; khôi phục lỗi thì DB đích giữ nguyên | Phụ thuộc người nhớ chạy; mất phần ghi sau lần dump gần nhất; chỉ chạy trên máy có Docker và PowerShell 7 | Dễ: xoá ba tệp `tools/db/` |
+| Không làm gì | Không tốn công | DB hết hạn là mất tài khoản thử, đơn thử và dữ liệu nghiệm thu | — |
+
+**Chọn C** vì staging chỉ cần sống tới hết đợt nộp (08/12), dữ liệu nhỏ (1,37 MB trên DB dev cùng cấu trúc ngày 12/11) và ít người ghi; chạy tay ở các mốc là đủ. Trade-off chấp nhận: không có lịch tự động; chỗ còn hở về bí mật trong lúc chạy ghi ở [pg-backup.psm1:88-92](../../../tools/db/pg-backup.psm1#L88).
+
+### Phản biện
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| Câu hỏi phản biện | Vì sao không lên lịch tự động? | Kho công khai và file có dữ liệu người dùng: tự động trên GitHub cần thêm mã hoá và khoá. Tới 08/12, chạy tay rẻ hơn; xem "Điều kiện xem lại" |
+| AI gợi ý | Claude Code (Opus 5.5, agent nền, 12/11) viết ba tệp `tools/db/` và runbook; phiên chính soát cách truyền bí mật, việc không in URL, link | giữ |
+| AI gợi ý | Claude Code (phiên chính, 12/11): lệnh nạp catalog ở staging.md mục 4 đưa URL vào dòng lệnh `docker` qua `-e "DBURL=..."` | sửa: đổi sang `-e DBURL`, docker lấy giá trị từ biến môi trường |
+
+**Kết luận:** Chọn C, chờ Bảo chốt cùng nơi giữ bản mã hoá và DB đích.
+**Bằng chứng:** chạy lại ngày 12/11 lúc 16:55 bằng chính các hàm của module, nguồn là DB dev `fashion_shop` (chỉ đọc), đích là DB tạm đã xoá sau đó. Sao lưu 13,2 s: 1,37 MB, 362 mục TOC, 56 bảng, `SourceRows` `products=90, product_variants=339, users=4, orders=22`. Khôi phục 14,1 s, `TargetRows` khớp. Lần hai không `-Force` bị chặn vì DB đích đã có 56 bảng. Diễn tập đầy đủ hơn (role không phải superuser, `-Force`, sai mật khẩu) ở [staging.md](staging.md) mục "Sao lưu và khôi phục bằng script".
+
+### Kết quả mong đợi → thực tế
+Mong đợi: có ít nhất một bản sao lưu staging đọc được trước buổi 15/11; khôi phục sang DB mới trước ngày hết hạn với `TargetRows` khớp `SourceRows`.
+Thực tế: (điền sau khi Bảo chạy với URL thật).
+
+### Điều kiện xem lại
+Staging phải giữ dữ liệu sau 08/12, có dữ liệu không tạo lại được, hoặc có lần quên chạy trước một mốc: chuyển sang A, hoặc B có mã hoá.

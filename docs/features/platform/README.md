@@ -1,6 +1,6 @@
 ---
 title: Nền tảng — bản đồ
-updated: 2026-10-04
+updated: 2026-11-12
 status: đang làm
 owner: Bảo
 ---
@@ -22,13 +22,14 @@ owner: Bảo
 | CI sáu chặng | `.github/workflows/ci.yml` | [code-tour.md](../../shared/code-tour.md) mục 5 |
 | Tự triển khai môi trường thử | `.github/workflows/cd-staging.yml`, `render.yaml`, `apps/web/vercel.json` | [staging.md](staging.md) |
 | Image Docker hai ứng dụng, chạy cả cụm trên máy | `apps/*/Dockerfile`, `infra/compose.prod.yml` | [staging.md](staging.md) mục cuối |
+| Sao lưu và khôi phục DB môi trường thử | `tools/db/backup-db.ps1`, `tools/db/restore-db.ps1`, `tools/db/pg-backup.psm1` | [staging.md](staging.md) mục "Dữ liệu và backup" |
 | Số liệu minh chứng rubric từ GitHub | `tools/evidence/github-metrics.mjs` | `npm run evidence:github` |
 
 ## Tài liệu vận hành
 
 | Tệp | Trả lời câu gì |
 |---|---|
-| [staging.md](staging.md) | Dựng Render và Vercel lần đầu, luồng tự triển khai, xem log, quay về bản trước |
+| [staging.md](staging.md) | Dựng Render và Vercel lần đầu, luồng tự triển khai, sao lưu và khôi phục DB, xem log, quay về bản trước |
 | [github-setup.md](github-setup.md) | Lệnh đã dùng để dựng hai kho GitHub; chạy lại khi phải dựng lại |
 | [LOG.md](LOG.md) | Nền tảng đã đi qua những bản nào, đánh giá nào, số đo gì |
 

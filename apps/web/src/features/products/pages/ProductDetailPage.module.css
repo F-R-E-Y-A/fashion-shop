@@ -99,6 +99,21 @@
 .price {
   font-size: 1.3rem;
 }
+.rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  margin-bottom: 4px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.rating > span:last-child {
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 .price s {
   color: var(--muted);
   font-size: 0.9rem;

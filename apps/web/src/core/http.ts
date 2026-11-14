@@ -105,6 +105,21 @@ export const apiPatch = <T>(path: string, body?: unknown, headers?: Record<strin
 export const apiDel = <T>(path: string, headers?: Record<string, string>) =>
   apiRequest<T>(path, { method: 'DELETE', headers });
 
+/**
+ * Gui form multipart toi kho anh ngoai (Cloudinary) bang phieu may chu da ky. KHONG gan access
+ * token: token cua cua hang khong bao gio roi khoi may chu cua hang. Loi tra Error thuong, vi than
+ * loi cua kho ngoai khong theo hinh dang ApiErrorBody.
+ */
+export async function postExternalForm<T>(
+  url: string,
+  form: FormData,
+  signal?: AbortSignal,
+): Promise<T> {
+  const response = await fetch(url, { method: 'POST', body: form, signal });
+  if (!response.ok) throw new Error(`Kho ảnh từ chối tệp (mã ${response.status}).`);
+  return (await response.json()) as T;
+}
+
 /** Hinh dang tra ve cua moi duong dan liet ke, khop Page<T> ben may chu. */
 export interface Page<T> {
   items: T[];

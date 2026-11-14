@@ -45,6 +45,8 @@ import {
   AdminVoucherNewPage,
   AdminVouchersPage,
 } from '@/features/promotions';
+import { AdminReportsPage } from '@/features/reporting';
+import { AdminReviewsPage, MyReviewsPage } from '@/features/reviews';
 import { Loading } from '@/ui';
 
 import { AdminLayout } from './AdminLayout.js';
@@ -114,6 +116,7 @@ export function AppRoutes() {
                 <Route path="ho-so" element={<ProfilePage />} />
                 <Route path="dia-chi" element={<AddressPage />} />
                 <Route path="don-hang" element={<OrdersPage />} />
+                <Route path="danh-gia" element={<MyReviewsPage />} />
                 <Route path="doi-mat-khau" element={<ChangePasswordPage />} />
               </Route>
             </Route>
@@ -144,6 +147,7 @@ export function AppRoutes() {
           <Route path="admin" element={<RequireAdmin />}>
             <Route element={<AdminLayout />}>
               <Route index element={<AdminOverviewPage />} />
+              <Route path="reports" element={<AdminReportsPage />} />
               <Route path="inventory" element={<AdminInventoryPage />} />
               <Route path="inventory/:id" element={<AdminInventoryDetailPage />} />
               <Route path="categories" element={<AdminCategoriesPage />} />
@@ -160,6 +164,7 @@ export function AppRoutes() {
               <Route path="users/:id" element={<AdminUserDetailPage />} />
               <Route path="orders" element={<AdminOrdersPage />} />
               <Route path="orders/:id" element={<AdminOrderDetailPage />} />
+              <Route path="reviews" element={<AdminReviewsPage />} />
             </Route>
           </Route>
         </Routes>

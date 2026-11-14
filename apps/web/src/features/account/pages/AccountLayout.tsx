@@ -20,6 +20,9 @@ export function AccountLayout() {
         <NavLink to="don-hang" className={({ isActive }) => (isActive ? styles.active : '')}>
           Đơn hàng
         </NavLink>
+        <NavLink to="danh-gia" className={({ isActive }) => (isActive ? styles.active : '')}>
+          Đánh giá
+        </NavLink>
         <NavLink to="doi-mat-khau" className={({ isActive }) => (isActive ? styles.active : '')}>
           Đổi mật khẩu
         </NavLink>

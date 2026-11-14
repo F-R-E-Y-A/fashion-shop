@@ -1,0 +1,501 @@
+/* Danh gia san pham: sao, tong hop, danh sach, form. Dung token o styles.css, khong mau rieng. */
+.stars {
+  position: relative;
+  display: inline-block;
+  line-height: 1;
+  letter-spacing: 1px;
+  color: var(--line);
+  white-space: nowrap;
+  font-size: 1rem;
+}
+.stars[data-size='sm'] {
+  font-size: 0.82rem;
+}
+.stars[data-size='lg'] {
+  font-size: 1.35rem;
+}
+.starsFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  overflow: hidden;
+  color: var(--accent-bright);
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--s-1);
+  color: var(--ink-2);
+}
+.badgeCount {
+  color: var(--muted);
+}
+
+.section {
+  margin-top: clamp(40px, 6vw, 72px);
+  padding-top: 32px;
+  border-top: 1px solid var(--line);
+  scroll-margin-top: 96px;
+}
+.sectionTitle {
+  margin: 0 0 20px;
+  font-size: var(--s2);
+}
+.reveal {
+  min-height: 44px;
+  padding: 10px 20px;
+  border: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: minmax(150px, 220px) 1fr;
+  gap: 24px 40px;
+  padding: 24px;
+  background: var(--surface);
+}
+.score {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+}
+.scoreValue {
+  font-family: var(--font-display);
+  font-size: var(--s4);
+  line-height: 1;
+}
+.scoreValue small {
+  font-family: var(--font-body);
+  font-size: var(--s0);
+  color: var(--muted);
+}
+.muted {
+  color: var(--muted);
+  font-size: var(--s-1);
+}
+.bars {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bar {
+  display: grid;
+  grid-template-columns: 52px 1fr 40px;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  width: 100%;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--s-1);
+  text-align: left;
+  cursor: pointer;
+}
+.bar[aria-pressed='true'] {
+  outline: 1px solid var(--accent);
+}
+.track {
+  height: 8px;
+  background: var(--paper);
+  overflow: hidden;
+}
+.track > span {
+  display: block;
+  height: 100%;
+  background: var(--accent-bright);
+}
+.fit {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 8px;
+}
+.fitScale {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  font-size: var(--s-1);
+}
+.fitScale > span {
+  padding: 8px;
+  background: var(--paper);
+  text-align: center;
+}
+.fitScale > span[data-top='true'] {
+  outline: 1px solid var(--accent);
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 24px 0 8px;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chip {
+  min-height: 40px;
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--s-1);
+  cursor: pointer;
+}
+.chip[aria-pressed='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.select {
+  min-height: 40px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  font: inherit;
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.card {
+  display: grid;
+  gap: 10px;
+  padding: 20px 0;
+  border-bottom: 1px solid var(--line);
+}
+.cardHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+.reviewer {
+  font-weight: 600;
+}
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--muted);
+  font-size: var(--s-1);
+}
+.content {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.photo {
+  width: 72px;
+  height: 72px;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  cursor: zoom-in;
+}
+.photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.reply {
+  padding: 12px 14px;
+  background: var(--surface);
+  font-size: var(--s-1);
+}
+.reply p {
+  margin: 4px 0 0;
+  white-space: pre-line;
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: center;
+}
+.link {
+  min-height: 36px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--s-1);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.link[aria-pressed='true'] {
+  color: var(--accent);
+}
+.empty {
+  padding: 24px 0;
+  color: var(--muted);
+}
+.status {
+  display: inline-block;
+  padding: 2px 8px;
+  font-size: var(--s-1);
+  background: var(--surface);
+}
+.status[data-status='APPROVED'] {
+  background: var(--success-soft);
+  color: var(--success);
+}
+.status[data-status='REJECTED'] {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.note {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--s-1);
+}
+.notice {
+  margin: 12px 0;
+  padding: 10px 14px;
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+/* Form trong ConfirmDialog. */
+.form {
+  display: grid;
+  gap: 14px;
+  margin: 12px 0;
+}
+.starInput {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.starInput legend,
+.field > span,
+.fitChoices legend {
+  font-size: var(--s-1);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.starChoices {
+  display: inline-flex;
+  gap: 2px;
+}
+.starChoices label {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  font-size: 1.6rem;
+  color: var(--line);
+  cursor: pointer;
+}
+.starChoices label[data-on] {
+  color: var(--accent-bright);
+}
+.starChoices label:focus-within {
+  outline: 2px solid var(--accent);
+}
+.starLabel {
+  font-size: var(--s-1);
+  color: var(--muted);
+}
+.fitChoices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.fitChoices legend {
+  width: 100%;
+}
+.field {
+  display: grid;
+  gap: 4px;
+}
+.field input,
+.field textarea {
+  width: 100%;
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  font: inherit;
+}
+.field textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.counter {
+  justify-self: end;
+  font-size: var(--s-1);
+  color: var(--muted);
+}
+.check {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: var(--s-1);
+}
+.picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.thumb {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+}
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.thumb[data-state='uploading'] img {
+  opacity: 0.45;
+}
+.thumb[data-state='error'] {
+  border-color: var(--danger);
+}
+.remove {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--paper);
+  cursor: pointer;
+}
+.addPhoto {
+  display: inline-grid;
+  place-items: center;
+  width: 64px;
+  height: 64px;
+  border: 1px dashed var(--muted);
+  color: var(--muted);
+  font-size: var(--s-1);
+  text-align: center;
+  cursor: pointer;
+}
+.addPhoto:focus-within {
+  outline: 2px solid var(--accent);
+}
+.error {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--s-1);
+}
+
+/* Trang "Danh gia cua toi". */
+.page {
+  display: grid;
+  gap: 16px;
+}
+.tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.tab {
+  min-height: 44px;
+  padding: 8px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.tab[aria-selected='true'] {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+.item {
+  display: grid;
+  grid-template-columns: 72px 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
+}
+.item img,
+.itemImage {
+  width: 72px;
+  height: 90px;
+  object-fit: cover;
+  background: var(--surface);
+}
+.itemName {
+  margin: 0;
+  font-weight: 600;
+}
+.primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 8px 16px;
+  border: 0;
+  background: var(--espresso);
+  color: var(--on-dark);
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+.prompt {
+  margin: 12px 0 0;
+}
+
+@media (max-width: 720px) {
+  .summary {
+    grid-template-columns: 1fr;
+    padding: 16px;
+  }
+  .item {
+    grid-template-columns: 56px 1fr;
+  }
+  .item > :last-child {
+    grid-column: 1 / -1;
+  }
+  .item img,
+  .itemImage {
+    width: 56px;
+    height: 70px;
+  }
+}

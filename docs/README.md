@@ -1,6 +1,6 @@
 ---
 title: Fashion-shop trong 15 phút
-updated: 2026-10-04
+updated: 2026-11-12
 status: đang dùng
 owner: Bảo
 ---
@@ -89,7 +89,7 @@ git push -u origin feature/ph-01-product-catalog
 gh pr create --base develop --fill                  # thân pull request có "Closes #<số Issue>"
 ```
 
-Xong nghĩa là: có migration và dữ liệu giả, API khớp Swagger, giao diện chạy với **ba trạng thái** đang tải, lỗi, rỗng, có kiểm thử, tài liệu cập nhật, người khác duyệt, CI xanh sáu chặng ([CONTRIBUTING.md](CONTRIBUTING.md) mục điều kiện hoàn thành). Mẫu đầy đủ của một feature: [features/products/](features/products/README.md).
+Xong nghĩa là: có migration và dữ liệu giả, API khớp Swagger, giao diện chạy với **ba trạng thái** đang tải, lỗi, rỗng, có kiểm thử, tài liệu cập nhật, người khác duyệt, CI xanh bảy chặng ([CONTRIBUTING.md](CONTRIBUTING.md) mục điều kiện hoàn thành). Mẫu đầy đủ của một feature: [features/products/](features/products/README.md).
 
 ## 6. Git và GitHub
 
@@ -143,7 +143,7 @@ Chạy cả cụm trên máy như môi trường thật: `npm run prod:up`, mở
 | Câu hỏi | Mở |
 |---|---|
 | Luật viết tài liệu, hệ mã `PH-NN`, `UC-NN.m`, `ADR`, `ND` | [AGENTS.md](../AGENTS.md) |
-| Feature này làm gì, tới đâu, API mới nào | `features/<module>/README.md`: [products](features/products/README.md) · [auth](features/auth/README.md) · [cart](features/cart/README.md) · [users](features/users/README.md) · [inventory](features/inventory/README.md) · [platform](features/platform/README.md) |
+| Feature này làm gì, tới đâu, API mới nào | `features/<module>/README.md`: [products](features/products/README.md) · [auth](features/auth/README.md) · [cart](features/cart/README.md) · [users](features/users/README.md) · [inventory](features/inventory/README.md) · [reviews](features/reviews/README.md) · [uploads](features/uploads/README.md) · [platform](features/platform/README.md) |
 | Nghiệp vụ đúng là gì, tiêu chí chấp nhận | `features/<module>/use-cases.md`; danh mục ở [shared/use-case-index.md](shared/use-case-index.md) |
 | Vì sao làm vậy | [LOG.md](LOG.md) (toàn hệ thống) và `features/<module>/LOG.md` |
 | Đường dẫn API nhận gì, trả gì | Swagger `/api/docs`; quy ước ở [shared/api.md](shared/api.md) |

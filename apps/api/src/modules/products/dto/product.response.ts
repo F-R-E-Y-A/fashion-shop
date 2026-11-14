@@ -43,6 +43,10 @@ export class ProductResponse {
   colorSwatches!: string[];
   @ApiProperty({ description: 'So ten mau khac nhau dang ban, khong tinh mau mac dinh' })
   colorCount!: number;
+  @ApiProperty({ description: 'Trung binh sao cua danh gia da duyet, 2 chu so; 0 khi chua co' })
+  ratingAverage!: number;
+  @ApiProperty({ description: 'So danh gia da duyet' })
+  ratingCount!: number;
 }
 
 export class ProductListResponse {
