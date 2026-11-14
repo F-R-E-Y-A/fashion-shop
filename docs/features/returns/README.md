@@ -1,7 +1,7 @@
 ---
 title: Trả hàng
 updated: 2026-11-14
-status: API có trên nhánh `task/returns-api`, chưa vào develop; web chưa làm
+status: API và web có trên `feature/ph-11-payment`, chưa vào develop; chưa thử trình duyệt, chưa có E2E
 owner: Bảo
 ---
 # Trả hàng
@@ -10,7 +10,7 @@ owner: Bảo
 
 | Mục | Hiện trạng |
 |---|---|
-| Người sở hữu | Bảo; mã ở [`apps/api/src/modules/returns`](../../../apps/api/src/modules/returns/README.md); web sẽ ở `apps/web/src/features/returns` |
+| Người sở hữu | Bảo; mã ở [`apps/api/src/modules/returns`](../../../apps/api/src/modules/returns/README.md); web ở `apps/web/src/features/returns` |
 | Dòng việc | PH-11, nhánh `feature/ph-11-payment` |
 | Ca sử dụng | [UC-14.1, UC-14.2](use-cases.md). UC-14.3 hoàn tiền ở [payments](../payments/use-cases.md). UC-14.4 đổi hàng: làm sau, xem mục cuối |
 | Quyết định | [ADR-067](LOG.md#adr-067) luật trả hàng, [ADR-068](LOG.md#adr-068) nối với checkout (cả hai `đề xuất`) |
@@ -38,6 +38,15 @@ Hoàn tiền:
 ## API
 
 Đã cài đặt; hình dạng ở Swagger `/api/docs`, thẻ `returns` (khách: `GET /api/orders/:id/returns/eligibility`, `POST /api/orders/:id/returns`, `/api/returns…`) và `admin-returns` (`/api/admin/returns…`: duyệt, từ chối, nhận hàng, hoàn tiền). Cách mỗi bước chạy dưới khoá: [README của module](../../../apps/api/src/modules/returns/README.md).
+
+## Giao diện
+
+| Ai | Đường dẫn | Việc |
+|---|---|---|
+| Khách | Trang đơn `/don-hang/:id` | Đơn đã giao trong hạn: nút "Yêu cầu trả hàng" kèm hạn trả; đã có yêu cầu (kể cả đơn đã hoàn tiền): liên kết tới yêu cầu đó |
+| Khách | Hộp yêu cầu trả | Điều kiện, phí gửi trả, cách nhận tiền hiện **trước** form; chọn món, số lượng, lý do, ảnh, tài khoản nhận (đơn COD) |
+| Khách | `/tai-khoan/tra-hang`, `/tai-khoan/tra-hang/:id` | Danh sách và các bước của từng yêu cầu; lý do từ chối; huỷ khi chưa duyệt |
+| `ADMIN` | `/admin/returns`, `/admin/returns/:id` | Hàng chờ theo trạng thái; duyệt, từ chối, đã nhận hàng, hoàn tiền (đơn COD nhập mã chuyển khoản) |
 
 ## Phụ thuộc và thứ tự
 
