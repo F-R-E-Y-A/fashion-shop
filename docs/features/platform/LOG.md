@@ -191,3 +191,9 @@ Lý do bỏ: merge queue chỉ thêm một thứ so với [ADR-065](#adr-065): k
 Cùng mục: PR vào `feature/**` có CI (việc #56 gói 5), để mã trên nhánh feature được kiểm sớm thay vì chỉ qua hook ở máy. Không chặn gộp vì nhánh feature không có ruleset; mỗi PR task thêm khoảng 10 phút chờ kết quả.
 
 Xem lại khi: `develop` đỏ vì bản ghép thêm lần nữa, hoặc số lần triển khai bị hụt do gộp dồn. Khi đó bật merge queue kèm CD chạy theo CI của hàng chờ. Tài liệu đã sửa theo: [staging.md](staging.md), [git.md](../../shared/git.md).
+
+## 2026-11-14 · Bỏ CI cho PR vào `feature/**`
+
+**Loại:** cấu hình · **Phạm vi:** `.github/workflows/ci.yml`, PR `task/` → `feature/` · **Commit:** (điền khi gộp)
+
+Hoàn tác phần "PR vào `feature/**` có CI" của mục ngay trên, cùng ngày, trước khi lên `develop`. Bảo bỏ vì không chặn được gì (nhánh feature không có ruleset, PR `feature/` → `develop` đã có CI chặn), không thêm điểm rubric, mà còn có thể kéo tỉ lệ CI xanh xuống: script minh chứng đếm mọi lượt CI, kể cả PR task còn non. Lần chạy duy nhất: run 43566364525 cho PR #125, 7/7 xanh. Tài liệu đã sửa theo: [git.md](../../shared/git.md), [staging.md](staging.md).

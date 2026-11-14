@@ -80,7 +80,7 @@ git push -u origin feature/ph-01-product-catalog
 - Nhánh đã gộp thì xóa: `task/` sau khi gộp vào nhánh feature cha, `bugfix/` sau khi gộp vào `develop`. An toàn, vì merge commit khiến mọi commit của nhánh thành tổ tiên của nhánh đích.
 - **`feature/ph-NN-*` giữ lại sau khi gộp vào `develop`**, chỉ xoá khi chủ dòng việc chủ động yêu cầu ([LOG#adr-045](../LOG.md#adr-045), đề xuất). Việc tiếp theo của dòng việc vẫn đi `task/` vào nhánh đó; trước khi làm tiếp, gộp `develop` ngược lại vào nhánh để không lệch. Agent không tự xoá và không tự mở nhánh `feature/` mới cho việc nhỏ của một dòng việc đã có nhánh.
 - **Ngoại lệ: `feature/platform` là nhánh dài hạn**, không xoá. Việc nền tảng làm trên `task/<tên>` tách từ `feature/platform`, gộp vào đó bằng merge commit, rồi mở pull request `feature/platform` → `develop`. Sau mỗi lần gộp vào `develop`, gộp `develop` ngược lại vào `feature/platform` để hai nhánh không lệch. Lý do: [LOG.md](../LOG.md) mục ngày 25/09.
-- Pull request vào `feature/platform` (và mọi `feature/**`) **có CI** từ 14/11, nhưng không chặn gộp vì nhánh feature không có ruleset: CI đỏ thì sửa trước khi tự gộp. CI chặn thật ở bước `feature/platform` → `develop`. `Closes #N` cũng chỉ tự đóng Issue ở bước đó, vì GitHub chỉ đóng khi gộp vào nhánh mặc định.
+- Pull request vào `feature/platform` **không có CI**, vì CI chỉ chạy cho `develop` và `main`. CI chặn ở bước `feature/platform` → `develop`. `Closes #N` cũng chỉ tự đóng Issue ở bước đó, vì GitHub chỉ đóng khi gộp vào nhánh mặc định.
 
 ## Hai cách đọc lịch sử
 
