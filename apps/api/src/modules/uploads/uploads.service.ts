@@ -28,6 +28,12 @@ import type {
 
 /** Moi nguoi mot thu muc: khoa cua nguoi khac khong bao gio qua duoc buoc kiem tien to. */
 export const REVIEW_MEDIA_ROOT = 'freya/reviews';
+/** Anh kem yeu cau tra hang (ADR-067): cung luat kiem, thu muc rieng. */
+export const RETURN_MEDIA_ROOT = 'freya/returns';
+const MEDIA_ROOTS: Record<UploadPurpose, string> = {
+  review: REVIEW_MEDIA_ROOT,
+  return: RETURN_MEDIA_ROOT,
+};
 /** Phieu moi gio moi tai khoan: mot danh gia toi da 5 anh, du cho vai lan thu lai. */
 const TICKETS_PER_HOUR = 30;
 /** Cloudinary bao JPEG la jpg; nhan ca jpeg cho kho khac. */
@@ -71,7 +77,7 @@ export class UploadsService {
   async ticket(userId: string, purpose: UploadPurpose): Promise<UploadTicketResponse> {
     this.assertEnabled();
     await this.enforceRate(userId);
-    const root = { review: REVIEW_MEDIA_ROOT }[purpose];
+    const root = MEDIA_ROOTS[purpose];
     const ticket = this.storage.createUploadTicket(`${root}/${userId}`);
     // Ghi so truoc khi tra phieu: anh nao len kho bang phieu nay cung co dong de don neu bi bo.
     await this.prisma.mediaUpload.create({ data: { storageKey: ticket.key, ownerId: userId } });
@@ -83,11 +89,20 @@ export class UploadsService {
    * ca lo truoc, roi hoi kho SONG SONG: N anh mot luot cho thay vi N luot noi tiep. So lenh Admin API
    * khong doi (mot lenh mot anh), chi giam thoi gian cho. Anh sai dinh dang hay qua co vao hang xoa.
    */
-  async resolveReviewMedia(userId: string, keys: readonly string[]): Promise<ResolvedMedia[]> {
+  resolveReviewMedia(userId: string, keys: readonly string[]): Promise<ResolvedMedia[]> {
+    return this.resolveMedia(userId, 'review', keys);
+  }
+
+  /** Nhu resolveReviewMedia, cho moi muc dich: khoa phai nam trong thu muc cua muc dich do. */
+  async resolveMedia(
+    userId: string,
+    purpose: UploadPurpose,
+    keys: readonly string[],
+  ): Promise<ResolvedMedia[]> {
     if (keys.length === 0) return [];
     this.assertEnabled();
     if (new Set(keys).size !== keys.length) throw invalidMedia('Một ảnh bị gửi hai lần.');
-    const prefix = `${REVIEW_MEDIA_ROOT}/${userId}/`;
+    const prefix = `${MEDIA_ROOTS[purpose]}/${userId}/`;
     if (keys.some((key) => !key.startsWith(prefix) || key.length === prefix.length)) {
       throw invalidMedia('Ảnh không thuộc phiên tải lên của bạn.');
     }

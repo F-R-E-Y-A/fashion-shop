@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsIn } from 'class-validator';
 
-export const UPLOAD_PURPOSES = ['review'] as const;
+export const UPLOAD_PURPOSES = ['review', 'return'] as const;
 export type UploadPurpose = (typeof UPLOAD_PURPOSES)[number];
 
 export class CreateUploadTicketRequest {
