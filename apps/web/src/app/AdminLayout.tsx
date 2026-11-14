@@ -34,7 +34,9 @@ export function AdminLayout() {
                   ? 'Mã giảm giá'
                   : pathname.startsWith('/admin/reviews')
                     ? 'Đánh giá'
-                    : 'Tổng quan';
+                    : pathname.startsWith('/admin/returns')
+                      ? 'Trả hàng'
+                      : 'Tổng quan';
   useEffect(() => {
     window.addEventListener('popstate', closeMenu);
     return () => window.removeEventListener('popstate', closeMenu);
