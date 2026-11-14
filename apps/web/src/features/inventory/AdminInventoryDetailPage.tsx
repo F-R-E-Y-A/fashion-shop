@@ -12,6 +12,8 @@ import {
 import { ConfirmDialog, ErrorNote, Loading, Pager } from '@/ui';
 
 import {
+  adjustStockKey,
+  forgetAdjustStock,
   type InventoryDetail,
   inventoryKeys,
   movementLabel,
@@ -36,7 +38,6 @@ export function AdminInventoryDetailPage() {
 
   const adjustButtonRef = useRef<HTMLButtonElement>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [requestKey, setRequestKey] = useState(() => crypto.randomUUID());
   const [adjustType, setAdjustType] = useState<'RECEIPT' | 'ADJUSTMENT'>('RECEIPT');
   const [adjustQuantity, setAdjustQuantity] = useState('');
   const [adjustReason, setAdjustReason] = useState('');
@@ -110,6 +111,8 @@ export function AdminInventoryDetailPage() {
     const stillCurrent = () =>
       getSessionEpoch() === epoch && adminAccessGeneration(queryClient, actorId) === access;
 
+    const key = adjustStockKey(actorId, id, adjustType, num, trimmedReason);
+
     try {
       setIsSubmitting(true);
       if (!stillCurrent()) throw new SessionChangedError();
@@ -121,11 +124,12 @@ export function AdminInventoryDetailPage() {
             type: adjustType,
             quantity: num,
             reason: trimmedReason,
-            requestKey,
+            requestKey: key,
           },
         },
       );
       if (!stillCurrent()) return;
+      forgetAdjustStock(actorId, id, adjustType, num, trimmedReason);
       void queryClient.invalidateQueries({
         queryKey: inventoryKeys.all(actorId),
         refetchType: 'none',
@@ -133,6 +137,8 @@ export function AdminInventoryDetailPage() {
       await query.refetch();
       if (!stillCurrent()) return;
       setIsModalOpen(false);
+      setAdjustQuantity('');
+      setAdjustReason('');
       setSuccessMessage(
         adjustType === 'RECEIPT'
           ? `Đã nhập thêm ${num.toLocaleString('vi-VN')} đơn vị thành công.`
@@ -175,10 +181,12 @@ export function AdminInventoryDetailPage() {
             type="button"
             className={styles.adjustBtn}
             onClick={() => {
-              setRequestKey(crypto.randomUUID());
-              setAdjustType('RECEIPT');
-              setAdjustQuantity('');
-              setAdjustReason('');
+              if (successMessage) {
+                setAdjustType('RECEIPT');
+                setAdjustQuantity('');
+                setAdjustReason('');
+                setSuccessMessage(null);
+              }
               setFormError(null);
               setIsModalOpen(true);
             }}

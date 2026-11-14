@@ -6,7 +6,13 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { AppRoutes } from '@/app';
 import { type AuthenticatedUser, AuthProvider, useAuth } from '@/features/account';
 
-import { inventoryKeys, quantity, readPage } from './inventory.api.js';
+import {
+  adjustStockKey,
+  forgetAdjustStock,
+  inventoryKeys,
+  quantity,
+  readPage,
+} from './inventory.api.js';
 
 beforeAll(() => {
   const proto = HTMLDialogElement.prototype as HTMLDialogElement & { showModal(): void };
@@ -160,7 +166,10 @@ function setup(
   );
   return { client, requests, auth: () => holder.auth!, go: (next: string) => holder.go!(next) };
 }
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  sessionStorage.clear();
+  vi.unstubAllGlobals();
+});
 describe('UC-13.1 tồn kho web', () => {
   it('UC-13.1/AC2 null khác0, URL trang được giới hạn an toàn', () => {
     expect(quantity(null)).toBe('Chưa có dữ liệu');
@@ -391,6 +400,67 @@ describe('UC-13.1 tồn kho web', () => {
       expect(postBodies[1]?.requestKey).toBe(postBodies[0]?.requestKey);
       expect(postBodies[2]?.requestKey).toMatch(/^[0-9a-f-]{36}$/i);
       expect(postBodies[2]?.requestKey).not.toBe(postBodies[0]?.requestKey);
+    });
+
+    it('idempotency requestKey: đóng và mở lại hộp sau khi mất phản hồi vẫn giữ nguyên requestKey, không sinh key mới', async () => {
+      let attempt = 0;
+      const t = setup(`/admin/inventory/${row.id}`, actor, (url, init) => {
+        if (url.pathname.endsWith('/adjust') && init?.method === 'POST') {
+          attempt += 1;
+          if (attempt === 1) return error(504); // Giả lập mất kết nối / gateway timeout
+        }
+        return undefined;
+      });
+      await screen.findByRole('heading', { name: 'Lịch sử biến động' });
+
+      // Mở hộp lần 1
+      fireEvent.click(screen.getByRole('button', { name: 'Nhập / Điều chỉnh tồn' }));
+      fireEvent.change(screen.getByLabelText('Số lượng nhập thêm'), {
+        target: { value: '20' },
+      });
+      fireEvent.change(screen.getByLabelText('Lý do / Ghi chú (bắt buộc)'), {
+        target: { value: 'Nhập bổ sung mùa đông' },
+      });
+
+      // Bấm lần 1 (thất bại mất phản hồi 504)
+      fireEvent.click(screen.getByRole('button', { name: 'Xác nhận lưu' }));
+      await screen.findByRole('alert');
+
+      // Đóng hộp thoại bằng nút Hủy
+      fireEvent.click(screen.getByRole('button', { name: 'Hủy' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+      // Mở lại hộp thoại
+      fireEvent.click(screen.getByRole('button', { name: 'Nhập / Điều chỉnh tồn' }));
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+      // Bấm gửi lần 2 (thành công)
+      fireEvent.click(screen.getByRole('button', { name: 'Xác nhận lưu' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+      const postBodies = t.requests
+        .filter((r) => r.url.pathname.endsWith('/adjust') && r.init?.method === 'POST')
+        .map((r) => JSON.parse(String(r.init?.body)) as { requestKey: string });
+
+      expect(postBodies).toHaveLength(2);
+      expect(postBodies[0]?.requestKey).toMatch(/^[0-9a-f-]{36}$/i);
+      // Khi đóng và mở lại hộp sau thất bại, key giữa 2 lần gửi PHẢI giữ nguyên để server nhận diện idempotency
+      expect(postBodies[1]?.requestKey).toBe(postBodies[0]?.requestKey);
+    });
+
+    it('adjustStockKey và forgetAdjustStock: duy trì key cho cùng tham số, quên key khi hoàn tất', () => {
+      const key1 = adjustStockKey('act-1', 'var-1', 'RECEIPT', 10, 'Lý do A');
+      const key2 = adjustStockKey('act-1', 'var-1', 'RECEIPT', 10, 'Lý do A');
+      expect(key2).toBe(key1);
+
+      // Khác tham số sinh key khác
+      const keyDiffQty = adjustStockKey('act-1', 'var-1', 'RECEIPT', 20, 'Lý do A');
+      expect(keyDiffQty).not.toBe(key1);
+
+      // Quên key thì lần sau sinh key mới
+      forgetAdjustStock('act-1', 'var-1', 'RECEIPT', 10, 'Lý do A');
+      const keyFresh = adjustStockKey('act-1', 'var-1', 'RECEIPT', 10, 'Lý do A');
+      expect(keyFresh).not.toBe(key1);
     });
 
     it('chuyển sang điều chỉnh kiểm kê (ADJUSTMENT) và từ chối khi giảm dưới lượng đang giữ', async () => {
