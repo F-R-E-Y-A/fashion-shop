@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { ApiError, classifyRequestError } from '@/core';
@@ -10,6 +10,7 @@ import {
   useAdminForbidden,
   useAuth,
 } from '@/features/account';
+import { ActionFeedback } from '@/ui';
 
 import {
   type AdminVoucher,
@@ -51,11 +52,27 @@ export function AdminVoucherNewPage() {
   const [startsAt, setStartsAt] = useState('');
   const [endsAt, setEndsAt] = useState('');
 
-  const [formNotice, setFormNotice] = useState<{
+  const sessionScope = `${actor}:${epoch}`;
+  const [formNotice, setFormNoticeState] = useState<{
+    key: number;
+    scope: string;
     text: string;
     error?: boolean;
     recheck?: boolean;
   } | null>(null);
+  const formNoticeIdRef = useRef(0);
+  const setFormNotice = useCallback(
+    (next: { text: string; error?: boolean; recheck?: boolean } | null) => {
+      if (!next) {
+        setFormNoticeState(null);
+        return;
+      }
+      formNoticeIdRef.current += 1;
+      setFormNoticeState({ ...next, key: formNoticeIdRef.current, scope: sessionScope });
+    },
+    [sessionScope],
+  );
+  const clearFormNotice = useCallback(() => setFormNoticeState(null), []);
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [rechecking, setRechecking] = useState(false);
 
@@ -105,11 +122,13 @@ export function AdminVoucherNewPage() {
     },
   });
 
+  const scopedFormNotice = formNotice?.scope === sessionScope ? formNotice : null;
+
   useEffect(() => {
-    if (formNotice) {
+    if (scopedFormNotice?.error) {
       formNoticeRef.current?.focus();
     }
-  }, [formNotice]);
+  }, [scopedFormNotice]);
 
   if (forbidden) {
     return <AdminForbidden />;
@@ -332,9 +351,10 @@ export function AdminVoucherNewPage() {
   }
 
   const activeNotice =
-    formNotice ??
+    scopedFormNotice ??
     (uncertainMarker
       ? {
+          key: `uncertain-${uncertainMarker.code}`,
           text: `Chưa rõ kết quả tạo mã ${uncertainMarker.code} do gián đoạn kết nối. Hệ thống đã tạm khóa để tránh gửi trùng lặp. Vui lòng nhấn kiểm tra lại.`,
           error: true,
           recheck: true,
@@ -358,23 +378,23 @@ export function AdminVoucherNewPage() {
       </header>
 
       {activeNotice && (
-        <div
-          ref={formNoticeRef}
-          tabIndex={-1}
-          className={`${styles.notice} ${activeNotice.error ? styles.noticeError : styles.noticeSuccess}`}
-          role="status"
-        >
-          <span>{activeNotice.text}</span>
-          {activeNotice.recheck && (
-            <button
-              type="button"
-              className={styles.recheckButton}
-              onClick={handleRecheck}
-              disabled={rechecking}
-            >
-              {rechecking ? 'Đang kiểm tra…' : 'Kiểm tra lại'}
-            </button>
-          )}
+        <div ref={formNoticeRef} tabIndex={-1}>
+          <ActionFeedback
+            noticeKey={activeNotice.key}
+            sessionScope={sessionScope}
+            tone={activeNotice.recheck ? 'warning' : activeNotice.error ? 'error' : 'success'}
+            message={activeNotice.text}
+            onDismiss={clearFormNotice}
+            action={
+              activeNotice.recheck
+                ? {
+                    label: rechecking ? 'Đang kiểm tra…' : 'Kiểm tra lại',
+                    onClick: handleRecheck,
+                    disabled: rechecking,
+                  }
+                : undefined
+            }
+          />
         </div>
       )}
 

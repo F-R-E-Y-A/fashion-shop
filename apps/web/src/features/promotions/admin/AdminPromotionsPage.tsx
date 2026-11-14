@@ -1,7 +1,7 @@
 import { Link, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 
 import { AdminForbidden } from '@/features/account';
-import { Loading } from '@/ui';
+import { ActionFeedback, Loading } from '@/ui';
 
 import {
   formatCurrencyVnd,
@@ -74,15 +74,13 @@ export function AdminPromotionsPage() {
       </header>
 
       {statusAction.notice && (
-        <div
-          role="status"
-          className={`${styles.banner} ${statusAction.notice.error ? styles.bannerError : styles.bannerSuccess}`}
-        >
-          <div className={styles.bannerTitle}>
-            {statusAction.notice.error ? 'Lỗi' : 'Thành công'}
-          </div>
-          <div>{statusAction.notice.text}</div>
-        </div>
+        <ActionFeedback
+          noticeKey={statusAction.notice.key}
+          sessionScope={statusAction.sessionScope}
+          tone={statusAction.notice.error ? 'error' : 'success'}
+          message={statusAction.notice.text}
+          onDismiss={statusAction.clearNotice}
+        />
       )}
 
       {isLoading && (

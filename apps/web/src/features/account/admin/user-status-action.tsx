@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { type ComponentProps, useEffect, useRef, useState } from 'react';
+import { type ComponentProps, useCallback, useEffect, useRef, useState } from 'react';
 
-import type { ConfirmDialog } from '@/ui';
+import { ActionFeedback, type ConfirmDialog } from '@/ui';
 
 import { SessionChangedError } from '../session-sync.js';
 import { ADMIN_MESSAGES, adminErrorCode, classifyAdminError } from './admin-errors.js';
@@ -87,25 +87,39 @@ export function useUserStatusAction({
   const queryClient = useQueryClient();
   const { request, getSessionEpoch } = useAdminActor();
   const [dialog, setDialog] = useState<StatusActionTarget | null>(null);
-  const [notice, setNotice] = useState<ActionNotice | null>(null);
+  const [notice, setNotice] = useState<(ActionNotice & { key: number; scope: string }) | null>(
+    null,
+  );
   const [focusNotice, setFocusNotice] = useState(0);
   const noticeRef = useRef<HTMLDivElement>(null);
   const openerRef = useRef<HTMLElement | null>(null);
+  const noticeIdRef = useRef(0);
   // Dat DONG BO truoc mutate: hai cu bam trong cung mot khung hinh chi gui mot POST.
   const submittingRef = useRef(false);
   const dialogOpenRef = useRef(false);
+
+  const sessionEpoch = getSessionEpoch();
+  const sessionScope = `${actorId}:${sessionEpoch}`;
+  const scopedNotice = notice?.scope === sessionScope ? notice : null;
 
   useEffect(() => {
     if (focusNotice > 0) noticeRef.current?.focus();
   }, [focusNotice]);
 
-  /** Ket thuc mot lan thao tac: dong hop neu con mo va dua focus toi thong bao ket qua. */
+  const clearNotice = useCallback(() => {
+    setNotice(null);
+  }, []);
+
+  /** Ket thuc mot lan thao tac: dong hop neu con mo; chi dua focus toi loi/canh bao. */
   function finish(next: ActionNotice) {
-    setNotice(next);
+    noticeIdRef.current += 1;
+    setNotice({ ...next, key: noticeIdRef.current, scope: sessionScope });
     if (dialogOpenRef.current) {
       dialogOpenRef.current = false;
       setDialog(null);
-      setFocusNotice((count) => count + 1);
+      if (next.tone !== 'success') {
+        setFocusNotice((count) => count + 1);
+      }
     }
   }
 
@@ -232,10 +246,22 @@ export function useUserStatusAction({
       .getQueryCache()
       .findAll({ queryKey: adminUserKeys.actor(actorId), type: 'active' })
       .some((query) => query.state.status === 'error');
+    noticeIdRef.current += 1;
     setNotice(
       failed
-        ? { tone: 'error', text: ADMIN_MESSAGES.detailUnavailable, recheck: true }
-        : { tone: 'success', text: 'Đã tải lại. Trạng thái hiển thị là trạng thái hiện tại.' },
+        ? {
+            tone: 'error',
+            text: ADMIN_MESSAGES.detailUnavailable,
+            recheck: true,
+            key: noticeIdRef.current,
+            scope: sessionScope,
+          }
+        : {
+            tone: 'success',
+            text: 'Đã tải lại. Trạng thái hiển thị là trạng thái hiện tại.',
+            key: noticeIdRef.current,
+            scope: sessionScope,
+          },
     );
   }
 
@@ -263,44 +289,39 @@ export function useUserStatusAction({
     pendingTarget,
     dialogOpen: dialog !== null,
     dialogProps,
-    notice,
+    notice: scopedNotice,
     noticeRef,
+    sessionScope,
+    clearNotice,
     recheck,
   };
 }
 
 export type UserStatusActionState = ReturnType<typeof useUserStatusAction>;
 
-/** Vung ket qua thao tac. Vung status luon co san de trinh doc man hinh doc duoc noi dung moi. */
+/** Vung ket qua thao tac: success tu dong sau 5s & khong gianh focus; error/warning giu lai. */
 export function StatusActionNotice({ action }: { action: UserStatusActionState }) {
-  const { notice, noticeRef, pendingTarget, dialogOpen } = action;
+  const { notice, noticeRef, pendingTarget, dialogOpen, sessionScope, clearNotice } = action;
   return (
     <div ref={noticeRef} tabIndex={-1} className={styles.noticeSlot}>
-      <div role="status">
-        {notice?.tone === 'success' && (
-          <p className={styles.notice} data-tone="success">
-            {notice.text}
-          </p>
-        )}
-        {pendingTarget && !dialogOpen && (
-          <p className={styles.pendingLine}>
-            {STATUS_ACTION_COPY[pendingTarget.action].pending} {pendingTarget.email}
-          </p>
-        )}
-      </div>
-      {notice && notice.tone !== 'success' && (
-        <div className={styles.notice} data-tone={notice.tone} role="alert">
-          <p>{notice.text}</p>
-          {notice.recheck && (
-            <button
-              type="button"
-              className={styles.secondary}
-              onClick={() => void action.recheck()}
-            >
-              Kiểm tra lại trạng thái
-            </button>
-          )}
-        </div>
+      {pendingTarget && !dialogOpen && (
+        <p className={styles.pendingLine} role="status">
+          {STATUS_ACTION_COPY[pendingTarget.action].pending} {pendingTarget.email}
+        </p>
+      )}
+      {notice && (
+        <ActionFeedback
+          noticeKey={notice.key}
+          sessionScope={sessionScope}
+          tone={notice.tone}
+          message={notice.text}
+          onDismiss={clearNotice}
+          action={
+            notice.recheck
+              ? { label: 'Kiểm tra lại trạng thái', onClick: () => void action.recheck() }
+              : undefined
+          }
+        />
       )}
     </div>
   );

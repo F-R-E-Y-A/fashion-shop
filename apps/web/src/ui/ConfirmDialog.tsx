@@ -30,6 +30,8 @@ interface ConfirmDialogProps {
    * khi click, nen phan tu dang focus luc mo co the la body.
    */
   returnFocusRef?: RefObject<HTMLElement | null>;
+  /** Vi tri du phong neu nut mo hop khong con trong DOM khi dong hop. */
+  fallbackFocusRef?: RefObject<HTMLElement | null>;
   children?: ReactNode;
 }
 
@@ -50,6 +52,7 @@ export function ConfirmDialog({
   onConfirm,
   onClose,
   returnFocusRef,
+  fallbackFocusRef,
   children,
 }: ConfirmDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -70,6 +73,8 @@ export function ConfirmDialog({
     openerRef.current =
       returnFocusRef?.current ??
       (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    const opener = openerRef.current;
+    const fallbackEl = fallbackFocusRef?.current ?? null;
     const root = document.documentElement;
     const previousOverflow = root.style.overflow;
     root.style.overflow = 'hidden';
@@ -88,10 +93,19 @@ export function ConfirmDialog({
       dialog.removeEventListener('close', onNativeClose);
       if (dialog.open) dialog.close();
       root.style.overflow = previousOverflow;
-      const opener = openerRef.current;
-      if (opener?.isConnected) opener.focus();
+      if (opener?.isConnected) {
+        opener.focus();
+      } else if (opener) {
+        const fallback =
+          (fallbackEl?.isConnected ? fallbackEl : null) ??
+          document.querySelector<HTMLElement>('main h1, main');
+        if (fallback) {
+          if (!fallback.hasAttribute('tabindex')) fallback.setAttribute('tabindex', '-1');
+          fallback.focus();
+        }
+      }
     };
-  }, [open, returnFocusRef]);
+  }, [fallbackFocusRef, open, returnFocusRef]);
 
   function onKeyDown(event: KeyboardEvent<HTMLDialogElement>) {
     if (event.key !== 'Tab') return;
