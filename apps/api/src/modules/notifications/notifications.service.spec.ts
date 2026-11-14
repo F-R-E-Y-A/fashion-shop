@@ -1,8 +1,12 @@
+import { Logger } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { validate } from 'class-validator';
 import { describe, expect, it, vi } from 'vitest';
 
 import { NotificationType } from '../../generated/prisma/enums.js';
 import { MailService } from '../../infra/mail/mail.service.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
+import { ListNotificationsQuery } from './dto/notification.dto.js';
 import { NotificationsService } from './notifications.service.js';
 
 describe('NotificationsService', () => {
@@ -136,5 +140,56 @@ describe('NotificationsService', () => {
 
     const res = await service.markAsRead('n1', 'u1');
     expect(res.isRead).toBe(true);
+    expect(mockNotification.findFirst).toHaveBeenCalledWith({
+      where: { id: 'n1', userId: 'u1', forAdmin: false },
+    });
+  });
+
+  it('log cảnh báo khi gửi email thất bại thay vì nuốt lỗi im lặng', async () => {
+    const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const failingMail = {
+      send: vi.fn().mockRejectedValue(new Error('SMTP timeout')),
+    } as unknown as MailService;
+    const service = new NotificationsService(mockPrisma, failingMail);
+    mockNotification.create.mockResolvedValue({
+      id: 'n3',
+      userId: 'u1',
+      forAdmin: false,
+      type: NotificationType.ORDER_STATUS_CHANGED,
+      title: 'T',
+      message: 'M',
+      link: '/don-hang/o1',
+      isRead: false,
+      orderId: 'o1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    await service.handleOrderStatusChange(
+      {
+        id: 'o1',
+        orderCode: 'FR002',
+        customerEmail: 'khach@example.com',
+        userId: 'u1',
+        status: 'SHIPPED',
+      },
+      'SHIPPED',
+    );
+
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('SMTP timeout'));
+    warnSpy.mockRestore();
+  });
+
+  it('ListNotificationsQuery chuyển đổi chính xác unreadOnly=false và từ chối giá trị sai', async () => {
+    const falseQuery = plainToInstance(ListNotificationsQuery, { unreadOnly: 'false' });
+    expect(falseQuery.unreadOnly).toBe(false);
+    expect(await validate(falseQuery)).toHaveLength(0);
+
+    const trueQuery = plainToInstance(ListNotificationsQuery, { unreadOnly: 'true' });
+    expect(trueQuery.unreadOnly).toBe(true);
+    expect(await validate(trueQuery)).toHaveLength(0);
+
+    const invalidQuery = plainToInstance(ListNotificationsQuery, { unreadOnly: 'abc' });
+    expect((await validate(invalidQuery)).length).toBeGreaterThan(0);
   });
 });

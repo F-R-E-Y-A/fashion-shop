@@ -1,4 +1,4 @@
-import { Injectable, type MessageEvent, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, type MessageEvent, NotFoundException } from '@nestjs/common';
 import { filter, interval, map, merge, type Observable, Subject } from 'rxjs';
 
 import type { OrderStatus, Prisma } from '../../generated/prisma/client.js';
@@ -24,6 +24,7 @@ export interface OrderEmailInfo {
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
   private readonly events$ = new Subject<{
     userId?: string | null;
     forAdmin: boolean;
@@ -152,7 +153,7 @@ export class NotificationsService {
     const notification = await this.prisma.notification.findFirst({
       where: {
         id,
-        ...(forAdmin ? { forAdmin: true } : userId ? { userId } : {}),
+        ...(forAdmin ? { forAdmin: true } : { userId, forAdmin: false }),
       },
     });
 
@@ -248,8 +249,10 @@ export class NotificationsService {
             </div>
           `,
         })
-        .catch(() => {
-          // Gửi mail lỗi không chặn luồng chính
+        .catch((error: unknown) => {
+          this.logger.warn(
+            `Không gửi được email thông báo đơn ${order.orderCode}: ${error instanceof Error ? error.message : String(error)}`,
+          );
         });
     }
   }

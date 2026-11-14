@@ -1,6 +1,9 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+
+const explicitBoolean = ({ value }: { value: unknown }): unknown =>
+  value === 'true' || value === true ? true : value === 'false' || value === false ? false : value;
 
 export const NotificationType = {
   ORDER_STATUS_CHANGED: 'ORDER_STATUS_CHANGED',
@@ -51,8 +54,8 @@ export class ListNotificationsQuery {
 
   @ApiProperty({ required: false })
   @IsOptional()
-  @Type(() => Boolean)
-  @IsBoolean()
+  @Transform(explicitBoolean)
+  @IsBoolean({ message: 'unreadOnly chỉ nhận true hoặc false' })
   unreadOnly?: boolean;
 }
 
