@@ -2,14 +2,15 @@
 // Mo hinh danh muc M2 (ADR-007, docs/features/products/erd.md): bien the la don vi ban, mau va co
 // la bang tra cuu, moi san pham co it nhat mot bien the; san pham khong phan loai dung co FREE, mau mac-dinh.
 model Category {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  parentId  String?  @map("parent_id") @db.Uuid
-  name      String   @db.VarChar
-  slug      String   @unique @db.VarChar
-  sortOrder Int      @default(0) @map("sort_order")
-  isActive  Boolean  @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                 String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parentId           String?  @map("parent_id") @db.Uuid
+  name               String   @db.VarChar
+  slug               String   @unique @db.VarChar
+  sortOrder          Int      @default(0) @map("sort_order")
+  isActive           Boolean  @default(true) @map("is_active")
+  adminManagedFields String[] @default([]) @map("admin_managed_fields")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   parent   Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   children Category[] @relation("CategoryTree")

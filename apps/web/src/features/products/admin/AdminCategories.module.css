@@ -454,6 +454,149 @@
   margin: 0;
 }
 
+.headerRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.headerCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.primaryBtn,
+.secondaryBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: var(--radius);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.primaryBtn {
+  background: var(--ink);
+  color: var(--paper);
+  border: 1px solid var(--ink);
+}
+
+.primaryBtn:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.primaryBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.secondaryBtn {
+  background: var(--paper);
+  color: var(--ink);
+  border: 1px solid var(--line);
+}
+
+.secondaryBtn:hover:not(:disabled) {
+  background: var(--bg);
+}
+
+.secondaryBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.formField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.formFieldFull {
+  grid-column: 1 / -1;
+}
+
+.formLabel {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.formInput,
+.formSelect {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 12px;
+  background: var(--bg);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-family: var(--font-body);
+  font-size: 14px;
+}
+
+.formInput:disabled,
+.formSelect:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.formHint {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.formError {
+  margin: 0;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--danger);
+}
+
+.formActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.readonlyValue {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-family: monospace;
+  font-size: 13px;
+  color: var(--muted);
+}
+
 @media (max-width: 960px) {
   .kpiGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -618,6 +761,25 @@
 
   .detailGrid {
     grid-template-columns: 1fr;
+  }
+
+  .headerRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .formInput,
+  .formSelect {
+    font-size: 16px;
+  }
+
+  .formActions {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 

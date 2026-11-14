@@ -161,12 +161,25 @@ export function AdminCategoriesPage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <p className={styles.eyebrow}>Phân loại sản phẩm</p>
-        <h1 className={styles.title}>Quản lý danh mục</h1>
-        <p className={styles.description}>
-          Duyệt cây phân cấp, theo dõi số lượng sản phẩm đã phân loại và quản lý trạng thái hiển thị
-          ẩn/hiện trên cửa hàng.
-        </p>
+        <div className={styles.headerRow}>
+          <div className={styles.headerCopy}>
+            <p className={styles.eyebrow}>Phân loại sản phẩm</p>
+            <h1 className={styles.title}>Quản lý danh mục</h1>
+            <p className={styles.description}>
+              Duyệt cây phân cấp, theo dõi số lượng sản phẩm đã phân loại và quản lý trạng thái hiển
+              thị ẩn/hiện trên cửa hàng.
+            </p>
+          </div>
+          {!forbidden && (
+            <Link
+              to="/admin/categories/new"
+              className={styles.primaryBtn}
+              data-testid="create-category-link"
+            >
+              + Tạo danh mục
+            </Link>
+          )}
+        </div>
       </header>
 
       {readyWithData && categories.length > 0 && (
