@@ -11,10 +11,8 @@
 name: CI
 
 on:
-  # PR vao feature/** (tu nhanh task/) cung chay CI tu 14/11: bao do som, khong chan gop vi nhanh
-  # feature khong co ruleset. Truoc do ma tren nhanh feature chi qua hook o may toi buoc vao develop.
   pull_request:
-    branches: [develop, main, 'feature/**']
+    branches: [develop, main]
   push:
     branches: [develop, main]
 
