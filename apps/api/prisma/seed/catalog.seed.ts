@@ -2,7 +2,17 @@
  * Nap danh muc va bang tra cuu dung cho du lieu crawl that (ADR-007, docs/features/products/erd.md).
  * San pham mau chi duoc tao trong test fixtures, khong duoc nap vao storefront dev.
  */
-import type { PrismaClient } from '../../src/generated/prisma/client.js';
+import { Prisma, type PrismaClient } from '../../src/generated/prisma/client.js';
+
+interface SeedLockedCategory {
+  id: string;
+  name: string;
+  slug: string;
+  parentId: string | null;
+  sortOrder: number;
+  isActive: boolean;
+  adminManagedFields: string[];
+}
 
 export const CATEGORIES = [
   { slug: 'ao', name: 'Áo', parentSlug: null, sortOrder: 1 },
@@ -52,41 +62,149 @@ export async function seedCatalog(
   prisma: PrismaClient,
 ): Promise<{ categories: number; brands: number; colors: number; sizes: number }> {
   // Danh muc cha truoc, con sau, de noi duoc parent theo slug.
-  // Khong bat lai isActive cua danh muc da bi admin an; chi cap nhat khi metadata thuc su doi de giu CAS token.
+  // Khong bat lai isActive cua danh muc da bi admin an; bao ve cac truong trong adminManagedFields
+  // va khoa dong FOR UPDATE theo thu tu UUID trong transaction ReadCommitted.
   for (const c of [...CATEGORIES].sort((a, b) => Number(!!a.parentSlug) - Number(!!b.parentSlug))) {
-    const existing = await prisma.category.findUnique({
-      where: { slug: c.slug },
-      include: { parent: { select: { slug: true } } },
-    });
-    if (!existing) {
-      const parent = c.parentSlug ? { connect: { slug: c.parentSlug } } : undefined;
-      await prisma.category.create({
-        data: { slug: c.slug, name: c.name, sortOrder: c.sortOrder, parent },
-      });
-    } else {
-      const parentSlug = existing.parent?.slug ?? null;
-      const metadataChanged =
-        existing.name !== c.name ||
-        existing.sortOrder !== c.sortOrder ||
-        parentSlug !== c.parentSlug;
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        await prisma.$transaction(
+          async (tx) => {
+            const existingHint = await tx.category.findUnique({
+              where: { slug: c.slug },
+              select: { id: true, parentId: true },
+            });
+            const parentHint = c.parentSlug
+              ? await tx.category.findUnique({
+                  where: { slug: c.parentSlug },
+                  select: { id: true },
+                })
+              : null;
 
-      if (metadataChanged) {
-        const parentId = c.parentSlug
-          ? ((
-              await prisma.category.findUnique({
-                where: { slug: c.parentSlug },
-                select: { id: true },
-              })
-            )?.id ?? null)
-          : null;
-        await prisma.$executeRaw`
-          UPDATE public.categories
-          SET name = ${c.name},
-              sort_order = ${c.sortOrder},
-              parent_id = ${parentId}::uuid,
-              updated_at = GREATEST(NOW(), updated_at + INTERVAL '1 millisecond')
-          WHERE slug = ${c.slug}
-        `;
+            const lockIds = [
+              ...new Set(
+                [existingHint?.id, existingHint?.parentId, parentHint?.id].filter(
+                  (id): id is string => Boolean(id),
+                ),
+              ),
+            ].sort();
+
+            const lockedRows =
+              lockIds.length > 0
+                ? await tx.$queryRaw<SeedLockedCategory[]>`
+                    SELECT id, name, slug, parent_id AS "parentId", sort_order AS "sortOrder",
+                           is_active AS "isActive", admin_managed_fields AS "adminManagedFields"
+                    FROM public.categories
+                    WHERE id = ANY(${lockIds}::uuid[])
+                    ORDER BY id ASC
+                    FOR UPDATE
+                  `
+                : [];
+            const lockedMap = new Map(lockedRows.map((row) => [row.id, row]));
+
+            const existing = existingHint ? lockedMap.get(existingHint.id) : undefined;
+            const targetParent = parentHint ? lockedMap.get(parentHint.id) : undefined;
+
+            if (!existing) {
+              if (c.parentSlug && !targetParent) {
+                console.warn(
+                  `[seedCatalog] Bỏ qua tạo danh mục "${c.slug}": không tìm thấy cha "${c.parentSlug}".`,
+                );
+                return;
+              }
+              if (targetParent) {
+                if (targetParent.parentId !== null) {
+                  console.warn(
+                    `[seedCatalog] Bỏ qua tạo danh mục con "${c.slug}": cha "${c.parentSlug}" đang là danh mục cấp 2.`,
+                  );
+                  return;
+                }
+                const parentProducts = await tx.product.count({
+                  where: { categoryId: targetParent.id },
+                });
+                if (parentProducts > 0) {
+                  console.warn(
+                    `[seedCatalog] Bỏ qua tạo danh mục con "${c.slug}": cha "${c.parentSlug}" đang có sản phẩm trực tiếp.`,
+                  );
+                  return;
+                }
+              }
+              await tx.category.create({
+                data: {
+                  slug: c.slug,
+                  name: c.name,
+                  sortOrder: c.sortOrder,
+                  parentId: targetParent?.id ?? null,
+                },
+              });
+              return;
+            }
+
+            if (existing.parentId && !lockedMap.has(existing.parentId)) {
+              const retryErr = new Error('Tập khóa seed thay đổi trong lúc chờ khóa');
+              (retryErr as unknown as { code: string }).code = '40P01';
+              throw retryErr;
+            }
+
+            const managed = new Set(existing.adminManagedFields);
+            const nextName = managed.has('name') ? existing.name : c.name;
+            const nextSortOrder = managed.has('sortOrder') ? existing.sortOrder : c.sortOrder;
+
+            let nextParentId = existing.parentId;
+            if (!managed.has('parentId')) {
+              const desiredParentId = targetParent?.id ?? null;
+              if (desiredParentId !== existing.parentId) {
+                if (desiredParentId === null) {
+                  nextParentId = null;
+                } else if (!targetParent) {
+                  console.warn(
+                    `[seedCatalog] Bỏ qua đổi cha cho "${c.slug}": cha "${c.parentSlug}" không tồn tại.`,
+                  );
+                } else {
+                  const childCount = await tx.category.count({
+                    where: { parentId: existing.id },
+                  });
+                  const parentProducts = await tx.product.count({
+                    where: { categoryId: targetParent.id },
+                  });
+                  if (childCount > 0 || targetParent.parentId !== null || parentProducts > 0) {
+                    console.warn(
+                      `[seedCatalog] Bỏ qua đổi cha cho "${c.slug}" -> "${c.parentSlug}" vì xung đột cấu trúc cây 2 cấp / sản phẩm hiện tại.`,
+                    );
+                  } else {
+                    nextParentId = desiredParentId;
+                  }
+                }
+              }
+            }
+
+            const metadataChanged =
+              existing.name !== nextName ||
+              existing.sortOrder !== nextSortOrder ||
+              existing.parentId !== nextParentId;
+
+            if (metadataChanged) {
+              await tx.$executeRaw`
+                UPDATE public.categories
+                SET name = ${nextName},
+                    sort_order = ${nextSortOrder},
+                    parent_id = ${nextParentId}::uuid,
+                    updated_at = GREATEST(NOW(), updated_at + INTERVAL '1 millisecond')
+                WHERE id = ${existing.id}::uuid
+              `;
+            }
+          },
+          { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
+        );
+        break;
+      } catch (err) {
+        const code =
+          (err as { code?: string; meta?: { code?: string } })?.code ??
+          (err as { meta?: { code?: string } })?.meta?.code;
+        if (attempt < 3 && (code === '40P01' || code === '40001' || code === 'P2034')) {
+          await new Promise((r) => setTimeout(r, 10 * attempt));
+          continue;
+        }
+        throw err;
       }
     }
   }

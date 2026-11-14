@@ -31,6 +31,7 @@ import {
   AdminCatalogPage,
   AdminCategoriesPage,
   AdminCategoryDetailPage,
+  AdminCategoryNewPage,
   CategoryPage,
   HomePage,
   ProductDetailPage,
@@ -151,6 +152,7 @@ export function AppRoutes() {
               <Route path="inventory" element={<AdminInventoryPage />} />
               <Route path="inventory/:id" element={<AdminInventoryDetailPage />} />
               <Route path="categories" element={<AdminCategoriesPage />} />
+              <Route path="categories/new" element={<AdminCategoryNewPage />} />
               <Route path="categories/:id" element={<AdminCategoryDetailPage />} />
               <Route path="products" element={<AdminCatalogPage />} />
               <Route path="products/:id" element={<AdminCatalogDetailPage />} />

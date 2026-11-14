@@ -1,6 +1,6 @@
 ---
 title: Khám phá sản phẩm — bản đồ và kế hoạch PH-01
-updated: 2026-11-10
+updated: 2026-11-14
 status: đang làm
 owner: Bảo
 ---
@@ -234,10 +234,12 @@ Sau thành công bỏ tập filter cũ và tải total/trang lại; không tính
 Không ghi dữ liệu admin bằng response phiên cũ/403 hoặc đè phiên bản mới hơn đang đọc.
 Bật lại là gỡ ngừng bán thủ công, không tự bật danh mục/biến thể hoặc chọn lại giỏ.
 
-## Danh mục quản trị đọc và ẩn hiện — Issue #79
+## Danh mục quản trị — Issue #79 và #120
 
 Đặc tả đề xuất [UC-04.1](use-cases-admin-categories.md) thuộc Issue #79: đọc cây phân cấp, chi tiết và chuyển đổi trạng thái hiển thị (`isActive`) an toàn qua CAS bằng `updatedAt`.
-Không tạo mới, sửa tên/slug/cha/thứ tự, không xóa và không kéo thả.
+Issue #120 bổ sung tạo mới mặc định ẩn bằng UUID client, sửa tên/thứ tự/cha trong cây hai cấp; slug cố định sau tạo, không xóa và không kéo thả.
+Admin/import/seed khóa category trước kiểm tra cấu trúc; trường admin quản lý được bảo vệ qua seed bằng `adminManagedFields` (một migration). Chặn thêm con vào danh mục đang có sản phẩm trực tiếp.
+Form giữ CAS của draft, tách actor/epoch/categoryId; timeout15 giây giữ payload chưa rõ kết quả và không cho response cũ tác động form khác. Bản local đã qua check/build và QA mock; chưa nghiệm thu E2E browser/API/DB thật.
 Phân quyền ADMIN kiểm tra trước validation, allowlist và `Cache-Control: no-store`.
 Ngữ nghĩa: ẩn cha làm nhánh con không hiển thị hiệu lực (`parentHidden: true`), không đổi cờ DB con; bật cha chỉ khôi phục con có `isActive = true`.
 Số đếm: `productCount` (trực tiếp) và `subtreeProductCount` (toàn nhánh) trong cùng snapshot `RepeatableRead`.

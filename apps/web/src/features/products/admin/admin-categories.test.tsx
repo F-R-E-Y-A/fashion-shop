@@ -5,7 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cartKeys } from '@/features/cart';
 
 import { adminCatalogKeys } from './admin-catalog.api.js';
-import type { AdminCategoryDetail, AdminCategoryNode } from './admin-categories.api.js';
+import {
+  adminCategoriesKeys,
+  type AdminCategoryDetail,
+  type AdminCategoryNode,
+  type UpdateAdminCategoryPayload,
+} from './admin-categories.api.js';
 import {
   actorA,
   actorB,
@@ -942,4 +947,521 @@ describe('Admin Categories UI (UC-04.1/AC2, AC6)', () => {
     expect(await screen.findByText(/Không đủ quyền/)).toBeInTheDocument();
     expect(screen.queryByTestId('kpi-total-categories')).not.toBeInTheDocument();
   });
+
+  it('Đợt 1: tạo danh mục mới mặc định ẩn với client UUID và tự sinh slug', async () => {
+    const user = userEvent.setup();
+    const api = backend();
+    const stateHolder: { created: AdminCategoryDetail | null } = { created: null };
+
+    api.state.override = (r) => {
+      if (r.path === '/api/admin/categories' && r.method === 'GET') {
+        return reply(stateHolder.created ? [...sampleTree, stateHolder.created] : sampleTree);
+      }
+      if (r.path === '/api/admin/categories' && r.method === 'POST') {
+        const body = r.body as {
+          id: string;
+          name: string;
+          slug?: string;
+          parentId?: string | null;
+          sortOrder?: number;
+        };
+        const created: AdminCategoryDetail = {
+          id: body.id,
+          name: body.name,
+          slug: body.slug ?? 'ao-len-moi',
+          parentId: body.parentId ?? null,
+          sortOrder: body.sortOrder ?? 0,
+          isActive: false,
+          effectiveActive: false,
+          parentHidden: false,
+          productCount: 0,
+          subtreeProductCount: 0,
+          updatedAt: '2026-11-14T10:00:00.000Z',
+          parent: null,
+          children: [],
+        };
+        stateHolder.created = created;
+        return reply(created, 201);
+      }
+      if (
+        stateHolder.created &&
+        r.path === `/api/admin/categories/${stateHolder.created.id}` &&
+        r.method === 'GET'
+      ) {
+        return reply(stateHolder.created);
+      }
+      return undefined;
+    };
+
+    mountCatalog('/admin/categories');
+
+    const createLink = await screen.findByTestId('create-category-link');
+    await user.click(createLink);
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent('/admin/categories/new');
+    });
+
+    await user.type(await screen.findByLabelText(/Tên danh mục/i), 'Áo len mới');
+    expect(screen.getByLabelText(/Slug/i)).toHaveValue('ao-len-moi');
+
+    await user.click(screen.getByTestId('submit-create-category'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location').textContent).toMatch(/^\/admin\/categories\/.+/);
+    });
+    expect(stateHolder.created?.isActive).toBe(false);
+    expect(stateHolder.created?.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+  });
+
+  it('Đợt 1: uncertainCreate giữ nguyên UUID qua điều hướng, recheck 404 không xóa marker và gửi lại đúng UUID cũ', async () => {
+    const user = userEvent.setup();
+    const api = backend();
+    const postedIds: string[] = [];
+    let failPost = true;
+    const stateHolder: { created: AdminCategoryDetail | null } = { created: null };
+
+    api.state.override = (r) => {
+      if (r.path === '/api/admin/categories' && r.method === 'GET') {
+        return reply(stateHolder.created ? [...sampleTree, stateHolder.created] : sampleTree);
+      }
+      if (r.path === '/api/admin/categories' && r.method === 'POST') {
+        const body = r.body as { id: string; name: string; slug: string; sortOrder: number };
+        postedIds.push(body.id);
+        if (failPost) {
+          return failure(500);
+        }
+        const created: AdminCategoryDetail = {
+          id: body.id,
+          name: body.name,
+          slug: body.slug,
+          parentId: null,
+          sortOrder: body.sortOrder,
+          isActive: false,
+          effectiveActive: false,
+          parentHidden: false,
+          productCount: 0,
+          subtreeProductCount: 0,
+          updatedAt: '2026-11-14T10:00:00.000Z',
+          parent: null,
+          children: [],
+        };
+        stateHolder.created = created;
+        return reply(created, 201);
+      }
+      if (r.path.startsWith('/api/admin/categories/') && r.method === 'GET') {
+        if (stateHolder.created && r.path.endsWith(stateHolder.created.id)) {
+          return reply(stateHolder.created);
+        }
+        return failure(404);
+      }
+      return undefined;
+    };
+
+    mountCatalog('/admin/categories/new');
+
+    await user.type(await screen.findByLabelText(/Tên danh mục/i), 'Phụ kiện thử');
+    await user.click(screen.getByTestId('submit-create-category'));
+
+    expect(await screen.findByTestId('recheck-create-btn')).toBeInTheDocument();
+    expect(postedIds).toHaveLength(1);
+
+    // Điều hướng ra danh sách rồi quay lại /admin/categories/new -> marker vẫn còn
+    await user.click(screen.getByRole('link', { name: 'Quay lại danh sách' }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/admin/categories');
+    await user.click(await screen.findByTestId('create-category-link'));
+
+    expect(await screen.findByTestId('recheck-create-btn')).toBeInTheDocument();
+    expect(screen.getByLabelText(/Tên danh mục/i)).toHaveValue('Phụ kiện thử');
+
+    // Recheck trả 404 -> KHÔNG xóa marker và cho phép gửi lại cùng UUID
+    await user.click(screen.getByTestId('recheck-create-btn'));
+    expect(await screen.findByText(/Chưa thấy danh mục trên máy chủ \(404\)/)).toBeInTheDocument();
+    expect(screen.getByTestId('submit-create-category')).toHaveTextContent('Gửi lại với cùng mã');
+
+    // Gửi lại thành công bằng đúng UUID cũ
+    failPost = false;
+    await user.click(screen.getByTestId('submit-create-category'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('location')).toHaveTextContent(`/admin/categories/${postedIds[0]}`);
+    });
+    expect(postedIds).toHaveLength(2);
+    expect(postedIds[1]).toBe(postedIds[0]);
+  });
+
+  it('Đợt 1: chi tiết danh mục khóa chọn cha khi có con, giữ slug readonly và bảo toàn nháp khi PATCH trả 409', async () => {
+    const user = userEvent.setup();
+    const api = backend();
+    const rootDetail: AdminCategoryDetail = {
+      ...rootCategory,
+      parent: null,
+      children: rootCategory.children.map((c) => ({ ...c })),
+    };
+    const childDetail: AdminCategoryDetail = {
+      ...rootCategory.children[0]!,
+      parent: {
+        id: rootCategory.id,
+        name: rootCategory.name,
+        slug: rootCategory.slug,
+        isActive: rootCategory.isActive,
+        effectiveActive: rootCategory.effectiveActive,
+      },
+      children: [],
+    };
+    let return409 = true;
+
+    api.state.override = (r) => {
+      if (r.path === '/api/admin/categories' && r.method === 'GET') return reply(sampleTree);
+      if (r.path === `/api/admin/categories/${rootCategory.id}` && r.method === 'GET') {
+        return reply(rootDetail);
+      }
+      if (r.path === `/api/admin/categories/${childDetail.id}` && r.method === 'GET') {
+        return reply(childDetail);
+      }
+      if (r.path === `/api/admin/categories/${childDetail.id}` && r.method === 'PATCH') {
+        if (return409) return failure(409);
+        const body = r.body as { name: string; sortOrder: number; parentId: string | null };
+        childDetail.name = body.name;
+        childDetail.sortOrder = body.sortOrder;
+        childDetail.parentId = body.parentId;
+        childDetail.updatedAt = '2026-11-14T10:05:00.000Z';
+        return reply(childDetail);
+      }
+      return undefined;
+    };
+
+    // 1. Kiểm tra danh mục cha có con -> disable select parentId & slug readonly
+    const view = mountCatalog(`/admin/categories/${rootCategory.id}`);
+
+    expect(await screen.findByTestId('edit-category-slug-readonly')).toHaveTextContent('ao');
+    expect(screen.getByLabelText(/Danh mục cha/i)).toBeDisabled();
+
+    // 2. Chuyển sang danh mục con -> sửa tên, gặp 409 vẫn giữ nguyên nháp
+    await act(async () => {
+      view.go(`/admin/categories/${childDetail.id}`);
+    });
+    const nameInput = await screen.findByLabelText(/Tên danh mục/i);
+    expect(screen.getByLabelText(/Danh mục cha/i)).not.toBeDisabled();
+
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Áo thun bản nháp');
+    await user.click(screen.getByTestId('submit-save-category'));
+
+    expect(await screen.findByTestId('reload-latest-category-btn')).toBeInTheDocument();
+    expect(screen.getByLabelText(/Tên danh mục/i)).toHaveValue('Áo thun bản nháp');
+
+    // 3. Sau 409 nút lưu bị vô hiệu hóa; người dùng tải lại dữ liệu mới nhất rồi sửa và lưu thành công
+    return409 = false;
+    expect(screen.getByTestId('submit-save-category')).toBeDisabled();
+    await user.click(screen.getByTestId('reload-latest-category-btn'));
+    const reloadedInput = await screen.findByLabelText(/Tên danh mục/i);
+    await user.clear(reloadedInput);
+    await user.type(reloadedInput, 'Áo thun bản nháp');
+    await user.click(screen.getByTestId('submit-save-category'));
+    expect(await screen.findByText(/Đã lưu cập nhật/)).toBeInTheDocument();
+  });
+
+  it('Đợt 1: 403 trên PATCH hoặc response đến muộn sau khi đổi phiên không ghi đè state/cache', async () => {
+    const user = userEvent.setup();
+    const api = backend();
+    const childDetail: AdminCategoryDetail = {
+      ...rootCategory.children[0]!,
+      parent: {
+        id: rootCategory.id,
+        name: rootCategory.name,
+        slug: rootCategory.slug,
+        isActive: rootCategory.isActive,
+        effectiveActive: rootCategory.effectiveActive,
+      },
+      children: [],
+    };
+    const pendingPatch = deferred<Response>();
+
+    api.state.override = (r) => {
+      if (r.path === '/api/admin/categories' && r.method === 'GET') return reply(sampleTree);
+      if (r.path === `/api/admin/categories/${childDetail.id}` && r.method === 'GET') {
+        return reply(childDetail);
+      }
+      if (r.path === `/api/admin/categories/${childDetail.id}` && r.method === 'PATCH') {
+        return pendingPatch.promise;
+      }
+      return undefined;
+    };
+
+    const view = mountCatalog(`/admin/categories/${childDetail.id}`);
+
+    const nameInput = await screen.findByLabelText(/Tên danh mục/i);
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Áo thun đổi phiên');
+    await user.click(screen.getByTestId('submit-save-category'));
+
+    // Đổi phiên sang actorB trước khi response PATCH cũ quay về
+    await act(async () => {
+      await view.auth().login({ email: actorB.email, password: 'synthetic' });
+    });
+    await act(async () => {
+      pendingPatch.resolve(
+        reply({
+          ...childDetail,
+          name: 'Áo thun từ phiên cũ',
+          updatedAt: '2026-11-14T10:10:00.000Z',
+        }),
+      );
+    });
+
+    // Dữ liệu của actorA không bị ghi đè bởi response muộn sau đổi phiên
+    expect(screen.queryByText(/Đã lưu cập nhật/)).not.toBeInTheDocument();
+  });
+
+  it('CODEX dirty draft must keep original CAS token after background refresh', async () => {
+    const api = backend();
+    const user = userEvent.setup();
+    let body: UpdateAdminCategoryPayload | undefined;
+    const d: AdminCategoryDetail = { ...sampleDetail, children: [] };
+    api.state.override = (r) => {
+      if (r.path === '/api/admin/categories' && r.method === 'GET') return reply(sampleTree);
+      if (r.path === `/api/admin/categories/${d.id}` && r.method === 'GET') return reply(d);
+      if (r.method === 'PATCH') {
+        body = r.body as UpdateAdminCategoryPayload;
+        return failure(409);
+      }
+      return undefined;
+    };
+    const v = mountCatalog(`/admin/categories/${d.id}`);
+    const input = await screen.findByLabelText(/Tên danh mục/i);
+    await user.clear(input);
+    await user.type(input, 'Draft local');
+    await act(async () => {
+      v.client.setQueryData(adminCategoriesKeys.detail(actorA.id, d.id), {
+        ...d,
+        name: 'Remote changed',
+        updatedAt: '2026-11-14T12:00:00.000Z',
+      });
+    });
+    await user.click(screen.getByTestId('submit-save-category'));
+    await waitFor(() => expect(body).toBeDefined());
+    expect(body?.expectedUpdatedAt).toBe(d.updatedAt);
+  });
+
+  it('CODEX pending create must remain locked across navigation', async () => {
+    const api = backend();
+    const user = userEvent.setup();
+    const gate = deferred<Response>();
+    let posts = 0;
+    api.state.override = (r) => {
+      if (r.path === '/api/admin/categories' && r.method === 'GET') return reply(sampleTree);
+      if (r.path === '/api/admin/categories' && r.method === 'POST') {
+        posts++;
+        return gate.promise;
+      }
+      return undefined;
+    };
+    const v = mountCatalog('/admin/categories/new');
+    await user.type(await screen.findByLabelText(/Tên danh mục/i), 'First category');
+    await user.click(screen.getByTestId('submit-create-category'));
+    await waitFor(() => expect(posts).toBe(1));
+    await act(async () => v.go('/admin/categories'));
+    await screen.findByRole('heading', { name: 'Quản lý danh mục' });
+    await act(async () => v.go('/admin/categories/new'));
+    const input = await screen.findByLabelText(/Tên danh mục/i);
+    expect(input).toBeDisabled();
+    expect(screen.getByTestId('submit-create-category')).toBeDisabled();
+  });
+
+  it('CODEX create recheck must compare submitted payload', async () => {
+    const api = backend();
+    const user = userEvent.setup();
+    let createdId = '';
+    api.state.override = (r) => {
+      if (r.path === '/api/admin/categories' && r.method === 'GET') return reply(sampleTree);
+      if (r.path === '/api/admin/categories' && r.method === 'POST') {
+        createdId = (r.body as { id: string }).id;
+        return failure(500);
+      }
+      if (createdId && r.path === `/api/admin/categories/${createdId}` && r.method === 'GET') {
+        return reply({
+          ...sampleDetail,
+          id: createdId,
+          name: 'Different server payload',
+          slug: 'different-server',
+          children: [],
+        });
+      }
+      return undefined;
+    };
+    mountCatalog('/admin/categories/new');
+    await user.type(await screen.findByLabelText(/Tên danh mục/i), 'Expected payload');
+    await user.click(screen.getByTestId('submit-create-category'));
+    await user.click(await screen.findByTestId('recheck-create-btn'));
+    await waitFor(() =>
+      expect(screen.getByTestId('location')).toHaveTextContent('/admin/categories/new'),
+    );
+    expect(screen.queryByText(/Đã xác nhận danh mục/)).not.toBeInTheDocument();
+  });
+
+  it('Issue120 review2: dirty draft resets when switching category identity', async () => {
+    const api = backend();
+    const user = userEvent.setup();
+    const a = { ...sampleDetail, children: [] };
+    const b = {
+      ...sampleDetail,
+      id: rootCategory.children[0]!.id,
+      name: 'Category B',
+      slug: 'category-b',
+      children: [],
+    };
+    api.state.override = (r) => {
+      if (r.path === '/api/admin/categories' && r.method === 'GET') return reply(sampleTree);
+      if (r.path === `/api/admin/categories/${a.id}` && r.method === 'GET') return reply(a);
+      if (r.path === `/api/admin/categories/${b.id}` && r.method === 'GET') return reply(b);
+      return undefined;
+    };
+    const view = mountCatalog(`/admin/categories/${a.id}`);
+    const input = await screen.findByLabelText(/Tên danh mục/i);
+    await user.clear(input);
+    await user.type(input, 'Draft category A');
+    await act(async () => view.go(`/admin/categories/${b.id}`));
+    await screen.findByRole('heading', { name: b.name });
+    expect(screen.getByLabelText(/Tên danh mục/i)).toHaveValue(b.name);
+    expect(screen.getByTestId('submit-save-category')).not.toBeDisabled();
+  });
+
+  it.each(['PATCH', 'RECHECK'] as const)(
+    'Issue120 review2: late %s for A cannot change dirty form or marker of B',
+    async (mode) => {
+      const api = backend();
+      const user = userEvent.setup();
+      const a = { ...sampleDetail, children: [] };
+      const b = {
+        ...sampleDetail,
+        id: rootCategory.children[0]!.id,
+        name: 'Category B',
+        slug: 'category-b',
+        children: [],
+      };
+      const gate = deferred<Response>();
+      let gateHit = false;
+      let checking = false;
+      api.state.override = (r) => {
+        if (r.path === '/api/admin/categories' && r.method === 'GET') return reply(sampleTree);
+        if (r.path === `/api/admin/categories/${a.id}` && r.method === 'PATCH') {
+          if (mode === 'PATCH') {
+            gateHit = true;
+            return gate.promise;
+          }
+          return failure(500);
+        }
+        if (r.path === `/api/admin/categories/${a.id}` && r.method === 'GET') {
+          if (checking) {
+            gateHit = true;
+            return gate.promise;
+          }
+          return reply(a);
+        }
+        if (r.path === `/api/admin/categories/${b.id}` && r.method === 'GET') return reply(b);
+        return undefined;
+      };
+      const view = mountCatalog(`/admin/categories/${a.id}`);
+      const input = await screen.findByLabelText(/Tên danh mục/i);
+      await user.clear(input);
+      await user.type(input, 'Saved category A');
+      await user.click(screen.getByTestId('submit-save-category'));
+      if (mode === 'RECHECK') {
+        checking = true;
+        await user.click(await screen.findByTestId('recheck-edit-btn'));
+      }
+      await waitFor(() => expect(gateHit).toBe(true));
+      await act(async () => view.go(`/admin/categories/${b.id}`));
+      await screen.findByRole('heading', { name: b.name });
+      const bInput = screen.getByLabelText(/Tên danh mục/i);
+      await user.clear(bInput);
+      await user.type(bInput, 'Unsaved draft B');
+      const bMarkerKey = adminCategoriesKeys.uncertainEdit(
+        actorA.id,
+        view.auth().getSessionEpoch(),
+        b.id,
+      );
+      const bMarker = {
+        id: b.id,
+        operationId: 99999,
+        status: 'uncertain' as const,
+        payload: { name: 'Another operation B', expectedUpdatedAt: b.updatedAt },
+      };
+      await act(async () => view.client.setQueryData(bMarkerKey, bMarker));
+      checking = false;
+      await act(async () =>
+        gate.resolve(
+          reply({ ...a, name: 'Saved category A', updatedAt: '2026-11-14T15:00:00.000Z' }),
+        ),
+      );
+      await waitFor(() =>
+        expect(
+          view.client.getQueryData(
+            adminCategoriesKeys.uncertainEdit(actorA.id, view.auth().getSessionEpoch(), a.id),
+          ),
+        ).toBeNull(),
+      );
+      expect(screen.getByLabelText(/Tên danh mục/i)).toHaveValue('Unsaved draft B');
+      expect(screen.queryByText(/Đã lưu cập nhật cho danh mục/)).not.toBeInTheDocument();
+      expect(view.client.getQueryData(bMarkerKey)).toEqual(bMarker);
+    },
+  );
+
+  it.each(['POST', 'PATCH'] as const)(
+    'Issue120 review2: %s timeout aborts and keeps uncertain payload',
+    async (method) => {
+      const api = backend();
+      const gate = deferred<Response>();
+      let signal: AbortSignal | undefined;
+      let payload: unknown;
+      const a = { ...sampleDetail, children: [] };
+      api.state.override = (r) => {
+        if (r.path === '/api/admin/categories' && r.method === 'GET') return reply(sampleTree);
+        if (r.path === `/api/admin/categories/${a.id}` && r.method === 'GET') return reply(a);
+        if (
+          r.method === method &&
+          r.path === (method === 'POST' ? '/api/admin/categories' : `/api/admin/categories/${a.id}`)
+        ) {
+          signal = r.signal ?? undefined;
+          payload = r.body;
+          return gate.promise;
+        }
+        return undefined;
+      };
+      const view = mountCatalog(
+        method === 'POST' ? '/admin/categories/new' : `/admin/categories/${a.id}`,
+      );
+      const input = await screen.findByLabelText(/Tên danh mục/i);
+      fireEvent.change(input, { target: { value: 'Timeout draft' } });
+      vi.useFakeTimers();
+      try {
+        await act(async () =>
+          fireEvent.click(
+            screen.getByTestId(
+              method === 'POST' ? 'submit-create-category' : 'submit-save-category',
+            ),
+          ),
+        );
+        expect(payload).toBeDefined();
+        await act(async () => vi.advanceTimersByTimeAsync(15000));
+        expect(signal?.aborted).toBe(true);
+        const key =
+          method === 'POST'
+            ? adminCategoriesKeys.uncertainCreate(actorA.id, view.auth().getSessionEpoch())
+            : adminCategoriesKeys.uncertainEdit(actorA.id, view.auth().getSessionEpoch(), a.id);
+        const marker = view.client.getQueryData<{
+          status: string;
+          payload: Record<string, unknown>;
+        }>(key);
+        expect(marker?.status).toBe('uncertain');
+        expect(marker?.payload.name).toBe('Timeout draft');
+        await act(async () => gate.resolve(reply({ ...a, name: 'Too late success' })));
+        expect(view.client.getQueryData(key)).toEqual(marker);
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
 });
