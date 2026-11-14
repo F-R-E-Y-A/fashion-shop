@@ -1,6 +1,6 @@
 ---
 title: UC-08 Thanh toán và UC-14.3 Hoàn tiền — đặc tả use case
-updated: 2026-11-05
+updated: 2026-11-14
 status: đề xuất, chờ Bảo duyệt
 owner: Bảo
 ---
@@ -12,7 +12,7 @@ owner: Bảo
 |---|---|
 | **Người viết đặc tả** | Bảo, 05/11, viết ngược từ mã PH-11 và bài kiểm thử đang chạy; mã use case theo danh mục của Duy ở [PR #26](https://github.com/F-R-E-Y-A/fashion-shop/pull/26) (`46a238c`) |
 | **Người sở hữu mã** | Bảo, module `payments`; chốt đơn và kho ở `checkout/settlement.service.ts` |
-| **Dòng việc** | **PH-11** làm UC-08.1, UC-08.2, UC-14.3. UC-14.1, UC-14.2, UC-14.4 (đổi trả) chưa giao |
+| **Dòng việc** | **PH-11** làm UC-08.1, UC-08.2, UC-14.3. UC-14.1, UC-14.2 (trả hàng) đặc tả ở [returns](../returns/use-cases.md); UC-14.4 (đổi hàng) làm sau |
 | **Tác nhân** | Khách hàng, Cổng thanh toán (VNPAY, MoMo), Quản trị viên (`ADMIN`) |
 | **Dữ liệu** | `payments`, `payment_transactions`, `refunds` (module Payments); đơn và kho qua public service |
 
