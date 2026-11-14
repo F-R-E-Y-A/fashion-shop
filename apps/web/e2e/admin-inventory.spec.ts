@@ -16,7 +16,7 @@ for (const width of [1280, 360]) {
     await expect(page.getByRole('heading', { name: 'Chi tiết tồn kho' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Lịch sử biến động' })).toBeVisible();
     await expect(page.getByText('Tồn vật lý', { exact: true })).toBeVisible();
-    expect(await page.getByRole('button', { name: /Điều chỉnh|Nhập kho/ }).count()).toBe(0);
+    await expect(page.getByRole('button', { name: 'Nhập / Điều chỉnh tồn' })).toBeVisible();
     await testInfo.attach(`inventory-detail-${width}px`, {
       body: await page.screenshot(),
       contentType: 'image/png',

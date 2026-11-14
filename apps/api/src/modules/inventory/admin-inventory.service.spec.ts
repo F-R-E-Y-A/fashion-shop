@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
@@ -20,11 +20,20 @@ function setup() {
       count: vi.fn().mockResolvedValue(1),
       findUnique: vi.fn().mockResolvedValue(variant),
     },
+    inventory: {
+      upsert: vi.fn().mockResolvedValue({ productVariantId: 'v1', quantityOnHand: 10 }),
+    },
     inventoryReservation: {
       groupBy: vi.fn().mockResolvedValue([{ productVariantId: 'v1', _sum: { quantity: 3 } }]),
     },
-    stockMovement: { findMany: vi.fn().mockResolvedValue([]), count: vi.fn().mockResolvedValue(0) },
+    stockMovement: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      findMany: vi.fn().mockResolvedValue([]),
+      count: vi.fn().mockResolvedValue(0),
+      create: vi.fn().mockResolvedValue({ id: 'sm1' }),
+    },
     $queryRaw: vi.fn(),
+    $executeRaw: vi.fn().mockResolvedValue(1),
   };
   const prisma = { $transaction: vi.fn(async (fn: (db: typeof tx) => unknown) => fn(tx)) };
   return {
@@ -187,6 +196,266 @@ describe('UC-13.1 quản trị tồn chỉ đọc', () => {
 
       const values = Array.isArray(firstCall[0]?.values) ? firstCall[0].values : firstCall.slice(1);
       expect(values).toEqual(expect.arrayContaining([5, 10]));
+    });
+  });
+
+  describe('PH-13.2 Nhập hàng và điều chỉnh tồn kho (adjust)', () => {
+    it('RECEIPT: nhập thêm hàng thành công, cộng vào tồn hiện tại và ghi StockMovement kèm reason', async () => {
+      const { service, tx, prisma } = setup();
+
+      const result = await service.adjust(
+        'v1',
+        {
+          type: 'RECEIPT',
+          quantity: 15,
+          reason: 'Nhập lô hàng Yody tháng 11',
+        },
+        'admin-user-1',
+      );
+
+      // Khoa advisory lock truoc khi thuc hien
+      expect(tx.$executeRaw).toHaveBeenCalled();
+
+      // Cap nhat ton kho: 10 + 15 = 25
+      expect(tx.inventory.upsert).toHaveBeenCalledWith({
+        where: { productVariantId: 'v1' },
+        create: { productVariantId: 'v1', quantityOnHand: 25 },
+        update: { quantityOnHand: 25 },
+      });
+
+      // Ghi bien dong kho kem actorUserId
+      expect(tx.stockMovement.create).toHaveBeenCalledWith({
+        data: {
+          productVariantId: 'v1',
+          movementType: 'RECEIPT',
+          quantityDelta: 15,
+          reason: 'Nhập lô hàng Yody tháng 11',
+          actorUserId: 'admin-user-1',
+        },
+      });
+
+      expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+        isolationLevel: 'ReadCommitted',
+      });
+
+      expect(result).toMatchObject({
+        id: 'v1',
+        quantityOnHand: 25,
+        reservedQuantity: 3,
+        availableQuantity: 22,
+      });
+    });
+
+    it('RECEIPT: nhập hàng cho biến thể chưa có bản ghi tồn (null -> quantity)', async () => {
+      const { service, tx, variant } = setup();
+      tx.productVariant.findUnique.mockResolvedValue({ ...variant, inventory: null });
+
+      const result = await service.adjust('v1', {
+        type: 'RECEIPT',
+        quantity: 50,
+        reason: 'Khởi tạo tồn kho ban đầu',
+      });
+
+      expect(tx.inventory.upsert).toHaveBeenCalledWith({
+        where: { productVariantId: 'v1' },
+        create: { productVariantId: 'v1', quantityOnHand: 50 },
+        update: { quantityOnHand: 50 },
+      });
+
+      expect(result.quantityOnHand).toBe(50);
+      expect(result.availableQuantity).toBe(47);
+    });
+
+    it('RECEIPT: từ chối số lượng <= 0', async () => {
+      const { service, tx } = setup();
+
+      await expect(
+        service.adjust('v1', {
+          type: 'RECEIPT',
+          quantity: 0,
+          reason: 'Nhập không hợp lệ',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(tx.inventory.upsert).not.toHaveBeenCalled();
+      expect(tx.stockMovement.create).not.toHaveBeenCalled();
+    });
+
+    it('ADJUSTMENT: điều chỉnh kiểm kê tăng hoặc giảm tồn thành công', async () => {
+      const { service, tx } = setup();
+
+      // Giam ton tu 10 xuong 6 (delta = -4), dang giu la 3 nen 6 >= 3 hop le
+      const result = await service.adjust('v1', {
+        type: 'ADJUSTMENT',
+        quantity: 6,
+        reason: 'Hàng rách 4 chiếc khi kiểm kho',
+      });
+
+      expect(tx.inventory.upsert).toHaveBeenCalledWith({
+        where: { productVariantId: 'v1' },
+        create: { productVariantId: 'v1', quantityOnHand: 6 },
+        update: { quantityOnHand: 6 },
+      });
+
+      expect(tx.stockMovement.create).toHaveBeenCalledWith({
+        data: {
+          productVariantId: 'v1',
+          movementType: 'ADJUSTMENT',
+          quantityDelta: -4,
+          reason: 'Hàng rách 4 chiếc khi kiểm kho',
+          actorUserId: null,
+        },
+      });
+
+      expect(result).toMatchObject({
+        quantityOnHand: 6,
+        reservedQuantity: 3,
+        availableQuantity: 3,
+      });
+    });
+
+    it('ADJUSTMENT: từ chối khi số lượng kiểm kê bằng đúng tồn hiện tại (delta = 0)', async () => {
+      const { service, tx } = setup();
+
+      await expect(
+        service.adjust('v1', {
+          type: 'ADJUSTMENT',
+          quantity: 10, // ton hien tai la 10
+          reason: 'Kiểm kê không lệch',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(tx.inventory.upsert).not.toHaveBeenCalled();
+      expect(tx.stockMovement.create).not.toHaveBeenCalled();
+    });
+
+    it('ADJUSTMENT: từ chối khi số lượng mới nhỏ hơn số lượng đang giữ (reservedQuantity)', async () => {
+      const { service, tx } = setup();
+
+      // Dang giu la 3, muon chinh ton ve 2 (nho hon 3) -> phai reject de tranh am kho
+      await expect(
+        service.adjust('v1', {
+          type: 'ADJUSTMENT',
+          quantity: 2,
+          reason: 'Điều chỉnh thiếu hàng',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      expect(tx.inventory.upsert).not.toHaveBeenCalled();
+      expect(tx.stockMovement.create).not.toHaveBeenCalled();
+    });
+
+    it('ADJUSTMENT: cho phép điều chỉnh về đúng bằng số lượng đang giữ (available = 0)', async () => {
+      const { service } = setup();
+
+      const result = await service.adjust('v1', {
+        type: 'ADJUSTMENT',
+        quantity: 3, // bang dung reservedQuantity = 3
+        reason: 'Giảm sát lượng đặt trước',
+      });
+
+      expect(result.quantityOnHand).toBe(3);
+      expect(result.availableQuantity).toBe(0);
+    });
+
+    it('ADJUSTMENT: từ chối số lượng âm', async () => {
+      const { service } = setup();
+
+      await expect(
+        service.adjust('v1', {
+          type: 'ADJUSTMENT',
+          quantity: -1,
+          reason: 'Sai số',
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('từ chối khi biến thể không tồn tại (404)', async () => {
+      const { service, tx } = setup();
+      tx.productVariant.findUnique.mockResolvedValue(null);
+
+      await expect(
+        service.adjust('missing-id', {
+          type: 'RECEIPT',
+          quantity: 10,
+          reason: 'Test missing',
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('idempotency: gửi lại cùng requestKey trả về kết quả hiện tại, không cộng trùng tồn kho hay tạo thêm StockMovement', async () => {
+      const { service, tx, variant } = setup();
+      const requestKey = '11111111-1111-4111-8111-111111111111';
+      tx.productVariant.findUnique.mockResolvedValue({
+        ...variant,
+        inventory: { quantityOnHand: 25 },
+      });
+      tx.stockMovement.findUnique.mockResolvedValue({
+        id: 'sm-existing',
+        productVariantId: 'v1',
+        movementType: 'RECEIPT',
+        quantityDelta: 15,
+        reason: 'Nhập lô hàng Yody tháng 11',
+        requestKey,
+        createdAt: new Date('2026-11-14T08:00:00Z'),
+      });
+      tx.stockMovement.findMany.mockResolvedValue([
+        {
+          id: 'sm-existing',
+          movementType: 'RECEIPT',
+          quantityDelta: 15,
+          reason: 'Nhập lô hàng Yody tháng 11',
+          createdAt: new Date('2026-11-14T08:00:00Z'),
+        },
+      ]);
+      tx.stockMovement.count.mockResolvedValue(1);
+
+      const result = await service.adjust(
+        'v1',
+        {
+          type: 'RECEIPT',
+          quantity: 15,
+          reason: 'Nhập lô hàng Yody tháng 11',
+          requestKey,
+        },
+        'admin-user-1',
+      );
+
+      expect(tx.inventory.upsert).not.toHaveBeenCalled();
+      expect(tx.stockMovement.create).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        id: 'v1',
+        quantityOnHand: 25,
+        reservedQuantity: 3,
+        availableQuantity: 22,
+      });
+      expect(result.movements.total).toBe(1);
+    });
+
+    it('idempotency: từ chối 409 Conflict khi dùng lại requestKey cho số lượng hoặc nội dung khác', async () => {
+      const { service, tx } = setup();
+      const requestKey = '22222222-2222-4222-8222-222222222222';
+      tx.stockMovement.findUnique.mockResolvedValue({
+        id: 'sm-existing',
+        productVariantId: 'v1',
+        movementType: 'RECEIPT',
+        quantityDelta: 15,
+        reason: 'Nhập lô hàng Yody tháng 11',
+        requestKey,
+        createdAt: new Date('2026-11-14T08:00:00Z'),
+      });
+
+      await expect(
+        service.adjust('v1', {
+          type: 'RECEIPT',
+          quantity: 30,
+          reason: 'Nhập lô hàng Yody tháng 11',
+          requestKey,
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      expect(tx.inventory.upsert).not.toHaveBeenCalled();
+      expect(tx.stockMovement.create).not.toHaveBeenCalled();
     });
   });
 });

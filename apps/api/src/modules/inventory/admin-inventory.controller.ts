@@ -1,6 +1,17 @@
-import { Controller, Get, Header, Param, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiConflictResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -8,9 +19,10 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
-import { RequireRoles, RoleCode } from '../auth/index.js';
+import { CurrentUser, type CurrentUserType, RequireRoles, RoleCode } from '../auth/index.js';
 import { AdminInventoryService } from './admin-inventory.service.js';
 import {
+  AdminAdjustStockDto,
   AdminInventoryDetail,
   AdminInventoryPage,
   AdminLowStockResponse,
@@ -48,5 +60,22 @@ export class AdminInventoryController {
   @ApiNotFoundResponse({ description: 'Không tìm thấy biến thể' })
   detail(@Param() { id }: InventoryVariantParam, @Query() query: InventoryPageQuery) {
     return this.inventory.detail(id, query);
+  }
+
+  @Post(':id/adjust')
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @ApiOkResponse({ type: AdminInventoryDetail })
+  @ApiNotFoundResponse({ description: 'Không tìm thấy biến thể' })
+  @ApiConflictResponse({ description: 'requestKey đã được sử dụng cho thao tác điều chỉnh khác' })
+  @ApiBadRequestResponse({
+    description: 'Số lượng hoặc lý do không hợp lệ, hoặc nhỏ hơn lượng đang giữ cho đơn hàng',
+  })
+  adjust(
+    @Param() { id }: InventoryVariantParam,
+    @Body() dto: AdminAdjustStockDto,
+    @CurrentUser() user: CurrentUserType,
+  ) {
+    return this.inventory.adjust(id, dto, user.id);
   }
 }
