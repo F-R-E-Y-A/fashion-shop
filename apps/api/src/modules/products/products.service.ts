@@ -4,6 +4,7 @@ import { skipOf, toPage } from '../../common/pagination/page.response.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { InventoryService } from '../inventory/index.js';
+import { lockCategoryBySlug } from './category-visibility.js';
 import { ListProductsQuery } from './dto/list-products.query.js';
 import { ProductListResponse, ProductResponse } from './dto/product.response.js';
 import { ProductDetailResponse } from './dto/product-detail.response.js';
@@ -96,11 +97,15 @@ export class ProductsService {
     const invalid = validateRow(row);
     if (invalid) throw invalid;
 
-    const category = await tx.category.findUnique({
-      where: { slug: row.categorySlug },
-      include: { _count: { select: { children: true } } },
-    });
-    if (!category || category._count.children > 0) {
+    const category = await lockCategoryBySlug(tx, row.categorySlug);
+    if (!category) {
+      throw new ImportRowError(
+        'CATEGORY_NOT_FOUND',
+        `Danh mục lá không tồn tại: ${row.categorySlug}`,
+      );
+    }
+    const childCount = await tx.category.count({ where: { parentId: category.id } });
+    if (childCount > 0) {
       throw new ImportRowError(
         'CATEGORY_NOT_FOUND',
         `Danh mục lá không tồn tại: ${row.categorySlug}`,

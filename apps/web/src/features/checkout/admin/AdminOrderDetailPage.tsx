@@ -28,7 +28,17 @@ import { orderListPath, parseOrderListSearch } from './order-list-query.js';
 
 type Dialog =
   | {
-      kind: 'confirmCod' | 'startProcessing' | 'cancelRefund' | 'markDelivered' | 'deliveryFailed';
+      kind:
+        | 'confirmCod'
+        | 'startProcessing'
+        | 'cancelRefund'
+        | 'markDelivered'
+        | 'deliveryFailed'
+        | 'createShipment'
+        | 'shipmentInTransit'
+        | 'shipmentDelivered'
+        | 'shipmentFailed'
+        | 'shipmentReturned';
     }
   | { kind: 'refund' | 'resolve'; ledger: PaymentLedger };
 
@@ -86,12 +96,40 @@ function AdminOrderDetail() {
           signal: controller.signal,
           ...(body ? { body } : {}),
         });
+      const patch = (path: string, body?: object) =>
+        request<unknown>(path, {
+          method: 'PATCH',
+          signal: controller.signal,
+          ...(body ? { body } : {}),
+        });
       try {
         switch (current.kind) {
           case 'confirmCod':
             return await post(`/admin/orders/${id}/confirm-cod`);
           case 'startProcessing':
             return await post(`/admin/orders/${id}/start-processing`);
+          case 'createShipment':
+            return await post(`/admin/orders/${id}/shipment`, { carrierName: 'GHN' });
+          case 'shipmentInTransit':
+            return await patch(`/admin/orders/${id}/shipment/status`, {
+              status: 'IN_TRANSIT',
+              note: 'Shipper đã lấy hàng và đang giao (Mô phỏng Sandbox)',
+            });
+          case 'shipmentDelivered':
+            return await patch(`/admin/orders/${id}/shipment/status`, {
+              status: 'DELIVERED',
+              note: 'Đã giao thành công đến khách (Mô phỏng Sandbox)',
+            });
+          case 'shipmentFailed':
+            return await patch(`/admin/orders/${id}/shipment/status`, {
+              status: 'FAILED',
+              note: text.trim() || 'Giao hàng thất bại (Mô phỏng Sandbox)',
+            });
+          case 'shipmentReturned':
+            return await patch(`/admin/orders/${id}/shipment/status`, {
+              status: 'RETURNED',
+              note: 'Hàng đã hoàn về kho (Mô phỏng Sandbox)',
+            });
           case 'cancelRefund':
             return await post(`/admin/orders/${id}/cancel-refund`, { reason: text.trim() });
           case 'markDelivered':
@@ -357,6 +395,32 @@ function AdminOrderDetail() {
                       {order.address.province}
                     </dd>
                   </div>
+                  {order.shipment && (
+                    <>
+                      <div>
+                        <dt>Đơn vị vận chuyển</dt>
+                        <dd>{order.shipment.carrierName || 'GHN'} (Mô phỏng Sandbox)</dd>
+                      </div>
+                      <div>
+                        <dt>Mã vận đơn</dt>
+                        <dd>
+                          <code>{order.shipment.trackingNumber || 'Chưa tạo'}</code>
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Trạng thái vận chuyển</dt>
+                        <dd>
+                          {order.shipment.status === 'PENDING'
+                            ? 'Chờ lấy hàng'
+                            : order.shipment.status === 'IN_TRANSIT'
+                              ? 'Đang giao'
+                              : order.shipment.status === 'DELIVERED'
+                                ? 'Đã giao'
+                                : 'Giao thất bại'}
+                        </dd>
+                      </div>
+                    </>
+                  )}
                 </dl>
               </section>
 
@@ -373,6 +437,56 @@ function AdminOrderDetail() {
                       onClick={() => open({ kind: 'confirmCod' })}
                     >
                       Xác nhận và giao COD
+                    </button>
+                  )}
+                  {['CONFIRMED', 'PROCESSING'].includes(order.status) && !order.shipment && (
+                    <button
+                      type="button"
+                      className={styles.primaryButton}
+                      disabled={action.isPending || needsRecheck}
+                      onClick={() => open({ kind: 'createShipment' })}
+                    >
+                      Tạo vận đơn GHN (Sandbox)
+                    </button>
+                  )}
+                  {order.shipment && order.shipment.status === 'PENDING' && (
+                    <button
+                      type="button"
+                      className={styles.primaryButton}
+                      disabled={action.isPending || needsRecheck}
+                      onClick={() => open({ kind: 'shipmentInTransit' })}
+                    >
+                      Mô phỏng: Shipper lấy hàng
+                    </button>
+                  )}
+                  {order.shipment && order.shipment.status === 'IN_TRANSIT' && (
+                    <>
+                      <button
+                        type="button"
+                        className={styles.primaryButton}
+                        disabled={action.isPending || needsRecheck}
+                        onClick={() => open({ kind: 'shipmentDelivered' })}
+                      >
+                        Mô phỏng: Giao thành công
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.dangerButton}
+                        disabled={action.isPending || needsRecheck}
+                        onClick={() => open({ kind: 'shipmentFailed' })}
+                      >
+                        Mô phỏng: Giao thất bại
+                      </button>
+                    </>
+                  )}
+                  {order.shipment && order.shipment.status === 'FAILED' && (
+                    <button
+                      type="button"
+                      className={styles.primaryButton}
+                      disabled={action.isPending || needsRecheck}
+                      onClick={() => open({ kind: 'shipmentReturned' })}
+                    >
+                      Mô phỏng: Hàng hoàn về kho
                     </button>
                   )}
                   {order.actions.startProcessing && (
@@ -539,11 +653,18 @@ function AdminOrderDetail() {
 
 const hasAction = (order: AdminOrder) =>
   Object.values(order.actions).some(Boolean) ||
+  ['CONFIRMED', 'PROCESSING'].includes(order.status) ||
+  Boolean(order.shipment) ||
   order.ledgers.some((ledger) => ledger.refundableAmount || ledger.pendingRefund?.resolvable);
 
 const TITLE: Record<Dialog['kind'], string> = {
   confirmCod: 'Xác nhận và giao COD',
   startProcessing: 'Bắt đầu xử lý',
+  createShipment: 'Tạo vận đơn GHN (Mô phỏng Sandbox)',
+  shipmentInTransit: 'Cập nhật vận chuyển: Shipper lấy hàng (IN_TRANSIT)',
+  shipmentDelivered: 'Cập nhật vận chuyển: Giao thành công (DELIVERED)',
+  shipmentFailed: 'Cập nhật vận chuyển: Giao thất bại (FAILED)',
+  shipmentReturned: 'Cập nhật vận chuyển: Hàng hoàn về kho (RETURNED)',
   cancelRefund: 'Hủy và hoàn tiền',
   markDelivered: 'Đánh dấu đã giao',
   deliveryFailed: 'Ghi giao thất bại',
@@ -553,6 +674,11 @@ const TITLE: Record<Dialog['kind'], string> = {
 const TONE: Record<Dialog['kind'], 'danger' | 'primary'> = {
   confirmCod: 'primary',
   startProcessing: 'primary',
+  createShipment: 'primary',
+  shipmentInTransit: 'primary',
+  shipmentDelivered: 'primary',
+  shipmentFailed: 'danger',
+  shipmentReturned: 'primary',
   cancelRefund: 'danger',
   markDelivered: 'primary',
   deliveryFailed: 'danger',
@@ -562,6 +688,12 @@ const TONE: Record<Dialog['kind'], 'danger' | 'primary'> = {
 const DONE: Record<Dialog['kind'], string> = {
   confirmCod: 'Đã xác nhận đơn COD và chốt kho.',
   startProcessing: 'Đơn chuyển sang đang xử lý.',
+  createShipment: 'Đã tạo vận đơn vận chuyển GHN (Mô phỏng Sandbox).',
+  shipmentInTransit: 'Hãng đã lấy hàng, đơn chuyển sang Đang giao.',
+  shipmentDelivered: 'Giao hàng thành công, đơn chuyển sang Đã giao.',
+  shipmentFailed: 'Đã ghi vận đơn giao thất bại. Chờ hàng hoàn về kho để trả kho và hủy đơn COD.',
+  shipmentReturned:
+    'Đã ghi nhận hàng hoàn về kho. Đơn COD đã trả kho và hủy; đơn trả trước giữ nguyên để hoàn tiền.',
   cancelRefund: 'Đã hủy đơn, hàng về kho. Kiểm tra kết quả hoàn bên dưới.',
   markDelivered: 'Đã ghi nhận giao hàng.',
   deliveryFailed: 'Đã ghi giao thất bại, hàng trả về kho.',
@@ -582,6 +714,31 @@ function impacts(dialog: Dialog, order: AdminOrder): string[] {
       return [
         'Đã gọi khách xác nhận đơn.',
         'Kho bị trừ, đơn không còn tự hủy sau 3 ngày; khách không tự hủy được nữa.',
+      ];
+    case 'createShipment':
+      return [
+        'Tạo mã vận đơn mô phỏng GHN-SBX-... cho đơn hàng.',
+        'Đơn chuyển sang Đang xử lý nếu đang ở Đã thanh toán.',
+      ];
+    case 'shipmentInTransit':
+      return [
+        'Cập nhật trạng thái vận đơn khi shipper đã lấy hàng từ kho.',
+        'Đơn chuyển sang trạng thái Đang giao.',
+      ];
+    case 'shipmentDelivered':
+      return [
+        'Cập nhật trạng thái vận đơn sang giao hàng thành công.',
+        'Đơn chuyển sang Đã giao và xác nhận thanh toán COD (nếu có).',
+      ];
+    case 'shipmentFailed':
+      return [
+        'Ghi nhận vận đơn giao thất bại. Hàng còn trên đường hoàn nên chưa cộng kho, chưa hủy đơn.',
+        'Khi hãng báo hàng đã về kho, bấm "Mô phỏng: Hàng hoàn về kho" để xử lý tiếp.',
+      ];
+    case 'shipmentReturned':
+      return [
+        'Hàng về tới kho: cộng lại tồn kho một lần.',
+        'Đơn COD chuyển Đã hủy và ghi giao thất bại. Đơn trả trước không tự hủy: hoàn tiền ở mục Hoàn tiền.',
       ];
     case 'startProcessing':
       return ['Khách không còn tự hủy và nhận hoàn tiền tự động được nữa.'];

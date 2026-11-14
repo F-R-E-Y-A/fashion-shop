@@ -229,6 +229,70 @@ export class CartService {
     });
   }
 
+  /**
+   * Doi mot dong gio sang bien the khac cua CUNG san pham (doi mau, co), giu so luong.
+   * Bien the moi da co trong gio thi gop vao dong do. Kiem ton tren so luong SAU khi gop, nhu addItem.
+   */
+  async switchVariant(
+    fromVariantId: string,
+    toVariantId: string,
+    userId?: string,
+    guestToken?: string,
+  ): Promise<CartResponse> {
+    return this.withCart(userId, guestToken, async (transaction, cart) => {
+      const fromKey = { cartId: cart.id, productVariantId: fromVariantId };
+      const from = await transaction.cartItem.findUnique({
+        where: { cartId_productVariantId: fromKey },
+      });
+      if (!from) throw new NotFoundException('Không tìm thấy dòng giỏ hàng.');
+      if (toVariantId === fromVariantId) return this.readCart(transaction, cart);
+
+      const [current, target] = await Promise.all([
+        this.products.getVariantForCart(fromVariantId, transaction),
+        this.products.getVariantForCart(toVariantId, transaction),
+      ]);
+      if (!target) throw new NotFoundException('Không tìm thấy biến thể sản phẩm.');
+      if (!current || current.productId !== target.productId) {
+        throw new BadRequestException('Chỉ đổi được sang màu hoặc cỡ khác của cùng sản phẩm.');
+      }
+      if (!target.isActive) throw new BadRequestException('Biến thể sản phẩm này đã ngừng bán.');
+
+      const toKey = { cartId: cart.id, productVariantId: toVariantId };
+      const existing = await transaction.cartItem.findUnique({
+        where: { cartId_productVariantId: toKey },
+      });
+      const quantity = from.quantity + (existing?.quantity ?? 0);
+      if (quantity > 2_147_483_647) {
+        throw new BadRequestException('Số lượng vượt giới hạn hỗ trợ.');
+      }
+      const available = (
+        await this.inventory.getAvailableQuantities([toVariantId], transaction)
+      ).get(toVariantId);
+      if (available === 0) throw new ConflictException('Phân loại này hiện đã hết hàng.');
+      if (available !== null && available !== undefined && quantity > available) {
+        throw new ConflictException(
+          `Phân loại này chỉ còn ${available} sản phẩm. Vui lòng giảm số lượng trước khi đổi.`,
+        );
+      }
+
+      // Doi phan loai la thao tac chu dong: dong ket qua duoc chon. Truong hop chinh la dong cu het
+      // hang (readCart da tu bo chon), khach doi sang co con hang de mua tiep.
+      if (existing) {
+        await transaction.cartItem.update({
+          where: { cartId_productVariantId: toKey },
+          data: { quantity, isSelected: true },
+        });
+        await transaction.cartItem.delete({ where: { cartId_productVariantId: fromKey } });
+      } else {
+        await transaction.cartItem.update({
+          where: { cartId_productVariantId: fromKey },
+          data: { productVariantId: toVariantId, isSelected: true },
+        });
+      }
+      return this.readCart(transaction, cart);
+    });
+  }
+
   async removeItem(variantId: string, userId?: string, guestToken?: string): Promise<CartResponse> {
     return this.withCart(userId, guestToken, async (transaction, cart) => {
       await transaction.cartItem.deleteMany({

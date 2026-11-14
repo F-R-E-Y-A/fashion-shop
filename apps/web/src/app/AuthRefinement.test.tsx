@@ -20,6 +20,7 @@ vi.mock('@/features/products', () => ({
   AdminCatalogPage: () => null,
   AdminCatalogDetailPage: () => null,
   AdminCategoriesPage: () => null,
+  AdminCategoryNewPage: () => null,
   AdminCategoryDetailPage: () => null,
   AdminProductsPage: () => null,
 }));

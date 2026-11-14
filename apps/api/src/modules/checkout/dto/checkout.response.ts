@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CheckoutAddressResponse {
   @ApiProperty() id!: string;
@@ -66,6 +66,18 @@ export class OrderItemResponse {
   @ApiProperty() price!: string;
   @ApiProperty({ type: ProductSnapshotResponse }) snapshot!: ProductSnapshotResponse;
 }
+export class ShipmentResponse {
+  @ApiProperty() id!: string;
+  @ApiPropertyOptional({ type: String, nullable: true }) carrierName!: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) trackingNumber!: string | null;
+  @ApiProperty({ enum: ['PENDING', 'IN_TRANSIT', 'DELIVERED', 'FAILED', 'RETURNED'] })
+  status!: string;
+  @ApiPropertyOptional({ type: Boolean, description: 'Đánh dấu vận đơn mô phỏng (Sandbox)' })
+  isMock?: boolean;
+  @ApiProperty() createdAt!: string;
+  @ApiProperty() updatedAt!: string;
+}
+
 export class PaymentResponse {
   @ApiProperty() id!: string;
   @ApiProperty({ type: String, nullable: true }) gateway!: string | null;
@@ -93,6 +105,8 @@ export class OrderResponse {
   @ApiProperty({ description: 'Khach huy duoc don luc nay' }) canCancel!: boolean;
   @ApiProperty({ description: 'Huy luc nay se hoan tien tu dong (ADR-038)' })
   cancelRefunds!: boolean;
+  @ApiPropertyOptional({ type: ShipmentResponse, nullable: true })
+  shipment?: ShipmentResponse | null;
 }
 export class IpnResponse {
   @ApiProperty() RspCode!: string;

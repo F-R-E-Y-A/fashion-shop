@@ -1,6 +1,6 @@
 ---
 title: Môi trường thử — dựng và vận hành
-updated: 2026-11-12
+updated: 2026-11-14
 status: đang dùng
 owner: Bảo
 ---
@@ -19,7 +19,9 @@ Máy chủ chạy **Render**, giao diện chạy **Vercel**. Đây là lựa ch�
 
 ## Ai bấm gì
 
-Triển khai **tự chạy sau khi gộp vào `develop` và CI xanh**: CI chạy bảy chặng → `cd-staging.yml` gọi Render Deploy Hook → đợi `/api/healthz` trả đúng mã commit vừa gộp → gọi thử một đường dẫn thật. Render để `autoDeployTrigger: off` để không dựng hai lần cho cùng commit. Vercel theo dõi `develop` trực tiếp và tự dựng giao diện mỗi khi nhánh có commit mới.
+Triển khai **tự chạy sau khi gộp vào `develop` và CI xanh**: CI chạy bảy chặng → `cd-staging.yml` gọi Render Deploy Hook **kèm `ref=<mã commit>`** → đợi `/api/healthz` trả đúng mã commit vừa gộp → gọi thử một đường dẫn thật. Render để `autoDeployTrigger: off` để không dựng hai lần cho cùng commit. Vercel theo dõi `develop` trực tiếp và tự dựng giao diện mỗi khi nhánh có commit mới.
+
+Từ 14/11 ([ADR-065](LOG.md#adr-065)): mỗi commit trên `develop` có một lượt CI riêng, gộp dồn không còn huỷ lượt của commit giữa. CI các commit chạy song song nên có thể xanh lệch thứ tự; CD hỏi `/api/healthz` trước, staging đã chạy bản chứa commit này thì bỏ qua (bước gọi Render hiện `skipped`), để staging không lùi về bản cũ. Còn hở: nhóm `cd-staging` chỉ giữ một lượt chờ, gộp ba PR trong vòng một lượt CD (2–5 phút) thì lượt ở giữa bị thay; staging vẫn đúng bản nhưng thiếu một lần đếm triển khai. Máy không chặn việc này; gộp cách nhau vài phút chỉ là lời khuyên. Không dùng merge queue tới 22/11, lý do ở [LOG.md](LOG.md) mục 14/11 "Không bật merge queue". **Hạn chế đã biết:** giao diện trên Vercel không chờ CI; web mới có thể chạy trước API khoảng 10–15 phút (suy luận).
 
 Làm vậy để lịch sử triển khai và thời gian từ commit tới khi lên môi trường thử đều nằm trong GitHub Actions, đúng thứ rubric TC2.6 đòi. Nếu để Render tự dựng khi thấy commit mới thì mã chưa qua kiểm cũng lên, và không có số liệu nào để nộp.
 

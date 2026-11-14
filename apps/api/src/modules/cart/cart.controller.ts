@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -52,6 +53,12 @@ export class CartController {
     @CurrentUser() user?: CurrentUserType,
     @Headers('x-guest-token') guestToken?: string,
   ): Promise<CartResponse> {
+    if (dto.toVariantId !== undefined) {
+      if (dto.quantity !== undefined || dto.isSelected !== undefined) {
+        throw new BadRequestException('Đổi phân loại không đi kèm số lượng hay trạng thái chọn.');
+      }
+      return this.cartService.switchVariant(variantId, dto.toVariantId, user?.id, guestToken);
+    }
     return this.cartService.updateItem(
       variantId,
       dto.quantity,
