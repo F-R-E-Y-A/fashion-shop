@@ -546,3 +546,75 @@ describe('PH-11 checkout UI', () => {
     expect(screen.queryByText('Chưa chọn sản phẩm để thanh toán')).not.toBeInTheDocument();
   });
 });
+
+describe('UC-14.1 trả hàng trên trang đơn', () => {
+  const eligibility = {
+    eligible: true,
+    blocker: null,
+    deadline: '2026-11-29T03:00:00.000Z',
+    existingReturnId: null,
+    refundMethod: 'GATEWAY',
+    uploadsEnabled: false,
+    windowDays: 15,
+    mediaMax: 3,
+    items: [],
+  };
+  const answer = (status: string, returns: object) =>
+    request.mockImplementation(async (path: string) =>
+      path.endsWith('/returns/eligibility')
+        ? returns
+        : path === '/reviews/eligible'
+          ? []
+          : order(status),
+    );
+  const eligibilityCalls = () =>
+    request.mock.calls.filter(([path]) => String(path).endsWith('/returns/eligibility'));
+
+  it('UC-14.1/AC9 đơn đã giao đủ điều kiện: hiện nút "Yêu cầu trả hàng" kèm hạn trả', async () => {
+    answer('DELIVERED', eligibility);
+    show('/don-hang/o1');
+    expect(await screen.findByRole('button', { name: 'Yêu cầu trả hàng' })).toBeInTheDocument();
+    expect(screen.getByText(/Hạn trả: /)).toBeInTheDocument();
+    expect(request).toHaveBeenCalledWith(
+      '/orders/o1/returns/eligibility',
+      expect.objectContaining({}),
+    );
+  });
+  it('UC-14.1/AC9 đơn đã có yêu cầu: không có nút, có liên kết tới yêu cầu đó', async () => {
+    answer('DELIVERED', {
+      ...eligibility,
+      eligible: false,
+      blocker: 'RETURN_EXISTS',
+      existingReturnId: 'r9',
+    });
+    show('/don-hang/o1');
+    const link = await screen.findByRole('link', { name: 'Xem yêu cầu trả hàng' });
+    expect(link).toHaveAttribute('href', '/tai-khoan/tra-hang/r9');
+    expect(screen.queryByRole('button', { name: 'Yêu cầu trả hàng' })).not.toBeInTheDocument();
+  });
+  it('UC-14.1/AC9 quá hạn: không có nút và báo đã quá hạn', async () => {
+    answer('DELIVERED', { ...eligibility, eligible: false, blocker: 'WINDOW_CLOSED' });
+    show('/don-hang/o1');
+    expect(await screen.findByText(/quá hạn 15 ngày/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Yêu cầu trả hàng' })).not.toBeInTheDocument();
+  });
+  it('UC-14.1/AC9 đơn đã hoàn tiền sau khi trả: vẫn có liên kết tới yêu cầu trả đã xong', async () => {
+    answer('PARTIALLY_REFUNDED', {
+      ...eligibility,
+      eligible: false,
+      blocker: 'NOT_DELIVERED',
+      existingReturnId: 'r9',
+    });
+    show('/don-hang/o1');
+    const link = await screen.findByRole('link', { name: 'Xem yêu cầu trả hàng' });
+    expect(link).toHaveAttribute('href', '/tai-khoan/tra-hang/r9');
+    expect(screen.queryByRole('button', { name: 'Yêu cầu trả hàng' })).not.toBeInTheDocument();
+  });
+  it('UC-14.1/AC3 đơn chưa giao: không hỏi điều kiện trả hàng ở máy chủ', async () => {
+    answer('PROCESSING', eligibility);
+    show('/don-hang/o1');
+    expect(await screen.findByText('Mã đơn')).toBeInTheDocument();
+    expect(eligibilityCalls()).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: 'Yêu cầu trả hàng' })).not.toBeInTheDocument();
+  });
+});

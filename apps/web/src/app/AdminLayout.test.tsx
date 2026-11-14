@@ -59,6 +59,7 @@ function mount(path = '/admin/users') {
             <Route path="orders" element={<h1>Đơn hiện có</h1>} />
             <Route path="reports" element={<h1>Báo cáo bán hàng</h1>} />
             <Route path="reviews" element={<h1>Kiểm duyệt đánh giá</h1>} />
+            <Route path="returns" element={<h1>Duyệt trả hàng</h1>} />
           </Route>
           <Route path="/" element={<h1>Cửa hàng hiện có</h1>} />
         </Routes>
@@ -160,6 +161,7 @@ describe('UC-02.1/AC9 khung admin — Issue #59', () => {
   it.each([
     ['/admin/reports', 'Báo cáo', 'Báo cáo bán hàng'],
     ['/admin/reviews', 'Đánh giá', 'Kiểm duyệt đánh giá'],
+    ['/admin/returns', 'Trả hàng', 'Duyệt trả hàng'],
   ])('UC-02.1/AC9 tích hợp %s giữ route, menu active và breadcrumb', (path, label, heading) => {
     media();
     mount(path);
@@ -188,6 +190,7 @@ describe('UC-02.1/AC9 khung admin — Issue #59', () => {
       '/admin/users',
       '/admin/orders',
       '/admin/reviews',
+      '/admin/returns',
     ]);
     expect(screen.getByText('admin@example.test')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Cửa hàng/ })).toHaveAttribute('href', '/');

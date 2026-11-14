@@ -23,6 +23,9 @@ export function AccountLayout() {
         <NavLink to="danh-gia" className={({ isActive }) => (isActive ? styles.active : '')}>
           Đánh giá
         </NavLink>
+        <NavLink to="tra-hang" className={({ isActive }) => (isActive ? styles.active : '')}>
+          Trả hàng
+        </NavLink>
         <NavLink to="doi-mat-khau" className={({ isActive }) => (isActive ? styles.active : '')}>
           Đổi mật khẩu
         </NavLink>
