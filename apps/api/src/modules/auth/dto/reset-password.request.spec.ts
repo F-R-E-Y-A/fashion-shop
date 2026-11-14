@@ -6,7 +6,7 @@ import { ResetPasswordRequest } from './reset-password.request.js';
 describe('ResetPasswordRequest proof validation (dual-contract)', () => {
   it('accepts valid new-contract payload with resetToken', async () => {
     const request = Object.assign(new ResetPasswordRequest(), {
-      resetToken: 'd9b1c73a45c3614995f9d85aa990146747ddb8d6e7b1583c7c2b6ab8e3110589',
+      resetToken: 'a'.repeat(64),
       newPassword: 'Password123',
     });
 
@@ -76,7 +76,7 @@ describe('ResetPasswordRequest proof validation (dual-contract)', () => {
 
   it('rejects invalid password format regardless of valid proof', async () => {
     const request = Object.assign(new ResetPasswordRequest(), {
-      resetToken: 'd9b1c73a45c3614995f9d85aa990146747ddb8d6e7b1583c7c2b6ab8e3110589',
+      resetToken: 'a'.repeat(64),
       newPassword: 'weak',
     });
 
