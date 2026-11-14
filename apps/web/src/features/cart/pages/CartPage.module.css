@@ -87,10 +87,44 @@
   font-weight: 500;
   line-height: 1.3;
 }
-.variant {
+/* Nhan phan loai bam duoc de doi mau/co ngay trong gio. */
+.variantToggle {
+  align-self: flex-start;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--s-1);
+  cursor: pointer;
+}
+.variantToggle[aria-expanded='true'] {
+  border-color: var(--accent);
+}
+.variantToggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+.variantToggle:focus-visible,
+.linkButton:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.variantNote {
   margin: 0;
   color: var(--muted);
   font-size: var(--s-1);
+}
+.linkButton {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
 }
 .unitPrice {
   margin: 0;
@@ -264,7 +298,7 @@
   cursor: not-allowed;
 }
 .ordersLink {
-  justify-self: start;
+  align-self: flex-start;
   color: var(--on-dark-muted);
   font-size: var(--s-1);
   text-decoration: underline;
@@ -274,7 +308,7 @@
   color: var(--on-dark);
 }
 .clear {
-  justify-self: start;
+  align-self: flex-start;
   border: 0;
   padding: 0;
   background: transparent;
