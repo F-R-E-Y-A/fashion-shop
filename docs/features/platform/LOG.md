@@ -175,44 +175,19 @@ Thực tế: (điền sau lần gộp thử).
 ### Điều kiện xem lại
 CD vẫn bị thay khi gộp sát nhau và làm hụt số lần triển khai, hoặc `develop` đỏ vì bản ghép chưa kiểm: chuyển sang C.
 
-<a id="adr-066"></a>
-## 2026-11-14 · ADR-066 — Gộp vào develop qua merge queue, mỗi lần một PR, kiểm trên bản ghép
+## 2026-11-14 · Không bật merge queue tới 22/11; PR vào `feature/**` có CI
 
-**Loại:** quyết định · **Phạm vi:** `.github/workflows/ci.yml`, ruleset `develop-bat-buoc-review` (26305126); cách gộp của cả nhóm · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+**Loại:** cấu hình · **Phạm vi:** `.github/workflows/ci.yml`, cách gộp vào `develop`, PR `task/` → `feature/` · **Commit:** (điền khi gộp)
 
-### Hiện trạng
-- [ADR-065](#adr-065) cho mỗi commit trên `develop` một lượt CI riêng, nhưng còn hai chỗ hở. Thứ nhất, nhóm `cd-staging` chỉ giữ một lượt chờ, nên gộp sát nhau thì lượt CD ở giữa vẫn bị thay. Thứ hai, bản ghép chỉ được kiểm sau khi đã vào `develop`, vì ruleset 26305126 để `strict_required_status_checks_policy: false` (`gh api repos/F-R-E-Y-A/fashion-shop/rulesets/26305126`, 14/11).
-- Quy ước tay "gộp từng PR một, chờ CD xanh" chỉ dựa vào kỷ luật. Sáng 13/11 có 4 lần gộp trong 4 phút.
-- Ruleset có ô "Require merge queue", không gắn nhãn Enterprise (Bảo mở Settings → Rules, xem chỉ đọc 14/11). Sáu kiểm bắt buộc đều là job của GitHub Actions (`integration_id` 15368), nên chạy được trên sự kiện `merge_group`.
+Đã thử thêm trigger `merge_group` để bật merge queue cho `develop` ([4292f41](https://github.com/F-R-E-Y-A/fashion-shop/commit/4292f41), PR #121), rồi Bảo bỏ cùng ngày; commit hoàn tác nằm trong cùng PR với mục này. Ruleset 26305126 chưa từng đổi. Số `adr-066` đã ghi ở 4292f41 rồi gỡ, không dùng lại.
 
-### Phương án
-| Phương án | Được gì | Mất gì | Đảo ngược được không |
-|---|---|---|---|
-| A. Giữ quy ước tay | Không sửa gì | Phụ thuộc kỷ luật; bản ghép vẫn không được kiểm trước | — |
-| **B. Merge queue: gộp lần lượt từng PR (`max_entries_to_build` = `max_entries_to_merge` = 1), phương thức merge commit (chọn)** | GitHub tự xếp hàng, kiểm sáu chặng trên bản ghép với `develop` rồi mới gộp. Mỗi lần gộp cách nhau ít nhất một lượt CI (khoảng 10 phút), dài hơn một lượt CD, nên CD không còn bị thay. Giữ merge commit theo [ADR-005](../../LOG.md#adr-005) | Nút Merge thường bị khoá, nhóm bấm "Merge when ready". Mỗi PR chờ trong hàng khoảng 10 phút, lâu hơn nếu hàng có nhiều PR. Mỗi lần gộp chạy CI hai lần: một lượt trên bản ghép, một lượt push sau khi gộp để kích CD | Dễ: bỏ luật `merge_queue` khỏi ruleset; trigger `merge_group` để lại cũng không hại |
-| C. Bật strict | Kiểm bản ghép | Mỗi lần cập nhật nhánh mất approve (`dismiss_stale_reviews_on_push`, đã xảy ra ở #89) | Dễ |
-| D. Hàng chờ ghép nhiều PR một lượt | Nhanh hơn khi đông | Một lượt CD cho nhiều PR, lại hụt số lần triển khai; PR đỏ làm cả nhóm chạy lại | Dễ |
+Lý do bỏ: merge queue chỉ thêm một thứ so với [ADR-065](#adr-065): kiểm bản ghép trước khi vào `develop`. Hiện nay PR chỉ bị chặn khi có conflict git; `develop` mới hơn mà không conflict thì kết quả CI cũ vẫn được tính (`strict_required_status_checks_policy: false`). Lỗi kiểu này mới xảy ra 1 lần trong 46 lượt CI `develop`. Khi xảy ra, CD không chạy, staging giữ bản cũ đúng, và với ADR-065 biết ngay lần gộp nào gây ra. Cái giá: mỗi PR chờ thêm một lượt CI, bấm → staging từ khoảng 13–15 lên khoảng 23–25 phút, vì CI chạy hai lần trên cùng commit. Cắt được lượt thừa nếu CD chạy theo CI của hàng chờ, nhưng phải sửa CD và cách đo đúng tuần cuối.
 
-**Chọn B.** Nhóm ba người hiếm khi có hơn hai PR cùng chờ, nên 10 phút mỗi PR chấp nhận được. Đổi lại, quy ước tay không còn cần.
+| Chỉ số (đo bằng lệnh nào) | Giá trị 14/11 |
+|---|---|
+| CI xanh, thời gian từ lúc tạo tới lúc xong (`gh run list -w CI -s success -L 30`) | trung bình 9,4 phút (PR, 25 lượt), 10,0 phút (push `develop`, 5 lượt); chặng chậm nhất là 4, 6–11 phút |
+| CD xanh (`gh run list -w "CD staging" -s success -L 8`) | 2–5 phút |
 
-**Thứ tự bắt buộc:** chỉ bật luật trong ruleset **sau khi** `ci.yml` có `merge_group` đã vào `develop`. Bật trước thì hàng chờ đợi kiểm không bao giờ chạy và không gộp được PR nào. Luật dự kiến:
+Cùng mục: PR vào `feature/**` có CI (việc #56 gói 5), để mã trên nhánh feature được kiểm sớm thay vì chỉ qua hook ở máy. Không chặn gộp vì nhánh feature không có ruleset; mỗi PR task thêm khoảng 10 phút chờ kết quả.
 
-```json
-{"type":"merge_queue","parameters":{"merge_method":"MERGE","grouping_strategy":"ALLGREEN","max_entries_to_build":1,"min_entries_to_merge":1,"max_entries_to_merge":1,"min_entries_to_merge_wait_minutes":0,"check_response_timeout_minutes":60}}
-```
-
-### Phản biện
-| Bên | Nội dung | Kết cục |
-|---|---|---|
-| Câu hỏi phản biện | Bảo hỏi gói này thay quy ước "gộp từng PR một" thế nào | Hàng chờ tự gộp lần lượt, người không cần canh CD |
-| AI gợi ý | Claude Code (Opus 5.5, 14/11): giữ `max_entries_to_merge` = 1, vì gộp nhiều PR một lượt chỉ cho một lần triển khai, đúng lỗi đang sửa | giữ |
-
-**Kết luận:** PR vào `develop` đi qua merge queue, gộp lần lượt từng PR sau khi sáu chặng xanh trên bản ghép.
-**Bằng chứng:** commit thêm `merge_group` vào `ci.yml` (điền mã khi gộp). Ảnh chụp ruleset trước khi đổi lưu ngoài kho (`gh api …/rulesets/26305126`, 14/11).
-
-### Kết quả mong đợi → thực tế
-Mong đợi: sau khi bật, hai PR bấm "Merge when ready" cách nhau một phút được gộp cách nhau ít nhất một lượt CI, mỗi lần có một lượt CD gọi Render với `ref` đúng commit. Không còn lượt CI `develop` đỏ do bản ghép.
-Thực tế: (điền sau lần gộp đầu qua hàng chờ).
-
-### Điều kiện xem lại
-Hàng chờ kẹt quá 60 phút, hoặc nhóm phải gộp gấp mà hàng chậm: tạm bỏ luật trong ruleset, quay về quy ước tay của ADR-065.
+Xem lại khi: `develop` đỏ vì bản ghép thêm lần nữa, hoặc số lần triển khai bị hụt do gộp dồn. Khi đó bật merge queue kèm CD chạy theo CI của hàng chờ. Tài liệu đã sửa theo: [staging.md](staging.md), [git.md](../../shared/git.md).

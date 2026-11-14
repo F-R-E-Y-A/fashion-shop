@@ -11,20 +11,17 @@
 name: CI
 
 on:
+  # PR vao feature/** (tu nhanh task/) cung chay CI tu 14/11: bao do som, khong chan gop vi nhanh
+  # feature khong co ruleset. Truoc do ma tren nhanh feature chi qua hook o may toi buoc vao develop.
   pull_request:
-    branches: [develop, main]
+    branches: [develop, main, 'feature/**']
   push:
     branches: [develop, main]
-  # Merge queue cua develop (ADR-066): GitHub ghep PR voi develop tren nhanh tam gh-readonly-queue/...,
-  # cho CI chay tren ban ghep, xanh thi moi gop. Thieu trigger nay thi hang cho doi check mai.
-  merge_group:
-    types: [checks_requested]
 
 # Pull request: moi PR chi giu mot luot, day commit moi thi huy luot cu (luot cu khong con gia tri).
 # Push len develop/main: MOI COMMIT mot nhom rieng, khong huy nhau. Truoc day gop don thi luot CI cua
 # commit giua bi huy, CD cua no bi bo qua (13/11: 4 lan gop, 1 lan trien khai), va khong biet lan gop
 # nao lam do. Kho cong khai nen phut Actions khong tinh phi.
-# Merge queue: github.ref la nhanh tam rieng cua tung luot trong hang, nen cung khong huy nhau.
 concurrency:
   group: ci-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
