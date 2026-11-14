@@ -1,6 +1,6 @@
 ---
 title: Nền tảng — nhật ký quyết định và thay đổi
-updated: 2026-11-12
+updated: 2026-11-14
 status: đang dùng
 owner: Bảo
 ---
@@ -136,3 +136,41 @@ Thực tế: (điền sau khi Bảo chạy với URL thật).
 
 ### Điều kiện xem lại
 Staging phải giữ dữ liệu sau 08/12, có dữ liệu không tạo lại được, hoặc có lần quên chạy trước một mốc: chuyển sang A, hoặc B có mã hoá.
+
+<a id="adr-065"></a>
+## 2026-11-14 · ADR-065 — Mỗi commit trên develop có một lượt CI riêng; CD ghim commit và không lùi staging
+
+**Loại:** quyết định · **Phạm vi:** `.github/workflows/ci.yml`, `.github/workflows/cd-staging.yml`, `tools/evidence/github-metrics.mjs`; mọi người gộp vào `develop` · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- CI giữ một lượt mỗi nhánh và huỷ lượt cũ (`group: ci-${{ github.ref }}`, `cancel-in-progress: true`, `ci.yml:20–22` ở `5cfcf85`). Gộp dồn vào `develop` thì lượt CI của commit giữa bị huỷ, CD của nó bị bỏ qua (`cd-staging.yml:31` chỉ chạy khi CI xanh).
+- Đo 14/11 bằng `gh run list -R F-R-E-Y-A/fashion-shop`: 40 lượt CI push `develop` gần nhất có 32 xanh, 8 bị huỷ. CD từ trước tới nay có 10 lượt xanh, 8 bỏ qua, 2 bị huỷ. Đợt 13/11 08:52–08:56 có 4 lần gộp nhưng chỉ 1 lần triển khai.
+- CD gọi Render Deploy Hook không kèm commit, nên Render dựng commit mới nhất của `develop`. Commit này có thể chưa chạy xong CI (suy luận từ tài liệu Render: hook nhận `ref` để chỉ định commit, https://render.com/docs/deploy-hooks).
+- Script minh chứng tính run bị huỷ là "không xanh" (`github-metrics.mjs:58–59` ở `5cfcf85`).
+- Kết quả xanh của PR không hết hạn khi `develop` đổi (ruleset 26305126, `strict_required_status_checks_policy: false`). Quyết định này không sửa chỗ đó.
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Giữ nguyên, nhóm gộp từng PR một | Không sửa gì | Phụ thuộc kỷ luật; 13/11 đã gộp dồn | — |
+| **B. Mỗi commit push có nhóm CI riêng; CD gọi hook kèm `ref`; CD bỏ qua nếu staging đã chạy bản chứa commit này (chọn)** | Mỗi lần gộp có CI và CD riêng; biết lần gộp nào làm đỏ; Render dựng đúng commit đã qua CI; staging không lùi về bản cũ khi CI xanh lệch thứ tự | Thêm phút Actions (kho công khai nên không tính phí, suy luận); nhóm `cd-staging` chỉ giữ một lượt chờ, gộp sát nhau thì CD ở giữa vẫn bị thay | Dễ: trả lại ba khối YAML |
+| C. Merge queue | Kiểm cả bản ghép trước khi vào `develop`, gộp lần lượt | Đổi ruleset và cách gộp của cả nhóm; mỗi lần gộp chờ khoảng 10 phút | Dễ |
+| D. Bật strict | Kiểm bản ghép trước khi gộp | Mỗi lần cập nhật nhánh mất approve (`dismiss_stale_reviews_on_push`, đã xảy ra ở #89) | Dễ |
+
+**Chọn B** vì sửa được việc nuốt CI/CD và việc dựng nhầm commit mà không đổi cách làm của nhóm. C để sau: ô "Require merge queue" có trong ruleset (Bảo mở Settings → Rules, xem chỉ đọc 14/11). Trade-off chấp nhận: bản ghép vẫn chỉ được kiểm sau khi vào `develop`; giao diện trên Vercel vẫn không chờ CI ([staging.md](staging.md) mục "Ai bấm gì").
+
+### Phản biện
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| Câu hỏi phản biện | Bảo hỏi gói này có chặn được việc CI cũ gộp vào `develop` rồi mới biết lỗi không | Không: chỉ C hoặc D chặn được; B giúp biết đúng lần gộp nào làm đỏ |
+| AI gợi ý | Claude Code (Opus 5.5, 14/11): chỉ bỏ huỷ CI sẽ khiến CD của commit cũ kích Render dựng commit mới nhất chưa qua CI, nên phải ghim `ref`; CI song song có thể xanh lệch thứ tự, nên thêm bước bỏ qua | giữ |
+
+**Kết luận:** Mỗi commit trên `develop` có một lượt CI và một lượt CD riêng, Render dựng đúng commit đã qua CI, staging không lùi về bản cũ.
+**Bằng chứng:** [0f94a83](https://github.com/F-R-E-Y-A/fashion-shop/commit/0f94a83) (`ci.yml`), [d47a9c8](https://github.com/F-R-E-Y-A/fashion-shop/commit/d47a9c8) (`cd-staging.yml`), [d6efa20](https://github.com/F-R-E-Y-A/fashion-shop/commit/d6efa20) (script) · `node tools/evidence/github-metrics.mjs --since 2026-09-09` ngày 14/11 → CI xanh 147/182 = 81%, bỏ run bị huỷ 147/167 = 88%; CI trên develop xanh / bị huỷ / tổng = 47 / 8 / 56; 10 lần triển khai tự động, cả 10 trong tuần 09/11; gộp → staging trung vị 15 phút, p90 19 phút.
+
+### Kết quả mong đợi → thực tế
+Mong đợi: từ lúc gộp, CI push `develop` không còn lượt `cancelled`; lần gộp trong lúc CI trước còn chạy cho hai lượt CD, mỗi lượt gọi Render với `ref` đúng commit (xem log bước "Goi Render", Render Events); script tách được CD "đã có trong bản mới hơn".
+Thực tế: (điền sau lần gộp thử).
+
+### Điều kiện xem lại
+CD vẫn bị thay khi gộp sát nhau và làm hụt số lần triển khai, hoặc `develop` đỏ vì bản ghép chưa kiểm: chuyển sang C.
