@@ -3,7 +3,12 @@ import { type FormEvent, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 
 import { ApiError } from '@/core';
-import { adminAccessGeneration, useAdminForbidden, useAuth } from '@/features/account';
+import {
+  adminAccessGeneration,
+  AdminForbidden,
+  useAdminForbidden,
+  useAuth,
+} from '@/features/account';
 import { Loading } from '@/ui';
 
 import {
@@ -31,9 +36,9 @@ export function AdminPromotionDetailPage() {
   const queryClient = useQueryClient();
   const { user, authenticatedRequest: request, getSessionEpoch } = useAuth();
   const actorId = user?.id ?? '';
-  const { guardQuery } = useAdminForbidden(actorId, getSessionEpoch);
+  const { forbidden, markForbidden, guardQuery } = useAdminForbidden(actorId, getSessionEpoch);
 
-  const { data, isLoading, error, refetch } = useAdminPromotion(id);
+  const { data, forbidden: queryForbidden, isLoading, error, refetch } = useAdminPromotion(id);
 
   const uncertainMarkerKey = adminPromotionsKeys.uncertainMarker(actorId, 'edit', id ?? '');
   const uncertainMarker = useUncertainMarker<{ id: string; payload: UpdateAdminPromotionPayload }>(
@@ -250,6 +255,10 @@ export function AdminPromotionDetailPage() {
       }
 
       const statusCode = err instanceof ApiError ? err.body.statusCode : 0;
+      if (statusCode === 403) {
+        markForbidden();
+        return;
+      }
       if (statusCode === 409) {
         setNotice({
           text: 'Dữ liệu trên máy chủ đã thay đổi bởi phiên khác. Bản thảo đang gõ được giữ nguyên. Vui lòng bấm "Tải lại dữ liệu" để xem nội dung mới nhất.',
@@ -331,6 +340,10 @@ export function AdminPromotionDetailPage() {
     queryClient.setQueryData(uncertainMarkerKey, null);
     void refetch();
   };
+
+  if (forbidden || queryForbidden) {
+    return <AdminForbidden />;
+  }
 
   return (
     <div className={styles.container}>

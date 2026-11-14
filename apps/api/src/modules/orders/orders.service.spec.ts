@@ -1,13 +1,15 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, Logger } from '@nestjs/common';
+import { PrismaPg } from '@prisma/adapter-pg';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { OrderStatus, Prisma } from '../../generated/prisma/client.js';
+import { type OrderStatus, type Prisma, PrismaClient } from '../../generated/prisma/client.js';
 import {
   attachPostCommitHooks,
   newOrderCode,
   ORDER_TRANSITIONS,
   OrdersService,
   type PostCommitHook,
+  registerPostCommitHook,
   runPostCommitHooks,
   statusesLeadingTo,
 } from './orders.service.js';
@@ -215,5 +217,53 @@ describe('thông báo sau transaction (Review PR 74)', () => {
 
     // Chạy hook không ném lỗi ra ngoài
     await expect(runPostCommitHooks(postCommitHooks)).resolves.not.toThrow();
+  });
+
+  it('tách biệt mảng post-commit hook giữa các transaction Proxy của Prisma 7.10 (WeakMap)', async () => {
+    const client = new PrismaClient({
+      adapter: new PrismaPg({ connectionString: 'postgresql://x:y@127.0.0.1:1/z' }),
+    }) as unknown as {
+      _createItxClient: (
+        tx: { id: string },
+        seq: number,
+        opts: Record<string, unknown>,
+      ) => Prisma.TransactionClient;
+    };
+    const tx1 = client._createItxClient({ id: 'tx-1' }, 1, {});
+    const tx2 = client._createItxClient({ id: 'tx-2' }, 2, {});
+
+    const collector1: PostCommitHook[] = [];
+    const collector2: PostCommitHook[] = [];
+    attachPostCommitHooks(tx1, collector1);
+    attachPostCommitHooks(tx2, collector2);
+
+    const calls: string[] = [];
+    registerPostCommitHook(tx1, async () => {
+      calls.push('hook-1');
+    });
+    registerPostCommitHook(tx2, async () => {
+      calls.push('hook-2');
+    });
+
+    expect(collector1).toHaveLength(1);
+    expect(collector2).toHaveLength(1);
+
+    await runPostCommitHooks(collector1);
+    expect(calls).toEqual(['hook-1']);
+
+    await runPostCommitHooks(collector2);
+    expect(calls).toEqual(['hook-1', 'hook-2']);
+  });
+
+  it('log cảnh báo khi registerPostCommitHook được gọi trên transaction chưa gắn mảng hook', () => {
+    const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const unattachedTx = {} as Prisma.TransactionClient;
+
+    registerPostCommitHook(unattachedTx, async () => {});
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('registerPostCommitHook được gọi trên transaction chưa gắn'),
+    );
+    warnSpy.mockRestore();
   });
 });

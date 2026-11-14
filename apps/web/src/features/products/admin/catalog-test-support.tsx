@@ -178,6 +178,8 @@ export function backend() {
         return reply(state.products.find((p) => p.id === product.id) ?? product);
       if (url.pathname.startsWith('/api/admin/products/')) return failure(404);
       if (url.pathname === '/api/cart') return reply({ items: [], itemCount: 0 });
+      if (url.pathname === '/api/notifications' || url.pathname === '/api/admin/notifications')
+        return reply({ items: [], total: 0, unreadCount: 0, page: 1, pageSize: 20 });
       if (url.pathname.startsWith('/api/products'))
         return reply({ items: [], total: 0, page: 1, pageSize: 12, totalPages: 1 });
       throw new Error(`Unexpected request: ${r.path}`);
@@ -186,7 +188,10 @@ export function backend() {
   return {
     state,
     requests,
-    adminRequests: () => requests.filter((r) => r.path.startsWith('/api/admin/')),
+    adminRequests: () =>
+      requests.filter(
+        (r) => r.path.startsWith('/api/admin/') && !r.path.startsWith('/api/admin/notifications'),
+      ),
   };
 }
 export function mountCatalog(path = '/admin/products') {

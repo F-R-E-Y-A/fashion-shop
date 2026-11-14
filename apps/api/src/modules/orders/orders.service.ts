@@ -11,21 +11,26 @@ import { type PurchasedItem, purchasedItemSelect, toPurchasedItem } from './purc
 export const POST_COMMIT_HOOKS = Symbol('POST_COMMIT_HOOKS');
 export type PostCommitHook = () => Promise<void>;
 
+const postCommitLogger = new Logger('PostCommitHooks');
+const postCommitHooksMap = new WeakMap<Prisma.TransactionClient, PostCommitHook[]>();
+
 export function attachPostCommitHooks(
   tx: Prisma.TransactionClient,
   collector: PostCommitHook[],
 ): void {
-  const target = tx as unknown as Record<symbol, PostCommitHook[]>;
-  if (!target[POST_COMMIT_HOOKS]) {
-    target[POST_COMMIT_HOOKS] = collector;
+  if (!postCommitHooksMap.has(tx)) {
+    postCommitHooksMap.set(tx, collector);
   }
 }
 
 export function registerPostCommitHook(tx: Prisma.TransactionClient, hook: PostCommitHook): void {
-  const target = tx as unknown as Record<symbol, PostCommitHook[] | undefined>;
-  const hooks = target[POST_COMMIT_HOOKS];
+  const hooks = postCommitHooksMap.get(tx);
   if (hooks) {
     hooks.push(hook);
+  } else {
+    postCommitLogger.warn(
+      'registerPostCommitHook được gọi trên transaction chưa gắn attachPostCommitHooks; bỏ qua hook.',
+    );
   }
 }
 

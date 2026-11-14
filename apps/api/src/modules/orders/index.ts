@@ -9,4 +9,9 @@ export {
   registerPostCommitHook,
   runPostCommitHooks,
 } from './orders.service.js';
+export {
+  type OrdersByStatusFact,
+  OrdersReportingReader,
+  type TopSellingProductFact,
+} from './orders-reporting.reader.js';
 export type { PurchasedItem } from './purchased-items.js';

@@ -1,6 +1,6 @@
 ---
 title: Khuyến mãi và Mã giảm giá
-updated: 2026-11-11
+updated: 2026-11-13
 status: đã triển khai voucher; chiến dịch đơn giản chờ review Issue88
 owner: Duy
 ---
@@ -47,6 +47,11 @@ Giao diện và API quản trị voucher cho phép Admin cấu hình và kiểm 
 Danh sách, chi tiết, tạo/sửa và bật/ngừng tại `/admin/promotions`; form mới mặc định
 `INACTIVE`. Có kiểm soát phiên bản và đối chiếu kết quả chưa xác định. Chiến dịch có
 điều kiện phức tạp chỉ xem; không sửa động cơ khuyến mãi. Đặc tả đang chờ Duy review.
+
+Giao diện danh sách, chi tiết và tạo mới hiển thị trạng thái không đủ quyền khi nhận
+403; phản hồi muộn không phục hồi dữ liệu sau mất quyền hoặc đổi phiên. Danh sách
+chuẩn hóa trang không hợp lệ bằng điều hướng thay thế, giữ các tham số URL khác;
+các nút thao tác trong bảng có chiều cao tối thiểu 44px.
 
 ## Động cơ khuyến mãi động (Promotion Engine)
 

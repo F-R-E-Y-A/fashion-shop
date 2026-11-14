@@ -1,6 +1,6 @@
 ---
 title: Nhật ký quyết định — phân hệ thông báo
-updated: 2026-11-09
+updated: 2026-11-14
 status: đang dùng
 owner: Duy
 ---
@@ -32,6 +32,8 @@ Mong đợi:
 - Đổi trạng thái đơn gửi email giao dịch tiếng Việt chính xác.
 Thực tế:
 - 2026-11-09: Unit tests backend `notifications.service.spec.ts` 4/4 pass, component tests `notifications.test.tsx` 6/6 pass, `orders.service.spec.ts` 7/7 pass.
+- 2026-11-13: Qua review PR #74, trên frontend chuyển `NotificationBell` sang polling 30 giây qua `apiGet` (đảm bảo đính kèm header `Authorization: Bearer` và đi qua `BASE_URL` trên staging), đồng thời gom thông báo và email vào post-commit hook sau khi transaction đơn hàng commit.
+- 2026-11-14: Đổi lưu trữ post-commit hook trong `OrdersService` từ thuộc tính `Symbol` trên `tx` sang `WeakMap<Prisma.TransactionClient, PostCommitHook[]>` (do `tx` của Prisma 7.10 là `Proxy` chuyển tiếp phép gán thuộc tính xuống `PrismaClient` gốc), bổ sung log cảnh báo khi `registerPostCommitHook` được gọi ngoài vùng gắn hook, bật `autoFetch` cho chuông quản trị viên trên `AdminLayout` và thêm kiểm thử HTTP đặt 2 đơn liên tiếp tạo đủ 2 bản ghi thông báo (`orders.service.spec.ts` 12/12 pass, `cod.http.spec.ts` pass).
 
 ### Điều kiện xem lại
-Khi lượng người dùng đồng thời vượt quá 10,000 kết nối SSE trực tiếp, xem xét chuyển sang Redis Pub/Sub hoặc message broker phân tán.
+Khi lượng người dùng đồng thời vượt quá 10,000 kết nối trực tiếp, xem xét chuyển sang Redis Pub/Sub hoặc message broker phân tán.
