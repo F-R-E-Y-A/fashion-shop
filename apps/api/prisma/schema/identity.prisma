@@ -263,6 +263,18 @@ enum ReturnStatus {
   @@schema("public")
 }
 
+/// Nam ly do co dinh theo khao sat cau 8.1 (ADR-067).
+enum ReturnReason {
+  SIZE_MISMATCH
+  NOT_AS_EXPECTED
+  DEFECTIVE
+  WRONG_ITEM
+  CHANGED_MIND
+
+  @@map("return_reason")
+  @@schema("public")
+}
+
 enum ReturnItemResolution {
   REFUND
   EXCHANGE
@@ -424,13 +436,25 @@ model ReviewReport {
 }
 
 model Return {
-  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId    String?      @map("user_id") @db.Uuid
-  orderId   String       @map("order_id") @db.Uuid
-  status    ReturnStatus @default(REQUESTED)
-  reason    String?      @db.Text
-  createdAt DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime     @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                  String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId              String?       @map("user_id") @db.Uuid
+  orderId             String        @map("order_id") @db.Uuid
+  status              ReturnStatus  @default(REQUESTED)
+  reasonCode          ReturnReason? @map("reason_code")
+  /// Mo ta cua khach.
+  reason              String?       @db.Text
+  /// Ly do tu choi hoac ghi chu duyet cua ADMIN.
+  decisionNote        String?       @map("decision_note") @db.Text
+  decidedById         String?       @map("decided_by_id") @db.Uuid
+  decidedAt           DateTime?     @map("decided_at") @db.Timestamptz(3)
+  receivedAt          DateTime?     @map("received_at") @db.Timestamptz(3)
+  completedAt         DateTime?     @map("completed_at") @db.Timestamptz(3)
+  /// Tai khoan nhan tien cua don COD (ADR-067): chi ADMIN doc, xoa khi yeu cau ket thuc.
+  refundBankName      String?       @map("refund_bank_name") @db.VarChar(120)
+  refundAccountNumber String?       @map("refund_account_number") @db.VarChar(40)
+  refundAccountHolder String?       @map("refund_account_holder") @db.VarChar(120)
+  createdAt           DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt           DateTime      @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   requester User?         @relation(fields: [userId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   order     Order         @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: NoAction)
@@ -467,11 +491,13 @@ model ReturnItem {
 }
 
 model ReturnMedia {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  returnId  String   @map("return_id") @db.Uuid
-  url       String   @db.VarChar
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  returnId   String   @map("return_id") @db.Uuid
+  url        String   @db.VarChar
+  /// Khoa anh tren kho (ADR-055): de dua vao hang xoa khi yeu cau ket thuc.
+  storageKey String?  @map("storage_key") @db.VarChar
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   returnRequest Return @relation(fields: [returnId], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
