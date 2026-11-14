@@ -8,4 +8,5 @@ export {
   resendVerification,
   resetPassword,
   verifyEmail,
+  verifyPasswordResetOtp,
 } from './auth.api.js';

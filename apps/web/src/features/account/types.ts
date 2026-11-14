@@ -34,3 +34,7 @@ export interface ForgotPasswordResponse {
 export interface ResetPasswordResponse {
   reset: true;
 }
+
+export interface VerifyPasswordResetOtpResponse {
+  resetToken: string;
+}
