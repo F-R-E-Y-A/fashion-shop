@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
@@ -27,6 +27,7 @@ function setup() {
       groupBy: vi.fn().mockResolvedValue([{ productVariantId: 'v1', _sum: { quantity: 3 } }]),
     },
     stockMovement: {
+      findUnique: vi.fn().mockResolvedValue(null),
       findMany: vi.fn().mockResolvedValue([]),
       count: vi.fn().mockResolvedValue(0),
       create: vi.fn().mockResolvedValue({ id: 'sm1' }),
@@ -380,6 +381,81 @@ describe('UC-13.1 quản trị tồn chỉ đọc', () => {
           reason: 'Test missing',
         }),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('idempotency: gửi lại cùng requestKey trả về kết quả hiện tại, không cộng trùng tồn kho hay tạo thêm StockMovement', async () => {
+      const { service, tx, variant } = setup();
+      const requestKey = '11111111-1111-4111-8111-111111111111';
+      tx.productVariant.findUnique.mockResolvedValue({
+        ...variant,
+        inventory: { quantityOnHand: 25 },
+      });
+      tx.stockMovement.findUnique.mockResolvedValue({
+        id: 'sm-existing',
+        productVariantId: 'v1',
+        movementType: 'RECEIPT',
+        quantityDelta: 15,
+        reason: 'Nhập lô hàng Yody tháng 11',
+        requestKey,
+        createdAt: new Date('2026-11-14T08:00:00Z'),
+      });
+      tx.stockMovement.findMany.mockResolvedValue([
+        {
+          id: 'sm-existing',
+          movementType: 'RECEIPT',
+          quantityDelta: 15,
+          reason: 'Nhập lô hàng Yody tháng 11',
+          createdAt: new Date('2026-11-14T08:00:00Z'),
+        },
+      ]);
+      tx.stockMovement.count.mockResolvedValue(1);
+
+      const result = await service.adjust(
+        'v1',
+        {
+          type: 'RECEIPT',
+          quantity: 15,
+          reason: 'Nhập lô hàng Yody tháng 11',
+          requestKey,
+        },
+        'admin-user-1',
+      );
+
+      expect(tx.inventory.upsert).not.toHaveBeenCalled();
+      expect(tx.stockMovement.create).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        id: 'v1',
+        quantityOnHand: 25,
+        reservedQuantity: 3,
+        availableQuantity: 22,
+      });
+      expect(result.movements.total).toBe(1);
+    });
+
+    it('idempotency: từ chối 409 Conflict khi dùng lại requestKey cho số lượng hoặc nội dung khác', async () => {
+      const { service, tx } = setup();
+      const requestKey = '22222222-2222-4222-8222-222222222222';
+      tx.stockMovement.findUnique.mockResolvedValue({
+        id: 'sm-existing',
+        productVariantId: 'v1',
+        movementType: 'RECEIPT',
+        quantityDelta: 15,
+        reason: 'Nhập lô hàng Yody tháng 11',
+        requestKey,
+        createdAt: new Date('2026-11-14T08:00:00Z'),
+      });
+
+      await expect(
+        service.adjust('v1', {
+          type: 'RECEIPT',
+          quantity: 30,
+          reason: 'Nhập lô hàng Yody tháng 11',
+          requestKey,
+        }),
+      ).rejects.toBeInstanceOf(ConflictException);
+
+      expect(tx.inventory.upsert).not.toHaveBeenCalled();
+      expect(tx.stockMovement.create).not.toHaveBeenCalled();
     });
   });
 });

@@ -36,6 +36,7 @@ export function AdminInventoryDetailPage() {
 
   const adjustButtonRef = useRef<HTMLButtonElement>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [requestKey, setRequestKey] = useState(() => crypto.randomUUID());
   const [adjustType, setAdjustType] = useState<'RECEIPT' | 'ADJUSTMENT'>('RECEIPT');
   const [adjustQuantity, setAdjustQuantity] = useState('');
   const [adjustReason, setAdjustReason] = useState('');
@@ -120,6 +121,7 @@ export function AdminInventoryDetailPage() {
             type: adjustType,
             quantity: num,
             reason: trimmedReason,
+            requestKey,
           },
         },
       );
@@ -173,6 +175,7 @@ export function AdminInventoryDetailPage() {
             type="button"
             className={styles.adjustBtn}
             onClick={() => {
+              setRequestKey(crypto.randomUUID());
               setAdjustType('RECEIPT');
               setAdjustQuantity('');
               setAdjustReason('');

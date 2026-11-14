@@ -179,6 +179,14 @@ export class AdminAdjustStockDto {
   @IsNotEmpty({ message: 'Ly do khong duoc de trong' })
   @MaxLength(255, { message: 'Ly do khong duoc vuot qua 255 ky tu' })
   reason!: string;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Khóa idempotency chống cộng trùng tồn kho khi gửi lại do mất phản hồi',
+  })
+  @IsOptional()
+  @IsUUID(undefined, { message: 'requestKey phai la UUID hop le' })
+  requestKey?: string;
 }
 
 export class AdminMovementPage {

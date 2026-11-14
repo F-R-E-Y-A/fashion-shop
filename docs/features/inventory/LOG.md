@@ -32,7 +32,7 @@ Phân hệ Inventory trước đây mới chỉ hỗ trợ xem tồn kho chỉ �
 | Phương án | Được gì | Mất gì | Đảo ngược được không |
 |---|---|---|---|
 | A. Cập nhật trực tiếp tồn mà không lưu lịch sử | Đơn giản, không cần migration | Mất khả năng đối soát K3 ([reconcile-inventory.sql:47](../../../tools/db/reconcile-inventory.sql#L47)), không giải trình được lý do chênh lệch | Khó |
-| **B. Thêm cột reason và actor_user_id vào stock_movements, thêm API điều chỉnh và ConfirmDialog trên UI (chọn)** | Giữ nguyên bất biến đối soát số cái, bắt buộc nhập lý do, ghi nhận quản trị viên thao tác, chống race condition bằng lockStock + ReadCommitted, chặn giảm dưới lượng đang giữ | Cần thêm migration cho orders.prisma | Dễ |
+| **B. Thêm cột reason, actor_user_id và request_key (unique) vào stock_movements, thêm API điều chỉnh và ConfirmDialog trên UI (chọn)** | Giữ nguyên bất biến đối soát số cái, bắt buộc nhập lý do, ghi nhận quản trị viên thao tác, chống nhập trùng khi mất mạng bằng `requestKey` (UUID), chống race condition bằng lockStock + ReadCommitted, chặn giảm dưới lượng đang giữ | Cần thêm migration cho orders.prisma | Dễ |
 | Không làm gì | Quản trị viên không thể nhập hàng hay điều chỉnh tồn trên web | Không đáp ứng yêu cầu vận hành kho | Dễ |
 
 **Chọn B** vì bảo đảm trọn vẹn bất biến "tồn vật lý = tổng biến động kho" và bảo vệ an toàn cho các đơn hàng đang giữ chỗ của khách.

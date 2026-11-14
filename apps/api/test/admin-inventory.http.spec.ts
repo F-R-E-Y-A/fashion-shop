@@ -483,4 +483,64 @@ describe('UC-13.1 tồn kho admin HTTP PostgreSQL', () => {
         .quantityOnHand,
     ).toBe(12);
   });
+
+  it('UC-13.2 idempotency requestKey: gửi cùng key hai lần thì tồn chỉ tăng một lần, lịch sử có một dòng; dùng lại key cho nội dung khác trả 409', async () => {
+    await t.prisma.stockMovement.deleteMany({ where: { productVariantId: variantId } });
+    await t.prisma.inventory.upsert({
+      where: { productVariantId: variantId },
+      create: { productVariantId: variantId, quantityOnHand: 20 },
+      update: { quantityOnHand: 20 },
+    });
+
+    const requestKey = randomUUID();
+    const payload = {
+      type: 'RECEIPT',
+      quantity: 10,
+      reason: 'Nhập hàng chống trùng khi mất mạng',
+      requestKey,
+    };
+
+    const firstRes = await t.http
+      .post(`${path}/${variantId}/adjust`)
+      .set(headers())
+      .send(payload)
+      .expect(200);
+    expect(firstRes.body).toMatchObject({
+      quantityOnHand: 30,
+      availableQuantity: 30,
+    });
+    expect(firstRes.body.movements.total).toBe(1);
+
+    // Gửi lại cùng requestKey lần 2: trả 200 nhưng không cộng thêm và không sinh dòng lịch sử thứ 2
+    const replayRes = await t.http
+      .post(`${path}/${variantId}/adjust`)
+      .set(headers())
+      .send(payload)
+      .expect(200);
+    expect(replayRes.body).toMatchObject({
+      quantityOnHand: 30,
+      availableQuantity: 30,
+    });
+    expect(replayRes.body.movements.total).toBe(1);
+    expect(replayRes.body.movements.items).toHaveLength(1);
+    expect(
+      (await t.prisma.inventory.findUniqueOrThrow({ where: { productVariantId: variantId } }))
+        .quantityOnHand,
+    ).toBe(30);
+    expect(await t.prisma.stockMovement.count({ where: { productVariantId: variantId } })).toBe(1);
+
+    // Dùng lại cùng requestKey với số lượng khác -> trả 409 Conflict
+    await t.http
+      .post(`${path}/${variantId}/adjust`)
+      .set(headers())
+      .send({ ...payload, quantity: 25 })
+      .expect(409);
+
+    // requestKey sai định dạng UUID -> trả 400 Bad Request
+    await t.http
+      .post(`${path}/${variantId}/adjust`)
+      .set(headers())
+      .send({ ...payload, requestKey: 'invalid-uuid' })
+      .expect(400);
+  });
 });

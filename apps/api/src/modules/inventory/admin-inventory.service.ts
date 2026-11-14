@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 
 import { skipOf, toPage } from '../../common/pagination/page.response.js';
 import { Prisma } from '../../generated/prisma/client.js';
@@ -190,6 +195,71 @@ export class AdminInventoryService {
         if (!variant) throw new NotFoundException('Không tìm thấy biến thể');
 
         const currentQty = variant.inventory?.quantityOnHand ?? null;
+        const trimmedReason = dto.reason.trim();
+
+        if (dto.requestKey && typeof tx.stockMovement.findUnique === 'function') {
+          const prior = await tx.stockMovement.findUnique({
+            where: { requestKey: dto.requestKey },
+          });
+          if (prior) {
+            if (
+              prior.productVariantId !== id ||
+              prior.movementType !== dto.type ||
+              prior.reason !== trimmedReason ||
+              (dto.type === 'RECEIPT' && prior.quantityDelta !== dto.quantity) ||
+              (dto.type === 'ADJUSTMENT' && currentQty !== null && currentQty !== dto.quantity)
+            ) {
+              throw new ConflictException(
+                'Mã yêu cầu (requestKey) đã được sử dụng cho thao tác điều chỉnh khác.',
+              );
+            }
+            const held = await tx.inventoryReservation.groupBy({
+              by: ['productVariantId'],
+              where: {
+                productVariantId: id,
+                releasedAt: null,
+                expiresAt: { gt: asOf },
+              },
+              _sum: { quantity: true },
+            });
+            const reservedQuantity = held[0]?._sum.quantity ?? 0;
+            const items = await tx.stockMovement.findMany({
+              where: { productVariantId: id },
+              select: {
+                id: true,
+                movementType: true,
+                quantityDelta: true,
+                reason: true,
+                createdAt: true,
+              },
+              orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+              take: 12,
+            });
+            const total = await tx.stockMovement.count({ where: { productVariantId: id } });
+            const effectiveQty = currentQty ?? 0;
+            const availableQuantity = Math.max(0, effectiveQty - reservedQuantity);
+            return {
+              id: variant.id,
+              sku: variant.sku,
+              productName: variant.product.name,
+              colorName: variant.color.name,
+              sizeCode: variant.size.code,
+              quantityOnHand: effectiveQty,
+              reservedQuantity,
+              availableQuantity,
+              asOf: asOf.toISOString(),
+              movements: toPage(
+                items.map((v) => ({
+                  ...v,
+                  createdAt: v.createdAt.toISOString(),
+                })),
+                total,
+                { page: 1, pageSize: 12 },
+              ),
+            };
+          }
+        }
+
         let afterQty: number;
         let delta: number;
 
@@ -243,15 +313,25 @@ export class AdminInventoryService {
           update: { quantityOnHand: afterQty },
         });
 
-        await tx.stockMovement.create({
-          data: {
-            productVariantId: id,
-            movementType: dto.type,
-            quantityDelta: delta,
-            reason: dto.reason.trim(),
-            actorUserId: actorUserId ?? null,
-          },
-        });
+        try {
+          await tx.stockMovement.create({
+            data: {
+              productVariantId: id,
+              movementType: dto.type,
+              quantityDelta: delta,
+              reason: trimmedReason,
+              actorUserId: actorUserId ?? null,
+              ...(dto.requestKey ? { requestKey: dto.requestKey } : {}),
+            },
+          });
+        } catch (error) {
+          if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            throw new ConflictException(
+              'Mã yêu cầu (requestKey) đã được sử dụng cho thao tác điều chỉnh khác.',
+            );
+          }
+          throw error;
+        }
 
         const items = await tx.stockMovement.findMany({
           where: { productVariantId: id },

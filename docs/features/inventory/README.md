@@ -48,7 +48,7 @@ Endpoint `GET /api/admin/inventory/low-stock?threshold=5&limit=5` hỗ trợ T�
 
 Endpoint `POST /api/admin/inventory/:id/adjust` và hộp thoại **Nhập / Điều chỉnh tồn** (`ConfirmDialog`) trên trang chi tiết tồn kho (`/admin/inventory/:id`):
 - Hỗ trợ hai chế độ: `RECEIPT` (nhập thêm hàng dương vào tồn vật lý) và `ADJUSTMENT` (đặt lại tồn vật lý theo kiểm kê thực tế).
-- Bắt buộc nhập lý do (`reason`, tối đa 255 ký tự) và lưu kèm `actor_user_id` vào bảng `stock_movements`, hiển thị trực tiếp lý do trên bảng lịch sử biến động.
+- Bắt buộc nhập lý do (`reason`, tối đa 255 ký tự), lưu kèm `actor_user_id` và khóa idempotency `request_key` (`@unique`) vào bảng `stock_movements`; gửi lại cùng `requestKey` do mất phản hồi sẽ trả về kết quả đã ghi thay vì cộng trùng tồn kho.
 - Khoá biến thể bằng `lockStock` trong giao dịch `ReadCommitted` (lấy `asOf` sau khi giữ khoá để thấy các lượt giữ hàng vừa commit); chặn điều chỉnh tồn vật lý thấp hơn lượng đang giữ (`reservedQuantity`) còn hiệu lực.
 - Trên giao diện, hộp thoại dùng `ConfirmDialog` chuẩn (giữ vòng Tab, phím Escape, trả focus về nút mở) và xử lý `403` bằng `markForbidden` (đóng hộp thoại, xóa cache quản trị theo phiên).
 

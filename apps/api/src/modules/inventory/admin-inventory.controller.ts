@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiConflictResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
@@ -66,6 +67,7 @@ export class AdminInventoryController {
   @Header('Cache-Control', 'no-store')
   @ApiOkResponse({ type: AdminInventoryDetail })
   @ApiNotFoundResponse({ description: 'Không tìm thấy biến thể' })
+  @ApiConflictResponse({ description: 'requestKey đã được sử dụng cho thao tác điều chỉnh khác' })
   @ApiBadRequestResponse({
     description: 'Số lượng hoặc lý do không hợp lệ, hoặc nhỏ hơn lượng đang giữ cho đơn hàng',
   })

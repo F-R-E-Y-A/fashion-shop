@@ -35,6 +35,7 @@ export interface AdjustStockPayload {
   type: 'RECEIPT' | 'ADJUSTMENT';
   quantity: number;
   reason: string;
+  requestKey?: string;
 }
 export interface AdminLowStockItem {
   id: string;

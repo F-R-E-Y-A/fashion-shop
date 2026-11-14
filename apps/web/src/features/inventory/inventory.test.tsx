@@ -339,7 +339,58 @@ describe('UC-13.1 tồn kho web', () => {
         type: 'RECEIPT',
         quantity: 25,
         reason: 'Nhập bổ sung đợt cuối năm',
+        requestKey: expect.stringMatching(/^[0-9a-f-]{36}$/i),
       });
+    });
+
+    it('idempotency requestKey: gửi lại trong cùng hộp giữ nguyên UUID, mở hộp mới sinh UUID mới', async () => {
+      let attempt = 0;
+      const t = setup(`/admin/inventory/${row.id}`, actor, (url, init) => {
+        if (url.pathname.endsWith('/adjust') && init?.method === 'POST') {
+          attempt += 1;
+          if (attempt === 1) return error(503);
+        }
+        return undefined;
+      });
+      await screen.findByRole('heading', { name: 'Lịch sử biến động' });
+
+      // Mở hộp lần 1
+      fireEvent.click(screen.getByRole('button', { name: 'Nhập / Điều chỉnh tồn' }));
+      fireEvent.change(screen.getByLabelText('Số lượng nhập thêm'), {
+        target: { value: '15' },
+      });
+      fireEvent.change(screen.getByLabelText('Lý do / Ghi chú (bắt buộc)'), {
+        target: { value: 'Nhập lô 1' },
+      });
+
+      // Bấm lần 1 (thất bại mạng/503)
+      fireEvent.click(screen.getByRole('button', { name: 'Xác nhận lưu' }));
+      await screen.findByRole('alert');
+
+      // Bấm lại lần 2 trong cùng hộp (thành công)
+      fireEvent.click(screen.getByRole('button', { name: 'Xác nhận lưu' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+      // Mở hộp lần 2 và gửi mới
+      fireEvent.click(screen.getByRole('button', { name: 'Nhập / Điều chỉnh tồn' }));
+      fireEvent.change(screen.getByLabelText('Số lượng nhập thêm'), {
+        target: { value: '10' },
+      });
+      fireEvent.change(screen.getByLabelText('Lý do / Ghi chú (bắt buộc)'), {
+        target: { value: 'Nhập lô 2' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Xác nhận lưu' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+      const postBodies = t.requests
+        .filter((r) => r.url.pathname.endsWith('/adjust') && r.init?.method === 'POST')
+        .map((r) => JSON.parse(String(r.init?.body)) as { requestKey: string });
+
+      expect(postBodies).toHaveLength(3);
+      expect(postBodies[0]?.requestKey).toMatch(/^[0-9a-f-]{36}$/i);
+      expect(postBodies[1]?.requestKey).toBe(postBodies[0]?.requestKey);
+      expect(postBodies[2]?.requestKey).toMatch(/^[0-9a-f-]{36}$/i);
+      expect(postBodies[2]?.requestKey).not.toBe(postBodies[0]?.requestKey);
     });
 
     it('chuyển sang điều chỉnh kiểm kê (ADJUSTMENT) và từ chối khi giảm dưới lượng đang giữ', async () => {
