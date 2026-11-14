@@ -174,3 +174,20 @@ Thực tế: (điền sau lần gộp thử).
 
 ### Điều kiện xem lại
 CD vẫn bị thay khi gộp sát nhau và làm hụt số lần triển khai, hoặc `develop` đỏ vì bản ghép chưa kiểm: chuyển sang C.
+
+## 2026-11-14 · Không bật merge queue tới 22/11; PR vào `feature/**` có CI
+
+**Loại:** cấu hình · **Phạm vi:** `.github/workflows/ci.yml`, cách gộp vào `develop`, PR `task/` → `feature/` · **Commit:** (điền khi gộp)
+
+Đã thử thêm trigger `merge_group` để bật merge queue cho `develop` ([4292f41](https://github.com/F-R-E-Y-A/fashion-shop/commit/4292f41), PR #121), rồi Bảo bỏ cùng ngày; commit hoàn tác nằm trong cùng PR với mục này. Ruleset 26305126 chưa từng đổi. Số `adr-066` đã ghi ở 4292f41 rồi gỡ, không dùng lại.
+
+Lý do bỏ: merge queue chỉ thêm một thứ so với [ADR-065](#adr-065): kiểm bản ghép trước khi vào `develop`. Hiện nay PR chỉ bị chặn khi có conflict git; `develop` mới hơn mà không conflict thì kết quả CI cũ vẫn được tính (`strict_required_status_checks_policy: false`). Lỗi kiểu này mới xảy ra 1 lần trong 46 lượt CI `develop`. Khi xảy ra, CD không chạy, staging giữ bản cũ đúng, và với ADR-065 biết ngay lần gộp nào gây ra. Cái giá: mỗi PR chờ thêm một lượt CI, bấm → staging từ khoảng 13–15 lên khoảng 23–25 phút, vì CI chạy hai lần trên cùng commit. Cắt được lượt thừa nếu CD chạy theo CI của hàng chờ, nhưng phải sửa CD và cách đo đúng tuần cuối.
+
+| Chỉ số (đo bằng lệnh nào) | Giá trị 14/11 |
+|---|---|
+| CI xanh, thời gian từ lúc tạo tới lúc xong (`gh run list -w CI -s success -L 30`) | trung bình 9,4 phút (PR, 25 lượt), 10,0 phút (push `develop`, 5 lượt); chặng chậm nhất là 4, 6–11 phút |
+| CD xanh (`gh run list -w "CD staging" -s success -L 8`) | 2–5 phút |
+
+Cùng mục: PR vào `feature/**` có CI (việc #56 gói 5), để mã trên nhánh feature được kiểm sớm thay vì chỉ qua hook ở máy. Không chặn gộp vì nhánh feature không có ruleset; mỗi PR task thêm khoảng 10 phút chờ kết quả.
+
+Xem lại khi: `develop` đỏ vì bản ghép thêm lần nữa, hoặc số lần triển khai bị hụt do gộp dồn. Khi đó bật merge queue kèm CD chạy theo CI của hàng chờ. Tài liệu đã sửa theo: [staging.md](staging.md), [git.md](../../shared/git.md).
