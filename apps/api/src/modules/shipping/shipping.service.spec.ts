@@ -212,7 +212,7 @@ describe('ShippingService', () => {
         updatedAt: now,
       };
       const mockUpdate = vi.fn();
-      const mockOrders = { transition: vi.fn() } as unknown as OrdersService;
+      const mockOrders = { lock: vi.fn(), transition: vi.fn() } as unknown as OrdersService;
 
       const mockPrisma = {
         $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) =>
@@ -253,6 +253,7 @@ describe('ShippingService', () => {
         updatedAt: now,
       };
       const mockOrders = {
+        lock: vi.fn().mockResolvedValue(undefined),
         transition: vi.fn().mockResolvedValue(undefined),
       } as unknown as OrdersService;
       const mockPayments = {
@@ -304,75 +305,185 @@ describe('ShippingService', () => {
       );
     });
 
-    it('giao thất bại: hoàn hàng về kho và hủy đơn', async () => {
+    /** Dựng service với vận đơn/đơn cho các ca FAILED, RETURNED. */
+    function setupReturnFlow(opts: {
+      orderStatus: string;
+      shipmentStatus: string;
+      payments: { id: string; gateway: string; status: string }[];
+    }) {
       const now = new Date();
-      const mockShipment = {
+      const shipment = {
         id: 'ship-1',
         orderId: 'ord-1',
         carrierName: 'GHN',
         trackingNumber: 'GHN-SBX-123',
-        status: 'IN_TRANSIT',
+        status: opts.shipmentStatus,
         createdAt: now,
         updatedAt: now,
       };
-      const mockOrders = {
+      const calls: string[] = [];
+      const orders = {
+        lock: vi.fn().mockImplementation(async () => void calls.push('lock')),
         transition: vi.fn().mockResolvedValue(undefined),
       } as unknown as OrdersService;
-      const mockInventory = {
-        restock: vi.fn().mockResolvedValue(undefined),
+      const inventory = {
+        restock: vi.fn().mockResolvedValue(true),
       } as unknown as InventoryService;
-      const mockPayments = {
+      const payments = {
         record: vi.fn().mockResolvedValue(true),
       } as unknown as PaymentsService;
-
-      const mockPrisma = {
-        $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) =>
-          fn({
-            order: {
-              findUnique: vi.fn().mockResolvedValue({
-                id: 'ord-1',
-                orderCode: 'FR123',
-                status: 'SHIPPED',
-                shipment: mockShipment,
-                payments: [{ id: 'pay-1', gateway: 'COD', status: 'PENDING' }],
-                items: [{ productVariantId: 'var-1', quantity: 2 }],
-              }),
-            },
-            shipment: {
-              update: vi.fn().mockResolvedValue({ ...mockShipment, status: 'FAILED' }),
-            },
-          }),
-        ),
+      const update = vi.fn().mockImplementation(async ({ data }: { data: { status: string } }) => ({
+        ...shipment,
+        status: data.status,
+      }));
+      const findUnique = vi.fn().mockImplementation(async () => {
+        calls.push('findUnique');
+        return {
+          id: 'ord-1',
+          orderCode: 'FR123',
+          status: opts.orderStatus,
+          shipment,
+          payments: opts.payments,
+          items: [{ productVariantId: 'var-1', quantity: 2 }],
+        };
+      });
+      const prisma = {
+        $transaction: vi
+          .fn()
+          .mockImplementation((fn: (tx: unknown) => unknown) =>
+            fn({ order: { findUnique }, shipment: { update } }),
+          ),
       } as unknown as PrismaService;
+      return {
+        calls,
+        orders,
+        inventory,
+        payments,
+        update,
+        service: new ShippingService(prisma, orders, inventory, payments),
+      };
+    }
+    const cod = [{ id: 'pay-1', gateway: 'COD', status: 'PENDING' }];
 
-      const service = new ShippingService(mockPrisma, mockOrders, mockInventory, mockPayments);
-      const res = await service.updateShipmentStatus(
+    it('khoá đơn trước khi đọc trạng thái (cùng khoá với thao tác admin)', async () => {
+      const t = setupReturnFlow({
+        orderStatus: 'SHIPPED',
+        shipmentStatus: 'PENDING',
+        payments: [],
+      });
+
+      await t.service.updateShipmentStatus('ord-1', 'IN_TRANSIT');
+
+      expect(t.calls.slice(0, 2)).toEqual(['lock', 'findUnique']);
+      expect(t.orders.lock).toHaveBeenCalledWith('ord-1', expect.anything());
+    });
+
+    it('FAILED chỉ ghi nhận vận đơn: chưa trả kho, chưa ghi thanh toán, chưa hủy đơn (hàng còn trên xe)', async () => {
+      const t = setupReturnFlow({
+        orderStatus: 'SHIPPED',
+        shipmentStatus: 'IN_TRANSIT',
+        payments: cod,
+      });
+
+      const res = await t.service.updateShipmentStatus(
         'ord-1',
         'FAILED',
         undefined,
-        'Khách từ chối nhận',
+        'Khách từ chối',
       );
 
       expect(res.status).toBe('FAILED');
-      expect(mockPayments.record).toHaveBeenCalledWith(
+      expect(t.update).toHaveBeenCalledWith({
+        where: { orderId: 'ord-1' },
+        data: { status: 'FAILED' },
+      });
+      expect(t.inventory.restock).not.toHaveBeenCalled();
+      expect(t.payments.record).not.toHaveBeenCalled();
+      expect(t.orders.transition).not.toHaveBeenCalled();
+    });
+
+    it('FAILED -> RETURNED với đơn COD: hàng về kho thì trả kho một lần, ghi COD-FAILED và hủy đơn', async () => {
+      const t = setupReturnFlow({
+        orderStatus: 'SHIPPED',
+        shipmentStatus: 'FAILED',
+        payments: cod,
+      });
+
+      const res = await t.service.updateShipmentStatus(
+        'ord-1',
+        'RETURNED',
+        undefined,
+        'Hàng đã về kho',
+      );
+
+      expect(res.status).toBe('RETURNED');
+      expect(t.payments.record).toHaveBeenCalledWith(
         'pay-1',
         'FAILED',
         'COD-FAILED:FR123',
-        expect.objectContaining({ note: 'Khách từ chối nhận' }),
+        expect.objectContaining({ note: 'Hàng đã về kho' }),
         expect.anything(),
       );
-      expect(mockInventory.restock).toHaveBeenCalledWith(
+      expect(t.inventory.restock).toHaveBeenCalledTimes(1);
+      expect(t.inventory.restock).toHaveBeenCalledWith(
         'ord-1',
         [{ variantId: 'var-1', quantity: 2 }],
         expect.anything(),
       );
-      expect(mockOrders.transition).toHaveBeenCalledWith(
+      expect(t.orders.transition).toHaveBeenCalledWith(
         'ord-1',
         'CANCELLED',
         expect.anything(),
         undefined,
       );
     });
+
+    it('RETURNED với đơn trả trước (đã có payment SUCCEEDED): không tự hủy, không trả kho, để admin hoàn tiền', async () => {
+      const t = setupReturnFlow({
+        orderStatus: 'SHIPPED',
+        shipmentStatus: 'FAILED',
+        payments: [{ id: 'pay-2', gateway: 'VNPAY', status: 'SUCCEEDED' }],
+      });
+
+      const res = await t.service.updateShipmentStatus('ord-1', 'RETURNED');
+
+      expect(res.status).toBe('RETURNED');
+      expect(t.payments.record).not.toHaveBeenCalled();
+      expect(t.inventory.restock).not.toHaveBeenCalled();
+      expect(t.orders.transition).not.toHaveBeenCalled();
+    });
+
+    it('đơn đã hủy (shop bấm Giao thất bại trước): vẫn xác nhận RETURNED nhưng không hoàn kho hay ghi thanh toán lần nữa', async () => {
+      const t = setupReturnFlow({
+        orderStatus: 'CANCELLED',
+        shipmentStatus: 'FAILED',
+        payments: cod,
+      });
+
+      const res = await t.service.updateShipmentStatus('ord-1', 'RETURNED');
+
+      expect(res.status).toBe('RETURNED');
+      expect(t.update).toHaveBeenCalledTimes(1);
+      expect(t.inventory.restock).not.toHaveBeenCalled();
+      expect(t.payments.record).not.toHaveBeenCalled();
+      expect(t.orders.transition).not.toHaveBeenCalled();
+    });
+
+    it.each(['IN_TRANSIT', 'DELIVERED'] as const)(
+      'đơn đã hủy vẫn bị chặn chuyển sang %s',
+      async (status) => {
+        const t = setupReturnFlow({
+          orderStatus: 'CANCELLED',
+          shipmentStatus: 'PENDING',
+          payments: cod,
+        });
+
+        await expect(t.service.updateShipmentStatus('ord-1', status)).rejects.toThrow(
+          new ConflictException('Đơn hàng đã bị hủy, không thể cập nhật vận chuyển.'),
+        );
+        expect(t.update).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('handleWebhook', () => {
@@ -396,6 +507,7 @@ describe('ShippingService', () => {
     it('cập nhật IN_TRANSIT và chuyển đơn sang SHIPPED với actorUserId = undefined (tách danh tính hãng khỏi UUID)', async () => {
       const now = new Date();
       const mockOrders = {
+        lock: vi.fn().mockResolvedValue(undefined),
         transition: vi.fn().mockResolvedValue(undefined),
       } as unknown as OrdersService;
 

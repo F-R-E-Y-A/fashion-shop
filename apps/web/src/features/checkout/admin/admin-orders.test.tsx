@@ -322,4 +322,45 @@ describe('UC-02.1/AC6, AC8 — bảo vệ dữ liệu admin dùng chung (#57)', 
       expect(patchCall![1]?.headers?.['x-carrier-token']).toBeUndefined();
     });
   });
+
+  it('UC-PH02 vận đơn FAILED hiện nút "Hàng hoàn về kho", gửi PATCH status RETURNED', async () => {
+    const failedShipment = {
+      ...base,
+      status: 'SHIPPED',
+      shipment: {
+        id: 's1',
+        orderId: 'o1',
+        carrierName: 'GHN',
+        trackingNumber: 'GHN-SBX-12345678',
+        status: 'FAILED' as const,
+        isMock: true,
+        createdAt: '2026-10-31T03:00:00.000Z',
+        updatedAt: '2026-10-31T03:00:00.000Z',
+      },
+    };
+    request.mockImplementation(async (path: string) => {
+      if (path === '/admin/orders/o1') return failedShipment;
+      if (path === '/admin/orders/o1/shipment/status') return { status: 'RETURNED' };
+      return {};
+    });
+
+    show('/admin/orders/o1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Mô phỏng: Hàng hoàn về kho' }));
+    const title = 'Cập nhật vận chuyển: Hàng hoàn về kho (RETURNED)';
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: title })).getByRole('button', { name: title }),
+    );
+
+    await waitFor(() => {
+      const patchCall = request.mock.calls.find(
+        ([path, options]) =>
+          path === '/admin/orders/o1/shipment/status' && options?.method === 'PATCH',
+      );
+      expect(patchCall).toBeDefined();
+      expect(patchCall![1]?.body).toEqual({
+        status: 'RETURNED',
+        note: 'Hàng đã hoàn về kho (Mô phỏng Sandbox)',
+      });
+    });
+  });
 });

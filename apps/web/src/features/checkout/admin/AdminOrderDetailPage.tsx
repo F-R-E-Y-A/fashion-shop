@@ -37,7 +37,8 @@ type Dialog =
         | 'createShipment'
         | 'shipmentInTransit'
         | 'shipmentDelivered'
-        | 'shipmentFailed';
+        | 'shipmentFailed'
+        | 'shipmentReturned';
     }
   | { kind: 'refund' | 'resolve'; ledger: PaymentLedger };
 
@@ -123,6 +124,11 @@ function AdminOrderDetail() {
             return await patch(`/admin/orders/${id}/shipment/status`, {
               status: 'FAILED',
               note: text.trim() || 'Giao hàng thất bại (Mô phỏng Sandbox)',
+            });
+          case 'shipmentReturned':
+            return await patch(`/admin/orders/${id}/shipment/status`, {
+              status: 'RETURNED',
+              note: 'Hàng đã hoàn về kho (Mô phỏng Sandbox)',
             });
           case 'cancelRefund':
             return await post(`/admin/orders/${id}/cancel-refund`, { reason: text.trim() });
@@ -473,6 +479,16 @@ function AdminOrderDetail() {
                       </button>
                     </>
                   )}
+                  {order.shipment && order.shipment.status === 'FAILED' && (
+                    <button
+                      type="button"
+                      className={styles.primaryButton}
+                      disabled={action.isPending || needsRecheck}
+                      onClick={() => open({ kind: 'shipmentReturned' })}
+                    >
+                      Mô phỏng: Hàng hoàn về kho
+                    </button>
+                  )}
                   {order.actions.startProcessing && (
                     <button
                       type="button"
@@ -648,6 +664,7 @@ const TITLE: Record<Dialog['kind'], string> = {
   shipmentInTransit: 'Cập nhật vận chuyển: Shipper lấy hàng (IN_TRANSIT)',
   shipmentDelivered: 'Cập nhật vận chuyển: Giao thành công (DELIVERED)',
   shipmentFailed: 'Cập nhật vận chuyển: Giao thất bại (FAILED)',
+  shipmentReturned: 'Cập nhật vận chuyển: Hàng hoàn về kho (RETURNED)',
   cancelRefund: 'Hủy và hoàn tiền',
   markDelivered: 'Đánh dấu đã giao',
   deliveryFailed: 'Ghi giao thất bại',
@@ -661,6 +678,7 @@ const TONE: Record<Dialog['kind'], 'danger' | 'primary'> = {
   shipmentInTransit: 'primary',
   shipmentDelivered: 'primary',
   shipmentFailed: 'danger',
+  shipmentReturned: 'primary',
   cancelRefund: 'danger',
   markDelivered: 'primary',
   deliveryFailed: 'danger',
@@ -673,7 +691,9 @@ const DONE: Record<Dialog['kind'], string> = {
   createShipment: 'Đã tạo vận đơn vận chuyển GHN (Mô phỏng Sandbox).',
   shipmentInTransit: 'Hãng đã lấy hàng, đơn chuyển sang Đang giao.',
   shipmentDelivered: 'Giao hàng thành công, đơn chuyển sang Đã giao.',
-  shipmentFailed: 'Giao thất bại, hàng trả về kho và đơn hủy.',
+  shipmentFailed: 'Đã ghi vận đơn giao thất bại. Chờ hàng hoàn về kho để trả kho và hủy đơn COD.',
+  shipmentReturned:
+    'Đã ghi nhận hàng hoàn về kho. Đơn COD đã trả kho và hủy; đơn trả trước giữ nguyên để hoàn tiền.',
   cancelRefund: 'Đã hủy đơn, hàng về kho. Kiểm tra kết quả hoàn bên dưới.',
   markDelivered: 'Đã ghi nhận giao hàng.',
   deliveryFailed: 'Đã ghi giao thất bại, hàng trả về kho.',
@@ -712,8 +732,13 @@ function impacts(dialog: Dialog, order: AdminOrder): string[] {
       ];
     case 'shipmentFailed':
       return [
-        'Cập nhật trạng thái vận đơn sang giao hàng thất bại.',
-        'Hàng được cộng lại vào kho và đơn chuyển sang Đã hủy.',
+        'Ghi nhận vận đơn giao thất bại. Hàng còn trên đường hoàn nên chưa cộng kho, chưa hủy đơn.',
+        'Khi hãng báo hàng đã về kho, bấm "Mô phỏng: Hàng hoàn về kho" để xử lý tiếp.',
+      ];
+    case 'shipmentReturned':
+      return [
+        'Hàng về tới kho: cộng lại tồn kho một lần.',
+        'Đơn COD chuyển Đã hủy và ghi giao thất bại. Đơn trả trước không tự hủy: hoàn tiền ở mục Hoàn tiền.',
       ];
     case 'startProcessing':
       return ['Khách không còn tự hủy và nhận hoàn tiền tự động được nữa.'];

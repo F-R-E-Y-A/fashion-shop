@@ -137,6 +137,9 @@ export class ShippingService {
     note?: string,
   ): Promise<ShipmentResponse> {
     return this.prisma.$transaction(async (tx) => {
+      // Khoá đơn trước khi đọc trạng thái, cùng khoá với các thao tác admin (OrdersService.lock):
+      // webhook gửi lại đồng thời với admin bấm "Đã giao" không cùng vượt qua bước kiểm trạng thái.
+      if (this.orders) await this.orders.lock(orderId, tx);
       const order = await tx.order.findUnique({
         where: { id: orderId },
         include: { shipment: true, items: true, payments: true },
@@ -144,8 +147,10 @@ export class ShippingService {
       if (!order) throw new NotFoundException('Không tìm thấy đơn hàng.');
       if (!order.shipment) throw new NotFoundException('Chưa tạo vận đơn cho đơn hàng này.');
 
-      // Điểm sửa P2: Chặn cập nhật vận chuyển nếu đơn hàng đã bị hủy
-      if (order.status === 'CANCELLED') {
+      // Đơn đã hủy: chặn chuyển sang đang giao/đã giao. Vẫn cho ghi nhận FAILED/RETURNED để xác nhận
+      // hàng hoàn về (vd shop bấm "Giao thất bại" trước khi hãng báo hoàn); phần side effect bên dưới
+      // chỉ chạy với đơn PROCESSING/SHIPPED nên không hoàn kho hay ghi thanh toán lần nữa.
+      if (order.status === 'CANCELLED' && status !== 'FAILED' && status !== 'RETURNED') {
         throw new ConflictException('Đơn hàng đã bị hủy, không thể cập nhật vận chuyển.');
       }
 
@@ -205,15 +210,20 @@ export class ShippingService {
           }
           await this.orders.transition(orderId, 'DELIVERED', tx, actorUserId);
         }
-      } else if (status === 'FAILED' || status === 'RETURNED') {
-        if (['PROCESSING', 'SHIPPED'].includes(order.status)) {
-          const cod = order.payments.find((p) => p.gateway === 'COD' && p.status === 'PENDING');
-          if (cod && this.payments) {
+      } else if (status === 'RETURNED') {
+        // FAILED chỉ ghi nhận trên vận đơn: hàng còn trên xe, chưa trả kho, chưa hủy đơn.
+        // Tới RETURNED (hàng về tới kho) mới trả kho và hủy đơn COD, cùng đường với
+        // OrderAdminService.deliveryFailed.
+        // Đơn trả trước (VNPAY/MoMo) không tự hủy: giữ trạng thái đơn để admin hoàn tiền theo luồng
+        // hoàn tiền/đổi trả (order-admin.service.ts, "Don tra truoc giao that bai ... khong di qua day").
+        const cod = order.payments.find((p) => p.gateway === 'COD' && p.status === 'PENDING');
+        if (cod && ['PROCESSING', 'SHIPPED'].includes(order.status)) {
+          if (this.payments) {
             await this.payments.record(
               cod.id,
               'FAILED',
               `COD-FAILED:${order.orderCode}`,
-              { note: note ?? 'Giao thất bại', actor: actorUserId ?? 'CARRIER' },
+              { note: note ?? 'Hàng hoàn về kho', actor: actorUserId ?? 'CARRIER' },
               tx,
             );
           }
