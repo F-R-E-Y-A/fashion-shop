@@ -75,13 +75,17 @@ export class ShippingService {
     actorUserId?: string,
   ): Promise<ShipmentResponse> {
     return this.prisma.$transaction(async (tx) => {
+      if (this.orders) await this.orders.lock(orderId, tx);
+
       const order = await tx.order.findUnique({
         where: { id: orderId },
         include: { shipment: true },
       });
       if (!order) throw new NotFoundException('Không tìm thấy đơn hàng.');
 
-      if (['CANCELLED', 'REFUNDED'].includes(order.status)) {
+      if (
+        ['CANCELLED', 'REFUNDED', 'PARTIALLY_REFUNDED', 'PAYMENT_REVIEW'].includes(order.status)
+      ) {
         throw new ConflictException(
           `Đơn hàng ở trạng thái ${order.status}, không thể tạo vận đơn.`,
         );
@@ -89,6 +93,11 @@ export class ShippingService {
       if (['PENDING_PAYMENT', 'PENDING_CONFIRMATION'].includes(order.status)) {
         throw new ConflictException(
           'Đơn hàng chưa sẵn sàng để tạo vận đơn. Vui lòng xác nhận hoặc thanh toán trước.',
+        );
+      }
+      if (order.shipment && order.shipment.status !== 'PENDING') {
+        throw new ConflictException(
+          `Vận đơn đang ở trạng thái ${order.shipment.status}, không thể tạo mới hoặc ghi đè mã vận đơn.`,
         );
       }
 

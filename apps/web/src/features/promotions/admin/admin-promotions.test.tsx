@@ -5,14 +5,14 @@ import {
   QueryClientProvider,
   useQueryClient,
 } from '@tanstack/react-query';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { type ReactNode, StrictMode } from 'react';
-import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
+import { Link, MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { configureUncertainQueryDefaults, isAdminQueryForActor } from '@/core';
-import { AuthProvider } from '@/features/account';
+import { AuthProvider, useAdminForbidden, useAuth } from '@/features/account';
 
 import {
   type AdminPromotionDetail,
@@ -102,6 +102,20 @@ function setupMockFetch(handlers: {
         JSON.stringify({
           user: { id: 'admin-1', email: 'admin@example.test', roles: ['ADMIN'] },
           accessToken: 'test-token',
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      );
+    }
+
+    if (url.pathname === '/api/auth/logout' && method === 'POST') {
+      return new Response(null, { status: 204 });
+    }
+
+    if (url.pathname === '/api/auth/login' && method === 'POST') {
+      return new Response(
+        JSON.stringify({
+          user: { id: 'admin-2', email: 'admin2@example.test', roles: ['ADMIN'] },
+          accessToken: 'test-token-2',
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
       );
@@ -1038,6 +1052,543 @@ describe('Admin Promotions Web Feature (UC-10.1)', () => {
       expect(client.getQueryData(actor2Create)).toBeUndefined();
       expect(client.getQueryData(actor2Edit)).toBeUndefined();
       expect(client.getQueryData(actor2Status)).toBeUndefined();
+    });
+  });
+
+  describe('CODEX_REVIEW4 admin-promotions-forbidden-url regressions', () => {
+    function LocationDisplay() {
+      const location = useLocation();
+      return <div data-testid="location-display">{location.pathname + location.search}</div>;
+    }
+
+    function NavTester() {
+      const navigate = useNavigate();
+      return (
+        <div>
+          <button type="button" onClick={() => navigate('/admin/promotions?page=invalid&keep=1')}>
+            Go Invalid
+          </button>
+          <button type="button" onClick={() => navigate('/admin/promotions?page=2&keep=1')}>
+            Go Page 2
+          </button>
+          <button type="button" onClick={() => navigate(-1)}>
+            Go Back
+          </button>
+          <button type="button" onClick={() => navigate(1)}>
+            Go Forward
+          </button>
+        </div>
+      );
+    }
+
+    function RevokeTrigger() {
+      const { user, getSessionEpoch } = useAuth();
+      const { markForbidden } = useAdminForbidden(user?.id ?? '', getSessionEpoch);
+      return (
+        <button type="button" onClick={() => markForbidden()}>
+          Revoke Permission
+        </button>
+      );
+    }
+
+    function SessionSwitcher() {
+      const { user, logout, login } = useAuth();
+      const handleSwitch = async () => {
+        await logout();
+        await login({ email: 'admin2@example.test', password: 'Password123' });
+      };
+      return (
+        <div>
+          <span data-testid="active-actor">{user?.id ?? 'none'}</span>
+          <button type="button" onClick={() => void handleSwitch()}>
+            Switch User
+          </button>
+        </div>
+      );
+    }
+
+    it('GET list trả 403: hiển thị AdminForbidden trên trang danh sách', async () => {
+      setupMockFetch({
+        getList: () =>
+          new Response(
+            JSON.stringify({
+              statusCode: 403,
+              error: 'Forbidden',
+              message: 'Không đủ quyền truy cập',
+            }),
+            { status: 403, headers: { 'Content-Type': 'application/json' } },
+          ),
+      });
+
+      renderWithProviders(
+        <Routes>
+          <Route path="/admin/promotions" element={<AdminPromotionsPage />} />
+        </Routes>,
+      );
+
+      expect(
+        await screen.findByRole('heading', { name: 'Không đủ quyền truy cập' }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    });
+
+    it('GET detail trả 403: hiển thị AdminForbidden trên trang chi tiết', async () => {
+      setupMockFetch({
+        getDetail: () =>
+          new Response(
+            JSON.stringify({
+              statusCode: 403,
+              error: 'Forbidden',
+              message: 'Không đủ quyền truy cập',
+            }),
+            { status: 403, headers: { 'Content-Type': 'application/json' } },
+          ),
+      });
+
+      renderWithProviders(
+        <Routes>
+          <Route path="/admin/promotions/:id" element={<AdminPromotionDetailPage />} />
+        </Routes>,
+        `/admin/promotions/${sampleSimplePromotion.id}`,
+      );
+
+      expect(
+        await screen.findByRole('heading', { name: 'Không đủ quyền truy cập' }),
+      ).toBeInTheDocument();
+      expect(screen.queryByLabelText(/Tên chương trình khuyến mãi/)).not.toBeInTheDocument();
+    });
+
+    it('POST trả 403: chuyển sang hiển thị AdminForbidden trên trang tạo mới', async () => {
+      setupMockFetch({
+        create: () =>
+          new Response(
+            JSON.stringify({
+              statusCode: 403,
+              error: 'Forbidden',
+              message: 'Không đủ quyền truy cập',
+            }),
+            { status: 403, headers: { 'Content-Type': 'application/json' } },
+          ),
+      });
+
+      const user = userEvent.setup();
+      renderWithProviders(
+        <Routes>
+          <Route path="/admin/promotions/new" element={<AdminPromotionNewPage />} />
+        </Routes>,
+        '/admin/promotions/new',
+      );
+
+      const nameInput = screen.getByLabelText(/Tên chương trình/);
+      const discountInput = screen.getByLabelText(/Giá trị giảm/);
+      await user.type(nameInput, 'Chiến dịch mới');
+      await user.type(discountInput, '20');
+
+      await user.click(screen.getByRole('button', { name: 'Lưu chiến dịch' }));
+
+      expect(
+        await screen.findByRole('heading', { name: 'Không đủ quyền truy cập' }),
+      ).toBeInTheDocument();
+    });
+
+    it('PATCH trả 403: chuyển sang hiển thị AdminForbidden trên trang chi tiết', async () => {
+      setupMockFetch({
+        patch: () =>
+          new Response(
+            JSON.stringify({
+              statusCode: 403,
+              error: 'Forbidden',
+              message: 'Không đủ quyền truy cập',
+            }),
+            { status: 403, headers: { 'Content-Type': 'application/json' } },
+          ),
+      });
+
+      const user = userEvent.setup();
+      renderWithProviders(
+        <Routes>
+          <Route path="/admin/promotions/:id" element={<AdminPromotionDetailPage />} />
+        </Routes>,
+        `/admin/promotions/${sampleSimplePromotion.id}`,
+      );
+
+      const input = await screen.findByLabelText(/Giá trị giảm/);
+      await user.clear(input);
+      await user.type(input, '50');
+
+      await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
+
+      expect(
+        await screen.findByRole('heading', { name: 'Không đủ quyền truy cập' }),
+      ).toBeInTheDocument();
+    });
+
+    it('mất quyền ở màn khác khi form tạo đang mở: hiển thị AdminForbidden', async () => {
+      setupMockFetch({});
+      const user = userEvent.setup();
+      renderWithProviders(
+        <>
+          <RevokeTrigger />
+          <Routes>
+            <Route path="/admin/promotions/new" element={<AdminPromotionNewPage />} />
+          </Routes>
+        </>,
+        '/admin/promotions/new',
+      );
+
+      expect(
+        screen.getByRole('heading', { name: 'Tạo chiến dịch khuyến mãi mới' }),
+      ).toBeInTheDocument();
+
+      // Mất quyền ở nơi khác
+      await user.click(screen.getByRole('button', { name: 'Revoke Permission' }));
+
+      expect(
+        await screen.findByRole('heading', { name: 'Không đủ quyền truy cập' }),
+      ).toBeInTheDocument();
+      expect(screen.queryByLabelText(/Tên chương trình/)).not.toBeInTheDocument();
+    });
+
+    it('response PATCH đến muộn sau 403 không phục hồi dữ liệu UI hay QueryClient (detail/list/uncertain)', async () => {
+      let markPatchStarted!: () => void;
+      const patchStarted = new Promise<void>((resolve) => {
+        markPatchStarted = resolve;
+      });
+      let resolvePatch!: (res: Response) => void;
+      const patchPromise = new Promise<Response>((resolve) => {
+        resolvePatch = resolve;
+      });
+
+      setupMockFetch({
+        patch: () => {
+          markPatchStarted();
+          return patchPromise;
+        },
+      });
+
+      const user = userEvent.setup();
+      const { queryClient } = renderWithProviders(
+        <>
+          <RevokeTrigger />
+          <Routes>
+            <Route path="/admin/promotions/:id" element={<AdminPromotionDetailPage />} />
+          </Routes>
+        </>,
+        `/admin/promotions/${sampleSimplePromotion.id}`,
+      );
+
+      const input = await screen.findByLabelText(/Giá trị giảm/);
+      await user.clear(input);
+      await user.type(input, '75');
+
+      // Bắt đầu submit và đợi gate xác nhận PATCH đang pending
+      await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
+      await patchStarted;
+
+      // Trong lúc request đang bay, mất quyền 403 ở nơi khác
+      await user.click(screen.getByRole('button', { name: 'Revoke Permission' }));
+
+      expect(
+        await screen.findByRole('heading', { name: 'Không đủ quyền truy cập' }),
+      ).toBeInTheDocument();
+
+      // Sau đó mutation trả về thành công 200
+      await act(async () => {
+        resolvePatch(
+          new Response(
+            JSON.stringify({
+              ...sampleSimplePromotion,
+              discountValue: '75.00',
+              updatedAt: '2026-11-13T00:00:00.000Z',
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          ),
+        );
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      // Kiểm UI: không hiển thị thông báo thành công, không phục hồi form, giữ nguyên AdminForbidden
+      expect(screen.queryByText('Đã cập nhật chiến dịch thành công.')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/Giá trị giảm/)).not.toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Không đủ quyền truy cập' })).toBeInTheDocument();
+
+      // Kiểm QueryClient: không phục hồi detail, list hay uncertain marker
+      expect(
+        queryClient.getQueryData(adminPromotionsKeys.detail('admin-1', sampleSimplePromotion.id)),
+      ).toBeUndefined();
+      expect(
+        queryClient.getQueryCache().findAll({ queryKey: adminPromotionsKeys.lists('admin-1') }),
+      ).toHaveLength(0);
+      expect(
+        queryClient.getQueryData(
+          adminPromotionsKeys.uncertainMarker('admin-1', 'edit', sampleSimplePromotion.id),
+        ),
+      ).toBeUndefined();
+    });
+
+    it('response POST đến muộn sau 403 không phục hồi dữ liệu UI hay QueryClient', async () => {
+      let markCreateStarted!: () => void;
+      const createStarted = new Promise<void>((resolve) => {
+        markCreateStarted = resolve;
+      });
+      let resolveCreate!: (res: Response) => void;
+      const createPromise = new Promise<Response>((resolve) => {
+        resolveCreate = resolve;
+      });
+
+      setupMockFetch({
+        create: () => {
+          markCreateStarted();
+          return createPromise;
+        },
+      });
+
+      const user = userEvent.setup();
+      const { queryClient } = renderWithProviders(
+        <>
+          <RevokeTrigger />
+          <Routes>
+            <Route path="/admin/promotions/new" element={<AdminPromotionNewPage />} />
+            <Route
+              path="/admin/promotions/:id"
+              element={<div data-testid="navigated-detail">Trang chi tiết</div>}
+            />
+          </Routes>
+        </>,
+        '/admin/promotions/new',
+      );
+
+      await user.type(screen.getByLabelText(/Tên chương trình/), 'Chiến dịch đến muộn');
+      await user.type(screen.getByLabelText(/Giá trị giảm/), '25');
+
+      // Gate xác nhận POST đã pending trước khi mất quyền
+      await user.click(screen.getByRole('button', { name: 'Lưu chiến dịch' }));
+      await createStarted;
+
+      await user.click(screen.getByRole('button', { name: 'Revoke Permission' }));
+      expect(
+        await screen.findByRole('heading', { name: 'Không đủ quyền truy cập' }),
+      ).toBeInTheDocument();
+
+      // Giải phóng response 201 muộn
+      await act(async () => {
+        resolveCreate(
+          new Response(
+            JSON.stringify({
+              ...sampleSimplePromotion,
+              id: 'created-late-id',
+              name: 'Chiến dịch đến muộn',
+            }),
+            { status: 201, headers: { 'Content-Type': 'application/json' } },
+          ),
+        );
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      // UI không chuyển hướng sang detail, không mất AdminForbidden
+      expect(screen.queryByTestId('navigated-detail')).not.toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Không đủ quyền truy cập' })).toBeInTheDocument();
+
+      // QueryClient không có detail, list hay uncertain marker được ghi cho admin-1
+      expect(
+        queryClient.getQueryData(adminPromotionsKeys.detail('admin-1', 'created-late-id')),
+      ).toBeUndefined();
+      expect(
+        queryClient.getQueryCache().findAll({ queryKey: adminPromotionsKeys.lists('admin-1') }),
+      ).toHaveLength(0);
+      expect(queryClient.getQueryCache().findAll({ queryKey: ['uncertain'] })).toHaveLength(0);
+    });
+
+    it('response PATCH đến muộn sau khi đổi phiên thật (logout -> login admin-2) không phục hồi dữ liệu UI hay QueryClient', async () => {
+      let markPatchStarted!: () => void;
+      const patchStarted = new Promise<void>((resolve) => {
+        markPatchStarted = resolve;
+      });
+      let resolvePatch!: (res: Response) => void;
+      const patchPromise = new Promise<Response>((resolve) => {
+        resolvePatch = resolve;
+      });
+
+      setupMockFetch({
+        patch: () => {
+          markPatchStarted();
+          return patchPromise;
+        },
+      });
+
+      const user = userEvent.setup();
+      const { queryClient } = renderWithProviders(
+        <>
+          <SessionSwitcher />
+          <Routes>
+            <Route path="/admin/promotions/:id" element={<AdminPromotionDetailPage />} />
+          </Routes>
+        </>,
+        `/admin/promotions/${sampleSimplePromotion.id}`,
+      );
+
+      const input = await screen.findByLabelText(/Giá trị giảm/);
+      expect(screen.getByTestId('active-actor')).toHaveTextContent('admin-1');
+
+      await user.clear(input);
+      await user.type(input, '75');
+
+      // Gate xác nhận PATCH của admin-1 đang pending
+      await user.click(screen.getByRole('button', { name: 'Lưu thay đổi' }));
+      await patchStarted;
+
+      // Đổi phiên thật từ admin-1 sang admin-2 trong lúc PATCH đang bay
+      await user.click(screen.getByRole('button', { name: 'Switch User' }));
+      await waitFor(() => {
+        expect(screen.getByTestId('active-actor')).toHaveTextContent('admin-2');
+      });
+
+      // Giải phóng PATCH response muộn của admin-1
+      await act(async () => {
+        resolvePatch(
+          new Response(
+            JSON.stringify({
+              ...sampleSimplePromotion,
+              discountValue: '75.00',
+              updatedAt: '2026-11-13T00:00:00.000Z',
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } },
+          ),
+        );
+        await new Promise((r) => setTimeout(r, 50));
+      });
+
+      // UI không hiển thị thông báo thành công của phiên cũ
+      expect(screen.queryByText('Đã cập nhật chiến dịch thành công.')).not.toBeInTheDocument();
+
+      // QueryClient không lưu dữ liệu '75.00' hay uncertain marker vào cache của admin-1 hoặc admin-2
+      expect(
+        queryClient.getQueryData(adminPromotionsKeys.detail('admin-1', sampleSimplePromotion.id)),
+      ).toBeUndefined();
+      expect(
+        queryClient.getQueryData(
+          adminPromotionsKeys.uncertainMarker('admin-1', 'edit', sampleSimplePromotion.id),
+        ),
+      ).toBeUndefined();
+      const admin2Detail = queryClient.getQueryData<AdminPromotionDetail>(
+        adminPromotionsKeys.detail('admin-2', sampleSimplePromotion.id),
+      );
+      expect(admin2Detail?.discountValue).not.toBe('75.00');
+    });
+
+    it('URL page=abc giữ keep=1, không cảnh báo React (setSearchParams in render)', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error');
+      const consoleWarnSpy = vi.spyOn(console, 'warn');
+      setupMockFetch({});
+
+      renderWithProviders(
+        <>
+          <LocationDisplay />
+          <Routes>
+            <Route path="/admin/promotions" element={<AdminPromotionsPage />} />
+          </Routes>
+        </>,
+        '/admin/promotions?page=abc&keep=1',
+      );
+
+      await screen.findByRole('table');
+
+      const locDisplay = screen.getByTestId('location-display');
+      expect(locDisplay.textContent).toBe('/admin/promotions?page=1&keep=1');
+
+      // Đảm bảo không có warning/error từ React khi render
+      const reactRenderIssues = [
+        ...consoleErrorSpy.mock.calls,
+        ...consoleWarnSpy.mock.calls,
+      ].filter((call) =>
+        call.some(
+          (arg) =>
+            typeof arg === 'string' &&
+            (arg.includes('Cannot update a component') ||
+              arg.includes('while rendering a different component') ||
+              arg.includes('Rendered fewer hooks') ||
+              arg.includes('Rendered more hooks')),
+        ),
+      );
+      expect(reactRenderIssues).toHaveLength(0);
+    });
+
+    it('chuyển giữa URL hợp lệ/không hợp lệ, Back/Forward, assert URL từng bước và không lỗi/cảnh báo điều hướng/hook', async () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error');
+      const consoleWarnSpy = vi.spyOn(console, 'warn');
+      setupMockFetch({});
+      const user = userEvent.setup();
+
+      renderWithProviders(
+        <>
+          <LocationDisplay />
+          <NavTester />
+          <Routes>
+            <Route path="/admin/promotions" element={<AdminPromotionsPage />} />
+          </Routes>
+        </>,
+        '/admin/promotions?page=1',
+      );
+
+      await screen.findByRole('table');
+      expect(screen.getByTestId('location-display').textContent).toBe('/admin/promotions?page=1');
+
+      // Chuyển sang URL không hợp lệ -> Navigate replace sang page=1&keep=1
+      await user.click(screen.getByRole('button', { name: 'Go Invalid' }));
+      await screen.findByRole('table');
+      expect(screen.getByTestId('location-display').textContent).toBe(
+        '/admin/promotions?page=1&keep=1',
+      );
+
+      // Chuyển sang URL hợp lệ page 2
+      await user.click(screen.getByRole('button', { name: 'Go Page 2' }));
+      await screen.findByRole('table');
+      expect(screen.getByTestId('location-display').textContent).toBe(
+        '/admin/promotions?page=2&keep=1',
+      );
+
+      // Back -> quay lại đúng /admin/promotions?page=1&keep=1 (vì Go Invalid đã replace)
+      await user.click(screen.getByRole('button', { name: 'Go Back' }));
+      await screen.findByRole('table');
+      expect(screen.getByTestId('location-display').textContent).toBe(
+        '/admin/promotions?page=1&keep=1',
+      );
+
+      // Forward -> tiến tới đúng /admin/promotions?page=2&keep=1
+      await user.click(screen.getByRole('button', { name: 'Go Forward' }));
+      await screen.findByRole('table');
+      expect(screen.getByTestId('location-display').textContent).toBe(
+        '/admin/promotions?page=2&keep=1',
+      );
+
+      const navOrHookIssues = [...consoleErrorSpy.mock.calls, ...consoleWarnSpy.mock.calls].filter(
+        (call) =>
+          call.some(
+            (arg) =>
+              typeof arg === 'string' &&
+              /hook|render|navigate|router|searchparams|setstate/i.test(arg),
+          ),
+      );
+      expect(navOrHookIssues).toHaveLength(0);
+    });
+
+    it('nút thao tác trên bảng AdminPromotionsPage có minHeight chuẩn 44px', async () => {
+      setupMockFetch({});
+
+      renderWithProviders(
+        <Routes>
+          <Route path="/admin/promotions" element={<AdminPromotionsPage />} />
+        </Routes>,
+      );
+
+      const table = await screen.findByRole('table');
+      const detailLink = within(table).getByRole('link', { name: 'Chi tiết' });
+      const toggleBtn = within(table).getByRole('button', { name: 'Ngưng' });
+      const viewLink = within(table).getByRole('link', { name: 'Xem' });
+
+      expect(detailLink.style.minHeight).toBe('44px');
+      expect(toggleBtn.style.minHeight).toBe('44px');
+      expect(viewLink.style.minHeight).toBe('44px');
     });
   });
 });

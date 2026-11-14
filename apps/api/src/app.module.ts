@@ -9,6 +9,7 @@ import { CheckoutModule } from './modules/checkout/index.js';
 import { HealthModule } from './modules/health/index.js';
 import { ProductsModule } from './modules/products/index.js';
 import { PromotionsModule } from './modules/promotions/index.js';
+import { ReportingModule } from './modules/reporting/index.js';
 import { ReviewsModule } from './modules/reviews/index.js';
 import { UploadsModule } from './modules/uploads/index.js';
 import { UsersModule } from './modules/users/index.js';
@@ -37,6 +38,7 @@ import { UsersModule } from './modules/users/index.js';
     CheckoutModule,
     ProductsModule,
     PromotionsModule,
+    ReportingModule,
     ReviewsModule,
     UploadsModule,
     UsersModule,

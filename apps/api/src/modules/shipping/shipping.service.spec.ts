@@ -125,6 +125,40 @@ describe('ShippingService', () => {
       expect(res.status).toBe('PENDING');
       expect(res.isMock).toBe(true);
     });
+
+    it('khoá đơn trước khi tạo vận đơn và chặn ghi đè khi vận đơn đã rời kho (khác PENDING)', async () => {
+      const callOrder: string[] = [];
+      const mockOrders = {
+        lock: vi.fn().mockImplementation(async () => {
+          callOrder.push('orders.lock');
+        }),
+        transition: vi.fn(),
+      } as unknown as OrdersService;
+
+      const mockPrisma = {
+        $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) =>
+          fn({
+            order: {
+              findUnique: vi.fn().mockImplementation(async () => {
+                callOrder.push('order.findUnique');
+                return {
+                  id: 'ord-1',
+                  orderCode: 'FR261113ABCDEFGH',
+                  status: 'SHIPPED',
+                  shipment: { id: 'ship-1', status: 'IN_TRANSIT' },
+                };
+              }),
+            },
+          }),
+        ),
+      } as unknown as PrismaService;
+
+      const service = new ShippingService(mockPrisma, mockOrders);
+      await expect(service.createShipment('ord-1', { carrierName: 'GHN' })).rejects.toThrow(
+        ConflictException,
+      );
+      expect(callOrder).toEqual(['orders.lock', 'order.findUnique']);
+    });
   });
 
   describe('updateShipmentStatus', () => {
