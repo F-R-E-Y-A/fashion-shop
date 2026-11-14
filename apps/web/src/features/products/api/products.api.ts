@@ -19,6 +19,9 @@ export interface Product {
   colorSwatches: string[];
   colorCount: number;
   stockStatus?: 'IN_STOCK' | 'OUT_OF_STOCK' | 'UNKNOWN';
+  /** Trung binh sao cua danh gia da duyet; 0 khi chua co. Tuy chon de du lieu mau cu van hop kieu. */
+  ratingAverage?: number;
+  ratingCount?: number;
 }
 export interface CategoryCrumb {
   name: string;

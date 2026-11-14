@@ -1,6 +1,6 @@
 ---
 title: Khám phá sản phẩm và quản trị catalog — đặc tả use case
-updated: 2026-11-08
+updated: 2026-11-12
 status: đề xuất, chờ Bảo duyệt
 owner: Bảo
 ---
@@ -88,7 +88,7 @@ Là một **khách vãng lai**, tôi muốn **nhập từ khoá và thấy sản
 ### Luồng phụ và ngoại lệ
 | Mã | Tình huống | Hệ thống xử lý |
 |---|---|---|
-| E1 | Không có kết quả | API nới dần truy vấn (bỏ từ khoá, dịp mặc, màu, cỡ, giá) và ghi rõ đã bỏ gì trong `relaxed`; hết ràng buộc mà vẫn rỗng thì trả rỗng. Giao diện gợi ý các danh mục gốc và câu mẫu |
+| E1 | Không có kết quả | API nới dần phần hiểu từ câu hỏi (bỏ từ khoá, dịp mặc, màu, cỡ, giá) và ghi rõ đã bỏ gì trong `relaxed`; màu, cỡ, khoảng giá khách tự bấm giữ nguyên; hết ràng buộc mà vẫn rỗng thì trả rỗng. Giao diện gợi ý các danh mục gốc và câu mẫu |
 | E2 | Từ khoá dưới 2 ký tự | Trả 400 |
 | E3 | Từ khoá quá 120 ký tự | Trả 400 (giới hạn hiện có trong DTO liệt kê) |
 

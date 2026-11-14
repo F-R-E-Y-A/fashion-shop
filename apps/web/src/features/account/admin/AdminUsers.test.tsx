@@ -115,6 +115,7 @@ describe('UC-02.1 Quản trị tài khoản — cổng ADMIN và đường dẫn
     const links = within(nav() as HTMLElement).getAllByRole('link');
     expect(links.map((link) => link.textContent)).toEqual([
       'Tổng quan',
+      'Báo cáo',
       'Tồn kho',
       'Danh mục',
       'Sản phẩm',
@@ -122,6 +123,7 @@ describe('UC-02.1 Quản trị tài khoản — cổng ADMIN và đường dẫn
       'Mã giảm giá',
       'Người dùng',
       'Đơn hàng',
+      'Đánh giá',
     ]);
     expect(screen.getByRole('link', { name: 'Tổng quan' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: 'Cửa hàng' })).toHaveAttribute('href', '/');

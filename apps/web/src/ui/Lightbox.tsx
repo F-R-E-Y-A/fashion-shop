@@ -10,7 +10,7 @@ export interface LightboxImage {
 }
 
 /**
- * Xem anh giua trang (lightbox): mo tu anh chinh cua trang chi tiet san pham.
+ * Xem anh giua trang (lightbox): anh chinh cua trang chi tiet san pham, anh trong danh gia.
  * Dong bang ESC, nut X hoac bam ra ngoai anh; ← / → duyet vong quay lai.
  * Chi la mot lop xem: du lieu va chi so anh van do trang giu, doi anh qua onNavigate.
  */

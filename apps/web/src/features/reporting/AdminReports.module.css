@@ -1,0 +1,339 @@
+.page {
+  composes: page from '@/ui/AdminKit.module.css';
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.header {
+  composes: header from '@/ui/AdminKit.module.css';
+}
+
+.headingRow {
+  composes: headingRow from '@/ui/AdminKit.module.css';
+}
+
+.titleArea {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.title {
+  composes: title from '@/ui/AdminKit.module.css';
+}
+
+.subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.statusMetaBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.metaPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: var(--radius);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.metaPillReady {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.metaPillNotReady {
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.metaPillStale {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.filterCard {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.filterGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filterLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.filterInput,
+.filterSelect {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.filterInput:focus-visible,
+.filterSelect:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.filterActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.applyButton {
+  composes: primaryButton from '@/ui/AdminKit.module.css';
+  min-height: 44px;
+  padding: 0 20px;
+}
+
+.refreshButton {
+  composes: secondary from '@/ui/AdminKit.module.css';
+  min-height: 44px;
+  padding: 0 16px;
+}
+
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.kpiCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 20px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  min-height: 44px;
+  box-sizing: border-box;
+}
+
+.kpiLabel {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.kpiValue {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  margin: 0;
+}
+
+.kpiValueNegative {
+  color: var(--danger);
+}
+
+.kpiHint {
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0;
+}
+
+.sectionGrid {
+  display: grid;
+  gap: 24px;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+.panelHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 14px;
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.panelSubtitle {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.tableWrap {
+  composes: tableWrap from '@/ui/AdminKit.module.css';
+}
+
+.table {
+  composes: table from '@/ui/AdminKit.module.css';
+}
+
+.table th,
+.table td {
+  font-variant-numeric: tabular-nums;
+}
+
+.table th.numCell,
+.table td.numCell {
+  text-align: right;
+}
+
+.numCell {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.emptyState {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.errorBanner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid var(--danger);
+  border-radius: var(--radius);
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.retryButton {
+  composes: dangerButton from '@/ui/AdminKit.module.css';
+  min-height: 44px;
+}
+
+.badge {
+  composes: badge from '@/ui/AdminKit.module.css';
+}
+
+.progressBarTrack {
+  height: 6px;
+  background: var(--bg);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.progressBarFill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+}
+
+@media (max-width: 900px) {
+  .kpiGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .filterCard {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filterActions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .applyButton,
+  .refreshButton {
+    width: 100%;
+  }
+
+  .tableWrap {
+    overflow: visible;
+  }
+
+  .responsiveTable,
+  .responsiveTable tbody,
+  .responsiveTable tr,
+  .responsiveTable td {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .responsiveTable thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .responsiveTable tr {
+    border-bottom: 1px solid var(--line);
+    padding: 14px 10px;
+  }
+
+  .responsiveTable td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 0;
+    text-align: right;
+  }
+
+  .responsiveTable td::before {
+    content: attr(data-label);
+    font-weight: 500;
+    color: var(--muted);
+    font-size: 13px;
+    text-align: left;
+    margin-right: 12px;
+  }
+}

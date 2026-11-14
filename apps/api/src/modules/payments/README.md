@@ -3,7 +3,7 @@
 Import PaymentsModule/PaymentsService qua `index.ts`; không gọi thẳng bảng Payment từ module khác để ghi. [Bản đồ](../../../../../docs/features/payments/README.md).
 
 - `gateways.get(code)` / `gateways.list()`: registry VNPAY/MOMO, availability để checkout hiển thị lựa chọn. Các adapter cùng `PaymentGateway` contract và trả `PaymentEvent` đã xác thực.
-- `create(orderId, requestKey, amount, holdUntil, ip, tx, code?)`: lưu attempt/ref và chống trùng key; mặc định VNPAY. `expiresAt` của attempt và link cổng = `holdUntil` trừ `SETTLEMENT_BUFFER_MINUTES` (3 phút) để IPN trễ vẫn kịp chốt; còn dưới 1 phút thì 409 ([ADR-029](../../../../../docs/LOG.md#adr-029)). VNPAY chuẩn bị URL local; MoMo lưu init intent đã ký trong PaymentTransaction để replay nhất quán.
+- `create(orderId, requestKey, amount, holdUntil, ip, tx, code?)`: lưu attempt/ref và chống trùng key; mặc định VNPAY. `expiresAt` của attempt và link cổng = `holdUntil` trừ `SETTLEMENT_BUFFER_MINUTES` (3 phút) để IPN trễ vẫn kịp chốt; còn dưới 1 phút thì 409 ([ADR-034](../../../../../docs/LOG.md#adr-034)). VNPAY chuẩn bị URL local; MoMo lưu init intent đã ký trong PaymentTransaction để replay nhất quán.
 - `launchLatest(orderId, ip)`: sau commit, claim attempt trước khi gọi HTTP tạo URL MoMo; timeout giữ PENDING để retry/query. Không giữ SQL transaction qua HTTP.
 - `byReference(ref, tx?)`, `latest(orderId, tx)`: đọc attempt để điều phối.
 - `record(id, status, receipt, payload, tx)`: unique gateway/receipt; không giảm SUCCEEDED về FAILED. Caller phải giữ khoá order và xác thực gateway trước.
