@@ -79,7 +79,8 @@ export function ConfirmDialog({
     const previousOverflow = root.style.overflow;
     root.style.overflow = 'hidden';
     if (!dialog.open) dialog.showModal();
-    cancelRef.current?.focus();
+    // preventScroll: hop co form dai (tra hang) van mo o dau hop; focus van o Huy.
+    cancelRef.current?.focus({ preventScroll: true });
 
     // Trinh duyet co the tu dong hop (vd Chrome bo qua preventDefault khi Esc lap lai): bao cha.
     // Su kien `close` duoc trinh duyet xep hang, nen close() o cleanup cua lan effect truoc (StrictMode

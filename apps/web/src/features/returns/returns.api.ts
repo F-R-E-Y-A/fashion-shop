@@ -143,6 +143,12 @@ export const ADMIN_TABS: { value: AdminReturnTab; label: string }[] = [
   { value: 'CANCELLED', label: 'Đã huỷ' },
   { value: 'ALL', label: 'Tất cả' },
 ];
+/** Nhan so tien theo trang thai; null: yeu cau dong ma khong hoan (tu choi, khach huy). */
+export function refundAmountLabel(status: ReturnStatus): string | null {
+  if (status === 'COMPLETED') return 'Đã hoàn';
+  if (status === 'REJECTED' || status === 'CANCELLED') return null;
+  return 'Hoàn dự kiến';
+}
 export const SHIPPING_POLICY =
   'Shop chịu phí gửi trả khi hàng lỗi hoặc giao sai; lý do khác khách chịu phí gửi trả.';
 export const REFUND_METHOD_TEXT: Record<RefundMethod, string> = {

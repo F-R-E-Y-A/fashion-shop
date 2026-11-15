@@ -3,7 +3,12 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { formatPrice } from '@/core';
 import { Empty, ErrorNote, Loading, Pager } from '@/ui';
 
-import { formatReturnDate, REASON_LABELS, STATUS_LABELS } from './returns.api.js';
+import {
+  formatReturnDate,
+  REASON_LABELS,
+  refundAmountLabel,
+  STATUS_LABELS,
+} from './returns.api.js';
 import styles from './Returns.module.css';
 import { useMyReturns } from './use-returns.js';
 
@@ -51,7 +56,11 @@ export function MyReturnsPage() {
                 Gửi ngày {formatReturnDate(item.createdAt)} · {item.items.length} sản phẩm ·{' '}
                 {REASON_LABELS[item.reasonCode]}
               </p>
-              <p className={styles.amount}>Hoàn dự kiến: {formatPrice(item.refundAmount)}</p>
+              {refundAmountLabel(item.status) && (
+                <p className={styles.amount}>
+                  {refundAmountLabel(item.status)}: {formatPrice(item.refundAmount)}
+                </p>
+              )}
             </li>
           ))}
         </ul>
