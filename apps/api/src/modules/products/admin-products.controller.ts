@@ -1,14 +1,18 @@
-import { Body, Controller, Get, Header, Param, Patch, Query } from '@nestjs/common';
+import { Body, Controller, Get, Header, Param, Patch, Post, Query } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiConflictResponse,
+  ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiProperty,
   ApiTags,
   ApiUnauthorizedResponse,
+  ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
+import { IsUUID } from 'class-validator';
 
 import { RequireRoles, RoleCode } from '../auth/index.js';
 import { AdminProductsService } from './admin-products.service.js';
@@ -16,10 +20,20 @@ import {
   AdminProductDetail,
   AdminProductIdParam,
   AdminProductPage,
+  AdminProductVariant,
 } from './dto/admin-product.response.js';
+import { AdminVariantOptionsResponse } from './dto/admin-variant-options.response.js';
 import { AdminProductContent, ChangeProductContentDto } from './dto/change-product-content.dto.js';
 import { AdminProductStatus, ChangeProductStatusDto } from './dto/change-product-status.dto.js';
+import { CreateProductVariantDto } from './dto/create-product-variant.dto.js';
 import { ListAdminProductsQuery } from './dto/list-admin-products.query.js';
+import { UpdateProductVariantDto } from './dto/update-product-variant.dto.js';
+
+export class AdminVariantIdParam extends AdminProductIdParam {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID('all', { message: 'variantId phải là UUID' })
+  variantId!: string;
+}
 
 @ApiTags('admin-products')
 @Controller('admin/products')
@@ -29,6 +43,14 @@ import { ListAdminProductsQuery } from './dto/list-admin-products.query.js';
 @ApiBadRequestResponse({ description: 'Query/body/UUID khong hop le; tham so lap/la bi tu choi' })
 export class AdminProductsController {
   constructor(private readonly products: AdminProductsService) {}
+
+  @Get('variant-options')
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Danh sach mau sac va kich co kha dung de tao bien the' })
+  @ApiOkResponse({ type: AdminVariantOptionsResponse })
+  variantOptions(): Promise<AdminVariantOptionsResponse> {
+    return this.products.getVariantOptions();
+  }
 
   @Get()
   @Header('Cache-Control', 'no-store')
@@ -47,6 +69,37 @@ export class AdminProductsController {
   @ApiNotFoundResponse({ description: 'UUID hop le nhung san pham khong ton tai' })
   detail(@Param() { id }: AdminProductIdParam): Promise<AdminProductDetail> {
     return this.products.findById(id);
+  }
+
+  @Post(':id/variants')
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Them bien the moi cho san pham (client-generated UUID, idempotent)' })
+  @ApiCreatedResponse({ type: AdminProductVariant })
+  @ApiNotFoundResponse({ description: 'Khong tim thay san pham, mau hoac co' })
+  @ApiConflictResponse({
+    description: 'Trung SKU, trung to hop mau/co, hoac trung id voi thong tin khac',
+  })
+  createVariant(
+    @Param() { id }: AdminProductIdParam,
+    @Body() input: CreateProductVariantDto,
+  ): Promise<AdminProductVariant> {
+    return this.products.createVariant(id, input);
+  }
+
+  @Patch(':id/variants/:variantId')
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Sua gia hoac bat/tat bien the voi CAS expectedUpdatedAt' })
+  @ApiOkResponse({ type: AdminProductVariant })
+  @ApiNotFoundResponse({ description: 'Khong tim thay san pham hoac bien the' })
+  @ApiConflictResponse({ description: 'Token CAS khong khop (CONCURRENT_MODIFICATION)' })
+  @ApiUnprocessableEntityResponse({
+    description: 'Khong the tat bien the cuoi cung cua san pham dang mo ban',
+  })
+  updateVariant(
+    @Param() { id, variantId }: AdminVariantIdParam,
+    @Body() input: UpdateProductVariantDto,
+  ): Promise<AdminProductVariant> {
+    return this.products.updateVariant(id, variantId, input);
   }
 
   @Patch(':id/content')
@@ -72,6 +125,9 @@ export class AdminProductsController {
   @ApiOkResponse({ type: AdminProductStatus })
   @ApiNotFoundResponse({ description: 'Khong tim thay san pham' })
   @ApiConflictResponse({ description: 'Phien ban cu: tai lai va xac nhan lai' })
+  @ApiUnprocessableEntityResponse({
+    description: 'Khong the mo ban san pham khi khong co bien the hoat dong',
+  })
   changeStatus(
     @Param() { id }: AdminProductIdParam,
     @Body() input: ChangeProductStatusDto,

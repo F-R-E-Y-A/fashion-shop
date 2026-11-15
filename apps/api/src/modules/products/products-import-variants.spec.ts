@@ -1,0 +1,332 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { Prisma } from '../../generated/prisma/client.js';
+import type { PrismaService } from '../../infra/prisma/prisma.service.js';
+import type { InventoryService } from '../inventory/index.js';
+import type { ImportProductRow } from './import/import.types.js';
+import { ProductsService } from './products.service.js';
+
+describe('ProductsService - Import Bảo vệ Biến thể & Cặp giá (Đợt 2)', () => {
+  let service: ProductsService;
+  type MockPrismaTx = {
+    $queryRaw: ReturnType<typeof vi.fn>;
+    category: Record<string, ReturnType<typeof vi.fn>>;
+    color: Record<string, ReturnType<typeof vi.fn>>;
+    size: Record<string, ReturnType<typeof vi.fn>>;
+    product: Record<string, ReturnType<typeof vi.fn>>;
+    productVariant: Record<string, ReturnType<typeof vi.fn>>;
+    productImage: Record<string, ReturnType<typeof vi.fn>>;
+  };
+  let tx: MockPrismaTx;
+  let prisma: {
+    $transaction: ReturnType<typeof vi.fn>;
+  };
+
+  beforeEach(() => {
+    tx = {
+      $queryRaw: vi.fn(),
+      category: { findFirst: vi.fn(), count: vi.fn().mockResolvedValue(0) },
+      color: { upsert: vi.fn(), findMany: vi.fn() },
+      size: { findMany: vi.fn() },
+      product: {
+        findFirst: vi.fn(),
+        create: vi.fn(),
+        update: vi.fn(),
+      },
+      productVariant: {
+        findUnique: vi.fn(),
+        create: vi.fn(),
+        update: vi.fn(),
+        updateMany: vi.fn(),
+        findMany: vi.fn(),
+      },
+      productImage: {
+        upsert: vi.fn(),
+        deleteMany: vi.fn(),
+      },
+    };
+
+    prisma = {
+      $transaction: vi.fn(async (callback: (txClient: MockPrismaTx) => Promise<unknown>) =>
+        callback(tx),
+      ),
+    };
+
+    service = new ProductsService(
+      prisma as unknown as PrismaService,
+      {} as unknown as InventoryService,
+    );
+  });
+
+  const baseRow: ImportProductRow = {
+    sourceKey: 'src-1',
+    name: 'Áo thun phong cách',
+    categorySlug: 'ao-thun',
+    images: [{ url: 'https://example.test/img1.jpg' }],
+    variants: [
+      {
+        sku: 'AT-DEN-M',
+        color: { code: 'den', name: 'Đen' },
+        sizeCode: 'M',
+        listPrice: '200000.00',
+        salePrice: '150000.00',
+      },
+    ],
+  };
+
+  function setupMocks() {
+    tx.$queryRaw.mockResolvedValue([
+      {
+        id: 'cat-1',
+        slug: 'ao-thun',
+        isActive: true,
+        adminDisabled: false,
+        statusVersion: 0,
+        contentVersion: 0,
+        adminContentFields: [],
+      },
+    ]);
+    tx.color.upsert.mockResolvedValue({ id: 'color-1', code: 'den' });
+    tx.size.findMany.mockResolvedValue([{ id: 'size-1', code: 'M' }]);
+    tx.product.findFirst.mockResolvedValue(null);
+    tx.product.create.mockResolvedValue({
+      id: 'prod-1',
+      name: baseRow.name,
+      slug: 'ao-thun-phong-cach',
+      isActive: true,
+    });
+    tx.product.update.mockResolvedValue({
+      id: 'prod-1',
+      name: baseRow.name,
+      slug: 'ao-thun-phong-cach',
+      isActive: true,
+    });
+    tx.productVariant.findMany.mockResolvedValue([
+      {
+        productId: 'prod-1',
+        listPrice: new Prisma.Decimal('200000.00'),
+        salePrice: new Prisma.Decimal('150000.00'),
+      },
+    ]);
+  }
+
+  it('xung đột cặp giá: admin giữ salePrice=180k, import hạ listPrice=150k -> giữ nguyên cả cặp giá hiện có trong DB', async () => {
+    setupMocks();
+
+    const existingVariant = {
+      id: 'v1',
+      productId: 'prod-1',
+      colorId: 'color-1',
+      sizeId: 'size-1',
+      sku: 'AT-DEN-M',
+      listPrice: new Prisma.Decimal('250000.00'),
+      salePrice: new Prisma.Decimal('180000.00'),
+      isActive: true,
+      adminManagedFields: ['salePrice'], // admin quản lý giá giảm 180k
+    };
+    tx.productVariant.findUnique.mockResolvedValue(existingVariant);
+
+    const conflictingRow: ImportProductRow = {
+      ...baseRow,
+      variants: [
+        {
+          sku: 'AT-DEN-M',
+          color: { code: 'den', name: 'Đen' },
+          sizeCode: 'M',
+          listPrice: '150000.00', // nguồn hạ listPrice xuống 150k < 180k
+          salePrice: undefined,
+        },
+      ],
+    };
+
+    await service.importProducts([conflictingRow]);
+
+    // Không được xóa salePrice hoặc lưu salePrice (180k) > listPrice (150k)
+    // Phải giữ nguyên cả cặp giá hiện có trong DB (listPrice: 250k, salePrice: 180k)
+    expect(tx.productVariant.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { sku: 'AT-DEN-M' },
+        data: expect.objectContaining({
+          listPrice: new Prisma.Decimal('250000.00'),
+          salePrice: new Prisma.Decimal('180000.00'),
+        }),
+      }),
+    );
+  });
+
+  it('xung đột cặp giá: admin giữ listPrice=200k, import đưa salePrice=250k -> giữ nguyên cả cặp giá hiện có trong DB', async () => {
+    setupMocks();
+
+    const existingVariant = {
+      id: 'v1',
+      productId: 'prod-1',
+      colorId: 'color-1',
+      sizeId: 'size-1',
+      sku: 'AT-DEN-M',
+      listPrice: new Prisma.Decimal('200000.00'),
+      salePrice: new Prisma.Decimal('160000.00'),
+      isActive: true,
+      adminManagedFields: ['listPrice'], // admin quản lý giá niêm yết 200k
+    };
+    tx.productVariant.findUnique.mockResolvedValue(existingVariant);
+
+    const conflictingRow: ImportProductRow = {
+      ...baseRow,
+      variants: [
+        {
+          sku: 'AT-DEN-M',
+          color: { code: 'den', name: 'Đen' },
+          sizeCode: 'M',
+          listPrice: '300000.00',
+          salePrice: '250000.00', // nguồn đưa salePrice 250k > 200k
+        },
+      ],
+    };
+
+    await service.importProducts([conflictingRow]);
+
+    expect(tx.productVariant.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { sku: 'AT-DEN-M' },
+        data: expect.objectContaining({
+          listPrice: new Prisma.Decimal('200000.00'),
+          salePrice: new Prisma.Decimal('160000.00'),
+        }),
+      }),
+    );
+  });
+
+  it('không tắt biến thể tạo tay (isCustom: true) hoặc biến thể do admin quản lý isActive', async () => {
+    setupMocks();
+    tx.productVariant.findUnique.mockResolvedValue(null);
+
+    await service.importProducts([baseRow]);
+
+    // Kiểm tra câu lệnh updateMany tắt biến thể thiếu trong nguồn phải bảo vệ isCustom và adminManagedFields
+    expect(tx.productVariant.updateMany).toHaveBeenCalledWith({
+      where: {
+        productId: 'prod-1',
+        sku: { notIn: ['AT-DEN-M'] },
+        isCustom: false,
+        NOT: { adminManagedFields: { has: 'isActive' } },
+      },
+      data: { isActive: false },
+    });
+  });
+
+  it('tự động tắt sản phẩm (isActive: false) nếu sản phẩm không còn biến thể hoạt động nào sau import', async () => {
+    setupMocks();
+    tx.productVariant.findUnique.mockResolvedValue(null);
+    tx.productVariant.findMany.mockResolvedValue([]); // 0 active variants
+
+    await service.importProducts([baseRow]);
+
+    expect(tx.product.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'prod-1' },
+        data: expect.objectContaining({ isActive: false }),
+      }),
+    );
+  });
+
+  describe('Regression review-127 (B4, B5)', () => {
+    const id = '00000000-0000-4000-8000-000000000127';
+    const input = {
+      id,
+      colorId: id,
+      sizeId: id,
+      sku: 'REVIEW-127',
+      listPrice: '200000',
+      salePrice: null,
+      isActive: true,
+    };
+    const existing = {
+      id,
+      productId: 'p1',
+      colorId: 'old-color',
+      sizeId: 'old-size',
+      sku: input.sku,
+      listPrice: new Prisma.Decimal('250000'),
+      salePrice: new Prisma.Decimal('180000'),
+      isActive: false,
+      isCustom: true,
+      adminManagedFields: ['listPrice', 'salePrice', 'isActive'],
+      updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      color: { code: 'old', name: 'Old', hex: null },
+      size: { code: 'OLD' },
+    };
+    const row = {
+      sourceKey: 'src-review',
+      name: 'Áo thun review',
+      categorySlug: 'ao-thun',
+      images: [{ url: 'https://example.test/image.jpg' }],
+      variants: [
+        {
+          sku: input.sku,
+          color: { code: 'new', name: 'New' },
+          sizeCode: 'M',
+          listPrice: '150000',
+        },
+      ],
+    };
+
+    it('B4 import không được phép ghi đè định danh màu/cỡ của SKU đã tồn tại', async () => {
+      tx.$queryRaw.mockResolvedValue([
+        {
+          id: 'p1',
+          slug: 'ao-thun',
+          isActive: false,
+          adminDisabled: true,
+          statusVersion: 0,
+          contentVersion: 0,
+          adminContentFields: [],
+        },
+      ]);
+      tx.category.count.mockResolvedValue(0);
+      tx.product.update.mockResolvedValue({ id: 'p1', slug: 'ao-thun' });
+      tx.product.create.mockResolvedValue({ id: 'p1', slug: 'ao-thun' });
+      tx.color.upsert.mockResolvedValue({ id: 'new-color' });
+      tx.size.findMany.mockResolvedValue([{ id: 'new-size', code: 'M' }]);
+      tx.productVariant.findMany
+        .mockResolvedValueOnce([{ productId: 'p1' }])
+        .mockResolvedValueOnce([existing]);
+      tx.productVariant.findUnique.mockResolvedValue(existing);
+
+      const result = await service.importProducts([row]);
+      expect(result[0]?.status).toBe('failed');
+      expect(tx.productVariant.update).not.toHaveBeenCalled();
+    });
+
+    it('B5 import priceFrom fallback phải dùng giá bảo lưu trong DB khi mọi biến thể đều inactive', async () => {
+      tx.$queryRaw.mockResolvedValue([
+        {
+          id: 'p1',
+          slug: 'ao-thun',
+          isActive: false,
+          adminDisabled: true,
+          statusVersion: 0,
+          contentVersion: 0,
+          adminContentFields: [],
+        },
+      ]);
+      tx.category.count.mockResolvedValue(0);
+      tx.product.update.mockResolvedValue({ id: 'p1', slug: 'ao-thun' });
+      tx.product.create.mockResolvedValue({ id: 'p1', slug: 'ao-thun' });
+      tx.color.upsert.mockResolvedValue({ id: 'new-color' });
+      tx.size.findMany.mockResolvedValue([{ id: 'new-size', code: 'M' }]);
+      const existingB5 = { ...existing, colorId: 'new-color', sizeId: 'new-size' };
+      tx.productVariant.findMany
+        .mockResolvedValueOnce([{ productId: 'p1' }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([existingB5]);
+      tx.productVariant.findUnique.mockResolvedValue(existingB5);
+
+      await service.importProducts([row]);
+      const updates = tx.product.update.mock.calls.map(
+        (c: unknown) => (c as [{ data: Record<string, unknown> }])[0].data,
+      );
+      const priceUpdates = updates.filter((x) => x.priceFrom !== undefined);
+      expect(String(priceUpdates.at(-1)?.priceFrom)).toBe('180000');
+    });
+  });
+});

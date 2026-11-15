@@ -291,3 +291,4 @@ Trên commit định danh, người review mở Swagger đối chiếu DTO và q
 trên DB riêng, docs lint và CI của đúng head; đối chiếu minh chứng, ghi tên người review trước merge.
 Phân loại AC1–18 không đổi nội dung nghiệp vụ; không đánh dấu hoàn tất chỉ vì có tên test.
 Phần sửa nội dung tiếp nối tại [AC19–28](use-cases-admin-content.md).
+Phần quản trị biến thể và giá tiếp nối tại [AC29–40](use-cases-admin-variants.md).

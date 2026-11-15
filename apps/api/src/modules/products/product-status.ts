@@ -24,8 +24,9 @@ export function productStatusChange(
   before: { isActive: boolean; adminDisabled: boolean },
   adminDisabled: boolean,
   hasImages: boolean,
+  hasActiveVariants = true,
 ) {
-  const isActive = !adminDisabled && hasImages;
+  const isActive = !adminDisabled && hasImages && hasActiveVariants;
   return {
     adminDisabled,
     isActive,

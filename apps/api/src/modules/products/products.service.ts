@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 
 import { skipOf, toPage } from '../../common/pagination/page.response.js';
 import { Prisma } from '../../generated/prisma/client.js';
@@ -63,6 +63,8 @@ type ImportSuccess = Extract<ImportRowResult, { status: 'created' | 'updated' }>
  */
 @Injectable()
 export class ProductsService {
+  private readonly logger = new Logger(ProductsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly inventory: InventoryService,
@@ -207,24 +209,121 @@ export class ProductsService {
       const colorId = colorByCode.get(code);
       const sizeId = sizeByCode.get(sizeCode);
       if (!colorId || !sizeId) throw new Error('Thiếu màu/cỡ sau khi đã kiểm tra');
-      const variantData = {
-        productId: product.id,
-        colorId,
-        sizeId,
-        listPrice: new Prisma.Decimal(variant.listPrice),
-        salePrice: variant.salePrice === undefined ? null : new Prisma.Decimal(variant.salePrice),
-        isActive: true,
-      };
-      await tx.productVariant.upsert({
+
+      const existingVariant = await tx.productVariant.findUnique({
         where: { sku: variant.sku },
-        create: { sku: variant.sku, ...variantData },
-        update: variantData,
+        select: {
+          id: true,
+          productId: true,
+          colorId: true,
+          sizeId: true,
+          listPrice: true,
+          salePrice: true,
+          isActive: true,
+          adminManagedFields: true,
+        },
       });
+
+      if (!existingVariant) {
+        const listPrice = new Prisma.Decimal(variant.listPrice);
+        const salePrice =
+          variant.salePrice === undefined ? null : new Prisma.Decimal(variant.salePrice);
+        await tx.productVariant.create({
+          data: {
+            sku: variant.sku,
+            productId: product.id,
+            colorId,
+            sizeId,
+            listPrice,
+            salePrice,
+            isActive: true,
+            isCustom: false,
+            adminManagedFields: [],
+          },
+        });
+      } else {
+        if (
+          existingVariant.productId !== product.id ||
+          existingVariant.colorId !== colorId ||
+          existingVariant.sizeId !== sizeId
+        ) {
+          throw new ImportRowError(
+            'SKU_CONFLICT',
+            `SKU ${variant.sku} đã tồn tại với sản phẩm/màu/cỡ khác`,
+          );
+        }
+
+        const managed = existingVariant.adminManagedFields ?? [];
+        const sourceList = new Prisma.Decimal(variant.listPrice);
+        const sourceSale =
+          variant.salePrice === undefined ? null : new Prisma.Decimal(variant.salePrice);
+
+        const effectiveList = managed.includes('listPrice')
+          ? existingVariant.listPrice
+          : sourceList;
+        const effectiveSale = managed.includes('salePrice')
+          ? existingVariant.salePrice
+          : sourceSale;
+
+        let finalList = effectiveList;
+        let finalSale = effectiveSale;
+
+        if (effectiveSale !== null && effectiveSale.gt(effectiveList)) {
+          this.logger.warn(
+            `[Import Catalog] Xung đột cặp giá hợp nhất cho SKU ${variant.sku}: ` +
+              `effectiveSalePrice (${effectiveSale}) > effectiveListPrice (${effectiveList}). ` +
+              `Bảo vệ dữ liệu: Giữ nguyên cả cặp giá hiện có trong DB (listPrice: ${existingVariant.listPrice}, salePrice: ${existingVariant.salePrice}).`,
+          );
+          finalList = existingVariant.listPrice;
+          finalSale = existingVariant.salePrice;
+        }
+
+        const effectiveIsActive = managed.includes('isActive') ? existingVariant.isActive : true;
+
+        await tx.productVariant.update({
+          where: { sku: variant.sku },
+          data: {
+            listPrice: finalList,
+            salePrice: finalSale,
+            isActive: effectiveIsActive,
+          },
+        });
+      }
     }
     await tx.productVariant.updateMany({
-      where: { productId: product.id, sku: { notIn: skus } },
+      where: {
+        productId: product.id,
+        sku: { notIn: skus },
+        isCustom: false,
+        NOT: { adminManagedFields: { has: 'isActive' } },
+      },
       data: { isActive: false },
     });
+
+    const allActiveVariants = await tx.productVariant.findMany({
+      where: { productId: product.id, isActive: true },
+      select: { listPrice: true, salePrice: true },
+    });
+    if (allActiveVariants.length > 0) {
+      priceFrom = Prisma.Decimal.min(...allActiveVariants.map((v) => v.salePrice ?? v.listPrice));
+      await tx.product.update({
+        where: { id: product.id },
+        data: { priceFrom },
+      });
+    } else {
+      const allVariants = await tx.productVariant.findMany({
+        where: { productId: product.id },
+        select: { listPrice: true, salePrice: true },
+      });
+      const fallbackPrice =
+        allVariants.length > 0
+          ? Prisma.Decimal.min(...allVariants.map((v) => v.salePrice ?? v.listPrice))
+          : priceFrom;
+      await tx.product.update({
+        where: { id: product.id },
+        data: { isActive: false, priceFrom: fallbackPrice },
+      });
+    }
 
     for (const [sortOrder, image] of row.images.entries()) {
       const colorId = image.colorCode ? (colorByCode.get(image.colorCode) ?? null) : null;

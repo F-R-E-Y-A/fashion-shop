@@ -531,3 +531,27 @@ test riêng của Issue77; chưa rollout DB phát triển. Kế hoạch, log và
 
 **Đánh đổi:** Thêm cột `admin_managed_fields` qua một migration và yêu cầu writer cùng danh mục chờ khóa theo thứ tự ID; chưa hỗ trợ xóa cứng danh mục ở đợt này.
 
+---
+
+<a id="adr-061"></a>
+## ADR-061 · Quản trị biến thể sản phẩm, SKU và giá với CAS và bảo vệ import
+
+**Trạng thái:** đề xuất · **Ngày:** 2026-11-14 · **Người đề xuất:** Tài (AI hỗ trợ).
+
+**Bối cảnh:** Issue #127 (Đợt 2 Quản trị sản phẩm: Biến thể & Giá) mở rộng UC-04.3 để admin thêm biến thể mới (từ màu/cỡ có sẵn), sửa giá niêm yết/giá bán, bật/ngừng bán biến thể; tính toán lại `priceFrom` tức thời; bảo vệ dữ liệu admin quản lý trước crawler `importProducts`; đồng thời bảo vệ toàn vẹn: chặn tắt biến thể cuối cùng khi sản phẩm đang mở bán, và chặn mở bán sản phẩm khi có 0 biến thể hoạt động.
+
+**Phương án:**
+1. Thêm `isCustom Boolean @default(false)` và `adminManagedFields String[] @default([])` vào `ProductVariant` qua 1 migration duy nhất (`20261114140000_ph03_admin_variant_fields`).
+2. `POST /api/admin/products/:id/variants`: bắt buộc client sinh UUID v4 (`id`); bắt buộc chọn màu/cỡ có sẵn từ baseline database; SKU bất biến sau tạo, kiểm tra duy nhất toàn cục và tổ hợp `(productId, colorId, sizeId)` duy nhất; gán `isCustom: true` và `adminManagedFields: ['listPrice', 'salePrice', 'isActive']`. Hỗ trợ replay idempotent (cùng id + cùng payload = 200/201, cùng id + khác payload = 409 `IDEMPOTENCY_PAYLOAD_MISMATCH`).
+3. `PATCH /api/admin/products/:id/variants/:variantId`: CAS token `expectedUpdatedAt` so sánh chính xác ISO timestamp; xử lý No-op (không bump `updatedAt` khi dữ liệu không đổi); ghi nhận trường thay đổi vào `adminManagedFields`.
+4. Giao thức khóa phân cấp: khóa Product cha (`lockProductStatus`) trước khi khóa/thao tác Variant trong cả Admin API và `importProducts`, triệt tiêu hoàn toàn nguy cơ deadlock (40P01).
+5. Tính lại `priceFrom` của sản phẩm cha ngay trong transaction từ `min(activeVariants.salePrice ?? listPrice)`. Khi 0 biến thể active, fallback giá nhỏ nhất của tất cả biến thể hoặc giá vừa cập nhật, giữ cột `priceFrom` NOT NULL hợp lệ.
+6. Hợp đồng tồn kho với Inventory: Giữ `UNKNOWN` (`null`), không tự động tạo bản ghi `Inventory(0)`.
+7. Bảo vệ hai chiều mở bán:
+   - Chặn tắt biến thể cuối cùng khi sản phẩm đang bán: `422 LAST_ACTIVE_VARIANT_BLOCKED` (hướng dẫn admin ngừng bán sản phẩm trước).
+   - Chặn mở bán sản phẩm khi có 0 biến thể active: `422 NO_ACTIVE_VARIANTS_FOR_ACTIVE_PRODUCT`.
+8. Bảo vệ Import: bảo toàn `adminManagedFields` và `isCustom`; khi cặp giá hợp nhất xung đột (`effectiveSalePrice > effectiveListPrice`), giữ nguyên cả cặp giá hiện có trong DB và ghi `logger.warn`; biến thể vắng mặt chỉ bị vô hiệu hóa nếu `isCustom: false` và `isActive` không nằm trong `adminManagedFields`.
+9. Frontend: Giữ uncertain marker qua điều hướng route trong cùng phiên (`actorId`, `sessionEpoch`, `productId`, `variantId`); khóa tạo mới theo tài nguyên `new`; giải phóng marker chỉ bằng chứng thực máy chủ; guard chống late response / 403.
+
+**Đánh đổi:** Thêm 2 cột vào `product_variants` qua 1 migration; admin chỉ được chọn màu và cỡ có sẵn, không tự tạo màu/cỡ tự do; không hỗ trợ xóa cứng biến thể (chỉ chuyển `isActive = false`).
+
