@@ -13,6 +13,7 @@ import { prismaConnection } from '../../src/infra/prisma/connection.js';
 import { seedAdministrativeAreas } from './administrative-areas.seed.js';
 import { seedCatalog } from './catalog.seed.js';
 import { seedIdentity } from './identity.seed.js';
+import { seedNotifications } from './notifications.seed.js';
 import { seedPromotions } from './promotions.seed.js';
 import { seedShipping } from './shipping.seed.js';
 
@@ -26,15 +27,16 @@ if (!connectionString) {
 const prisma = new PrismaClient({ adapter: new PrismaPg(prismaConnection(connectionString)) });
 
 async function main(): Promise<void> {
-  const [catalog, identity, areas, promotions] = await Promise.all([
+  const [catalog, identity, areas, promotions, notifications] = await Promise.all([
     seedCatalog(prisma),
     seedIdentity(prisma),
     seedAdministrativeAreas(prisma),
     seedPromotions(prisma),
+    seedNotifications(prisma),
   ]);
   await seedShipping(prisma);
   console.log(
-    `Da nap du lieu nen: ${catalog.categories} danh muc, ${catalog.brands} thuong hieu, ${catalog.colors} mau, ${catalog.sizes} co, ${identity.roles} vai tro.`,
+    `Da nap du lieu nen: ${catalog.categories} danh muc, ${catalog.brands} thuong hieu, ${catalog.colors} mau, ${catalog.sizes} co, ${identity.roles} vai tro, ${notifications.notifications} thong bao.`,
   );
   console.log(
     `Khu vuc hanh chinh: ${areas.provinces} tinh, ${areas.communes} xa; them ${areas.inserted}, doi ten ${areas.updated}, giu nguyen ${areas.unchanged}.`,

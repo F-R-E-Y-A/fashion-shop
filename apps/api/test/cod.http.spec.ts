@@ -165,6 +165,26 @@ describe('PH-11 COD: tao don, giu hang, thu tien khi giao (PostgreSQL)', () => {
     expect((await codGateway()).configured).toBe(true);
   });
 
+  it('PH-15 đặt 2 đơn liên tiếp qua HTTP tạo đủ 2 bản ghi thông báo cho khách và 2 cho admin', async () => {
+    const setQuantity = (quantity: number) =>
+      t.http.patch(`/api/cart/items/${variantId}`).set(auth()).send({ quantity }).expect(200);
+    const first = await createCod();
+    await setQuantity(1);
+    const second = await createCod();
+
+    const userNotifications = await t.prisma.notification.findMany({
+      where: { userId, forAdmin: false },
+      orderBy: { createdAt: 'asc' },
+    });
+    expect(userNotifications.map((n) => n.orderId)).toEqual([first.id, second.id]);
+
+    const adminNotifications = await t.prisma.notification.findMany({
+      where: { forAdmin: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    expect(adminNotifications.map((n) => n.orderId)).toEqual([first.id, second.id]);
+  });
+
   it('UC-07.4/AC3 huy don COD tra hang ve kho va cho dat lai', async () => {
     const order = await createCod();
     const cancelled = (await t.http.post(`/api/orders/${order.id}/cancel`).set(auth()).expect(201))
