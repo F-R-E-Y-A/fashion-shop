@@ -22,6 +22,12 @@ import {
   ProductStatusFeedback,
   useProductStatusAction,
 } from './product-status-action.js';
+import {
+  AddVariantButton,
+  EditVariantButton,
+  ProductVariantFeedback,
+  useProductVariantAction,
+} from './product-variant-action.js';
 import { useAdminCatalog } from './use-admin-catalog.js';
 
 export function AdminCatalogDetailPage() {
@@ -32,6 +38,7 @@ export function AdminCatalogDetailPage() {
 function CatalogDetail({ id }: { id: string }) {
   const statusAction = useProductStatusAction();
   const contentAction = useProductContentAction();
+  const variantAction = useProductVariantAction(id);
   const { user } = useAuth();
   const location = useLocation();
   const query = parseCatalogQuery(location.search);
@@ -51,6 +58,7 @@ function CatalogDetail({ id }: { id: string }) {
       </Link>
       <ProductStatusFeedback action={statusAction} />
       <ProductContentFeedback action={contentAction} />
+      <ProductVariantFeedback action={variantAction} />
       {result.isPending && <Loading label="Đang tải chi tiết sản phẩm…" />}
       {result.isError && (
         <ErrorNote
@@ -70,6 +78,7 @@ function CatalogDetail({ id }: { id: string }) {
             <div className={styles.actionGroup}>
               <ProductStatusButton product={data} action={statusAction} />
               <ProductContentButton product={data} action={contentAction} />
+              <AddVariantButton product={data} action={variantAction} />
             </div>
           </header>
           <div className={styles.detailGrid}>
@@ -138,6 +147,8 @@ function CatalogDetail({ id }: { id: string }) {
                       <th scope="col">Giá niêm yết</th>
                       <th scope="col">Giá giảm</th>
                       <th scope="col">Cờ hoạt động</th>
+                      <th scope="col">Nguồn / Bảo vệ</th>
+                      <th scope="col">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -154,7 +165,27 @@ function CatalogDetail({ id }: { id: string }) {
                           {variant.salePrice === null ? 'Không có' : formatPrice(variant.salePrice)}
                         </td>
                         <td data-label="Cờ hoạt động">
-                          {variant.isActive ? 'Đang bật' : 'Đã ngừng bán'}
+                          <span
+                            className={styles.badge}
+                            data-tone={variant.isActive ? 'accent' : 'muted'}
+                          >
+                            {variant.isActive ? 'Đang bật' : 'Đã ngừng bán'}
+                          </span>
+                        </td>
+                        <td data-label="Nguồn / Bảo vệ">
+                          {variant.isCustom ? 'Tự tạo' : 'Từ nguồn'}
+                          {variant.adminManagedFields && variant.adminManagedFields.length > 0 && (
+                            <span className={styles.sub}>
+                              Khóa: {variant.adminManagedFields.join(', ')}
+                            </span>
+                          )}
+                        </td>
+                        <td data-label="Thao tác">
+                          <EditVariantButton
+                            product={data}
+                            variant={variant}
+                            action={variantAction}
+                          />
                         </td>
                       </tr>
                     ))}

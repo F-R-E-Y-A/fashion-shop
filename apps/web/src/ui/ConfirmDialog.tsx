@@ -22,6 +22,7 @@ interface ConfirmDialogProps {
   pendingLabel: string;
   tone: 'danger' | 'primary';
   pending: boolean;
+  confirmDisabled?: boolean;
   onConfirm(): void;
   /** Dong hop: Huy, Esc hay trinh duyet tu dong. Khi dang xu ly, dong KHONG huy thao tac o may chu. */
   onClose(): void;
@@ -49,6 +50,7 @@ export function ConfirmDialog({
   pendingLabel,
   tone,
   pending,
+  confirmDisabled,
   onConfirm,
   onClose,
   returnFocusRef,
@@ -163,10 +165,11 @@ export function ConfirmDialog({
         <button
           type="button"
           className={tone === 'danger' ? styles.danger : styles.primary}
-          aria-disabled={pending}
+          disabled={confirmDisabled}
+          aria-disabled={pending || confirmDisabled}
           aria-busy={pending}
           onClick={() => {
-            if (!pending) onConfirm();
+            if (!pending && !confirmDisabled) onConfirm();
           }}
         >
           {pending ? pendingLabel : confirmLabel}

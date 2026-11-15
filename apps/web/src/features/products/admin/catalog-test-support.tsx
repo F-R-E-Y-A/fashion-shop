@@ -47,6 +47,9 @@ export const product: AdminCatalogDetail = {
       listPrice: '199000',
       salePrice: null,
       isActive: false,
+      isCustom: false,
+      adminManagedFields: [],
+      updatedAt: '2026-01-02T00:00:00Z',
     },
   ],
   images: [],
@@ -173,6 +176,105 @@ export function backend() {
           contentVersion: updated.contentVersion,
           adminContentFields: updated.adminContentFields,
         });
+      }
+      if (url.pathname === '/api/admin/products/variant-options') {
+        return reply({
+          colors: [
+            { id: 'col-1', code: 'den', name: 'Đen', hex: '#000000' },
+            { id: 'col-2', code: 'trang', name: 'Trắng', hex: '#ffffff' },
+          ],
+          sizes: [
+            { id: 'sz-1', code: 'S', sortOrder: 10 },
+            { id: 'sz-2', code: 'M', sortOrder: 20 },
+            { id: 'sz-3', code: 'L', sortOrder: 30 },
+          ],
+        });
+      }
+      if (url.pathname === `/api/admin/products/${product.id}/variants` && r.method === 'POST') {
+        const body = r.body as {
+          id: string;
+          colorId: string;
+          sizeId: string;
+          sku: string;
+          listPrice: string;
+          salePrice?: string | null;
+          isActive?: boolean;
+        };
+        const current = state.products.find((p) => p.id === product.id) ?? product;
+        if (current.variants.some((v) => v.sku === body.sku)) {
+          return reply({ statusCode: 409, code: 'SKU_EXISTS', message: 'SKU đã tồn tại' }, 409);
+        }
+        const createdVariant = {
+          id: body.id,
+          sku: body.sku,
+          color:
+            body.colorId === 'col-2'
+              ? { code: 'trang', name: 'Trắng', hex: '#ffffff' }
+              : { code: 'den', name: 'Đen', hex: '#000000' },
+          sizeCode: body.sizeId === 'sz-1' ? 'S' : body.sizeId === 'sz-3' ? 'L' : 'M',
+          listPrice: body.listPrice,
+          salePrice: body.salePrice ?? null,
+          isActive: body.isActive ?? true,
+          isCustom: true,
+          adminManagedFields: ['listPrice', 'salePrice', 'isActive'],
+          updatedAt: '2026-11-14T10:00:00.000Z',
+        };
+        const updated = {
+          ...current,
+          variants: [...current.variants, createdVariant],
+        };
+        state.products = state.products.map((p) => (p.id === updated.id ? updated : p));
+        return reply(createdVariant, 201);
+      }
+      const variantMatch = url.pathname.match(
+        new RegExp(`^/api/admin/products/${product.id}/variants/([^/]+)$`),
+      );
+      if (variantMatch && r.method === 'PATCH') {
+        const variantId = variantMatch[1];
+        const body = r.body as {
+          listPrice?: string;
+          salePrice?: string | null;
+          isActive?: boolean;
+          expectedUpdatedAt: string;
+        };
+        const current = state.products.find((p) => p.id === product.id) ?? product;
+        const targetVariant = current.variants.find((v) => v.id === variantId);
+        if (!targetVariant) return failure(404);
+        if (targetVariant.updatedAt !== body.expectedUpdatedAt) {
+          return reply(
+            { statusCode: 409, code: 'CONCURRENT_MODIFICATION', message: 'CAS mismatch' },
+            409,
+          );
+        }
+        if (current.isActive && targetVariant.isActive && body.isActive === false) {
+          const activeCount = current.variants.filter((v) => v.isActive).length;
+          if (activeCount <= 1) {
+            return reply(
+              {
+                statusCode: 422,
+                code: 'LAST_ACTIVE_VARIANT_BLOCKED',
+                message: 'Cannot disable last active variant',
+              },
+              422,
+            );
+          }
+        }
+        const updatedVariant = {
+          ...targetVariant,
+          listPrice: body.listPrice ?? targetVariant.listPrice,
+          salePrice: body.salePrice !== undefined ? body.salePrice : targetVariant.salePrice,
+          isActive: body.isActive !== undefined ? body.isActive : targetVariant.isActive,
+          updatedAt: '2026-11-14T12:00:00.000Z',
+          adminManagedFields: Array.from(
+            new Set([...(targetVariant.adminManagedFields ?? []), 'listPrice', 'salePrice']),
+          ),
+        };
+        const updated = {
+          ...current,
+          variants: current.variants.map((v) => (v.id === variantId ? updatedVariant : v)),
+        };
+        state.products = state.products.map((p) => (p.id === updated.id ? updated : p));
+        return reply(updatedVariant);
       }
       if (url.pathname === `/api/admin/products/${product.id}`)
         return reply(state.products.find((p) => p.id === product.id) ?? product);
