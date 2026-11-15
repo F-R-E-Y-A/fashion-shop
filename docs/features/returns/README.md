@@ -1,7 +1,7 @@
 ---
 title: Trả hàng
-updated: 2026-11-14
-status: API và web có trên `feature/ph-11-payment`, chưa vào develop; chưa thử trình duyệt, chưa có E2E
+updated: 2026-11-15
+status: API, web, E2E-09 có trên `feature/ph-11-payment`, chưa vào develop; đã thử trình duyệt 15/11
 owner: Bảo
 ---
 # Trả hàng
