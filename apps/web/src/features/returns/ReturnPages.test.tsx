@@ -51,6 +51,7 @@ describe('UC-14.1 khách theo dõi yêu cầu trả hàng', () => {
           status: 'COMPLETED',
           refundAmount: '350000.00',
         }),
+        returnRequest({ id: 'r3', orderCode: 'FR-O3', status: 'REJECTED' }),
       ]),
     );
     show('/tai-khoan/tra-hang', <MyReturnsPage />, '/tai-khoan/tra-hang');
@@ -60,6 +61,10 @@ describe('UC-14.1 khách theo dõi yêu cầu trả hàng', () => {
     expect(within(first).getByRole('link')).toHaveAttribute('href', '/tai-khoan/tra-hang/r1');
     const second = screen.getByRole('link', { name: 'Đơn FR-O2' }).closest('li')!;
     expect(second).toHaveTextContent('Đã hoàn tiền');
+    expect(second).toHaveTextContent('Đã hoàn: 350.000');
+    // Bi tu choi: khong hoan dong nao, khong hien so "hoan du kien" de khach hieu lam.
+    const third = screen.getByRole('link', { name: 'Đơn FR-O3' }).closest('li')!;
+    expect(third).not.toHaveTextContent(/Hoàn dự kiến|Đã hoàn:/);
     expect(request).toHaveBeenCalledWith('/returns?page=1&pageSize=10', expect.anything());
   });
 
@@ -123,6 +128,9 @@ describe('UC-14.1 khách theo dõi yêu cầu trả hàng', () => {
     expect(steps).toHaveLength(2);
     expect(steps[1]).toHaveTextContent('Bị từ chối');
     expect(steps[1]).toHaveAttribute('data-state', 'bad');
+    // Dong ma khong hoan: khong con huong dan chuyen tien, tong ghi la so da yeu cau.
+    expect(screen.getByText('Số tiền đã yêu cầu')).toBeInTheDocument();
+    expect(screen.queryByText(/Tiền hoàn về|chuyển khoản vào|phí gửi trả/)).not.toBeInTheDocument();
   });
 
   it('UC-14.1/AC1 đã hoàn tiền: cả bốn bước đã xong, không còn nút huỷ', async () => {

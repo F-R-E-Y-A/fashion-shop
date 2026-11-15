@@ -8,6 +8,7 @@ import {
   formatReturnDate,
   REASON_LABELS,
   REFUND_METHOD_TEXT,
+  refundAmountLabel,
   type ReturnRequest,
   type ReturnStatus,
   STATUS_LABELS,
@@ -158,16 +159,19 @@ export function ReturnDetailPage() {
               </div>
             )}
             <div className={styles.totalRow}>
-              <dt>Tổng hoàn</dt>
+              <dt>{refundAmountLabel(request.status) ? 'Tổng hoàn' : 'Số tiền đã yêu cầu'}</dt>
               <dd>{formatPrice(request.refundAmount)}</dd>
             </div>
           </dl>
-          <p className={styles.muted}>
-            {REFUND_METHOD_TEXT[request.refundMethod]}{' '}
-            {request.shopPaysReturnShipping
-              ? 'Shop chịu phí gửi trả.'
-              : 'Bạn chịu phí gửi trả với lý do này.'}
-          </p>
+          {/* Yeu cau dong ma khong hoan: khong con chuyen tien hay gui hang, bo cau huong dan. */}
+          {refundAmountLabel(request.status) && (
+            <p className={styles.muted}>
+              {REFUND_METHOD_TEXT[request.refundMethod]}{' '}
+              {request.shopPaysReturnShipping
+                ? 'Shop chịu phí gửi trả.'
+                : 'Bạn chịu phí gửi trả với lý do này.'}
+            </p>
+          )}
 
           <h3 className={styles.sectionTitle}>Lý do</h3>
           <p>{REASON_LABELS[request.reasonCode]}</p>
