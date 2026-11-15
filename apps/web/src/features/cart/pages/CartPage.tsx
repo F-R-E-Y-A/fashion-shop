@@ -1,8 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
+import { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { formatPrice } from '@/core';
+import { getProductDetail, productKeys } from '@/features/products';
 import { BestPromotionBanner, PromotionField, useAppliedPromotion } from '@/features/promotions';
+import { VariantPicker } from '@/ui';
 
 import {
   Cart,
@@ -11,24 +14,83 @@ import {
   getCart,
   removeCartItem,
   selectCartItem,
+  switchCartItemVariant,
   updateCartItem,
 } from '../api/cart.api.js';
 import { useCartMutation } from '../api/useCartMutation.js';
 import styles from './CartPage.module.css';
+
+/** Tai bien the cua san pham chi khi khach mo bang doi phan loai. */
+function VariantSwitch({
+  item,
+  pending,
+  onConfirm,
+  onCancel,
+}: {
+  item: Cart['items'][number];
+  pending: boolean;
+  onConfirm: (toVariantId: string) => void;
+  onCancel: () => void;
+}) {
+  const product = useQuery({
+    queryKey: productKeys.detail(item.productSlug),
+    queryFn: () => getProductDetail(item.productSlug),
+  });
+  if (product.isLoading) return <p className={styles.variantNote}>Đang tải phân loại…</p>;
+  if (!product.data) {
+    return (
+      <p className={styles.variantNote} role="alert">
+        Không tải được phân loại.{' '}
+        <button type="button" className={styles.linkButton} onClick={onCancel}>
+          Đóng
+        </button>
+      </p>
+    );
+  }
+  return (
+    <VariantPicker
+      colors={product.data.colors}
+      variants={product.data.variants.map((variant) => ({
+        id: variant.id,
+        colorCode: variant.colorCode,
+        sizeCode: variant.sizeCode,
+        priceLabel: formatPrice(variant.price),
+        availableQuantity: variant.availableQuantity ?? null,
+      }))}
+      currentVariantId={item.variantId}
+      pending={pending}
+      onConfirm={onConfirm}
+      onCancel={onCancel}
+    />
+  );
+}
 
 function CartItemRow({
   item,
   onUpdate,
   onRemove,
   onSelect,
+  onSwitch,
+  editing,
+  onEdit,
+  switching,
   busy,
 }: {
   item: Cart['items'][number];
   onUpdate: (variantId: string, qty: number) => void;
   onRemove: (variantId: string) => void;
   onSelect: (variantId: string, selected: boolean) => void;
+  onSwitch: (variantId: string, toVariantId: string) => void;
+  editing: boolean;
+  onEdit: (variantId: string | null) => void;
+  switching: boolean;
   busy: boolean;
 }) {
+  const toggleRef = useRef<HTMLButtonElement>(null);
+  const close = () => {
+    onEdit(null);
+    toggleRef.current?.focus();
+  };
   return (
     <article className={styles.item}>
       <input
@@ -47,7 +109,25 @@ function CartItemRow({
         <h3 className={styles.name}>
           <Link to={`/san-pham/${item.productSlug}`}>{item.name}</Link>
         </h3>
-        <p className={styles.variant}>{item.variantLabel}</p>
+        <button
+          ref={toggleRef}
+          type="button"
+          className={styles.variantToggle}
+          aria-expanded={editing}
+          aria-label={`Phân loại ${item.variantLabel}, bấm để đổi màu hoặc cỡ`}
+          disabled={busy && !editing}
+          onClick={() => (editing ? close() : onEdit(item.variantId))}
+        >
+          {item.variantLabel} <span aria-hidden="true">▾</span>
+        </button>
+        {editing && (
+          <VariantSwitch
+            item={item}
+            pending={switching}
+            onConfirm={(toVariantId) => onSwitch(item.variantId, toVariantId)}
+            onCancel={close}
+          />
+        )}
         <p className={styles.unitPrice}>{formatPrice(item.price)} / sản phẩm</p>
         {item.availability !== 'AVAILABLE' && (
           <p className={styles.inactive}>
@@ -123,9 +203,18 @@ export function CartPage() {
   );
   const removeMut = useCartMutation(removeCartItem);
   const clearMut = useCartMutation(clearCart);
+  const [editing, setEditing] = useState<string | null>(null);
+  const switchMut = useCartMutation(({ from, to }: { from: string; to: string }) =>
+    switchCartItemVariant(from, to),
+  );
   const busy =
-    updateMut.isPending || selectMut.isPending || removeMut.isPending || clearMut.isPending;
-  const error = updateMut.error ?? selectMut.error ?? removeMut.error ?? clearMut.error;
+    updateMut.isPending ||
+    selectMut.isPending ||
+    removeMut.isPending ||
+    clearMut.isPending ||
+    switchMut.isPending;
+  const error =
+    updateMut.error ?? selectMut.error ?? removeMut.error ?? clearMut.error ?? switchMut.error;
 
   if (isLoading) return <p className="state">Đang tải giỏ hàng…</p>;
   if (isError && !cart)
@@ -168,6 +257,12 @@ export function CartPage() {
               key={item.variantId}
               item={item}
               busy={busy}
+              editing={editing === item.variantId}
+              onEdit={setEditing}
+              switching={switchMut.isPending}
+              onSwitch={(from, to) =>
+                switchMut.mutate({ from, to }, { onSuccess: () => setEditing(null) })
+              }
               onSelect={(variantId, selected) => selectMut.mutate({ variantId, selected })}
               onUpdate={(variantId, qty) => updateMut.mutate({ variantId, quantity: qty })}
               onRemove={(variantId) => removeMut.mutate(variantId)}

@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom';
 
 import { STORE_NAME, STORE_TAGLINE } from '@/core';
 import { useAuth } from '@/features/account';
+import { NotificationBell } from '@/features/notifications';
 import { AdminIcon } from '@/ui';
 
 import styles from './AdminLayout.module.css';
@@ -82,9 +83,12 @@ export function AdminLayout() {
               <span aria-current="page">{section}</span>
             </nav>
           </div>
-          <Link className={styles.storeLink} to="/">
-            Cửa hàng <span aria-hidden="true">↗</span>
-          </Link>
+          <div className={styles.topbarEnd}>
+            <NotificationBell isAdmin autoFetch />
+            <Link className={styles.storeLink} to="/">
+              Cửa hàng <span aria-hidden="true">↗</span>
+            </Link>
+          </div>
         </header>
         <main ref={mainRef} id="admin-content" className={styles.main} tabIndex={-1}>
           <Outlet />

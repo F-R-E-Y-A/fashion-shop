@@ -266,4 +266,111 @@ describe('Cart HTTP API (PH-02 Gio hang)', () => {
         .expect(401);
     });
   });
+
+  describe('Doi phan loai trong gio (PATCH toVariantId)', () => {
+    let a: string;
+    let b: string;
+    let c: string;
+    let otherProductVariant: string;
+
+    beforeAll(async () => {
+      // Mot san pham dang ban co it nhat 3 bien the dang ban, va mot bien the cua san pham khac.
+      const product = (
+        await t.prisma.product.findMany({
+          where: { isActive: true },
+          include: { variants: { where: { isActive: true }, orderBy: { id: 'asc' } } },
+          take: 50,
+        })
+      ).find((p) => p.variants.length >= 3);
+      if (!product) throw new Error('Seed thieu san pham co tu 3 bien the');
+      [a, b, c] = product.variants.map((v) => v.id);
+      const other = await t.prisma.productVariant.findFirst({
+        where: { isActive: true, productId: { not: product.id }, product: { isActive: true } },
+      });
+      if (!other) throw new Error('Seed thieu san pham thu hai');
+      otherProductVariant = other.id;
+      for (const id of [a, b, c]) {
+        await t.prisma.inventory.upsert({
+          where: { productVariantId: id },
+          create: { productVariantId: id, quantityOnHand: 10 },
+          update: { quantityOnHand: 10 },
+        });
+      }
+    });
+
+    const token = 'guest-switch-token-01';
+    const patch = (variant: string, body: object, guest = token) =>
+      t.http.patch(`/api/cart/items/${variant}`).set('x-guest-token', guest).send(body);
+
+    it('gio khach: doi sang co khac, giu so luong va dong duoc chon', async () => {
+      await t.http.delete('/api/cart').set('x-guest-token', token).expect(200);
+      await t.http
+        .post('/api/cart/items')
+        .set('x-guest-token', token)
+        .send({ variantId: a, quantity: 2 })
+        .expect(201);
+      await patch(a, { isSelected: false }).expect(200);
+
+      const res = await patch(a, { toVariantId: b }).expect(200);
+
+      expect(res.body.items).toHaveLength(1);
+      expect(res.body.items[0]).toMatchObject({ variantId: b, quantity: 2, isSelected: true });
+    });
+
+    it('bien the moi da co trong gio thi gop so luong, kiem ton tren tong', async () => {
+      await t.http
+        .post('/api/cart/items')
+        .set('x-guest-token', token)
+        .send({ variantId: c, quantity: 3 })
+        .expect(201);
+
+      const merged = await patch(b, { toVariantId: c }).expect(200);
+      expect(merged.body.items).toHaveLength(1);
+      expect(merged.body.items[0]).toMatchObject({ variantId: c, quantity: 5 });
+
+      await t.http
+        .post('/api/cart/items')
+        .set('x-guest-token', token)
+        .send({ variantId: a, quantity: 6 })
+        .expect(201);
+      // c dang co 5, a co 6: gop thanh 11 > ton 10 thi 409 va gio giu nguyen.
+      await patch(a, { toVariantId: c }).expect(409);
+      const after = await t.http.get('/api/cart').set('x-guest-token', token).expect(200);
+      expect(
+        after.body.items
+          .map((i: { variantId: string; quantity: number }) => [i.variantId, i.quantity])
+          .sort(),
+      ).toEqual(
+        [
+          [a, 6],
+          [c, 5],
+        ].sort(),
+      );
+    });
+
+    it('tu choi bien the cua san pham khac va gui kem quantity', async () => {
+      await patch(a, { toVariantId: otherProductVariant }).expect(400);
+      await patch(a, { toVariantId: b, quantity: 1 }).expect(400);
+      await patch(a, { toVariantId: 'khong-phai-uuid' }).expect(400);
+    });
+
+    it('gio nguoi dung dang nhap doi duoc; dong khong co trong gio thi 404', async () => {
+      const user = await authFlows(t).activateAndLogin('cart-switch@freya.vn');
+      const auth = { Authorization: `Bearer ${user.accessToken}` };
+      await t.http
+        .post('/api/cart/items')
+        .set(auth)
+        .send({ variantId: a, quantity: 1 })
+        .expect(201);
+
+      const res = await t.http
+        .patch(`/api/cart/items/${a}`)
+        .set(auth)
+        .send({ toVariantId: b })
+        .expect(200);
+      expect(res.body.items).toMatchObject([{ variantId: b, quantity: 1 }]);
+
+      await t.http.patch(`/api/cart/items/${c}`).set(auth).send({ toVariantId: a }).expect(404);
+    });
+  });
 });

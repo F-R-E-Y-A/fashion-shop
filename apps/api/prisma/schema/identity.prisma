@@ -52,6 +52,7 @@ model User {
   wishlists          Wishlist[]
   recentlyViewed     RecentlyViewed[]
   passwordResetGrants PasswordResetGrant[]
+  notifications      Notification[]
 
   @@map("users")
   @@schema("public")

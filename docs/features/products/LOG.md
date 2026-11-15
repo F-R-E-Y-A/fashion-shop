@@ -516,3 +516,18 @@ test riêng của Issue77; chưa rollout DB phát triển. Kế hoạch, log và
 
 **Đánh đổi:** Không thêm cột mới hay migration, giảm rủi ro thay đổi schema DB; yêu cầu client gửi đúng định dạng timestamp mili-giây và xử lý 409 bằng cách tải lại trạng thái mới nhất rồi xác nhận lại.
 
+<a id="adr-060"></a>
+## ADR-060 · Tạo, sửa, đổi cha danh mục hai cấp với khóa dùng chung và idempotency client UUID
+
+**Trạng thái:** đề xuất · **Ngày:** 2026-11-14 · **Người đề xuất:** Tài (AI hỗ trợ).
+
+**Bối cảnh:** Issue #120 (Đợt 1 Quản trị danh mục) mở rộng UC-04.1 để admin tạo danh mục (mặc định ẩn), sửa tên/thứ tự/danh mục cha trong cây tối đa hai cấp, đồng thời bảo vệ dữ liệu admin trước `seedCatalog` và ngăn xung đột cây hai cấp / sản phẩm trực tiếp khi chạy đồng thời với `importProducts`.
+
+**Phương án:**
+1. `POST /api/admin/categories` bắt buộc `id` (UUID v4 do client sinh), mặc định `isActive = false`, tự sinh `slug` nếu bỏ trống, và xử lý `P2002`/`23505` ngoài transaction đã thất bại.
+2. `PATCH /api/admin/categories/:id` dùng `expectedUpdatedAt` CAS (kiểm trước no-op), giữ `slug` bất biến, và ghi nhận trường đã sửa vào `adminManagedFields` (`String[] @default([])`) qua 1 migration để `seedCatalog` bảo lưu.
+3. Giao thức khóa dùng chung (`ReadCommitted`, `ORDER BY id ASC FOR UPDATE`) giữa Admin `POST`/`PATCH`, `importOne`, và `seedCatalog`; đọc lại sau khóa và retry toàn bộ transaction mới tối đa 3 lần khi gặp `P2034`, `40P01`, `40001` hoặc `CategoryLockSetChangedError`.
+4. UI giữ `uncertainCreate` (UUID + payload) qua điều hướng; nếu `GET` đối chiếu trả `404`, giữ marker và chỉ cho phép gửi lại bằng đúng UUID cũ.
+
+**Đánh đổi:** Thêm cột `admin_managed_fields` qua một migration và yêu cầu writer cùng danh mục chờ khóa theo thứ tự ID; chưa hỗ trợ xóa cứng danh mục ở đợt này.
+

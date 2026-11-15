@@ -30,6 +30,7 @@ vi.mock('@/features/products', () => ({
   AdminCatalogPage: () => null,
   AdminCatalogDetailPage: () => null,
   AdminCategoriesPage: () => null,
+  AdminCategoryNewPage: () => null,
   AdminCategoryDetailPage: () => null,
   AdminProductsPage: () => <p>Tổng quan sản phẩm của Bảo</p>,
 }));
@@ -353,7 +354,8 @@ describe('UC-02.1 Quản trị tài khoản — khóa, mở khóa và hộp xác
     fireEvent.click(within(dialog).getByRole('button', { name: 'Khóa tài khoản' }));
 
     const notice = await screen.findByText(/Đã khóa tài khoản/u);
-    expect(notice.closest('[tabindex="-1"]')).toHaveFocus();
+    expect(notice.closest('[role="status"]')).toBeInTheDocument();
+    expect(notice.closest('[tabindex="-1"]')).not.toHaveFocus();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Mở khóa tài khoản' })).toBeInTheDocument();
     expect(backend.posts().map((item) => item.path)).toEqual([

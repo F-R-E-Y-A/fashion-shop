@@ -43,3 +43,14 @@ Kiểm cuối ngày 17/10, trên working tree chưa commit từ baseline trên: 
 Giỏ dùng giá Catalog và tồn khả dụng Inventory trong transaction hiện có, bỏ fallback mock/299000. Dòng hết hàng/ngừng bán được giữ và lưu bỏ chọn, restock không tự chọn; thiếu tồn giữ nguyên quantity và chặn tính tiền dòng đó. Tính tổng các dòng đã chọn, đủ điều kiện; discount bằng 0. Gộp giỏ giữ trạng thái chọn của guest trên dòng mới, giữ các khoá ownership đã có ([cart.service.ts:67](../../../apps/api/src/modules/cart/cart.service.ts#L67), [merge:204](../../../apps/api/src/modules/cart/cart.service.ts#L204)).
 
 Bảo chọn SSE và yêu cầu chờ module khuyến mãi của Duy. Frontend có checkbox, thông báo tồn, promo trống và nút thêm vào giỏ trên trang sản phẩm. Cart không ghi reservation, checkout/payment chưa triển khai. Quyết định và giới hạn ở [ADR-031](../../LOG.md#adr-031); bài PostgreSQL [cart-live.http.spec.ts](../../../apps/api/test/cart-live.http.spec.ts) kiểm cả rollback khi đọc Catalog lỗi sau ghi giỏ.
+
+## 2026-11-14 · Đổi màu/cỡ ngay trong giỏ, gộp dòng nếu đã có
+
+**Loại:** thay đổi mã · **Phạm vi:** Cart API và web, `ui/VariantPicker` · **Commit:** [a948638](https://github.com/F-R-E-Y-A/fashion-shop/commit/a948638) (API), [6afda5d](https://github.com/F-R-E-Y-A/fashion-shop/commit/6afda5d) (HTTP test), web điền khi gộp
+
+Trước đây dòng giỏ chỉ sửa được số lượng và trạng thái chọn; muốn đổi cỡ phải xoá dòng rồi vào lại trang sản phẩm. Khảo sát 41 phiếu (câu 4.2): 18/38 người gặp món, màu hoặc cỡ đã hết khi quay lại giỏ. `PATCH /cart/items/:variantId` nhận thêm `toVariantId`, chạy trong `cartTransaction` có khoá giỏ. Gộp vào dòng có sẵn và kiểm tồn trên tổng theo cùng luật `addItem`. Dòng kết quả luôn được chọn, vì trường hợp chính là dòng cũ hết hàng đã bị tự bỏ chọn. Gửi kèm `quantity` hoặc `isSelected` thì 400.
+
+Web tải biến thể bằng `getProductDetail` của products chỉ khi khách mở bảng chọn. Bảng chọn nằm ở `ui/` vì chỉ nhận dữ liệu qua props, dùng lại được cho luồng đổi hàng sau này. Lộ ra khi làm: `updateItem` đổi số lượng mà không kiểm tồn ([cart.service.ts](../../../apps/api/src/modules/cart/cart.service.ts) `updateItem`); hàm mới không lặp lại, chỗ cũ để Duy quyết.
+
+Bằng chứng: `npm run check` exit 0 (API 620, web 652; log ngoài kho). Bốn bài HTTP mới trong [cart.http.spec.ts](../../../apps/api/test/cart.http.spec.ts) chưa chạy ở máy, chạy ở CI khi PR vào `develop`.
+

@@ -20,6 +20,7 @@ vi.mock('@/features/products', () => ({
   AdminCatalogPage: () => null,
   AdminCatalogDetailPage: () => null,
   AdminCategoriesPage: () => null,
+  AdminCategoryNewPage: () => null,
   AdminCategoryDetailPage: () => null,
   AdminProductsPage: () => null,
 }));
@@ -28,6 +29,9 @@ vi.mock('@/features/cart', () => ({
   getCart: async () => ({ items: [], itemCount: 0 }),
   mergeCart: async () => null,
   CartPage: () => <p>Trang giỏ hàng</p>,
+}));
+vi.mock('@/features/notifications', () => ({
+  NotificationBell: () => null,
 }));
 
 const request = vi.fn<(path: string, options?: RequestInit) => Promise<Response>>();
