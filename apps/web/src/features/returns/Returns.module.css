@@ -126,6 +126,7 @@
   height: 44px;
   border: 1px solid var(--line);
   background: var(--paper);
+  color: var(--ink);
   font: inherit;
   font-size: 1.2rem;
   cursor: pointer;
