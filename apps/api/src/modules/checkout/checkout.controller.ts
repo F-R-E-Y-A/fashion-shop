@@ -60,7 +60,7 @@ export class CheckoutController {
   @Post('preview')
   @Header('Cache-Control', 'no-store')
   preview(@CurrentUser() user: CurrentUserType, @Body() input: PreviewDto) {
-    return this.checkout.preview(user.id, input.addressId);
+    return this.checkout.preview(user.id, input);
   }
   @ApiCreatedResponse({ type: OrderResponse })
   @ApiTooManyRequestsResponse({ description: 'Quá 10 lần mỗi phút một tài khoản; có Retry-After' })

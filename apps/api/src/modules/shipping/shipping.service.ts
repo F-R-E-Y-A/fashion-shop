@@ -14,6 +14,7 @@ import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { InventoryService } from '../inventory/index.js';
 import { OrdersService } from '../orders/index.js';
 import { PaymentsService } from '../payments/index.js';
+import { PromotionsService } from '../promotions/index.js';
 import {
   canTransitionShipment,
   type ShipmentResponse,
@@ -28,6 +29,7 @@ export class ShippingService {
     @Optional() private readonly orders?: OrdersService,
     @Optional() private readonly inventory?: InventoryService,
     @Optional() private readonly payments?: PaymentsService,
+    @Optional() private readonly promotions?: PromotionsService,
   ) {}
 
   async quote(areaId: string, subtotal: string, tx?: Prisma.TransactionClient) {
@@ -243,6 +245,8 @@ export class ShippingService {
             }));
             await this.inventory.restock(orderId, stockItems, tx);
           }
+          // Don huy thi tra luot voucher, cung transaction (UC-07.2), nhu deliveryFailed.
+          await this.promotions?.releaseVoucherUsage(orderId, tx);
           if (this.orders) {
             await this.orders.transition(orderId, 'CANCELLED', tx, actorUserId);
           }
