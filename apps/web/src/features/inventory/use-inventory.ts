@@ -5,7 +5,10 @@ import { shouldRetryAdminQuery, useAdminForbidden, useAuth } from '@/features/ac
 
 export function useInventory<T>(key: readonly unknown[], path: string) {
   const { user, authenticatedRequest, getSessionEpoch } = useAuth();
-  const { forbidden, guardQuery } = useAdminForbidden(user?.id ?? '', getSessionEpoch);
+  const { forbidden, markForbidden, guardQuery } = useAdminForbidden(
+    user?.id ?? '',
+    getSessionEpoch,
+  );
   const query = useQuery({
     queryKey: key,
     queryFn: ({ signal }) => guardQuery(() => authenticatedRequest<T>(path, { signal })),
@@ -13,7 +16,12 @@ export function useInventory<T>(key: readonly unknown[], path: string) {
     retry: shouldRetryAdminQuery,
     refetchInterval: (state) => (state.state.error ? false : 30000),
   });
-  return { query, forbidden, data: query.isError || forbidden ? undefined : query.data };
+  return {
+    query,
+    forbidden,
+    markForbidden,
+    data: query.isError || forbidden ? undefined : query.data,
+  };
 }
 export function inventoryError(error: unknown) {
   const kind = classifyRequestError(error, 'detail');

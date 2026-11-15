@@ -58,6 +58,9 @@ model StockMovement {
   orderId          String?           @map("order_id") @db.Uuid
   movementType     StockMovementType @map("movement_type")
   quantityDelta    Int               @map("quantity_delta")
+  reason           String?           @db.VarChar(255)
+  actorUserId      String?           @map("actor_user_id") @db.Uuid
+  requestKey       String?           @unique @map("request_key") @db.Uuid
   createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
 
   productVariant ProductVariant @relation(fields: [productVariantId], references: [id], onDelete: Restrict, onUpdate: NoAction)
@@ -152,6 +155,7 @@ model Order {
   payments              Payment[]
   voucherUsage          VoucherUsage?
   returns               Return[]
+  notifications         Notification[]
 
   @@index([status, paymentDueAt])
   @@map("orders")
@@ -208,3 +212,37 @@ model Shipment {
   @@map("shipments")
   @@schema("public")
 }
+
+enum NotificationType {
+  ORDER_STATUS_CHANGED
+  ORDER_CREATED
+  PAYMENT_RECEIVED
+  REFUND_PROCESSED
+  SYSTEM
+
+  @@map("notification_type")
+  @@schema("public")
+}
+
+model Notification {
+  id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String?          @map("user_id") @db.Uuid
+  forAdmin  Boolean          @default(false) @map("for_admin")
+  type      NotificationType @default(ORDER_STATUS_CHANGED)
+  title     String           @db.VarChar(255)
+  message   String           @db.Text
+  link      String?          @db.VarChar(255)
+  isRead    Boolean          @default(false) @map("is_read")
+  orderId   String?          @map("order_id") @db.Uuid
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user  User?  @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([userId, isRead, createdAt])
+  @@index([forAdmin, isRead, createdAt])
+  @@map("notifications")
+  @@schema("public")
+}
+
