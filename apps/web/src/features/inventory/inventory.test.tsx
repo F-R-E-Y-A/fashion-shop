@@ -1,12 +1,30 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { AppRoutes } from '@/app';
 import { type AuthenticatedUser, AuthProvider, useAuth } from '@/features/account';
 
-import { inventoryKeys, quantity, readPage } from './inventory.api.js';
+import {
+  adjustStockKey,
+  forgetAdjustStock,
+  inventoryKeys,
+  quantity,
+  readPage,
+} from './inventory.api.js';
+
+beforeAll(() => {
+  const proto = HTMLDialogElement.prototype as HTMLDialogElement & { showModal(): void };
+  proto.showModal = function showModal(this: HTMLDialogElement) {
+    this.setAttribute('open', '');
+  };
+  proto.close = function close(this: HTMLDialogElement) {
+    if (!this.hasAttribute('open')) return;
+    this.removeAttribute('open');
+    setTimeout(() => this.dispatchEvent(new Event('close')), 0);
+  };
+});
 
 const actor: AuthenticatedUser = {
   id: 'a0000000-0000-4000-8000-000000000001',
@@ -73,12 +91,50 @@ function setup(
       if (custom) return custom;
       if (url.pathname === '/api/admin/inventory')
         return reply({ ...page, page: Number(url.searchParams.get('page') ?? 1) });
+      if (url.pathname.endsWith('/adjust') && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body)) as {
+          type: string;
+          quantity: number;
+          reason: string;
+        };
+        const newQty = body.type === 'RECEIPT' ? row.quantityOnHand + body.quantity : body.quantity;
+        return reply({
+          ...row,
+          quantityOnHand: newQty,
+          availableQuantity: newQty - row.reservedQuantity,
+          asOf: page.asOf,
+          movements: {
+            items: [
+              {
+                id: 'm-new',
+                movementType: body.type,
+                quantityDelta:
+                  body.type === 'RECEIPT' ? body.quantity : body.quantity - row.quantityOnHand,
+                reason: body.reason,
+                createdAt: page.asOf,
+              },
+            ],
+            total: 1,
+            page: 1,
+            pageSize: 12,
+            totalPages: 1,
+          },
+        });
+      }
       if (url.pathname.startsWith('/api/admin/inventory/'))
         return reply({
           ...row,
           asOf: page.asOf,
           movements: {
-            items: [{ id: 'm1', movementType: 'SALE', quantityDelta: -2, createdAt: page.asOf }],
+            items: [
+              {
+                id: 'm1',
+                movementType: 'SALE',
+                quantityDelta: -2,
+                reason: 'Bán đơn freya-01',
+                createdAt: page.asOf,
+              },
+            ],
             total: 25,
             page: Number(url.searchParams.get('page') ?? 1),
             pageSize: 12,
@@ -110,7 +166,10 @@ function setup(
   );
   return { client, requests, auth: () => holder.auth!, go: (next: string) => holder.go!(next) };
 }
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => {
+  sessionStorage.clear();
+  vi.unstubAllGlobals();
+});
 describe('UC-13.1 tồn kho web', () => {
   it('UC-13.1/AC2 null khác0, URL trang được giới hạn an toàn', () => {
     expect(quantity(null)).toBe('Chưa có dữ liệu');
@@ -245,4 +304,266 @@ describe('UC-13.1 tồn kho web', () => {
       expect(t.requests.filter((r) => r.url.pathname === '/api/admin/inventory')).toHaveLength(1);
     },
   );
+
+  describe('PH-13.2 Giao diện nhập / điều chỉnh tồn kèm lý do', () => {
+    it('hiển thị cột lý do trong bảng lịch sử biến động', async () => {
+      setup(`/admin/inventory/${row.id}`);
+      await screen.findByRole('heading', { name: 'Lịch sử biến động' });
+      expect(screen.getByRole('columnheader', { name: 'Lý do' })).toBeInTheDocument();
+      expect(screen.getByText('Bán đơn freya-01')).toBeInTheDocument();
+    });
+
+    it('mở modal, nhập thêm hàng (RECEIPT) và cập nhật số liệu', async () => {
+      const t = setup(`/admin/inventory/${row.id}`);
+      await screen.findByRole('heading', { name: 'Lịch sử biến động' });
+
+      // Click nut mo modal
+      fireEvent.click(screen.getByRole('button', { name: 'Nhập / Điều chỉnh tồn' }));
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', { name: 'Nhập / Điều chỉnh tồn kho' }),
+      ).toBeInTheDocument();
+
+      // Dien so luong va ly do
+      fireEvent.change(screen.getByLabelText('Số lượng nhập thêm'), {
+        target: { value: '25' },
+      });
+      fireEvent.change(screen.getByLabelText('Lý do / Ghi chú (bắt buộc)'), {
+        target: { value: 'Nhập bổ sung đợt cuối năm' },
+      });
+
+      // Submit
+      fireEvent.click(screen.getByRole('button', { name: 'Xác nhận lưu' }));
+
+      // Cho modal dong va hien thi thong bao thanh cong
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(await screen.findByText('Đã nhập thêm 25 đơn vị thành công.')).toBeInTheDocument();
+
+      // Kiem tra request gui len
+      const postReq = t.requests.find(
+        (r) => r.url.pathname.endsWith('/adjust') && r.init?.method === 'POST',
+      );
+      expect(postReq).toBeDefined();
+      expect(JSON.parse(String(postReq?.init?.body))).toEqual({
+        type: 'RECEIPT',
+        quantity: 25,
+        reason: 'Nhập bổ sung đợt cuối năm',
+        requestKey: expect.stringMatching(/^[0-9a-f-]{36}$/i),
+      });
+    });
+
+    it('idempotency requestKey: gửi lại trong cùng hộp giữ nguyên UUID, mở hộp mới sinh UUID mới', async () => {
+      let attempt = 0;
+      const t = setup(`/admin/inventory/${row.id}`, actor, (url, init) => {
+        if (url.pathname.endsWith('/adjust') && init?.method === 'POST') {
+          attempt += 1;
+          if (attempt === 1) return error(503);
+        }
+        return undefined;
+      });
+      await screen.findByRole('heading', { name: 'Lịch sử biến động' });
+
+      // Mở hộp lần 1
+      fireEvent.click(screen.getByRole('button', { name: 'Nhập / Điều chỉnh tồn' }));
+      fireEvent.change(screen.getByLabelText('Số lượng nhập thêm'), {
+        target: { value: '15' },
+      });
+      fireEvent.change(screen.getByLabelText('Lý do / Ghi chú (bắt buộc)'), {
+        target: { value: 'Nhập lô 1' },
+      });
+
+      // Bấm lần 1 (thất bại mạng/503)
+      fireEvent.click(screen.getByRole('button', { name: 'Xác nhận lưu' }));
+      await screen.findByRole('alert');
+
+      // Bấm lại lần 2 trong cùng hộp (thành công)
+      fireEvent.click(screen.getByRole('button', { name: 'Xác nhận lưu' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+      // Mở hộp lần 2 và gửi mới
+      fireEvent.click(screen.getByRole('button', { name: 'Nhập / Điều chỉnh tồn' }));
+      fireEvent.change(screen.getByLabelText('Số lượng nhập thêm'), {
+        target: { value: '10' },
+      });
+      fireEvent.change(screen.getByLabelText('Lý do / Ghi chú (bắt buộc)'), {
+        target: { value: 'Nhập lô 2' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Xác nhận lưu' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+      const postBodies = t.requests
+        .filter((r) => r.url.pathname.endsWith('/adjust') && r.init?.method === 'POST')
+        .map((r) => JSON.parse(String(r.init?.body)) as { requestKey: string });
+
+      expect(postBodies).toHaveLength(3);
+      expect(postBodies[0]?.requestKey).toMatch(/^[0-9a-f-]{36}$/i);
+      expect(postBodies[1]?.requestKey).toBe(postBodies[0]?.requestKey);
+      expect(postBodies[2]?.requestKey).toMatch(/^[0-9a-f-]{36}$/i);
+      expect(postBodies[2]?.requestKey).not.toBe(postBodies[0]?.requestKey);
+    });
+
+    it('idempotency requestKey: đóng và mở lại hộp sau khi mất phản hồi vẫn giữ nguyên requestKey, không sinh key mới', async () => {
+      let attempt = 0;
+      const t = setup(`/admin/inventory/${row.id}`, actor, (url, init) => {
+        if (url.pathname.endsWith('/adjust') && init?.method === 'POST') {
+          attempt += 1;
+          if (attempt === 1) return error(504); // Giả lập mất kết nối / gateway timeout
+        }
+        return undefined;
+      });
+      await screen.findByRole('heading', { name: 'Lịch sử biến động' });
+
+      // Mở hộp lần 1
+      fireEvent.click(screen.getByRole('button', { name: 'Nhập / Điều chỉnh tồn' }));
+      fireEvent.change(screen.getByLabelText('Số lượng nhập thêm'), {
+        target: { value: '20' },
+      });
+      fireEvent.change(screen.getByLabelText('Lý do / Ghi chú (bắt buộc)'), {
+        target: { value: 'Nhập bổ sung mùa đông' },
+      });
+
+      // Bấm lần 1 (thất bại mất phản hồi 504)
+      fireEvent.click(screen.getByRole('button', { name: 'Xác nhận lưu' }));
+      await screen.findByRole('alert');
+
+      // Đóng hộp thoại bằng nút Hủy
+      fireEvent.click(screen.getByRole('button', { name: 'Hủy' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+      // Mở lại hộp thoại
+      fireEvent.click(screen.getByRole('button', { name: 'Nhập / Điều chỉnh tồn' }));
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+      // Bấm gửi lần 2 (thành công)
+      fireEvent.click(screen.getByRole('button', { name: 'Xác nhận lưu' }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+      const postBodies = t.requests
+        .filter((r) => r.url.pathname.endsWith('/adjust') && r.init?.method === 'POST')
+        .map((r) => JSON.parse(String(r.init?.body)) as { requestKey: string });
+
+      expect(postBodies).toHaveLength(2);
+      expect(postBodies[0]?.requestKey).toMatch(/^[0-9a-f-]{36}$/i);
+      // Khi đóng và mở lại hộp sau thất bại, key giữa 2 lần gửi PHẢI giữ nguyên để server nhận diện idempotency
+      expect(postBodies[1]?.requestKey).toBe(postBodies[0]?.requestKey);
+    });
+
+    it('adjustStockKey và forgetAdjustStock: duy trì key cho cùng tham số, quên key khi hoàn tất', () => {
+      const key1 = adjustStockKey('act-1', 'var-1', 'RECEIPT', 10, 'Lý do A');
+      const key2 = adjustStockKey('act-1', 'var-1', 'RECEIPT', 10, 'Lý do A');
+      expect(key2).toBe(key1);
+
+      // Khác tham số sinh key khác
+      const keyDiffQty = adjustStockKey('act-1', 'var-1', 'RECEIPT', 20, 'Lý do A');
+      expect(keyDiffQty).not.toBe(key1);
+
+      // Quên key thì lần sau sinh key mới
+      forgetAdjustStock('act-1', 'var-1', 'RECEIPT', 10, 'Lý do A');
+      const keyFresh = adjustStockKey('act-1', 'var-1', 'RECEIPT', 10, 'Lý do A');
+      expect(keyFresh).not.toBe(key1);
+    });
+
+    it('chuyển sang điều chỉnh kiểm kê (ADJUSTMENT) và từ chối khi giảm dưới lượng đang giữ', async () => {
+      setup(`/admin/inventory/${row.id}`);
+      await screen.findByRole('heading', { name: 'Lịch sử biến động' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Nhập / Điều chỉnh tồn' }));
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+      // Chon che do Dieu chinh kiem ke
+      fireEvent.click(screen.getByLabelText('Điều chỉnh kiểm kê (=)'));
+      expect(screen.getByLabelText('Số tồn thực tế sau kiểm kê')).toBeInTheDocument();
+
+      // Thu giam ton xuong 2 (nho hon reservedQuantity = 3)
+      fireEvent.change(screen.getByLabelText('Số tồn thực tế sau kiểm kê'), {
+        target: { value: '2' },
+      });
+      fireEvent.change(screen.getByLabelText('Lý do / Ghi chú (bắt buộc)'), {
+        target: { value: 'Kiểm kê kho' },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Xác nhận lưu' }));
+
+      // Phai hien thong bao loi tren alert
+      expect(
+        await screen.findByText(/Không thể điều chỉnh tồn kho \(2\) nhỏ hơn số lượng đang giữ/i),
+      ).toBeInTheDocument();
+      // Modal khong duoc dong
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    it('từ chối submit khi lý do rỗng', async () => {
+      setup(`/admin/inventory/${row.id}`);
+      await screen.findByRole('heading', { name: 'Lịch sử biến động' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Nhập / Điều chỉnh tồn' }));
+
+      fireEvent.change(screen.getByLabelText('Số lượng nhập thêm'), {
+        target: { value: '10' },
+      });
+      fireEvent.change(screen.getByLabelText('Lý do / Ghi chú (bắt buộc)'), {
+        target: { value: '   ' },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Xác nhận lưu' }));
+
+      expect(await screen.findByText('Lý do không được để trống')).toBeInTheDocument();
+    });
+
+    it('POST điều chỉnh trả 403 đóng hộp thoại, xóa cache quản trị của actor và hiển thị Không đủ quyền truy cập', async () => {
+      const t = setup(`/admin/inventory/${row.id}`, actor, (url, init) => {
+        if (url.pathname.endsWith('/adjust') && init?.method === 'POST') {
+          return error(403);
+        }
+        return undefined;
+      });
+      await screen.findByRole('heading', { name: 'Lịch sử biến động' });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Nhập / Điều chỉnh tồn' }));
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+      fireEvent.change(screen.getByLabelText('Số lượng nhập thêm'), {
+        target: { value: '10' },
+      });
+      fireEvent.change(screen.getByLabelText('Lý do / Ghi chú (bắt buộc)'), {
+        target: { value: 'Nhập hàng khi vừa bị thu hồi quyền' },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Xác nhận lưu' }));
+
+      await screen.findByRole('heading', { name: 'Không đủ quyền truy cập' });
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      expect(
+        t.client
+          .getQueriesData({ queryKey: inventoryKeys.all(actor.id) })
+          .every(([, data]) => data === undefined),
+      ).toBe(true);
+    });
+
+    it('quản lý bàn phím và focus: mở hộp đặt focus vào Hủy, giữ vòng Tab, Escape đóng hộp và trả focus về nút mở', async () => {
+      setup(`/admin/inventory/${row.id}`);
+      await screen.findByRole('heading', { name: 'Lịch sử biến động' });
+
+      const openBtn = screen.getByRole('button', { name: 'Nhập / Điều chỉnh tồn' });
+      openBtn.focus();
+      fireEvent.click(openBtn);
+
+      const dialog = screen.getByRole('dialog');
+      const cancelBtn = screen.getByRole('button', { name: 'Hủy' });
+      const confirmBtn = screen.getByRole('button', { name: 'Xác nhận lưu' });
+
+      // Khi mở hộp, focus chuyển vào nút Hủy bên trong dialog
+      expect(document.activeElement).toBe(cancelBtn);
+
+      // Tab từ nút cuối cùng (Xác nhận lưu) vòng lại phần tử đầu tiên trong hộp
+      confirmBtn.focus();
+      fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: false });
+      expect(dialog.contains(document.activeElement)).toBe(true);
+
+      // Escape (sự kiện cancel trên dialog) đóng hộp và trả focus về nút mở
+      fireEvent(dialog, new Event('cancel', { cancelable: true }));
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+      expect(document.activeElement).toBe(openBtn);
+    });
+  });
 });

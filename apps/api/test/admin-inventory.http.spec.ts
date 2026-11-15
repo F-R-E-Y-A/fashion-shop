@@ -4,11 +4,13 @@ import { JwtService } from '@nestjs/jwt';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { grantAdminRole } from '../src/modules/auth/grant-admin-role.js';
+import { lockStock } from '../src/modules/inventory/inventory-operations.js';
 import { createTestApp, type TestApp } from './helpers/create-test-app.js';
 import { resetDatabase } from './helpers/db.js';
 
 describe('UC-13.1 tồn kho admin HTTP PostgreSQL', () => {
   let t: TestApp;
+  let adminId: string;
   let token: string;
   let customer: string;
   let variantId: string;
@@ -26,6 +28,7 @@ describe('UC-13.1 tồn kho admin HTTP PostgreSQL', () => {
     const admin = await t.prisma.user.create({
       data: { email: 'inventory-admin@example.test', passwordHash: 'test-only', status: 'ACTIVE' },
     });
+    adminId = admin.id;
     await grantAdminRole(t.prisma, admin.email);
     token = await t.app.get(JwtService).signAsync({ sub: admin.id, ver: admin.authVersion });
     const user = await t.prisma.user.create({
@@ -200,7 +203,7 @@ describe('UC-13.1 tồn kho admin HTTP PostgreSQL', () => {
     expect(result.body.movements).toMatchObject({ total: 3, page: 2, totalPages: 3 });
     expect(result.body.movements.items[0].id).toBe(ids[1]);
     expect(Object.keys(result.body.movements.items[0]).sort()).toEqual(
-      ['id', 'movementType', 'quantityDelta', 'createdAt'].sort(),
+      ['id', 'movementType', 'quantityDelta', 'reason', 'createdAt'].sort(),
     );
   });
 
@@ -385,5 +388,159 @@ describe('UC-13.1 tồn kho admin HTTP PostgreSQL', () => {
     const itemIds = fullRes.body.items.map((i: { id: string }) => i.id);
     expect(itemIds).not.toContain(vAbove.id);
     expect(itemIds).not.toContain(vNoInventory.id);
+  });
+
+  it('UC-13.2/UC-13.3 nhập kho RECEIPT, điều chỉnh ADJUSTMENT kèm lý do và chặn giảm dưới reservedQuantity', async () => {
+    await t.prisma.inventory.upsert({
+      where: { productVariantId: variantId },
+      create: { productVariantId: variantId, quantityOnHand: 5 },
+      update: { quantityOnHand: 5 },
+    });
+
+    // 1. Nhập thêm 10 đơn vị (RECEIPT)
+    const receiptRes = await t.http
+      .post(`${path}/${variantId}/adjust`)
+      .set(headers())
+      .send({ type: 'RECEIPT', quantity: 10, reason: 'Nhập lô hàng mùa thu' })
+      .expect(200);
+    expect(receiptRes.body).toMatchObject({
+      quantityOnHand: 15,
+      reservedQuantity: 0,
+      availableQuantity: 15,
+    });
+    expect(receiptRes.body.movements.items[0]).toMatchObject({
+      movementType: 'RECEIPT',
+      quantityDelta: 10,
+      reason: 'Nhập lô hàng mùa thu',
+    });
+
+    // 2. Điều chỉnh kiểm kê về 12 (ADJUSTMENT -> delta -3)
+    const adjustRes = await t.http
+      .post(`${path}/${variantId}/adjust`)
+      .set(headers())
+      .send({ type: 'ADJUSTMENT', quantity: 12, reason: 'Kiểm kê cuối tháng' })
+      .expect(200);
+    expect(adjustRes.body).toMatchObject({
+      quantityOnHand: 12,
+      availableQuantity: 12,
+    });
+    expect(adjustRes.body.movements.items[0]).toMatchObject({
+      movementType: 'ADJUSTMENT',
+      quantityDelta: -3,
+      reason: 'Kiểm kê cuối tháng',
+    });
+
+    // Kiểm tra actorUserId được ghi nhận trong bảng stock_movements
+    const latestMovement = await t.prisma.stockMovement.findFirstOrThrow({
+      where: { id: adjustRes.body.movements.items[0].id },
+    });
+    expect(latestMovement.actorUserId).toBe(adminId);
+
+    // 3. Concurrency ReadCommitted: giao dịch giữ hàng commit trong lúc adjust chờ advisory lock
+    let releaseHoldTx!: () => void;
+    const holdTxReady = new Promise<void>((resolve) => {
+      void t.prisma.$transaction(async (tx) => {
+        await lockStock(tx, [{ variantId, quantity: 0 }]);
+        resolve();
+        await new Promise<void>((done) => {
+          releaseHoldTx = done;
+        });
+        const order = await tx.order.create({
+          data: {
+            orderCode: 'INVENTORY-HOLD-CONCURRENT',
+            customerEmail: 'concurrent@example.test',
+            status: 'PENDING_PAYMENT',
+            shippingAddressSnapshot: { fixture: true },
+            subtotalAmount: '100',
+            discountAmount: '0',
+            shippingFeeAmount: '0',
+            totalAmount: '100',
+          },
+        });
+        await tx.inventoryReservation.create({
+          data: {
+            productVariantId: variantId,
+            orderId: order.id,
+            quantity: 8,
+            expiresAt: new Date(Date.now() + 60_000),
+          },
+        });
+      });
+    });
+
+    await holdTxReady;
+    // Khởi chạy request giảm tồn xuống 1 trong khi lock đang bị giữ; sau 50ms nhả lock để reservation=8 commit trước
+    const adjustPromise = t.http
+      .post(`${path}/${variantId}/adjust`)
+      .set(headers())
+      .send({ type: 'ADJUSTMENT', quantity: 1, reason: 'Thử giảm dưới lượng vừa giữ' });
+    setTimeout(() => releaseHoldTx(), 50);
+
+    const concurrentRes = await adjustPromise;
+    expect(concurrentRes.status).toBe(400);
+    expect(
+      (await t.prisma.inventory.findUniqueOrThrow({ where: { productVariantId: variantId } }))
+        .quantityOnHand,
+    ).toBe(12);
+  });
+
+  it('UC-13.2 idempotency requestKey: gửi cùng key hai lần thì tồn chỉ tăng một lần, lịch sử có một dòng; dùng lại key cho nội dung khác trả 409', async () => {
+    await t.prisma.stockMovement.deleteMany({ where: { productVariantId: variantId } });
+    await t.prisma.inventory.upsert({
+      where: { productVariantId: variantId },
+      create: { productVariantId: variantId, quantityOnHand: 20 },
+      update: { quantityOnHand: 20 },
+    });
+
+    const requestKey = randomUUID();
+    const payload = {
+      type: 'RECEIPT',
+      quantity: 10,
+      reason: 'Nhập hàng chống trùng khi mất mạng',
+      requestKey,
+    };
+
+    const firstRes = await t.http
+      .post(`${path}/${variantId}/adjust`)
+      .set(headers())
+      .send(payload)
+      .expect(200);
+    expect(firstRes.body).toMatchObject({
+      quantityOnHand: 30,
+      availableQuantity: 30,
+    });
+    expect(firstRes.body.movements.total).toBe(1);
+
+    // Gửi lại cùng requestKey lần 2: trả 200 nhưng không cộng thêm và không sinh dòng lịch sử thứ 2
+    const replayRes = await t.http
+      .post(`${path}/${variantId}/adjust`)
+      .set(headers())
+      .send(payload)
+      .expect(200);
+    expect(replayRes.body).toMatchObject({
+      quantityOnHand: 30,
+      availableQuantity: 30,
+    });
+    expect(replayRes.body.movements.total).toBe(1);
+    expect(replayRes.body.movements.items).toHaveLength(1);
+    expect(
+      (await t.prisma.inventory.findUniqueOrThrow({ where: { productVariantId: variantId } }))
+        .quantityOnHand,
+    ).toBe(30);
+    expect(await t.prisma.stockMovement.count({ where: { productVariantId: variantId } })).toBe(1);
+
+    // Dùng lại cùng requestKey với số lượng khác -> trả 409 Conflict
+    await t.http
+      .post(`${path}/${variantId}/adjust`)
+      .set(headers())
+      .send({ ...payload, quantity: 25 })
+      .expect(409);
+
+    // requestKey sai định dạng UUID -> trả 400 Bad Request
+    await t.http
+      .post(`${path}/${variantId}/adjust`)
+      .set(headers())
+      .send({ ...payload, requestKey: 'invalid-uuid' })
+      .expect(400);
   });
 });
