@@ -1,7 +1,7 @@
 ---
 title: Tồn kho — bản đồ
-updated: 2026-11-12
-status: nền checkout đã có; quản trị chỉ đọc đang triển khai Issue81
+updated: 2026-11-13
+status: đã triển khai quản trị tồn kho, cảnh báo tồn thấp và nhập/điều chỉnh tồn
 owner: Duy
 ---
 # Tồn kho và nhập hàng
@@ -43,6 +43,14 @@ Endpoint `GET /api/admin/inventory/low-stock?threshold=5&limit=5` hỗ trợ T�
 - Lọc `availableQuantity <= threshold` trên toàn bộ cơ sở dữ liệu trước khi `LIMIT`, không tải toàn bộ vào RAM.
 - `threshold` 1..100 (mặc định 5), `limit` 1..10 (mặc định 5).
 - Đếm toàn tập `total` khớp danh sách items trong giao dịch `RepeatableRead` cùng mốc `asOf`. Loại bỏ biến thể chưa có bản ghi tồn kho; bao gồm cả biến thể ngừng bán và biến thể có khả dụng = 0.
+
+## Nhập và điều chỉnh tồn kho — PH-13 (UC-13.2, UC-13.3, ADR-060)
+
+Endpoint `POST /api/admin/inventory/:id/adjust` và hộp thoại **Nhập / Điều chỉnh tồn** (`ConfirmDialog`) trên trang chi tiết tồn kho (`/admin/inventory/:id`):
+- Hỗ trợ hai chế độ: `RECEIPT` (nhập thêm hàng dương vào tồn vật lý) và `ADJUSTMENT` (đặt lại tồn vật lý theo kiểm kê thực tế).
+- Bắt buộc nhập lý do (`reason`, tối đa 255 ký tự), lưu kèm `actor_user_id` và khóa idempotency `request_key` (`@unique`) vào bảng `stock_movements`; gửi lại cùng `requestKey` do mất phản hồi sẽ trả về kết quả đã ghi thay vì cộng trùng tồn kho.
+- Khoá biến thể bằng `lockStock` trong giao dịch `ReadCommitted` (lấy `asOf` sau khi giữ khoá để thấy các lượt giữ hàng vừa commit); chặn điều chỉnh tồn vật lý thấp hơn lượng đang giữ (`reservedQuantity`) còn hiệu lực.
+- Trên giao diện, hộp thoại dùng `ConfirmDialog` chuẩn (giữ vòng Tab, phím Escape, trả focus về nút mở) và xử lý `403` bằng `markForbidden` (đóng hộp thoại, xóa cache quản trị theo phiên).
 
 ## Đối soát tồn kho (K3)
 

@@ -1,9 +1,10 @@
 import { ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
+import type { Prisma } from '../../generated/prisma/client.js';
 import type { PrismaService } from '../../infra/prisma/prisma.service.js';
 import type { InventoryService } from '../inventory/index.js';
-import type { OrdersService } from '../orders/index.js';
+import { type OrdersService, registerPostCommitHook } from '../orders/index.js';
 import type { PaymentsService } from '../payments/index.js';
 import { ShippingService } from './shipping.service.js';
 
@@ -158,6 +159,56 @@ describe('ShippingService', () => {
         ConflictException,
       );
       expect(callOrder).toEqual(['orders.lock', 'order.findUnique']);
+    });
+
+    it('chạy post-commit hook sau khi transaction createShipment hoàn tất', async () => {
+      const now = new Date();
+      const events: string[] = [];
+      const mockOrders = {
+        lock: vi.fn().mockResolvedValue(undefined),
+        transition: vi
+          .fn()
+          .mockImplementation(
+            async (_id: string, _status: string, tx: Prisma.TransactionClient) => {
+              events.push('inside-tx');
+              registerPostCommitHook(tx, async () => {
+                events.push('post-commit');
+              });
+            },
+          ),
+      } as unknown as OrdersService;
+
+      const mockPrisma = {
+        $transaction: vi.fn().mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+          const res = await fn({
+            order: {
+              findUnique: vi.fn().mockResolvedValue({
+                id: 'ord-1',
+                orderCode: 'FR261113ABCDEFGH',
+                status: 'CONFIRMED',
+              }),
+            },
+            shipment: {
+              upsert: vi.fn().mockResolvedValue({
+                id: 'ship-1',
+                orderId: 'ord-1',
+                carrierName: 'GHN',
+                trackingNumber: 'GHN-SBX-261113ABCDEFGH',
+                status: 'PENDING',
+                createdAt: now,
+                updatedAt: now,
+              }),
+            },
+          });
+          events.push('tx-committed');
+          return res;
+        }),
+      } as unknown as PrismaService;
+
+      const service = new ShippingService(mockPrisma, mockOrders);
+      await service.createShipment('ord-1', { carrierName: 'GHN' }, 'admin-1');
+
+      expect(events).toEqual(['inside-tx', 'tx-committed', 'post-commit']);
     });
   });
 
@@ -518,6 +569,60 @@ describe('ShippingService', () => {
         expect(t.update).not.toHaveBeenCalled();
       },
     );
+
+    it('chạy post-commit hook thông báo sau khi updateShipmentStatus commit', async () => {
+      const now = new Date();
+      const events: string[] = [];
+      const mockShipment = {
+        id: 'ship-1',
+        orderId: 'ord-1',
+        carrierName: 'GHN',
+        trackingNumber: 'GHN-SBX-123',
+        status: 'PENDING',
+        createdAt: now,
+        updatedAt: now,
+      };
+      const mockOrders = {
+        lock: vi.fn().mockResolvedValue(undefined),
+        transition: vi
+          .fn()
+          .mockImplementation(
+            async (_id: string, _status: string, tx: Prisma.TransactionClient) => {
+              events.push('inside-tx');
+              registerPostCommitHook(tx, async () => {
+                events.push('post-commit-notified');
+              });
+            },
+          ),
+      } as unknown as OrdersService;
+
+      const mockPrisma = {
+        $transaction: vi.fn().mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
+          const res = await fn({
+            order: {
+              findUnique: vi.fn().mockResolvedValue({
+                id: 'ord-1',
+                orderCode: 'FR123',
+                status: 'PROCESSING',
+                shipment: mockShipment,
+                payments: [],
+                items: [],
+              }),
+            },
+            shipment: {
+              update: vi.fn().mockResolvedValue({ ...mockShipment, status: 'IN_TRANSIT' }),
+            },
+          });
+          events.push('tx-committed');
+          return res;
+        }),
+      } as unknown as PrismaService;
+
+      const service = new ShippingService(mockPrisma, mockOrders);
+      await service.updateShipmentStatus('ord-1', 'IN_TRANSIT');
+
+      expect(events).toEqual(['inside-tx', 'tx-committed', 'post-commit-notified']);
+    });
   });
 
   describe('handleWebhook', () => {
