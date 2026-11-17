@@ -1,9 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto';
 
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   Logger,
+  NotFoundException,
   ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
@@ -23,6 +25,7 @@ import {
   runPostCommitHooks,
 } from '../orders/index.js';
 import { type GatewayCode, PaymentsService, SETTLEMENT_BUFFER_MINUTES } from '../payments/index.js';
+import { PromotionsService } from '../promotions/index.js';
 import { ShippingService } from '../shipping/index.js';
 import { CheckoutAddressService } from '../users/index.js';
 import {
@@ -62,6 +65,21 @@ export type RefundSettledListener = (
 /** Trang thai mot lenh hoan theo so cong; MISSING: lenh chua tung duoc ghi. */
 export type RefundIntentState = 'MISSING' | 'RECEIVED' | 'PROCESSED' | 'FAILED';
 
+/** Khach chon toi da mot uu dai cho mot don (UC-07.2). */
+export interface DiscountInput {
+  voucherCode?: string;
+  promotionId?: string;
+}
+export interface AppliedDiscount {
+  kind: 'VOUCHER' | 'PROMOTION';
+  id: string;
+  code?: string;
+  name: string;
+  amount: string;
+}
+const discountInvalid = (message: string) =>
+  new UnprocessableEntityException({ error: 'DISCOUNT_INVALID', message });
+
 const intentKey = (gateway: string, externalTransactionId: string) => ({
   gateway_externalTransactionId: { gateway, externalTransactionId },
 });
@@ -84,7 +102,63 @@ export class CheckoutService {
     private readonly addresses: CheckoutAddressService,
     private readonly shipping: ShippingService,
     private readonly config: ConfigService<Env, true>,
+    readonly promotions: PromotionsService,
   ) {}
+
+  /**
+   * Tinh lai uu dai tren server tu ma/id khach gui, khong tin so tien web gui (UC-07.2).
+   * Loi nghiep vu cua module promotions (400/404) doi thanh 422 DISCOUNT_INVALID de web hien ly do.
+   */
+  async discount(
+    userId: string,
+    subtotal: string,
+    items: { variantId: string; price: string; quantity: number }[],
+    input: DiscountInput,
+  ): Promise<AppliedDiscount | null> {
+    if (input.voucherCode && input.promotionId)
+      throw discountInvalid('Mỗi đơn chỉ áp dụng một ưu đãi.');
+    try {
+      if (input.voucherCode) {
+        const voucher = await this.promotions.validateVoucher(input.voucherCode, subtotal, userId);
+        return {
+          kind: 'VOUCHER',
+          id: voucher.voucherId,
+          code: voucher.code,
+          name: `Mã ${voucher.code}`,
+          amount: new Decimal(voucher.discountAmount).toFixed(2),
+        };
+      }
+      if (input.promotionId) {
+        const result = await this.promotions.evaluateCart(
+          {
+            subtotal,
+            items: items.map(({ variantId, price, quantity }) => ({
+              variantId,
+              price: new Decimal(price).toFixed(2),
+              quantity,
+            })),
+          },
+          userId,
+        );
+        const promotion = result.applicablePromotions.find(
+          (item) => item.promotionId === input.promotionId,
+        );
+        if (!promotion)
+          throw discountInvalid('Chương trình khuyến mãi không còn áp dụng cho giỏ này.');
+        return {
+          kind: 'PROMOTION',
+          id: promotion.promotionId,
+          name: promotion.name,
+          amount: new Decimal(promotion.discountAmount).toFixed(2),
+        };
+      }
+      return null;
+    } catch (error) {
+      if (error instanceof BadRequestException || error instanceof NotFoundException)
+        throw discountInvalid(error.message);
+      throw error;
+    }
+  }
 
   /**
    * Chong bom COD (ADR-038): don vuot tran hoac khach da co du so lan giao COD that bai thi chi
@@ -108,7 +182,12 @@ export class CheckoutService {
       : null;
   }
 
-  async quote(userId: string, addressId: string, tx: Prisma.TransactionClient) {
+  async quote(
+    userId: string,
+    addressId: string,
+    tx: Prisma.TransactionClient,
+    discountInput: DiscountInput = {},
+  ) {
     const items = (await this.cart.checkoutSelection(userId, tx)).sort((a, b) =>
       a.variantId.localeCompare(b.variantId),
     );
@@ -122,8 +201,12 @@ export class CheckoutService {
     const subtotalAmount = items
       .reduce((sum, item) => sum.plus(new Decimal(item.price).times(item.quantity)), new Decimal(0))
       .toFixed(2);
-    const shipping = await this.shipping.quote(address.administrativeAreaId, subtotalAmount, tx);
-    const totalAmount = new Decimal(subtotalAmount).plus(shipping.fee).toFixed(2);
+    const appliedDiscount = await this.discount(userId, subtotalAmount, items, discountInput);
+    const discountAmount = appliedDiscount?.amount ?? '0.00';
+    // Mien phi ship tinh theo tien hang SAU giam (docs/features/shipping/README.md).
+    const afterDiscount = new Decimal(subtotalAmount).minus(discountAmount).toFixed(2);
+    const shipping = await this.shipping.quote(address.administrativeAreaId, afterDiscount, tx);
+    const totalAmount = new Decimal(afterDiscount).plus(shipping.fee).toFixed(2);
     const codBlocked = await this.codBlock(userId, totalAmount, tx);
     const fingerprint = createHash('sha256')
       .update(
@@ -137,7 +220,10 @@ export class CheckoutService {
           })),
           subtotalAmount,
           shipping,
-          discount: '0.00',
+          // Doi ma/uu dai hoac so tien giam la doi fingerprint: create tra QUOTE_CHANGED.
+          discount: appliedDiscount
+            ? { kind: appliedDiscount.kind, id: appliedDiscount.id, amount: discountAmount }
+            : '0.00', // giu nhu cu khi khong co uu dai: don dang cho khong doi fingerprint
         }),
       )
       .digest('hex');
@@ -146,7 +232,8 @@ export class CheckoutService {
       address,
       items,
       subtotalAmount,
-      discountAmount: '0.00',
+      discountAmount,
+      appliedDiscount,
       shippingFeeAmount: shipping.fee,
       shippingRateId: shipping.rateId,
       totalAmount,
@@ -163,11 +250,11 @@ export class CheckoutService {
     };
   }
 
-  preview(userId: string, addressId: string) {
+  preview(userId: string, input: { addressId: string } & DiscountInput) {
     return this.prisma.$transaction(async (tx) => {
       const pending = await this.orders.pending(userId, tx);
       try {
-        const quote = await this.quote(userId, addressId, tx);
+        const quote = await this.quote(userId, input.addressId, tx, input);
         return {
           ...quote,
           pendingOrder: pending ? { id: pending.id, orderCode: pending.orderCode } : null,
@@ -175,6 +262,8 @@ export class CheckoutService {
       } catch (error) {
         // Don cho dang giu don vi cuoi nen gio thay het hang: chi ra don do, khong bao khach chon lai gio.
         if (!(error instanceof UnprocessableEntityException)) throw error;
+        // Loi uu dai khong lien quan don cho: tra nguyen ly do, khong doi thanh PENDING_ORDER_EXISTS.
+        if ((error.getResponse() as { error?: string }).error === 'DISCOUNT_INVALID') throw error;
         if (pending)
           throw new ConflictException({
             error: 'PENDING_ORDER_EXISTS',
@@ -198,7 +287,7 @@ export class CheckoutService {
       fingerprint: string;
       idempotencyKey: string;
       gateway?: GatewayCode;
-    },
+    } & DiscountInput,
     ip: string,
   ) {
     const code = input.gateway ?? 'VNPAY';
@@ -239,7 +328,7 @@ export class CheckoutService {
             message:
               'Bạn còn một đơn đang chờ thanh toán. Tiếp tục hoặc hủy đơn đó trước khi đặt đơn mới.',
           });
-        const quote = await this.quote(user.id, input.addressId, tx);
+        const quote = await this.quote(user.id, input.addressId, tx, input);
         if (quote.fingerprint !== input.fingerprint)
           throw new ConflictException({
             error: 'QUOTE_CHANGED',
@@ -264,6 +353,7 @@ export class CheckoutService {
             address: quote.address,
             shippingRateId: quote.shippingRateId,
             subtotal: quote.subtotalAmount,
+            discount: quote.discountAmount,
             shipping: quote.shippingFeeAmount,
             total: quote.totalAmount,
             items: quote.items.map((item) => ({
@@ -280,6 +370,25 @@ export class CheckoutService {
           },
           tx,
         );
+        // Ghi luot voucher cung transaction tao don: khoa dong voucher (FOR UPDATE) va dem lai luot.
+        // Het luot giua preview va create thi rollback ca don; 409 de web tai lai preview va hien ly do.
+        if (quote.appliedDiscount?.kind === 'VOUCHER') {
+          try {
+            await this.promotions.recordVoucherUsage(
+              {
+                voucherId: quote.appliedDiscount.id,
+                orderId: order.id,
+                userId: user.id,
+                discountAmount: quote.discountAmount,
+              },
+              tx,
+            );
+          } catch (error) {
+            if (error instanceof BadRequestException || error instanceof NotFoundException)
+              throw new ConflictException({ error: 'DISCOUNT_INVALID', message: error.message });
+            throw error;
+          }
+        }
         // Chi validate/ky local; loi cau hinh rollback don va hold. MoMo goi mang sau commit.
         await this.payments.create(
           order.id,
@@ -410,6 +519,7 @@ export class CheckoutService {
           'Đơn không hủy và hoàn tự động được: shop đã xử lý, đơn đã hoàn hoặc cổng chưa hỗ trợ hoàn tự động. Liên hệ shop kèm mã đơn.',
         );
       await this.inventory.restock(id, this.stockItems(order), tx);
+      await this.promotions.releaseVoucherUsage(id, tx);
       await this.orders.transition(id, 'CANCELLED', tx, actor);
       return paid.id;
     });
@@ -446,6 +556,7 @@ export class CheckoutService {
         tx,
       );
       await this.payments.expire(id, expired ? 'EXPIRED' : 'CANCELLED', tx);
+      await this.promotions.releaseVoucherUsage(id, tx);
       await this.orders.transition(id, 'CANCELLED', tx, expired ? undefined : userId);
     });
     return this.view(await this.orders.get(id, userId));

@@ -51,6 +51,7 @@ const quote: Quote = {
   ],
   subtotalAmount: '200000.00',
   discountAmount: '0.00',
+  appliedDiscount: null,
   shippingFeeAmount: '30000.00',
   totalAmount: '230000.00',
   paymentConfigured: true,
@@ -293,6 +294,104 @@ describe('PH-11 checkout UI', () => {
       '/checkout/preview',
       expect.objectContaining({ body: { addressId: 'a1' } }),
     );
+  });
+  it('UC-07.2/AC3 gửi mã đã chọn ở giỏ lên preview và tạo đơn; số giảm lấy từ máy chủ', async () => {
+    sessionStorage.setItem(
+      'freya_applied_promotion',
+      JSON.stringify({
+        kind: 'VOUCHER',
+        id: 'v1',
+        code: 'GIAM30K',
+        name: 'Mã ưu đãi GIAM30K',
+        discountAmount: '99999',
+        discountType: 'FIXED_AMOUNT',
+      }),
+    );
+    request.mockImplementation((path: string) =>
+      Promise.resolve(
+        path === '/checkout/preview'
+          ? {
+              ...quote,
+              discountAmount: '30000.00',
+              appliedDiscount: {
+                kind: 'VOUCHER',
+                id: 'v1',
+                code: 'GIAM30K',
+                name: 'Mã GIAM30K',
+                amount: '30000.00',
+              },
+            }
+          : order(),
+      ),
+    );
+    show();
+    expect(await screen.findByRole('textbox', { name: 'Khuyến mãi' })).toHaveValue('GIAM30K');
+    expect(screen.getByText('-30.000 ₫')).toBeInTheDocument();
+    expect(request).toHaveBeenCalledWith('/checkout/preview', {
+      method: 'POST',
+      body: { addressId: 'a1', voucherCode: 'GIAM30K' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận và sang VNPAY' }));
+    await waitFor(() =>
+      expect(request).toHaveBeenCalledWith(
+        '/checkout/orders',
+        expect.objectContaining({ body: expect.objectContaining({ voucherCode: 'GIAM30K' }) }),
+      ),
+    );
+  });
+  it('UC-07.2/AC3 khuyến mãi tự động gửi promotionId, không kèm voucherCode', async () => {
+    sessionStorage.setItem(
+      'freya_applied_promotion',
+      JSON.stringify({
+        kind: 'PROMOTION',
+        id: 'p1',
+        name: 'Giảm 10% đơn từ 500k',
+        discountAmount: '1',
+        discountType: 'PERCENTAGE',
+      }),
+    );
+    request.mockResolvedValue(quote);
+    show();
+    await screen.findByRole('button', { name: 'Xác nhận và sang VNPAY' });
+    expect(request).toHaveBeenCalledWith('/checkout/preview', {
+      method: 'POST',
+      body: { addressId: 'a1', promotionId: 'p1' },
+    });
+  });
+  it('UC-07.2/E1 mã không còn dùng được: hiện lý do, bỏ ưu đãi thì preview lại không kèm mã', async () => {
+    sessionStorage.setItem(
+      'freya_applied_promotion',
+      JSON.stringify({
+        kind: 'VOUCHER',
+        id: 'v1',
+        code: 'HETLUOT',
+        name: 'Mã ưu đãi HETLUOT',
+        discountAmount: '1',
+        discountType: 'FIXED_AMOUNT',
+      }),
+    );
+    request.mockImplementation((_path: string, init: { body: { voucherCode?: string } }) =>
+      init.body.voucherCode
+        ? Promise.reject(
+            new ApiError({
+              statusCode: 422,
+              code: 'DISCOUNT_INVALID',
+              message: 'Mã giảm giá đã hết số lượt sử dụng toàn hệ thống',
+              path: '/api/checkout/preview',
+              timestamp: '2026-11-09T00:00:00.000Z',
+            }),
+          )
+        : Promise.resolve(quote),
+    );
+    show();
+    expect(await screen.findByText(/đã hết số lượt/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Bỏ ưu đãi và tính lại' }));
+    expect(await screen.findByRole('button', { name: 'Xác nhận và sang VNPAY' })).toBeEnabled();
+    expect(request).toHaveBeenLastCalledWith('/checkout/preview', {
+      method: 'POST',
+      body: { addressId: 'a1' },
+    });
+    expect(sessionStorage.getItem('freya_applied_promotion')).toBeNull();
   });
   it('UC-07.1/AC14 chưa có địa chỉ thì mở sẵn form thêm tại chỗ, không gọi preview hay tạo đơn', async () => {
     addresses.mockResolvedValue([]);

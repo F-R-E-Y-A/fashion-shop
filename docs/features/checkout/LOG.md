@@ -1,6 +1,6 @@
 ---
 title: Checkout — nhật ký
-updated: 2026-11-03
+updated: 2026-11-15
 status: đang dùng
 owner: Bảo
 ---
@@ -95,3 +95,42 @@ Triển khai trên bugfix/admin-orders-navigation, đã fetch và tích hợp de
 Giữ cả điều hướng và JSX/CSS shell; chạy lại kiểm chứng sau ghép. Kết quả/check/QA và giới hạn tại kho docs.
 AC điều hướng ở orders/use-cases.md là phần đề xuất UC-12.1 từ PR #26, không coi đã được Duy chốt.
 Xem lại nếu thêm pageSize/filter, đổi tab backend, chia quyền resource hoặc muốn chia sẻ thêm ngữ cảnh detail.
+
+<a id="adr-069"></a>
+## 2026-11-15 · ADR-069 — Máy chủ tính lại ưu đãi khi báo giá và đặt đơn; mỗi đơn một ưu đãi
+
+**Loại:** quyết định · **Phạm vi:** checkout (PH-11), promotions (PH-10), shipping · **Trạng thái:** đề xuất · **Người quyết:** Bảo, Duy · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+
+Giỏ hàng cho áp mã và hiện tổng đã giảm (`CartPage.tsx`, PR #41), nhưng checkout ghi cứng giảm giá `'0.00'` (develop `checkout.service.ts:119`, `:128`) và DTO không nhận mã. Khách thấy giá đã giảm ở giỏ rồi trả đủ giá, trái K2. Module promotions đã có `validateVoucher`, `evaluateCart`, `recordVoucherUsage`, `releaseVoucherUsage` nhưng ngoài module chưa ai gọi.
+
+### Phương án
+
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Web gửi số tiền giảm, máy chủ tin | Ít mã | Khách sửa request là giảm tuỳ ý | Có |
+| **B. Web chỉ gửi `voucherCode` hoặc `promotionId`, máy chủ tính lại (chọn)** | Tổng tiền chỉ từ máy chủ; đổi ưu đãi là đổi `fingerprint` | Thêm một lần gọi promotions mỗi báo giá | Có |
+| Không làm gì | | Lệch K2 | |
+
+**Chọn B.** Luật đi kèm:
+
+1. Mỗi đơn tối đa một ưu đãi. Gửi cả hai thì trả 422 `DISCOUNT_INVALID`.
+2. Miễn phí giao hàng xét theo tiền hàng **sau** giảm.
+3. `fingerprint` gồm loại, id và số tiền giảm. Ưu đãi đổi giữa báo giá và đặt đơn thì trả `QUOTE_CHANGED`.
+4. Lượt voucher ghi trong cùng transaction tạo đơn. Hết lượt lúc ghi thì rollback cả đơn lẫn giữ hàng và trả 409 `DISCOUNT_INVALID`.
+5. Mọi đường huỷ đơn đều trả lượt trong cùng transaction: khách huỷ, hết hạn thanh toán, admin báo giao thất bại, vận đơn `RETURNED`.
+6. Hoàn tiền hay trả hàng **không** trả lượt: đơn đã giao.
+
+Trade-off chấp nhận: khuyến mãi tự động không giữ lượt, vì module chưa có bảng lượt cho promotion.
+
+### Phản biện
+
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| AI gợi ý | Claude Opus 5.5 soạn diff 09/11, áp lại 15/11 lên nhánh trả hàng | giữ |
+| AI sai | Diff 09/11 thiếu đường huỷ mới của PR #111 (`shipping.service.ts`, nhánh `RETURNED`) | Claude bắt khi `grep "'CANCELLED'"` trên mã 15/11, thêm nhả lượt và một bài HTTP |
+| Người phản biện | [TBD — hỏi Duy] cách gọi promotions, luật 1 và 6 | |
+
+**Kết luận:** chờ Bảo và Duy chốt.
+**Bằng chứng:** `apps/api/test/checkout-voucher.http.spec.ts` (5 bài: preview, đặt và huỷ, RETURNED, mã sai, mã bị tắt giữa báo giá và đặt). Chạy 15/11: `npx vitest run --project http test/checkout-voucher.http.spec.ts` → 5 passed; cả bộ HTTP 652 passed trước khi sửa bài cuối.
