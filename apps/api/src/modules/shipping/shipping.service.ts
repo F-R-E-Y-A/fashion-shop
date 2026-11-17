@@ -25,6 +25,7 @@ import {
   runPostCommitHooks,
 } from '../orders/index.js';
 import { PaymentsService } from '../payments/index.js';
+import { PromotionsService } from '../promotions/index.js';
 import {
   canTransitionShipment,
   type CarrierConfigResponse,
@@ -68,6 +69,7 @@ export class ShippingService {
     @Optional() private readonly notifications?: NotificationsService,
     @Optional() private readonly ghn?: GhnCarrierGateway,
     @Optional() private readonly mockCarrier?: MockCarrierGateway,
+    @Optional() private readonly promotions?: PromotionsService,
   ) {}
 
   getCarrierConfig(): CarrierConfigResponse {
@@ -421,6 +423,8 @@ export class ShippingService {
             }));
             await this.inventory.restock(orderId, stockItems, tx);
           }
+          // Don huy thi tra luot voucher, cung transaction (UC-07.2), nhu deliveryFailed.
+          await this.promotions?.releaseVoucherUsage(orderId, tx);
           if (this.orders) {
             await this.orders.transition(orderId, 'CANCELLED', tx, actorUserId, {
               ...sharedContext,

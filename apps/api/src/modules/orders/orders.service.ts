@@ -115,6 +115,8 @@ export interface NewOrder {
   address: Prisma.InputJsonObject;
   shippingRateId: string;
   subtotal: string;
+  /** So tien giam do server tinh (UC-07.2); '0.00' khi khong co uu dai. */
+  discount?: string;
   shipping: string;
   total: string;
   items: { variantId: string; quantity: number; price: string; snapshot: Prisma.InputJsonObject }[];
@@ -232,7 +234,7 @@ export class OrdersService {
         shippingAddressSnapshot: input.address,
         shippingRateId: input.shippingRateId,
         subtotalAmount: input.subtotal,
-        discountAmount: '0.00',
+        discountAmount: input.discount ?? '0.00',
         shippingFeeAmount: input.shipping,
         totalAmount: input.total,
         items: {

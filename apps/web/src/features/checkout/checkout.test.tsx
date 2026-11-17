@@ -51,6 +51,7 @@ const quote: Quote = {
   ],
   subtotalAmount: '200000.00',
   discountAmount: '0.00',
+  appliedDiscount: null,
   shippingFeeAmount: '30000.00',
   totalAmount: '230000.00',
   paymentConfigured: true,
@@ -293,6 +294,104 @@ describe('PH-11 checkout UI', () => {
       '/checkout/preview',
       expect.objectContaining({ body: { addressId: 'a1' } }),
     );
+  });
+  it('UC-07.2/AC3 gửi mã đã chọn ở giỏ lên preview và tạo đơn; số giảm lấy từ máy chủ', async () => {
+    sessionStorage.setItem(
+      'freya_applied_promotion',
+      JSON.stringify({
+        kind: 'VOUCHER',
+        id: 'v1',
+        code: 'GIAM30K',
+        name: 'Mã ưu đãi GIAM30K',
+        discountAmount: '99999',
+        discountType: 'FIXED_AMOUNT',
+      }),
+    );
+    request.mockImplementation((path: string) =>
+      Promise.resolve(
+        path === '/checkout/preview'
+          ? {
+              ...quote,
+              discountAmount: '30000.00',
+              appliedDiscount: {
+                kind: 'VOUCHER',
+                id: 'v1',
+                code: 'GIAM30K',
+                name: 'Mã GIAM30K',
+                amount: '30000.00',
+              },
+            }
+          : order(),
+      ),
+    );
+    show();
+    expect(await screen.findByRole('textbox', { name: 'Khuyến mãi' })).toHaveValue('GIAM30K');
+    expect(screen.getByText('-30.000 ₫')).toBeInTheDocument();
+    expect(request).toHaveBeenCalledWith('/checkout/preview', {
+      method: 'POST',
+      body: { addressId: 'a1', voucherCode: 'GIAM30K' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Xác nhận và sang VNPAY' }));
+    await waitFor(() =>
+      expect(request).toHaveBeenCalledWith(
+        '/checkout/orders',
+        expect.objectContaining({ body: expect.objectContaining({ voucherCode: 'GIAM30K' }) }),
+      ),
+    );
+  });
+  it('UC-07.2/AC3 khuyến mãi tự động gửi promotionId, không kèm voucherCode', async () => {
+    sessionStorage.setItem(
+      'freya_applied_promotion',
+      JSON.stringify({
+        kind: 'PROMOTION',
+        id: 'p1',
+        name: 'Giảm 10% đơn từ 500k',
+        discountAmount: '1',
+        discountType: 'PERCENTAGE',
+      }),
+    );
+    request.mockResolvedValue(quote);
+    show();
+    await screen.findByRole('button', { name: 'Xác nhận và sang VNPAY' });
+    expect(request).toHaveBeenCalledWith('/checkout/preview', {
+      method: 'POST',
+      body: { addressId: 'a1', promotionId: 'p1' },
+    });
+  });
+  it('UC-07.2/E1 mã không còn dùng được: hiện lý do, bỏ ưu đãi thì preview lại không kèm mã', async () => {
+    sessionStorage.setItem(
+      'freya_applied_promotion',
+      JSON.stringify({
+        kind: 'VOUCHER',
+        id: 'v1',
+        code: 'HETLUOT',
+        name: 'Mã ưu đãi HETLUOT',
+        discountAmount: '1',
+        discountType: 'FIXED_AMOUNT',
+      }),
+    );
+    request.mockImplementation((_path: string, init: { body: { voucherCode?: string } }) =>
+      init.body.voucherCode
+        ? Promise.reject(
+            new ApiError({
+              statusCode: 422,
+              code: 'DISCOUNT_INVALID',
+              message: 'Mã giảm giá đã hết số lượt sử dụng toàn hệ thống',
+              path: '/api/checkout/preview',
+              timestamp: '2026-11-09T00:00:00.000Z',
+            }),
+          )
+        : Promise.resolve(quote),
+    );
+    show();
+    expect(await screen.findByText(/đã hết số lượt/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Bỏ ưu đãi và tính lại' }));
+    expect(await screen.findByRole('button', { name: 'Xác nhận và sang VNPAY' })).toBeEnabled();
+    expect(request).toHaveBeenLastCalledWith('/checkout/preview', {
+      method: 'POST',
+      body: { addressId: 'a1' },
+    });
+    expect(sessionStorage.getItem('freya_applied_promotion')).toBeNull();
   });
   it('UC-07.1/AC14 chưa có địa chỉ thì mở sẵn form thêm tại chỗ, không gọi preview hay tạo đơn', async () => {
     addresses.mockResolvedValue([]);
@@ -569,5 +668,77 @@ describe('PH-11 checkout UI', () => {
       'href',
       'https://donhang.ghn.vn/?order_code=L4GHN555',
     );
+  });
+});
+
+describe('UC-14.1 trả hàng trên trang đơn', () => {
+  const eligibility = {
+    eligible: true,
+    blocker: null,
+    deadline: '2026-11-29T03:00:00.000Z',
+    existingReturnId: null,
+    refundMethod: 'GATEWAY',
+    uploadsEnabled: false,
+    windowDays: 15,
+    mediaMax: 3,
+    items: [],
+  };
+  const answer = (status: string, returns: object) =>
+    request.mockImplementation(async (path: string) =>
+      path.endsWith('/returns/eligibility')
+        ? returns
+        : path === '/reviews/eligible'
+          ? []
+          : order(status),
+    );
+  const eligibilityCalls = () =>
+    request.mock.calls.filter(([path]) => String(path).endsWith('/returns/eligibility'));
+
+  it('UC-14.1/AC9 đơn đã giao đủ điều kiện: hiện nút "Yêu cầu trả hàng" kèm hạn trả', async () => {
+    answer('DELIVERED', eligibility);
+    show('/don-hang/o1');
+    expect(await screen.findByRole('button', { name: 'Yêu cầu trả hàng' })).toBeInTheDocument();
+    expect(screen.getByText(/Hạn trả: /)).toBeInTheDocument();
+    expect(request).toHaveBeenCalledWith(
+      '/orders/o1/returns/eligibility',
+      expect.objectContaining({}),
+    );
+  });
+  it('UC-14.1/AC9 đơn đã có yêu cầu: không có nút, có liên kết tới yêu cầu đó', async () => {
+    answer('DELIVERED', {
+      ...eligibility,
+      eligible: false,
+      blocker: 'RETURN_EXISTS',
+      existingReturnId: 'r9',
+    });
+    show('/don-hang/o1');
+    const link = await screen.findByRole('link', { name: 'Xem yêu cầu trả hàng' });
+    expect(link).toHaveAttribute('href', '/tai-khoan/tra-hang/r9');
+    expect(screen.queryByRole('button', { name: 'Yêu cầu trả hàng' })).not.toBeInTheDocument();
+  });
+  it('UC-14.1/AC9 quá hạn: không có nút và báo đã quá hạn', async () => {
+    answer('DELIVERED', { ...eligibility, eligible: false, blocker: 'WINDOW_CLOSED' });
+    show('/don-hang/o1');
+    expect(await screen.findByText(/quá hạn 15 ngày/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Yêu cầu trả hàng' })).not.toBeInTheDocument();
+  });
+  it('UC-14.1/AC9 đơn đã hoàn tiền sau khi trả: vẫn có liên kết tới yêu cầu trả đã xong', async () => {
+    answer('PARTIALLY_REFUNDED', {
+      ...eligibility,
+      eligible: false,
+      blocker: 'NOT_DELIVERED',
+      existingReturnId: 'r9',
+    });
+    show('/don-hang/o1');
+    const link = await screen.findByRole('link', { name: 'Xem yêu cầu trả hàng' });
+    expect(link).toHaveAttribute('href', '/tai-khoan/tra-hang/r9');
+    expect(screen.queryByRole('button', { name: 'Yêu cầu trả hàng' })).not.toBeInTheDocument();
+  });
+  it('UC-14.1/AC3 đơn chưa giao: không hỏi điều kiện trả hàng ở máy chủ', async () => {
+    answer('PROCESSING', eligibility);
+    show('/don-hang/o1');
+    expect(await screen.findByText('Mã đơn')).toBeInTheDocument();
+    expect(eligibilityCalls()).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: 'Yêu cầu trả hàng' })).not.toBeInTheDocument();
   });
 });

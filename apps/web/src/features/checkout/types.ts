@@ -8,6 +8,13 @@ export interface GatewayOption {
   /** COD bi tat cho don/khach nay (tran gia tri, tien su giao that bai) — ADR-038. */
   unavailableReason?: string;
 }
+export interface AppliedDiscount {
+  kind: 'VOUCHER' | 'PROMOTION';
+  id: string;
+  code?: string;
+  name: string;
+  amount: string;
+}
 export interface Quote {
   fingerprint: string;
   address: {
@@ -30,6 +37,8 @@ export interface Quote {
   }[];
   subtotalAmount: string;
   discountAmount: string;
+  /** Uu dai may chu da tinh lai (UC-07.2); null khi khong ap dung. */
+  appliedDiscount: AppliedDiscount | null;
   shippingFeeAmount: string;
   totalAmount: string;
   paymentConfigured: boolean;
@@ -41,7 +50,9 @@ export interface Quote {
 }
 export const checkoutKeys = {
   all: sessionQueryKeys.scope('checkout'),
-  preview: (userId: string, addressId: string) => [...checkoutKeys.all, userId, addressId] as const,
+  /** `discount`: 'VOUCHER:<id>' hoac 'PROMOTION:<id>'; doi uu dai la query moi. */
+  preview: (userId: string, addressId: string, discount = '') =>
+    [...checkoutKeys.all, userId, addressId, discount] as const,
 };
 export const orderKeys = {
   all: sessionQueryKeys.scope('orders'),

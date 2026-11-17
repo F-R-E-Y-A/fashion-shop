@@ -27,7 +27,7 @@ Ranh giới nghiệp vụ:
 - Khách hàng xem voucher khả dụng qua `GET /api/promotions/vouchers/available` (`Cache-Control: no-store`, đọc dư 50 dòng rồi lọc các mã đã hết `usageLimit` trước khi cắt 20 mã trả về).
 - Khách hàng đánh giá ưu đãi giỏ hàng qua `POST /api/promotions/evaluate`.
 - Quản trị viên quản lý voucher qua `/admin/vouchers` (quyền `ADMIN`).
-- Đơn hàng khi hoàn tất gọi `recordVoucherUsage` trong transaction với khóa bi quan `FOR UPDATE`.
+- Checkout tính lại ưu đãi khi báo giá và đặt đơn, ghi lượt bằng `recordVoucherUsage` trong transaction tạo đơn (khóa `FOR UPDATE`), trả lượt khi đơn huỷ ([ADR-069](../checkout/LOG.md#adr-069)).
 
 ## Quản trị Voucher (UC-10.2 — Issue #86)
 

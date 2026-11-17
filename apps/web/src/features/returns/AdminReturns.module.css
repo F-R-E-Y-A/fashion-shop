@@ -1,0 +1,291 @@
+/* Quan tri tra hang: chi doi trinh bay, dung chung bo AdminKit voi cac trang quan tri khac. */
+.page {
+  composes: page from '../../ui/AdminKit.module.css';
+}
+.header {
+  composes: header from '../../ui/AdminKit.module.css';
+}
+.headingRow {
+  composes: headingRow from '../../ui/AdminKit.module.css';
+}
+.title {
+  composes: title from '../../ui/AdminKit.module.css';
+}
+.count {
+  composes: count from '../../ui/AdminKit.module.css';
+}
+.back {
+  composes: back from '../../ui/AdminKit.module.css';
+}
+.numeric {
+  composes: numeric from '../../ui/AdminKit.module.css';
+}
+.mono {
+  composes: mono from '../../ui/AdminKit.module.css';
+}
+.tableWrap {
+  composes: tableWrap from '../../ui/AdminKit.module.css';
+}
+.table {
+  composes: table from '../../ui/AdminKit.module.css';
+}
+.badge {
+  composes: badge from '../../ui/AdminKit.module.css';
+}
+.badgeDot {
+  composes: badgeDot from '../../ui/AdminKit.module.css';
+}
+.detailGrid {
+  composes: detailGrid from '../../ui/AdminKit.module.css';
+}
+.panel {
+  composes: panel from '../../ui/AdminKit.module.css';
+}
+.panelTitle {
+  composes: panelTitle from '../../ui/AdminKit.module.css';
+}
+.facts {
+  composes: facts from '../../ui/AdminKit.module.css';
+}
+.primaryButton {
+  composes: primaryButton from '../../ui/AdminKit.module.css';
+}
+.dangerButton {
+  composes: dangerButton from '../../ui/AdminKit.module.css';
+}
+.secondary {
+  composes: secondary from '../../ui/AdminKit.module.css';
+}
+.notice {
+  composes: notice from '../../ui/AdminKit.module.css';
+}
+
+.description {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.tabs {
+  display: flex;
+  gap: 24px;
+  min-width: 0;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--line);
+  scrollbar-width: thin;
+}
+.tab {
+  flex: none;
+  min-height: 44px;
+  padding: 10px 0 13px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.tab:hover {
+  color: var(--ink);
+}
+.tab[aria-pressed='true'] {
+  border-bottom-color: var(--accent);
+  color: var(--accent);
+}
+.code {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--ink-2);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.email {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.right {
+  text-align: right;
+}
+
+/* Chi tiet. */
+.main {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+.side {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+}
+.headLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+.lines {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.line {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+.line img,
+.lineImage {
+  width: 56px;
+  height: 70px;
+  object-fit: cover;
+  background: var(--surface);
+}
+.lineName {
+  margin: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.muted {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.total {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 600;
+}
+.text {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.photos a {
+  display: block;
+  width: 96px;
+  height: 96px;
+  border: 1px solid var(--line);
+}
+.photos img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.account {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+.account > div {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 12px;
+}
+.account dt {
+  color: var(--muted);
+  font-size: 12px;
+}
+.account dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.value {
+  font-size: 14px;
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+.copy {
+  min-height: 44px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.actions {
+  display: grid;
+  gap: 10px;
+}
+.warning {
+  composes: notice from '../../ui/AdminKit.module.css';
+  border-color: color-mix(in srgb, var(--danger) 25%, var(--paper));
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+.field {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px;
+}
+.field input,
+.field textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  font: inherit;
+}
+.field textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+.hint {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.error {
+  margin: 8px 0 0;
+  color: var(--danger);
+  font-size: 13px;
+}
+.page :where(a, button, input, textarea):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+@media (max-width: 720px) {
+  .line {
+    grid-template-columns: 48px minmax(0, 1fr);
+  }
+  .line > :last-child {
+    grid-column: 2;
+  }
+  .line img,
+  .lineImage {
+    width: 48px;
+    height: 60px;
+  }
+  .tabs {
+    gap: 18px;
+  }
+}

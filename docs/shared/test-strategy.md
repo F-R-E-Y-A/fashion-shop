@@ -1,6 +1,6 @@
 ---
 title: Chiến lược kiểm thử
-updated: 2026-11-12
+updated: 2026-11-15
 status: đã điền
 owner: Duy
 ---
@@ -94,3 +94,4 @@ owner: Duy
 | E2E-06 | Điều chỉnh tồn kho → Xem lịch sử biến động | PH-13 | Duy |
 | E2E-07 | Khách đặt COD → admin xác nhận → giao, thu tiền → khách thấy đơn đã giao (`apps/web/e2e/checkout-cod.spec.ts`, đã chạy) | PH-11 | Bảo |
 | E2E-08 | Đơn đã giao → khách viết đánh giá → hiện ở trang sản phẩm → admin ẩn kèm lý do → khách thấy lý do (`apps/web/e2e/reviews.spec.ts`, đã chạy) | PH-01 | Bảo |
+| E2E-09 | Đơn COD đã giao → khách gửi yêu cầu trả hàng (360 px) → admin duyệt → nhận hàng → hoàn chuyển khoản kèm mã giao dịch → khách thấy đã hoàn (`apps/web/e2e/returns.spec.ts`, đã chạy 15/11) | PH-11 | Bảo |

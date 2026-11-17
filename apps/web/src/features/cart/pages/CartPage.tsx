@@ -372,7 +372,8 @@ export function CartPage() {
             </span>
           </p>
           <p className={styles.total}>
-            <span>Tiền hàng đã chọn</span>
+            {/* So tam tinh; may chu tinh lai uu dai o buoc thanh toan (UC-07.2). */}
+            <span>{applied ? 'Tạm tính sau ưu đãi' : 'Tiền hàng đã chọn'}</span>
             <strong>
               {formatPrice(
                 String(

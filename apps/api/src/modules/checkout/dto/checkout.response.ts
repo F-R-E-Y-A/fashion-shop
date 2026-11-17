@@ -37,8 +37,17 @@ export class PendingOrderResponse {
   @ApiProperty() id!: string;
   @ApiProperty() orderCode!: string;
 }
+export class AppliedDiscountResponse {
+  @ApiProperty({ enum: ['VOUCHER', 'PROMOTION'] }) kind!: 'VOUCHER' | 'PROMOTION';
+  @ApiProperty() id!: string;
+  @ApiProperty({ required: false }) code?: string;
+  @ApiProperty() name!: string;
+  @ApiProperty() amount!: string;
+}
 export class QuoteResponse {
   @ApiProperty() fingerprint!: string;
+  @ApiProperty({ type: AppliedDiscountResponse, nullable: true })
+  appliedDiscount!: AppliedDiscountResponse | null;
   @ApiProperty({ type: CheckoutAddressResponse }) address!: CheckoutAddressResponse;
   @ApiProperty({ type: [CheckoutItemResponse] }) items!: CheckoutItemResponse[];
   @ApiProperty() subtotalAmount!: string;
