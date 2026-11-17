@@ -64,7 +64,7 @@ export function NotificationBell({ isAdmin = false, autoFetch = true }: Notifica
 
   const shouldFetch = open || autoFetch;
 
-  const { data } = useQuery<NotificationListResponse>({
+  const { data, isLoading, isError, refetch } = useQuery<NotificationListResponse>({
     queryKey,
     queryFn: ({ signal }) =>
       getNotifications(isAdmin, signal, {
@@ -229,7 +229,18 @@ export function NotificationBell({ isAdmin = false, autoFetch = true }: Notifica
             )}
           </div>
 
-          {items.length === 0 ? (
+          {isLoading ? (
+            <div className={styles.empty} role="status">
+              Đang tải thông báo…
+            </div>
+          ) : isError && items.length === 0 ? (
+            <div className={styles.empty} role="alert">
+              <p>Không tải được thông báo.</p>
+              <button type="button" className={styles.markAllBtn} onClick={() => void refetch()}>
+                Thử lại
+              </button>
+            </div>
+          ) : items.length === 0 ? (
             <div className={styles.empty}>Bạn chưa có thông báo nào</div>
           ) : (
             <ul className={styles.list}>
@@ -243,7 +254,12 @@ export function NotificationBell({ isAdmin = false, autoFetch = true }: Notifica
                     <div className={styles.itemHeader}>
                       <span className={styles.itemTitle}>{item.title}</span>
                       <time className={styles.itemDate}>
-                        {new Date(item.createdAt).toLocaleDateString('vi-VN')}
+                        {new Date(item.createdAt).toLocaleString('vi-VN', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
                       </time>
                     </div>
                     <p className={styles.itemMessage}>{item.message}</p>

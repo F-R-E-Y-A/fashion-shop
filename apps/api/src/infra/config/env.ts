@@ -129,6 +129,27 @@ export const envSchema = z
     /** Ma commit dang chay: CI truyen GIT_SHA khi dung image; Render tu cap RENDER_GIT_COMMIT. */
     GIT_SHA: z.string().optional(),
     RENDER_GIT_COMMIT: z.string().optional(),
+    /** Dia chi goc cua web storefront de gan vao link email giao dich; bo trong lay origin dau cua CORS_ORIGINS. */
+    WEB_PUBLIC_URL: z.union([z.literal(''), z.url()]).default(''),
+    /** Token bi mat xac thuc webhook hang van chuyen (header x-carrier-token hoac query token). */
+    SHIPPING_WEBHOOK_SECRET: z.string().default(''),
+    /** Tich hop GHN o che do thu nghiem (ADR-070): bo trong Token/ShopId se tu dong dung che do mo phong du phong. */
+    GHN_API_URL: z.url().default('https://dev-online-gateway.ghn.vn/shiip/public-api'),
+    GHN_TOKEN: z.string().default(''),
+    GHN_SHOP_ID: z
+      .union([z.literal(''), z.string().regex(/^\d+$/u, 'phai la ma cua hang GHN so nguyen')])
+      .default(''),
+    GHN_SERVICE_TYPE_ID: z.coerce.number().int().positive().default(2),
+    GHN_REQUIRED_NOTE: z
+      .enum(['KHONGCHOXEMHANG', 'CHOXEMHANGKHONGTHU', 'CHOTHUHANG'])
+      .default('CHOXEMHANGKHONGTHU'),
+    GHN_FROM_NAME: z.string().default('F.R.E.Y.A. Store'),
+    GHN_FROM_PHONE: z.string().default('0900000000'),
+    GHN_FROM_ADDRESS: z.string().default('72 Le Thanh Ton, Phuong Ben Nghe'),
+    GHN_FROM_WARD_NAME: z.string().default('Phuong Ben Nghe'),
+    GHN_FROM_PROVINCE_NAME: z.string().default('Ho Chi Minh'),
+    GHN_FROM_DISTRICT_ID: z.union([z.literal(''), z.coerce.number().int().positive()]).default(''),
+    GHN_FROM_WARD_CODE: z.string().default(''),
   })
   .superRefine((env, context) => {
     if (env.MOMO_PARTNER_CODE && env.MOMO_ACCESS_KEY && env.MOMO_SECRET_KEY) {
@@ -192,3 +213,9 @@ export const corsOrigins = (value: string): string[] =>
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
+
+export const webPublicOrigin = (corsValue: string, explicitWebUrl?: string): string => {
+  const clean = explicitWebUrl?.trim();
+  if (clean) return clean.replace(/\/+$/u, '');
+  return (corsOrigins(corsValue)[0] ?? 'http://localhost:5174').replace(/\/+$/u, '');
+};

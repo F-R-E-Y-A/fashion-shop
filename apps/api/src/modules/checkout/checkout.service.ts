@@ -348,7 +348,10 @@ export class CheckoutService {
             carrierName: order.shipment.carrierName,
             trackingNumber: order.shipment.trackingNumber,
             status: order.shipment.status,
-            isMock: true,
+            isMock: order.shipment.isMock,
+            carrierStatus: order.shipment.carrierStatus ?? null,
+            statusNote: order.shipment.statusNote ?? null,
+            expectedDeliveryAt: order.shipment.expectedDeliveryAt?.toISOString() ?? null,
             createdAt: order.shipment.createdAt.toISOString(),
             updatedAt: order.shipment.updatedAt.toISOString(),
           }
@@ -395,7 +398,10 @@ export class CheckoutService {
           'Đơn không hủy và hoàn tự động được: shop đã xử lý, đơn đã hoàn hoặc cổng chưa hỗ trợ hoàn tự động. Liên hệ shop kèm mã đơn.',
         );
       await this.inventory.restock(id, this.stockItems(order), tx);
-      await this.orders.transition(id, 'CANCELLED', tx, actor);
+      await this.orders.transition(id, 'CANCELLED', tx, actor, {
+        cancelSource: actor === ownerId ? 'CUSTOMER' : 'ADMIN',
+        reason,
+      });
       return paid.id;
     });
     try {
@@ -431,7 +437,9 @@ export class CheckoutService {
         tx,
       );
       await this.payments.expire(id, expired ? 'EXPIRED' : 'CANCELLED', tx);
-      await this.orders.transition(id, 'CANCELLED', tx, expired ? undefined : userId);
+      await this.orders.transition(id, 'CANCELLED', tx, expired ? undefined : userId, {
+        cancelSource: expired ? 'EXPIRED' : 'CUSTOMER',
+      });
     });
     return this.view(await this.orders.get(id, userId));
   }
@@ -642,6 +650,10 @@ export class CheckoutService {
         refunded.gte(payment.amount) ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
         tx,
         actor,
+        {
+          refundedAmount: claim.amount,
+          ...(claim.reason ? { reason: claim.reason } : {}),
+        },
       );
     });
   }

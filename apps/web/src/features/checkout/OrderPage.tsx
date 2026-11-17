@@ -259,16 +259,30 @@ export function OrderPage() {
                 <div className={styles.shippingCard}>
                   <div className={styles.shippingHeader}>
                     <span className={styles.carrierBadge}>
-                      Đơn vị vận chuyển: {order.shipment.carrierName || 'GHN'} (Mô phỏng Sandbox)
+                      Đơn vị vận chuyển: {order.shipment.carrierName || 'GHN'}{' '}
+                      {order.shipment.isMock === false ? '(Thử nghiệm GHN)' : '(Mô phỏng Sandbox)'}
                     </span>
                     <span className={styles.trackingCode}>
                       Mã vận đơn:{' '}
                       <strong>{order.shipment.trackingNumber || 'Đang cập nhật'}</strong>
                     </span>
                   </div>
+                  {(order.shipment.statusNote || order.shipment.expectedDeliveryAt) && (
+                    <p className={styles.muted}>
+                      {order.shipment.statusNote ? <span>{order.shipment.statusNote}</span> : null}
+                      {order.shipment.statusNote && order.shipment.expectedDeliveryAt
+                        ? ' · '
+                        : null}
+                      {order.shipment.expectedDeliveryAt ? (
+                        <span>
+                          Dự kiến giao: {formatDateTime(order.shipment.expectedDeliveryAt)}
+                        </span>
+                      ) : null}
+                    </p>
+                  )}
                   {(() => {
-                    const isFailed =
-                      order.shipment.status === 'FAILED' || order.shipment.status === 'RETURNED';
+                    const isReturned = order.shipment.status === 'RETURNED';
+                    const isFailed = order.shipment.status === 'FAILED' || isReturned;
                     const isDelivered =
                       order.shipment.status === 'DELIVERED' || order.status === 'DELIVERED';
                     const isInTransit =
@@ -306,7 +320,11 @@ export function OrderPage() {
                             {isFailed ? '✕' : step4Status === 'done' ? '✓' : '○'}
                           </span>
                           <span className={styles.timelineLabel}>
-                            {isFailed ? 'Giao hàng không thành công' : 'Giao thành công'}
+                            {isReturned
+                              ? 'Đơn đã hoàn về kho'
+                              : isFailed
+                                ? 'Giao hàng không thành công'
+                                : 'Giao thành công'}
                           </span>
                         </div>
                       </div>
@@ -316,7 +334,8 @@ export function OrderPage() {
                     <span className={styles.muted}>
                       Cập nhật lần cuối: {formatDateTime(order.shipment.updatedAt)}
                     </span>
-                    {order.shipment.isMock || order.shipment.trackingNumber?.includes('-SBX-') ? (
+                    {(order.shipment.isMock ??
+                    Boolean(order.shipment.trackingNumber?.includes('-SBX-'))) ? (
                       <span className={styles.sandboxNotice}>
                         (Vận đơn thử nghiệm sandbox nội bộ phục vụ đồ án Freya, không tra cứu trên
                         cổng thực tế)
@@ -333,7 +352,7 @@ export function OrderPage() {
                           rel="noopener noreferrer"
                           className={styles.carrierLink}
                         >
-                          Xem trên website đơn vị vận chuyển ↗
+                          Tra cứu vận đơn GHN ↗
                         </a>
                       )
                     )}

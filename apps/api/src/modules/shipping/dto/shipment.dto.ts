@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 
+import { CARRIER_MODES, type CarrierMode } from '../shipping-carrier.js';
+
 export const ShipmentStatus = {
   PENDING: 'PENDING',
   IN_TRANSIT: 'IN_TRANSIT',
@@ -43,6 +45,16 @@ export class CreateShipmentDto {
   @IsString()
   @MaxLength(200)
   trackingNumber?: string;
+
+  @ApiPropertyOptional({
+    enum: CARRIER_MODES,
+    default: 'AUTO',
+    description:
+      'AUTO: dùng GHN Sandbox nếu đã cấu hình, tự động dự phòng mô phỏng khi thiếu cấu hình hoặc GHN lỗi; GHN: bắt buộc gọi GHN Sandbox; MOCK: dùng mô phỏng nội bộ.',
+  })
+  @IsOptional()
+  @IsIn(CARRIER_MODES, { message: 'Chế độ tạo vận đơn chỉ nhận AUTO, GHN hoặc MOCK' })
+  mode?: CarrierMode;
 }
 
 export class UpdateShipmentStatusDto {
@@ -86,6 +98,11 @@ export class ShipmentWebhookDto {
   note?: string;
 }
 
+export class CarrierConfigResponse {
+  @ApiProperty() ghnConfigured!: boolean;
+  @ApiProperty({ enum: ['GHN_SANDBOX', 'MOCK_ONLY'] }) mode!: 'GHN_SANDBOX' | 'MOCK_ONLY';
+}
+
 export class ShipmentResponse {
   @ApiProperty() id!: string;
   @ApiProperty() orderId!: string;
@@ -94,6 +111,15 @@ export class ShipmentResponse {
   @ApiProperty({ enum: SHIPMENT_STATUSES }) status!: ShipmentStatus;
   @ApiPropertyOptional({ type: Boolean, description: 'Đánh dấu vận đơn mô phỏng (Sandbox)' })
   isMock?: boolean;
+  @ApiPropertyOptional({ type: String, nullable: true }) carrierStatus?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) statusNote?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) expectedDeliveryAt?: string | null;
+  @ApiPropertyOptional({
+    type: Boolean,
+    description: 'true nếu GHN Sandbox lỗi và hệ thống đã dự phòng sang mô phỏng',
+  })
+  fallbackUsed?: boolean;
+  @ApiPropertyOptional({ type: String, nullable: true }) fallbackReason?: string | null;
   @ApiProperty() createdAt!: string;
   @ApiProperty() updatedAt!: string;
 }

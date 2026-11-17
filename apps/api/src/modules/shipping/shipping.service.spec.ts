@@ -1,11 +1,18 @@
-import { ConflictException, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  ConflictException,
+  NotFoundException,
+  ServiceUnavailableException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Prisma } from '../../generated/prisma/client.js';
 import type { PrismaService } from '../../infra/prisma/prisma.service.js';
 import type { InventoryService } from '../inventory/index.js';
+import type { NotificationsService } from '../notifications/index.js';
 import { type OrdersService, registerPostCommitHook } from '../orders/index.js';
 import type { PaymentsService } from '../payments/index.js';
+import type { GhnCarrierGateway } from './ghn.carrier.js';
 import { ShippingService } from './shipping.service.js';
 
 describe('ShippingService', () => {
@@ -387,6 +394,7 @@ describe('ShippingService', () => {
         'DELIVERED',
         expect.anything(),
         undefined,
+        expect.objectContaining({ note: 'Shipper đã giao thành công' }),
       );
     });
 
@@ -480,7 +488,7 @@ describe('ShippingService', () => {
       expect(res.status).toBe('FAILED');
       expect(t.update).toHaveBeenCalledWith({
         where: { orderId: 'ord-1' },
-        data: { status: 'FAILED' },
+        data: { status: 'FAILED', statusNote: 'Khách từ chối' },
       });
       expect(t.inventory.restock).not.toHaveBeenCalled();
       expect(t.payments.record).not.toHaveBeenCalled();
@@ -520,6 +528,7 @@ describe('ShippingService', () => {
         'CANCELLED',
         expect.anything(),
         undefined,
+        expect.objectContaining({ cancelSource: 'DELIVERY_FAILED', reason: 'Hàng đã về kho' }),
       );
     });
 
@@ -700,6 +709,7 @@ describe('ShippingService', () => {
         'SHIPPED',
         expect.anything(),
         undefined,
+        expect.objectContaining({ fromCarrierWebhook: true }),
       );
     });
 
@@ -791,6 +801,318 @@ describe('ShippingService', () => {
         'Đơn hàng đã bị hủy, không thể cập nhật vận chuyển.',
       );
       expect(res.status).toBe('PENDING');
+    });
+  });
+
+  describe('GHN Sandbox & Dự phòng mô phỏng', () => {
+    function sampleOrderSnapshot() {
+      return {
+        id: 'ord-ghn-1',
+        orderCode: 'FR2611160001',
+        userId: 'user-1',
+        customerEmail: 'khach@freya.test',
+        status: 'PROCESSING',
+        shipment: null,
+        subtotalAmount: { toString: () => '350000' },
+        totalAmount: { toString: () => '380000' },
+        shippingAddressSnapshot: {
+          recipientName: 'Nguyễn Văn A',
+          phone: '0909123456',
+          detailAddress: '12 Nguyễn Huệ',
+          commune: 'Phường Bến Nghé',
+          province: 'Thành phố Hồ Chí Minh',
+        },
+        items: [
+          {
+            productVariantId: 'var-1',
+            quantity: 1,
+            unitPrice: { toString: () => '350000' },
+            productSnapshot: { name: 'Áo sơ mi', variantLabel: 'Trắng / M' },
+          },
+        ],
+        payments: [{ gateway: 'COD', status: 'PENDING' }],
+      };
+    }
+
+    it('tạo vận đơn GHN Sandbox thành công (isMock=false), gọi GHN ngoài $transaction và gửi notifyShipmentCreated', async () => {
+      const now = new Date();
+      const events: string[] = [];
+      const orderRow = sampleOrderSnapshot();
+      const savedShipment = {
+        id: 'ship-ghn-1',
+        orderId: 'ord-ghn-1',
+        carrierName: 'GHN',
+        trackingNumber: 'L4ABCDEF',
+        status: 'PENDING',
+        isMock: false,
+        carrierStatus: 'ready_to_pick',
+        statusNote: 'Đã tạo vận đơn thành công trên GHN Sandbox, chờ lấy hàng.',
+        expectedDeliveryAt: new Date('2026-11-18T10:00:00.000Z'),
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      const mockPrisma = {
+        order: {
+          findUnique: vi.fn().mockImplementation(async () => {
+            events.push('snapshotRead');
+            return orderRow;
+          }),
+        },
+        $transaction: vi.fn().mockImplementation(async (fn: (tx: unknown) => unknown) => {
+          events.push('txStart');
+          const res = await fn({
+            order: { findUnique: vi.fn().mockResolvedValue(orderRow) },
+            shipment: { upsert: vi.fn().mockResolvedValue(savedShipment) },
+          });
+          events.push('txEnd');
+          return res;
+        }),
+      } as unknown as PrismaService;
+
+      const mockOrders = { lock: vi.fn().mockResolvedValue(undefined) } as unknown as OrdersService;
+      const mockNotifications = {
+        notifyShipmentCreated: vi.fn().mockImplementation(async () => void events.push('notify')),
+      } as unknown as NotificationsService;
+      const mockGhn = {
+        configured: vi.fn().mockReturnValue(true),
+        createOrder: vi.fn().mockImplementation(async () => {
+          events.push('ghnCreate');
+          return {
+            carrierName: 'GHN',
+            trackingNumber: 'L4ABCDEF',
+            isMock: false,
+            carrierStatus: 'ready_to_pick',
+            statusNote: 'Đã tạo vận đơn thành công trên GHN Sandbox, chờ lấy hàng.',
+            expectedDeliveryAt: '2026-11-18T10:00:00.000Z',
+          };
+        }),
+      } as unknown as GhnCarrierGateway;
+
+      const service = new ShippingService(
+        mockPrisma,
+        mockOrders,
+        undefined,
+        undefined,
+        mockNotifications,
+        mockGhn,
+      );
+
+      const res = await service.createShipment('ord-ghn-1', { mode: 'AUTO' }, 'admin-1');
+
+      expect(res.trackingNumber).toBe('L4ABCDEF');
+      expect(res.isMock).toBe(false);
+      expect(res.carrierStatus).toBe('ready_to_pick');
+      expect(res.fallbackUsed).toBeUndefined();
+      expect(events).toEqual(['snapshotRead', 'ghnCreate', 'txStart', 'txEnd', 'notify']);
+      expect(mockNotifications.notifyShipmentCreated).toHaveBeenCalledTimes(1);
+    });
+
+    it('mode AUTO tự động dự phòng sang mô phỏng (isMock=true, fallbackUsed=true) khi GHN Sandbox lỗi', async () => {
+      const now = new Date();
+      const orderRow = sampleOrderSnapshot();
+      const mockPrisma = {
+        order: { findUnique: vi.fn().mockResolvedValue(orderRow) },
+        $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) =>
+          fn({
+            order: { findUnique: vi.fn().mockResolvedValue(orderRow) },
+            shipment: {
+              upsert: vi.fn().mockResolvedValue({
+                id: 'ship-mock-1',
+                orderId: 'ord-ghn-1',
+                carrierName: 'GHN',
+                trackingNumber: 'GHN-SBX-2611160001',
+                status: 'PENDING',
+                isMock: true,
+                carrierStatus: 'mock_ready_to_pick',
+                statusNote: 'Vận đơn mô phỏng Sandbox nội bộ.',
+                expectedDeliveryAt: null,
+                createdAt: now,
+                updatedAt: now,
+              }),
+            },
+          }),
+        ),
+      } as unknown as PrismaService;
+
+      const mockGhn = {
+        configured: vi.fn().mockReturnValue(true),
+        createOrder: vi
+          .fn()
+          .mockRejectedValue(new ServiceUnavailableException('GHN timeout simulation')),
+      } as unknown as GhnCarrierGateway;
+
+      const service = new ShippingService(
+        mockPrisma,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        mockGhn,
+      );
+
+      const res = await service.createShipment('ord-ghn-1', { mode: 'AUTO' }, 'admin-1');
+
+      expect(res.isMock).toBe(true);
+      expect(res.fallbackUsed).toBe(true);
+      expect(res.fallbackReason).toContain('GHN timeout');
+      expect(res.trackingNumber).toBe('GHN-SBX-2611160001');
+    });
+
+    it('mode GHN báo lỗi 503 ngay khi chưa cấu hình token/shopId', async () => {
+      const mockPrisma = {} as unknown as PrismaService;
+      const mockGhn = {
+        configured: vi.fn().mockReturnValue(false),
+      } as unknown as GhnCarrierGateway;
+      const service = new ShippingService(
+        mockPrisma,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        mockGhn,
+      );
+
+      await expect(service.createShipment('ord-ghn-1', { mode: 'GHN' }, 'admin-1')).rejects.toThrow(
+        ServiceUnavailableException,
+      );
+    });
+
+    it('syncShipmentFromCarrier đồng bộ sub-status GHN và chuyển trạng thái vận đơn + gửi notifyShipmentFailed khi FAILED', async () => {
+      const now = new Date();
+      const currentShipment = {
+        id: 'ship-ghn-1',
+        orderId: 'ord-ghn-1',
+        carrierName: 'GHN',
+        trackingNumber: 'L4ABCDEF',
+        status: 'IN_TRANSIT',
+        isMock: false,
+        carrierStatus: 'delivering',
+        statusNote: 'Shipper đang giao',
+        expectedDeliveryAt: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const updatedShipment = {
+        ...currentShipment,
+        status: 'FAILED',
+        carrierStatus: 'delivery_fail',
+        statusNote: 'Khách hẹn giao lại ngày mai',
+      };
+
+      const mockPrisma = {
+        shipment: { findUnique: vi.fn().mockResolvedValue(currentShipment) },
+        $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) =>
+          fn({
+            order: {
+              findUnique: vi.fn().mockResolvedValue({
+                id: 'ord-ghn-1',
+                orderCode: 'FR2611160001',
+                userId: 'u1',
+                customerEmail: 'khach@freya.test',
+                status: 'SHIPPED',
+                shipment: currentShipment,
+                items: [],
+                payments: [],
+              }),
+            },
+            shipment: { update: vi.fn().mockResolvedValue(updatedShipment) },
+          }),
+        ),
+      } as unknown as PrismaService;
+
+      const mockNotifications = {
+        notifyShipmentFailed: vi.fn().mockResolvedValue(undefined),
+      } as unknown as NotificationsService;
+      const mockGhn = {
+        configured: vi.fn().mockReturnValue(true),
+        queryOrder: vi.fn().mockResolvedValue({
+          trackingNumber: 'L4ABCDEF',
+          status: 'FAILED',
+          carrierStatus: 'delivery_fail',
+          note: 'Khách hẹn giao lại ngày mai',
+        }),
+      } as unknown as GhnCarrierGateway;
+
+      const service = new ShippingService(
+        mockPrisma,
+        undefined,
+        undefined,
+        undefined,
+        mockNotifications,
+        mockGhn,
+      );
+
+      const res = await service.syncShipmentFromCarrier('ord-ghn-1', 'admin-1');
+
+      expect(res.status).toBe('FAILED');
+      expect(res.carrierStatus).toBe('delivery_fail');
+      expect(mockNotifications.notifyShipmentFailed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderCode: 'FR2611160001',
+          note: 'Khách hẹn giao lại ngày mai',
+        }),
+      );
+    });
+
+    it('handleGhnWebhook chuyển đổi payload GHN (OrderCode + Status=delivered) sang DELIVERED', async () => {
+      const now = new Date();
+      const mockShipment = {
+        id: 'ship-ghn-1',
+        orderId: 'ord-ghn-1',
+        carrierName: 'GHN',
+        trackingNumber: 'L4ABCDEF',
+        status: 'IN_TRANSIT',
+        isMock: false,
+        carrierStatus: 'delivering',
+        statusNote: null,
+        expectedDeliveryAt: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const updatedShipment = { ...mockShipment, status: 'DELIVERED', carrierStatus: 'delivered' };
+
+      const mockOrders = {
+        lock: vi.fn().mockResolvedValue(undefined),
+        transition: vi.fn().mockResolvedValue(undefined),
+      } as unknown as OrdersService;
+
+      const mockPrisma = {
+        shipment: { findFirst: vi.fn().mockResolvedValue(mockShipment) },
+        $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) =>
+          fn({
+            order: {
+              findUnique: vi.fn().mockResolvedValue({
+                id: 'ord-ghn-1',
+                orderCode: 'FR2611160001',
+                status: 'SHIPPED',
+                shipment: mockShipment,
+                items: [],
+                payments: [],
+              }),
+            },
+            shipment: { update: vi.fn().mockResolvedValue(updatedShipment) },
+          }),
+        ),
+      } as unknown as PrismaService;
+
+      const service = new ShippingService(mockPrisma, mockOrders);
+      const res = await service.handleGhnWebhook({
+        OrderCode: 'L4ABCDEF',
+        Status: 'delivered',
+        Description: 'Giao hàng thành công',
+      });
+
+      expect(res.processed).toBe(true);
+      expect((res as { status?: string }).status).toBe('DELIVERED');
+      expect((res as { carrierStatus?: string }).carrierStatus).toBe('delivered');
+      expect(mockOrders.transition).toHaveBeenCalledWith(
+        'ord-ghn-1',
+        'DELIVERED',
+        expect.anything(),
+        undefined,
+        expect.objectContaining({ fromCarrierWebhook: true }),
+      );
     });
   });
 });

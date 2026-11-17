@@ -54,6 +54,11 @@ export interface ShipmentView {
   trackingNumber: string | null;
   status: 'PENDING' | 'IN_TRANSIT' | 'DELIVERED' | 'FAILED' | 'RETURNED';
   isMock?: boolean;
+  carrierStatus?: string | null;
+  statusNote?: string | null;
+  expectedDeliveryAt?: string | null;
+  fallbackUsed?: boolean;
+  fallbackReason?: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -363,4 +363,91 @@ describe('UC-02.1/AC6, AC8 — bảo vệ dữ liệu admin dùng chung (#57)', 
       });
     });
   });
+
+  it('UC-PH02 khi GHN Sandbox đã cấu hình, hiện nút tạo GHN + dự phòng mô phỏng và nút Đồng bộ từ GHN cho vận đơn thật', async () => {
+    request.mockImplementation(async (path: string) => {
+      if (path === '/admin/orders/shipping/config') {
+        return { ghnConfigured: true, mode: 'GHN_SANDBOX' };
+      }
+      if (path === '/admin/orders/o1') {
+        return { ...base, status: 'PROCESSING', shipment: null };
+      }
+      if (path === '/admin/orders/o1/shipment') {
+        return {
+          id: 's1',
+          orderId: 'o1',
+          carrierName: 'GHN',
+          trackingNumber: 'GHN-SBX-FALLBACK',
+          status: 'PENDING',
+          isMock: true,
+          fallbackUsed: true,
+          fallbackReason: 'GHN timeout',
+        };
+      }
+      return {};
+    });
+
+    show('/admin/orders/o1');
+    const ghnBtn = await screen.findByRole('button', { name: 'Tạo vận đơn GHN (Sandbox)' });
+    expect(
+      screen.getByRole('button', { name: 'Tạo vận đơn mô phỏng (Dự phòng)' }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(ghnBtn);
+    const confirmBtn = within(
+      screen.getByRole('dialog', { name: 'Tạo vận đơn GHN (Sandbox)' }),
+    ).getByRole('button', { name: 'Tạo vận đơn GHN (Sandbox)' });
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      const postCall = request.mock.calls.find(
+        ([path, opts]) => path === '/admin/orders/o1/shipment' && opts?.method === 'POST',
+      );
+      expect(postCall?.[1]?.body).toEqual({ carrierName: 'GHN', mode: 'AUTO' });
+    });
+    expect(await screen.findByText(/tự động dự phòng sang vận đơn mô phỏng/)).toBeInTheDocument();
+  });
+
+  it('UC-PH02 vận đơn GHN thật (isMock=false) hiện nút Đồng bộ từ GHN', async () => {
+    request.mockImplementation(async (path: string) => {
+      if (path === '/admin/orders/shipping/config') {
+        return { ghnConfigured: true, mode: 'GHN_SANDBOX' };
+      }
+      if (path === '/admin/orders/o1') {
+        return {
+          ...base,
+          status: 'SHIPPED',
+          shipment: {
+            id: 's-real',
+            carrierName: 'GHN',
+            trackingNumber: 'L4GHN999',
+            status: 'IN_TRANSIT',
+            isMock: false,
+            carrierStatus: 'delivering',
+            statusNote: 'Shipper đang giao',
+            createdAt: '2026-11-16T03:00:00.000Z',
+            updatedAt: '2026-11-16T03:10:00.000Z',
+          },
+        };
+      }
+      if (path === '/admin/orders/o1/shipment/sync') {
+        return { status: 'DELIVERED', carrierStatus: 'delivered' };
+      }
+      return {};
+    });
+
+    show('/admin/orders/o1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Đồng bộ từ GHN' }));
+    const title = 'Đồng bộ trạng thái từ GHN Sandbox';
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: title })).getByRole('button', { name: title }),
+    );
+
+    await waitFor(() => {
+      const syncCall = request.mock.calls.find(
+        ([path, opts]) => path === '/admin/orders/o1/shipment/sync' && opts?.method === 'POST',
+      );
+      expect(syncCall).toBeDefined();
+    });
+  });
 });

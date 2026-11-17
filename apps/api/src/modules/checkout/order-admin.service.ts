@@ -101,7 +101,10 @@ export class OrderAdminService {
         { reason, actor, at: new Date().toISOString() },
         tx,
       );
-      await this.checkout.orders.transition(id, 'CANCELLED', tx, actor);
+      await this.checkout.orders.transition(id, 'CANCELLED', tx, actor, {
+        cancelSource: 'DELIVERY_FAILED',
+        reason,
+      });
     });
   }
 

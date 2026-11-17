@@ -5,7 +5,10 @@ import { ConflictException, Injectable, Logger, NotFoundException, Optional } fr
 import { skipOf } from '../../common/pagination/page.response.js';
 import type { OrderStatus, Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
-import { NotificationsService } from '../notifications/index.js';
+import {
+  NotificationsService,
+  type OrderStatusNotificationContext,
+} from '../notifications/index.js';
 import { type PurchasedItem, purchasedItemSelect, toPurchasedItem } from './purchased-items.js';
 
 export const POST_COMMIT_HOOKS = Symbol('POST_COMMIT_HOOKS');
@@ -274,6 +277,7 @@ export class OrdersService {
     status: OrderStatus,
     tx: Prisma.TransactionClient,
     actorUserId?: string,
+    notificationContext?: OrderStatusNotificationContext,
   ): Promise<PostCommitHook | null> {
     let existing: {
       id: string;
@@ -282,6 +286,12 @@ export class OrdersService {
       userId: string | null;
       totalAmount: { toString(): string };
       status: OrderStatus;
+      shipment?: {
+        carrierName: string | null;
+        trackingNumber: string | null;
+        isMock: boolean;
+        expectedDeliveryAt: Date | null;
+      } | null;
     } | null = null;
 
     if (this.notifications && typeof tx.order?.findUnique === 'function') {
@@ -295,6 +305,14 @@ export class OrdersService {
             userId: true,
             totalAmount: true,
             status: true,
+            shipment: {
+              select: {
+                carrierName: true,
+                trackingNumber: true,
+                isMock: true,
+                expectedDeliveryAt: true,
+              },
+            },
           },
         });
       } catch {
@@ -320,9 +338,19 @@ export class OrdersService {
         totalAmount: existing.totalAmount.toString(),
       };
       const previousStatus = existing.status;
+      const mergedContext = buildNotificationContext(existing.shipment, notificationContext);
       const notifyTask: PostCommitHook = async () => {
         try {
-          await this.notifications!.handleOrderStatusChange(orderPayload, status, previousStatus);
+          if (mergedContext) {
+            await this.notifications!.handleOrderStatusChange(
+              orderPayload,
+              status,
+              previousStatus,
+              mergedContext,
+            );
+          } else {
+            await this.notifications!.handleOrderStatusChange(orderPayload, status, previousStatus);
+          }
         } catch (error) {
           this.logger.error(
             `Lỗi gửi thông báo chuyển trạng thái đơn ${orderPayload.orderCode} (${previousStatus} -> ${status}): ${(error as Error).message}`,
@@ -396,4 +424,28 @@ export class OrdersService {
     });
     return new Map(rows.map((row) => [row.id, toPurchasedItem(row)]));
   }
+}
+
+function buildNotificationContext(
+  shipment:
+    | {
+        carrierName: string | null;
+        trackingNumber: string | null;
+        isMock: boolean;
+        expectedDeliveryAt: Date | null;
+      }
+    | null
+    | undefined,
+  explicit?: OrderStatusNotificationContext,
+): OrderStatusNotificationContext | undefined {
+  const fromShipment: OrderStatusNotificationContext = shipment?.trackingNumber
+    ? {
+        carrierName: shipment.carrierName,
+        trackingNumber: shipment.trackingNumber,
+        isMockShipment: shipment.isMock,
+        expectedDeliveryAt: shipment.expectedDeliveryAt?.toISOString() ?? null,
+      }
+    : {};
+  const merged = { ...fromShipment, ...explicit };
+  return Object.keys(merged).length > 0 ? merged : undefined;
 }

@@ -545,4 +545,29 @@ describe('PH-11 checkout UI', () => {
     expect(await screen.findByText(/Địa chỉ này chưa có biểu phí giao hàng./)).toBeInTheDocument();
     expect(screen.queryByText('Chưa chọn sản phẩm để thanh toán')).not.toBeInTheDocument();
   });
+
+  it('UC-PH02 OrderPage hiển thị link tra cứu GHN thật (isMock=false) và ghi chú vận đơn', async () => {
+    request.mockResolvedValue({
+      ...order('SHIPPED'),
+      shipment: {
+        id: 'ship-real',
+        carrierName: 'GHN',
+        trackingNumber: 'L4GHN555',
+        status: 'IN_TRANSIT',
+        isMock: false,
+        carrierStatus: 'delivering',
+        statusNote: 'Shipper đang trên đường giao đến bạn',
+        expectedDeliveryAt: '2026-11-18T10:00:00.000Z',
+        createdAt: '2026-11-16T03:00:00.000Z',
+        updatedAt: '2026-11-16T03:05:00.000Z',
+      },
+    });
+    show('/don-hang/o1');
+    expect(await screen.findByText(/\(Thử nghiệm GHN\)/)).toBeInTheDocument();
+    expect(screen.getByText('Shipper đang trên đường giao đến bạn')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Tra cứu vận đơn GHN/ })).toHaveAttribute(
+      'href',
+      'https://donhang.ghn.vn/?order_code=L4GHN555',
+    );
+  });
 });

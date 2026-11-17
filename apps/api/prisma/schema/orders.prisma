@@ -199,16 +199,21 @@ model OrderStatusHistory {
 
 /// Van don giao hang. PH-02, Phan Ngoc Duy.
 model Shipment {
-  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orderId        String         @unique @map("order_id") @db.Uuid
-  carrierName    String?        @map("carrier_name") @db.VarChar(100)
-  trackingNumber String?        @map("tracking_number") @db.VarChar
-  status         ShipmentStatus @default(PENDING)
-  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt      DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                 String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId            String         @unique @map("order_id") @db.Uuid
+  carrierName        String?        @map("carrier_name") @db.VarChar(100)
+  trackingNumber     String?        @map("tracking_number") @db.VarChar
+  status             ShipmentStatus @default(PENDING)
+  isMock             Boolean        @default(true) @map("is_mock")
+  carrierStatus      String?        @map("carrier_status") @db.VarChar(64)
+  statusNote         String?        @map("status_note") @db.VarChar(500)
+  expectedDeliveryAt DateTime?      @map("expected_delivery_at") @db.Timestamptz(3)
+  createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Restrict, onUpdate: NoAction)
 
+  @@index([trackingNumber])
   @@map("shipments")
   @@schema("public")
 }
