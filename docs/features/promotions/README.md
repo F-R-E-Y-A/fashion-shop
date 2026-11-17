@@ -1,6 +1,6 @@
 ---
 title: Khuyến mãi và Mã giảm giá
-updated: 2026-11-13
+updated: 2026-11-15
 status: đã triển khai voucher; chiến dịch đơn giản chờ review Issue88
 owner: Duy
 ---
@@ -26,7 +26,7 @@ Ranh giới nghiệp vụ:
 - Khách hàng kiểm tra voucher qua `POST /api/promotions/vouchers/apply`.
 - Khách hàng đánh giá ưu đãi giỏ hàng qua `POST /api/promotions/evaluate`.
 - Quản trị viên quản lý voucher qua `/admin/vouchers` (quyền `ADMIN`).
-- Đơn hàng khi hoàn tất gọi `recordVoucherUsage` trong transaction với khóa bi quan `FOR UPDATE`.
+- Checkout tính lại ưu đãi khi báo giá và đặt đơn, ghi lượt bằng `recordVoucherUsage` trong transaction tạo đơn (khóa `FOR UPDATE`), trả lượt khi đơn huỷ ([ADR-069](../checkout/LOG.md#adr-069)).
 
 ## Quản trị Voucher (UC-10.2 — Issue #86)
 

@@ -6,6 +6,7 @@ import { CartModule } from '../cart/index.js';
 import { InventoryModule } from '../inventory/index.js';
 import { OrdersModule } from '../orders/index.js';
 import { PaymentsModule } from '../payments/index.js';
+import { PromotionsModule } from '../promotions/index.js';
 import { ShippingModule } from '../shipping/index.js';
 import { UsersModule } from '../users/index.js';
 import {
@@ -28,10 +29,13 @@ import { SettlementService } from './settlement.service.js';
     InventoryModule,
     OrdersModule,
     PaymentsModule,
+    PromotionsModule,
     ShippingModule,
     UsersModule,
   ],
   providers: [CheckoutService, CheckoutRateLimitService, SettlementService, OrderAdminService],
+  // Phan he returns dung withOrder, refundPayment va recordManualRefund (xem README.md).
+  exports: [CheckoutService],
   controllers: [
     CheckoutController,
     OrdersController,

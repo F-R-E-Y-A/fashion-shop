@@ -4,12 +4,13 @@ import { AuthModule } from '../auth/index.js';
 import { InventoryModule } from '../inventory/index.js';
 import { OrdersModule } from '../orders/index.js';
 import { PaymentsModule } from '../payments/index.js';
+import { PromotionsModule } from '../promotions/index.js';
 import { AdminShipmentController } from './admin-shipment.controller.js';
 import { ShipmentWebhookController } from './shipment-webhook.controller.js';
 import { ShippingService } from './shipping.service.js';
 
 @Module({
-  imports: [AuthModule, OrdersModule, InventoryModule, PaymentsModule],
+  imports: [AuthModule, OrdersModule, InventoryModule, PaymentsModule, PromotionsModule],
   controllers: [AdminShipmentController, ShipmentWebhookController],
   providers: [ShippingService],
   exports: [ShippingService],
