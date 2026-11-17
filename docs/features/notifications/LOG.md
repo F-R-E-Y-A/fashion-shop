@@ -37,3 +37,27 @@ Thực tế:
 
 ### Điều kiện xem lại
 Khi lượng người dùng đồng thời vượt quá 10,000 kết nối trực tiếp, xem xét chuyển sang Redis Pub/Sub hoặc message broker phân tán.
+
+<a id="adr-071"></a>
+## 2026-11-16 · ADR-071 — Chuẩn hóa thông báo đa kênh theo đủ vòng đời đơn hàng, sự cố vận chuyển và lý do hủy
+
+**Loại:** quyết định · **Phạm vi:** `apps/api/src/modules/notifications`, `apps/api/src/modules/orders`, `apps/api/src/modules/checkout`, `apps/api/src/modules/shipping` · **Trạng thái:** đề xuất · **Người quyết:** Duy · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+Qua rà soát góp ý (4) trên [notifications.service.ts](../../../apps/api/src/modules/notifications/notifications.service.ts): (a) email còn hiển thị raw enum `status` thay vì nhãn tiếng Việt; (b) email gửi link tương đối `/don-hang/:id` khiến bấm từ hộp thư bị hỏng; (c) mọi ca hủy đơn dùng chung một câu thông điệp bất kể hủy do khách, hết hạn thanh toán, admin hủy hay giao thất bại hoàn kho; (d) chưa có thông báo khi gắn vận đơn mới ở trạng thái `PROCESSING` hoặc khi shipper báo giao thất bại (`FAILED`).
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Giữ nguyên switch status cơ bản | Ít sửa code gọi từ Orders/Checkout/Shipping | Thiếu thông tin mã vận đơn, link trong mail không bấm được, hiểu nhầm lý do hủy | Dễ |
+| **B. Mở rộng `OrderStatusNotificationContext` truyền `cancelSource`, `trackingNumber`, `refundedAmount` và thêm `notifyShipmentCreated`, `notifyShipmentFailed` (chọn)** | Đủ mọi mốc đơn hàng & vận chuyển, nội dung tiếng Việt thoát HTML an toàn, link đầy đủ theo `WEB_PUBLIC_URL`, vẫn giữ tương thích ngược cho caller 3 tham số | Cần cập nhật các test kiểm tra `transition` truyền thêm context | Dễ |
+
+**Chọn B** vì giải quyết triệt để đủ bước — đúng nội dung — đúng kênh mà không phá vỡ các call-site hiện tại hay cần thêm bảng CSDL mới.
+
+### Kết quả mong đợi → thực tế
+Mong đợi:
+- Unit tests `notifications.service.spec.ts`, `orders.service.spec.ts`, `shipping.service.spec.ts` kiểm tra đủ nhãn tiếng Việt, escape HTML, link `WEB_PUBLIC_URL`, 4 nguồn `cancelSource` và thông báo sự cố `FAILED`.
+Thực tế: đang kiểm định toàn kho cùng đợt hoàn thiện cuối kỳ.
+
+### Điều kiện xem lại
+Khi nhóm mở rộng thêm kênh thông báo khác như SMS/Zalo OA hoặc Web Push Notification.

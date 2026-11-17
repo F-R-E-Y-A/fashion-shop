@@ -1,4 +1,4 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Decimal } from 'decimal.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -854,6 +854,66 @@ describe('PromotionsService (UC-07.2 Áp dụng mã giảm giá & UC-10.2 Quản
           status: PromotionStatus.INACTIVE,
         }),
       ).rejects.toThrow();
+    });
+
+    it('CHAOBANMOI yêu cầu đăng nhập để kiểm tra điều kiện khách hàng mới (không bỏ qua khi userId trống)', async () => {
+      prisma.voucher.findUnique.mockResolvedValue({
+        id: 'v-new',
+        code: 'CHAOBANMOI',
+        status: VoucherStatus.ACTIVE,
+        discountType: DiscountType.PERCENTAGE,
+        discountValue: new Decimal(10),
+        maxDiscountAmount: new Decimal(50000),
+        minOrderAmount: new Decimal(100000),
+        usageLimit: null,
+        perUserLimit: 1,
+        startsAt: null,
+        endsAt: null,
+        _count: { usages: 0 },
+      });
+
+      await expect(service.validateVoucher('CHAOBANMOI', '300000', undefined)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('getAvailableVouchers đọc vượt 20 dòng để không bị voucher hết lượt đẩy mất voucher còn lượt', async () => {
+      const exhausted = Array.from({ length: 20 }, (_, i) => ({
+        id: `v-old-${i}`,
+        code: `EXH${i}`,
+        status: VoucherStatus.ACTIVE,
+        discountType: DiscountType.FIXED_AMOUNT,
+        discountValue: new Decimal(10000),
+        maxDiscountAmount: null,
+        minOrderAmount: null,
+        usageLimit: 5,
+        perUserLimit: 1,
+        startsAt: null,
+        endsAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        _count: { usages: 5 },
+      }));
+      const fresh = {
+        id: 'v-fresh',
+        code: 'FRESH20',
+        status: VoucherStatus.ACTIVE,
+        discountType: DiscountType.FIXED_AMOUNT,
+        discountValue: new Decimal(20000),
+        maxDiscountAmount: null,
+        minOrderAmount: null,
+        usageLimit: 100,
+        perUserLimit: 1,
+        startsAt: null,
+        endsAt: null,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        _count: { usages: 1 },
+      };
+      prisma.voucher.findMany.mockResolvedValue([...exhausted, fresh]);
+
+      const available = await service.getAvailableVouchers();
+      expect(available.map((v) => v.code)).toEqual(['FRESH20']);
     });
   });
 });

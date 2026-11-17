@@ -1,10 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
-import { formatPrice } from '@/core';
+import { ApiError, formatPrice } from '@/core';
 import { getProductDetail, productKeys } from '@/features/products';
-import { BestPromotionBanner, PromotionField, useAppliedPromotion } from '@/features/promotions';
+import {
+  applyVoucher,
+  BestPromotionBanner,
+  evaluateCart,
+  PromotionField,
+  useAppliedPromotion,
+} from '@/features/promotions';
 import { VariantPicker } from '@/ui';
 
 import {
@@ -183,7 +189,9 @@ function CartItemRow({
 
 export function CartPage() {
   const navigate = useNavigate();
-  const { applied, applyEvaluatedPromotion } = useAppliedPromotion();
+  const { applied, applyVoucherResult, applyEvaluatedPromotion, removePromotion } =
+    useAppliedPromotion();
+  const lastValidatedRef = useRef<string | null>(null);
   const {
     data: cart,
     isLoading,
@@ -215,6 +223,67 @@ export function CartPage() {
     switchMut.isPending;
   const error =
     updateMut.error ?? selectMut.error ?? removeMut.error ?? clearMut.error ?? switchMut.error;
+
+  useEffect(() => {
+    if (!applied) {
+      lastValidatedRef.current = null;
+      return;
+    }
+    if (!cart) return;
+    if (cart.selectedItemCount === 0 || Number(cart.total) <= 0) {
+      removePromotion();
+      return;
+    }
+    const validationKey = `${applied.kind}:${applied.id}:${applied.code ?? ''}:${cart.total}:${cart.selectedItemCount}`;
+    if (lastValidatedRef.current === validationKey) return;
+    lastValidatedRef.current = validationKey;
+
+    let cancelled = false;
+    const controller = new AbortController();
+    const revalidate = async () => {
+      try {
+        if (applied.kind === 'VOUCHER' && applied.code) {
+          const res = await applyVoucher(applied.code, cart.total);
+          if (cancelled || !res) return;
+          if (!res.valid) {
+            removePromotion();
+          } else if (res.discountAmount !== applied.discountAmount) {
+            applyVoucherResult(res);
+          }
+        } else if (applied.kind === 'PROMOTION') {
+          const selectedItems = cart.items
+            .filter((item) => item.isSelected)
+            .map((item) => ({
+              variantId: item.variantId,
+              price: item.price,
+              quantity: item.quantity,
+            }));
+          const res = await evaluateCart(cart.total, selectedItems, controller.signal);
+          if (cancelled || !Array.isArray(res?.applicablePromotions)) return;
+          const match = res.applicablePromotions.find((promo) => promo.promotionId === applied.id);
+          if (!match || Number(match.discountAmount) <= 0) {
+            removePromotion();
+          } else if (match.discountAmount !== applied.discountAmount) {
+            applyEvaluatedPromotion(match);
+          }
+        }
+      } catch (err: unknown) {
+        if (
+          !cancelled &&
+          err instanceof ApiError &&
+          err.body.statusCode >= 400 &&
+          err.body.statusCode < 500
+        ) {
+          removePromotion();
+        }
+      }
+    };
+    void revalidate();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [applied, cart, applyEvaluatedPromotion, applyVoucherResult, removePromotion]);
 
   if (isLoading) return <p className="state">Đang tải giỏ hàng…</p>;
   if (isError && !cart)

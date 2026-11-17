@@ -12,7 +12,7 @@ export interface Voucher {
   perUserLimit: number | null;
   usageCount: number;
   startsAt: string | null;
-  expiresAt: string | null;
+  endsAt: string | null;
 }
 
 export interface VoucherApplyResult {
@@ -46,8 +46,8 @@ export interface EvaluatePromotionsResponse {
 export const promotionKeys = {
   all: ['promotions'] as const,
   availableVouchers: () => [...promotionKeys.all, 'vouchers', 'available'] as const,
-  evaluate: (subtotal: string, count: number) =>
-    [...promotionKeys.all, 'evaluate', subtotal, count] as const,
+  evaluate: (subtotal: string, count: number, itemsSignature = '') =>
+    [...promotionKeys.all, 'evaluate', subtotal, count, itemsSignature] as const,
   activePromotions: () => [...promotionKeys.all, 'active'] as const,
 };
 

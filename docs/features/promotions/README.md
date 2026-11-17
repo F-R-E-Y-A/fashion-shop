@@ -1,7 +1,7 @@
 ---
 title: Khuyến mãi và Mã giảm giá
-updated: 2026-11-13
-status: đã triển khai voucher; chiến dịch đơn giản chờ review Issue88
+updated: 2026-11-16
+status: đã hoàn thiện voucher, chiến dịch động và tự động đối soát lại trên giỏ hàng
 owner: Duy
 ---
 # Khuyến mãi và Mã giảm giá
@@ -23,7 +23,8 @@ Phân hệ sử dụng 3 bảng đã định nghĩa trong `apps/api/prisma/schem
 - `voucher_usages`: Ghi nhận bất biến mỗi lượt dùng voucher gắn với đơn hàng (`order_id` duy nhất 1-1).
 
 Ranh giới nghiệp vụ:
-- Khách hàng kiểm tra voucher qua `POST /api/promotions/vouchers/apply`.
+- Khách hàng kiểm tra voucher qua `POST /api/promotions/vouchers/apply` (các mã gắn phân khúc khách hàng như `CHAOBANMOI` và `FREYAVIP` đều yêu cầu đăng nhập để kiểm tra lịch sử đơn hàng).
+- Khách hàng xem voucher khả dụng qua `GET /api/promotions/vouchers/available` (`Cache-Control: no-store`, đọc dư 50 dòng rồi lọc các mã đã hết `usageLimit` trước khi cắt 20 mã trả về).
 - Khách hàng đánh giá ưu đãi giỏ hàng qua `POST /api/promotions/evaluate`.
 - Quản trị viên quản lý voucher qua `/admin/vouchers` (quyền `ADMIN`).
 - Đơn hàng khi hoàn tất gọi `recordVoucherUsage` trong transaction với khóa bi quan `FOR UPDATE`.
@@ -32,7 +33,8 @@ Ranh giới nghiệp vụ:
 
 Giao diện và API quản trị voucher cho phép Admin cấu hình và kiểm soát toàn bộ vòng đời mã giảm giá:
 - `GET /api/admin/vouchers`: Danh sách phân trang, tìm kiếm mã (`search`), lọc trạng thái (`status`).
-- `POST /api/admin/vouchers`: Tạo voucher mới, mặc định `INACTIVE` để đảm bảo an toàn vận hành.
+- `POST /api/admin/vouchers`: Tạo voucher mới (API DTO mặc định `ACTIVE` tại `create-voucher.dto.ts:35`; form tạo mới trên Web Admin đặt mặc định `INACTIVE` để an toàn vận hành).
+- Khách hàng xem voucher khả dụng hiển thị hạn sử dụng theo trường `endsAt` ([promotions.api.ts](../../../apps/web/src/features/promotions/api/promotions.api.ts)); khi thay đổi chọn món hoặc số lượng trên giỏ hàng, `CartPage.tsx` tự động kiểm tra lại hoặc gỡ ưu đãi lưu trong `sessionStorage` nếu không còn đạt ngưỡng.
 - `GET /api/admin/vouchers/:id`: Chi tiết voucher và số lượt đã sử dụng (`usageCount`).
 - `PATCH /api/admin/vouchers/:id`: Cập nhật cấu hình, điều kiện, chuyển đổi trạng thái (`ACTIVE` / `INACTIVE`).
 

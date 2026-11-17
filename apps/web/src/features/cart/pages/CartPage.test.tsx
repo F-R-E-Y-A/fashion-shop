@@ -37,6 +37,7 @@ function fixture(): Cart {
 afterEach(() => {
   vi.unstubAllGlobals();
   localStorage.clear();
+  sessionStorage.clear();
 });
 
 function setup(initial: Cart) {
@@ -131,5 +132,28 @@ describe('PH-11 Cart storefront', () => {
     });
     await waitFor(() => expect(screen.getByRole('checkbox')).toBeEnabled());
     expect(screen.getByRole('checkbox')).not.toBeChecked();
+  });
+
+  it('tự động gỡ voucher đã lưu khi bỏ chọn hết sản phẩm trong giỏ', async () => {
+    sessionStorage.setItem(
+      'freya_applied_promotion',
+      JSON.stringify({
+        kind: 'VOUCHER',
+        id: 'v-1',
+        code: 'FREYA10',
+        name: 'Mã ưu đãi FREYA10',
+        discountAmount: '50000',
+        discountType: 'PERCENTAGE',
+      }),
+    );
+
+    setup(fixture());
+    const checkbox = await screen.findByRole('checkbox', { name: 'Chọn Áo thử' });
+    fireEvent.click(checkbox);
+
+    await waitFor(() =>
+      expect(screen.getByText('Tạm tính · 0 sản phẩm đã chọn')).toBeInTheDocument(),
+    );
+    await waitFor(() => expect(sessionStorage.getItem('freya_applied_promotion')).toBeNull());
   });
 });

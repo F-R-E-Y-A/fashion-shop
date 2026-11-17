@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   Headers,
   Param,
   ParseUUIDPipe,
@@ -30,6 +31,7 @@ export class CartController {
   constructor(private readonly cartService: CartService) {}
 
   @Get()
+  @Header('Cache-Control', 'no-store')
   getCart(
     @CurrentUser() user?: CurrentUserType,
     @Headers('x-guest-token') guestToken?: string,
