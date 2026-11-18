@@ -35,6 +35,7 @@ export function AdminNavigation({ onNavigate }: { onNavigate?: () => void }) {
           { path: '/admin/users', label: 'Người dùng', icon: 'users' },
           { path: '/admin/orders', label: 'Đơn hàng', icon: 'orders' },
           { path: '/admin/reviews', label: 'Đánh giá', icon: 'orders' },
+          { path: '/admin/returns', label: 'Trả hàng', icon: 'orders' },
         ] as const
       ).map((item) => (
         <NavLink

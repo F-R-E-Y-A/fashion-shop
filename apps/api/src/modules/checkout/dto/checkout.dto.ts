@@ -5,6 +5,15 @@ import { type GatewayCode, gatewayCodes } from '../../payments/index.js';
 
 export class PreviewDto {
   @ApiProperty() @IsUUID('4') addressId!: string;
+  @ApiProperty({ required: false, description: 'Mã voucher khách nhập (UC-07.2)' })
+  @IsOptional()
+  @IsString()
+  @Length(1, 32)
+  voucherCode?: string;
+  @ApiProperty({ required: false, description: 'Chương trình khuyến mãi tự động khách chọn' })
+  @IsOptional()
+  @IsUUID('4')
+  promotionId?: string;
 }
 export class CreateCheckoutDto extends PreviewDto {
   @ApiProperty({ enum: gatewayCodes, default: 'VNPAY', required: false })
