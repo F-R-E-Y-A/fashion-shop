@@ -633,9 +633,9 @@ Thực tế (18/10, chưa commit):
 
 ---
 
-<a id="adr-067"></a>
+<a id="adr-073"></a>
 
-## 2026-11-14 · ADR-067 — Luồng quên mật khẩu ba bước với `PasswordResetGrant` ngắn hạn và kiểm soát tranh chấp
+## 2026-11-14 · ADR-073 — Luồng quên mật khẩu ba bước với `PasswordResetGrant` ngắn hạn và kiểm soát tranh chấp
 
 **Loại:** quyết định · **Phạm vi:** Auth API & Web (`apps/api/src/modules/auth`, `apps/web/src/features/account`, `identity.prisma`) · **Trạng thái:** đề xuất · **Người quyết:** Tài · **Commit:** (điền khi thi hành)
 
