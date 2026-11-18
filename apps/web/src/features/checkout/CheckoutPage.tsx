@@ -11,6 +11,7 @@ import {
   listAddresses,
   useAuth,
 } from '@/features/account';
+import { useAppliedPromotion } from '@/features/promotions';
 
 import styles from './Checkout.module.css';
 import {
@@ -79,10 +80,26 @@ export function CheckoutPage() {
       await client.invalidateQueries({ queryKey: addressKeys.list(user!.id) });
     },
   });
-  const key = checkoutKeys.preview(user!.id, addressId);
+  // Uu dai khach chon o gio (sessionStorage). Chi gui ma/id; so tien do may chu tinh lai (UC-07.2).
+  const { applied, removePromotion } = useAppliedPromotion();
+  const discountBody =
+    applied?.kind === 'VOUCHER'
+      ? { voucherCode: applied.code }
+      : applied
+        ? { promotionId: applied.id }
+        : {};
+  const key = checkoutKeys.preview(
+    user!.id,
+    addressId,
+    applied ? `${applied.kind}:${applied.id}` : '',
+  );
   const preview = useQuery({
     queryKey: key,
-    queryFn: () => request<Quote>('/checkout/preview', { method: 'POST', body: { addressId } }),
+    queryFn: () =>
+      request<Quote>('/checkout/preview', {
+        method: 'POST',
+        body: { addressId, ...discountBody },
+      }),
     enabled: !!addressId,
     refetchOnWindowFocus: true,
     staleTime: 0,
@@ -95,12 +112,14 @@ export function CheckoutPage() {
         method: 'POST',
         body: {
           addressId,
+          ...discountBody,
           gateway,
           fingerprint: preview.data!.fingerprint,
           idempotencyKey: checkoutKey(user!.id, preview.data!.fingerprint, gateway),
         },
       }),
     onSuccess: (order) => {
+      removePromotion(); // uu dai da dung cho don nay, khong mang sang don sau
       navigate(`/don-hang/${order.id}`, { replace: true });
       const url = order.payments.find((p) => p.checkoutUrl)?.checkoutUrl;
       if (url) window.location.assign(url);
@@ -114,6 +133,14 @@ export function CheckoutPage() {
   // Xét theo code, không theo 422: địa chỉ chưa có biểu phí cũng là 422 và phải hiện đúng lý do (Issue #66).
   const selectionMissing =
     preview.error instanceof ApiError && preview.error.body.code === 'SELECTION_REQUIRED';
+  // Ma het luot/het han hoac gio khong con du dieu kien: cho khach bo uu dai va tinh lai.
+  const discountInvalid =
+    (preview.error instanceof ApiError && preview.error.body.code === 'DISCOUNT_INVALID') ||
+    (submit.error instanceof ApiError && submit.error.body.code === 'DISCOUNT_INVALID');
+  const dropDiscount = () => {
+    submit.reset();
+    removePromotion();
+  };
   const offeredGateways = quote?.gateways ?? [
     { code: 'VNPAY' as const, label: 'VNPAY', configured: quote?.paymentConfigured ?? false },
   ];
@@ -221,7 +248,15 @@ export function CheckoutPage() {
               </Link>
             </div>
           )}
-          {preview.error && !submit.error && !selectionMissing && (
+          {discountInvalid && (
+            <p className={`${styles.notice} ${styles.noticeDanger}`} role="alert">
+              {(preview.error ?? submit.error)?.message}{' '}
+              <button type="button" className={styles.sectionLink} onClick={dropDiscount}>
+                Bỏ ưu đãi và tính lại
+              </button>
+            </p>
+          )}
+          {preview.error && !submit.error && !selectionMissing && !discountInvalid && (
             <p className={`${styles.notice} ${styles.noticeDanger}`} role="alert">
               {preview.error.message}{' '}
               {preview.error instanceof ApiError &&
@@ -320,15 +355,28 @@ export function CheckoutPage() {
               Khuyến mãi
               <input
                 aria-label="Khuyến mãi"
-                value=""
+                value={quote.appliedDiscount?.code ?? quote.appliedDiscount?.name ?? ''}
                 readOnly
-                disabled
+                disabled={!quote.appliedDiscount}
                 placeholder="Chưa áp dụng"
               />
             </label>
+            {applied && (
+              <button
+                type="button"
+                className={styles.sectionLink}
+                onClick={dropDiscount}
+                disabled={submit.isPending}
+              >
+                Gỡ ưu đãi
+              </button>
+            )}
             <p className={styles.row}>
               <span>Giảm giá</span>
-              <span>{formatPrice(quote.discountAmount)}</span>
+              <span>
+                {Number(quote.discountAmount) > 0 ? '-' : ''}
+                {formatPrice(quote.discountAmount)}
+              </span>
             </p>
             <p className={styles.row}>
               <span>Phí vận chuyển</span>
@@ -355,7 +403,7 @@ export function CheckoutPage() {
                 thanh toán sau.
               </p>
             )}
-            {submit.error && (
+            {submit.error && !discountInvalid && (
               <p className={`${styles.notice} ${styles.noticeDanger}`} role="alert">
                 {submit.error.message} Kiểm tra lại thông tin rồi xác nhận lại.
               </p>

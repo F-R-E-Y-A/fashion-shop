@@ -886,8 +886,23 @@ describe('Admin Categories HTTP API (UC-04.1)', () => {
           .set(adminAuth())
           .send({ parentId: idD, expectedUpdatedAt: cRes.body.updatedAt }),
       ]);
-      const hierarchyStatuses = [addChild.status, moveC.status].sort((a, b) => a - b);
-      expect(hierarchyStatuses).toEqual([201, 422]);
+      // Ben nao lay khoa truoc thi thang, ca hai ket qua deu dung: them con truoc thi C khong duoc
+      // chuyen sang D; chuyen C truoc thi C da la cap 2, khong nhan con. Chi cam ca hai cung thanh cong.
+      const outcomes = [addChild.status, moveC.status];
+      expect(outcomes.filter((status) => status === 422)).toHaveLength(1);
+      expect([
+        [201, 422],
+        [422, 200],
+      ]).toContainEqual(outcomes);
+      const c = await t.prisma.category.findUniqueOrThrow({
+        where: { id: idC },
+        select: { parentId: true, _count: { select: { children: true } } },
+      });
+      if (addChild.status === 201) {
+        expect(c).toEqual({ parentId: null, _count: { children: 1 } });
+      } else {
+        expect(c).toEqual({ parentId: idD, _count: { children: 0 } });
+      }
     });
 
     async function waitForBlockedQueries(

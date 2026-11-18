@@ -47,6 +47,12 @@ import {
   AdminVouchersPage,
 } from '@/features/promotions';
 import { AdminReportsPage } from '@/features/reporting';
+import {
+  AdminReturnDetailPage,
+  AdminReturnsPage,
+  MyReturnsPage,
+  ReturnDetailPage,
+} from '@/features/returns';
 import { AdminReviewsPage, MyReviewsPage } from '@/features/reviews';
 import { Loading } from '@/ui';
 
@@ -118,6 +124,8 @@ export function AppRoutes() {
                 <Route path="dia-chi" element={<AddressPage />} />
                 <Route path="don-hang" element={<OrdersPage />} />
                 <Route path="danh-gia" element={<MyReviewsPage />} />
+                <Route path="tra-hang" element={<MyReturnsPage />} />
+                <Route path="tra-hang/:id" element={<ReturnDetailPage />} />
                 <Route path="doi-mat-khau" element={<ChangePasswordPage />} />
               </Route>
             </Route>
@@ -167,6 +175,8 @@ export function AppRoutes() {
               <Route path="orders" element={<AdminOrdersPage />} />
               <Route path="orders/:id" element={<AdminOrderDetailPage />} />
               <Route path="reviews" element={<AdminReviewsPage />} />
+              <Route path="returns" element={<AdminReturnsPage />} />
+              <Route path="returns/:id" element={<AdminReturnDetailPage />} />
             </Route>
           </Route>
         </Routes>

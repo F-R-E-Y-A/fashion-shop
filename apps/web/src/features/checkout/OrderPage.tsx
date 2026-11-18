@@ -5,6 +5,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { formatDateTime, formatPrice } from '@/core';
 import { useAuth } from '@/features/account';
 import { cartKeys } from '@/features/cart';
+import { ReturnOrderPrompt } from '@/features/returns';
 import { ReviewOrderPrompt } from '@/features/reviews';
 import { ConfirmDialog } from '@/ui';
 
@@ -202,6 +203,11 @@ export function OrderPage() {
               )}
               {(order.status === 'DELIVERED' || order.status === 'PARTIALLY_REFUNDED') && (
                 <ReviewOrderPrompt orderId={order.id} />
+              )}
+              {(order.status === 'DELIVERED' ||
+                order.status === 'PARTIALLY_REFUNDED' ||
+                order.status === 'REFUNDED') && (
+                <ReturnOrderPrompt orderId={order.id} orderCode={order.orderCode} />
               )}
               {order.refundPending && (
                 <p className={styles.notice} role="status">
