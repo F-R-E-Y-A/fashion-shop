@@ -173,6 +173,49 @@ export class ProductsService {
       if (price.lt(priceFrom)) priceFrom = price;
     }
 
+    const isMediaManagedByAdmin = Boolean(status?.imagesManagedByAdmin);
+    let existingImagesForCompare: { url: string; alt: string | null; colorId: string | null }[] =
+      [];
+    let effectiveHasImages = row.images.length > 0;
+    if (existingProductId) {
+      if (isMediaManagedByAdmin) {
+        const currentImgCount =
+          typeof tx.productImage.count === 'function'
+            ? await tx.productImage.count({ where: { productId: existingProductId } })
+            : ((
+                await tx.productImage.findMany?.({
+                  where: { productId: existingProductId },
+                  select: { id: true },
+                })
+              )?.length ?? 0);
+        effectiveHasImages = currentImgCount > 0;
+      } else if (typeof tx.productImage.findMany === 'function') {
+        existingImagesForCompare =
+          (await tx.productImage.findMany({
+            where: { productId: existingProductId },
+            orderBy: { sortOrder: 'asc' },
+            select: { url: true, alt: true, colorId: true },
+          })) ?? [];
+      }
+    }
+
+    const incomingImages = row.images.map((image) => ({
+      url: image.url,
+      alt: image.alt ?? null,
+      colorId: image.colorCode ? (colorByCode.get(image.colorCode) ?? null) : null,
+    }));
+
+    const imagesChangedByImport =
+      Boolean(existingProductId) &&
+      !isMediaManagedByAdmin &&
+      (existingImagesForCompare.length !== incomingImages.length ||
+        incomingImages.some(
+          (img, idx) =>
+            existingImagesForCompare[idx]?.url !== img.url ||
+            (existingImagesForCompare[idx]?.alt ?? null) !== img.alt ||
+            (existingImagesForCompare[idx]?.colorId ?? null) !== img.colorId,
+        ));
+
     const productData = {
       categoryId: category.id,
       brandId: brand?.id ?? null,
@@ -193,6 +236,7 @@ export class ProductsService {
           data: {
             ...productData,
             ...importedContent(status, productData),
+            ...(imagesChangedByImport ? { imagesVersion: { increment: 1 } } : {}),
           },
         })
       : await tx.product.create({
@@ -324,25 +368,25 @@ export class ProductsService {
         ? Prisma.Decimal.min(...variantsForPrice.map((v) => v.salePrice ?? v.listPrice))
         : priceFrom;
     const finalStatus = status
-      ? productStatusChange(status, status.adminDisabled, hasImages, hasActiveVariants)
+      ? productStatusChange(status, status.adminDisabled, effectiveHasImages, hasActiveVariants)
       : { isActive: hasImages && hasActiveVariants };
     await tx.product.update({
       where: { id: product.id },
       data: { ...finalStatus, priceFrom: finalPriceFrom },
     });
 
-    for (const [sortOrder, image] of row.images.entries()) {
-      const colorId = image.colorCode ? (colorByCode.get(image.colorCode) ?? null) : null;
-      const imageData = { url: image.url, alt: image.alt ?? null, colorId };
-      await tx.productImage.upsert({
-        where: { productId_sortOrder: { productId: product.id, sortOrder } },
-        create: { productId: product.id, sortOrder, ...imageData },
-        update: imageData,
+    if (!isMediaManagedByAdmin) {
+      for (const [sortOrder, imageData] of incomingImages.entries()) {
+        await tx.productImage.upsert({
+          where: { productId_sortOrder: { productId: product.id, sortOrder } },
+          create: { productId: product.id, sortOrder, ...imageData },
+          update: imageData,
+        });
+      }
+      await tx.productImage.deleteMany({
+        where: { productId: product.id, sortOrder: { gte: incomingImages.length } },
       });
     }
-    await tx.productImage.deleteMany({
-      where: { productId: product.id, sortOrder: { gte: row.images.length } },
-    });
 
     return {
       sourceKey: row.sourceKey,

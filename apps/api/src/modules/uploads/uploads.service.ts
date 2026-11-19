@@ -30,14 +30,25 @@ import type {
 export const REVIEW_MEDIA_ROOT = 'freya/reviews';
 /** Anh kem yeu cau tra hang (ADR-067): cung luat kiem, thu muc rieng. */
 export const RETURN_MEDIA_ROOT = 'freya/returns';
+/** Anh san pham quan tri (ADR-109): cap qua duong rieng co kiem vai ADMIN. */
+export const PRODUCT_MEDIA_ROOT = 'freya/products';
 const MEDIA_ROOTS: Record<UploadPurpose, string> = {
   review: REVIEW_MEDIA_ROOT,
   return: RETURN_MEDIA_ROOT,
+  product: PRODUCT_MEDIA_ROOT,
 };
+/** Phieu upload het han sau 1 gio (Cloudinary `TICKET_TTL_SECONDS = 60 * 60`). */
+export const UPLOAD_TICKET_TTL_MS = 60 * 60 * 1000;
 /** Phieu moi gio moi tai khoan: mot danh gia toi da 5 anh, du cho vai lan thu lai. */
 const TICKETS_PER_HOUR = 30;
 /** Cloudinary bao JPEG la jpg; nhan ca jpeg cho kho khac. */
 const ACCEPTED_FORMATS = new Set<string>([...IMAGE_FORMATS, 'jpeg']);
+
+export interface AttachMediaOptions {
+  /** Neu dat 'product', siet thoi han phieu 1 gio thay vi doi worker don 24h. */
+  purpose?: UploadPurpose;
+  now?: Date;
+}
 
 export interface ResolvedMedia {
   key: string;
@@ -128,16 +139,26 @@ export class UploadsService {
   /**
    * Goi TRONG giao dich cua phan he gan anh: lay dong PENDING cua tung khoa bang mot lenh DELETE co
    * dieu kien. Worker da nhan dong (DELETING) hay da don thi thieu dong, 422 va giao dich rollback:
-   * khong bao gio gan anh dang bi xoa.
+   * khong bao gio gan anh dang bi xoa. Rieng `product` siet them han phieu 1 gio ke tu luc cap.
    */
   async attach(
     userId: string,
     keys: readonly string[],
     transaction: Prisma.TransactionClient,
+    options?: AttachMediaOptions,
   ): Promise<void> {
     if (keys.length === 0) return;
+    const productCutoff =
+      options?.purpose === 'product'
+        ? new Date((options.now ?? new Date()).getTime() - UPLOAD_TICKET_TTL_MS)
+        : undefined;
     const taken = await transaction.mediaUpload.deleteMany({
-      where: { storageKey: { in: [...keys] }, ownerId: userId, status: 'PENDING' },
+      where: {
+        storageKey: { in: [...keys] },
+        ownerId: userId,
+        status: 'PENDING',
+        ...(productCutoff ? { createdAt: { gt: productCutoff } } : {}),
+      },
     });
     if (taken.count !== keys.length) {
       throw invalidMedia('Ảnh đã quá hạn hoặc đang được dọn, hãy tải lại ảnh.');

@@ -292,3 +292,4 @@ trên DB riêng, docs lint và CI của đúng head; đối chiếu minh chứng
 Phân loại AC1–18 không đổi nội dung nghiệp vụ; không đánh dấu hoàn tất chỉ vì có tên test.
 Phần sửa nội dung tiếp nối tại [AC19–28](use-cases-admin-content.md).
 Phần quản trị biến thể và giá tiếp nối tại [AC29–40](use-cases-admin-variants.md).
+Phần quản trị ảnh sản phẩm tiếp nối tại [AC41–52](use-cases-admin-media.md).
