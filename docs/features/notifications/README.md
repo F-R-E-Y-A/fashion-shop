@@ -44,4 +44,4 @@ Nguyên tắc an toàn nội dung email & liên kết:
 
 ## Quyết định liên quan
 
-Xem chi tiết tại [ADR-050](LOG.md#adr-050) và [ADR-071](LOG.md#adr-071).
+Xem chi tiết tại [ADR-050](LOG.md#adr-050) và [ADR-072](LOG.md#adr-072).

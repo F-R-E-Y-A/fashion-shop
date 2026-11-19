@@ -49,4 +49,5 @@ export interface ShippingCarrierGateway {
   configured(): boolean;
   createOrder(input: CreateCarrierShipmentInput): Promise<CreateCarrierShipmentResult>;
   queryOrder?(trackingNumber: string): Promise<CarrierStatusEvent | null>;
+  queryOrderByClientCode?(clientOrderCode: string): Promise<CreateCarrierShipmentResult | null>;
 }

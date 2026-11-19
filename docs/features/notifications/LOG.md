@@ -38,8 +38,8 @@ Thực tế:
 ### Điều kiện xem lại
 Khi lượng người dùng đồng thời vượt quá 10,000 kết nối trực tiếp, xem xét chuyển sang Redis Pub/Sub hoặc message broker phân tán.
 
-<a id="adr-071"></a>
-## 2026-11-16 · ADR-071 — Chuẩn hóa thông báo đa kênh theo đủ vòng đời đơn hàng, sự cố vận chuyển và lý do hủy
+<a id="adr-072"></a>
+## 2026-11-16 · ADR-072 — Chuẩn hóa thông báo đa kênh theo đủ vòng đời đơn hàng, sự cố vận chuyển và lý do hủy
 
 **Loại:** quyết định · **Phạm vi:** `apps/api/src/modules/notifications`, `apps/api/src/modules/orders`, `apps/api/src/modules/checkout`, `apps/api/src/modules/shipping` · **Trạng thái:** đề xuất · **Người quyết:** Duy · **Commit:** (điền khi thi hành)
 

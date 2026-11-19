@@ -156,4 +156,85 @@ describe('PH-11 Cart storefront', () => {
     );
     await waitFor(() => expect(sessionStorage.getItem('freya_applied_promotion')).toBeNull());
   });
+
+  it('tự động đánh giá lại và gỡ ưu đãi khi đổi sang biến thể khác cùng giá và cùng số lượng', async () => {
+    sessionStorage.setItem(
+      'freya_applied_promotion',
+      JSON.stringify({
+        kind: 'PROMOTION',
+        id: 'promo-1',
+        name: 'Giảm 50k cho Áo thử v1',
+        discountAmount: '50000',
+        discountType: 'FIXED_AMOUNT',
+      }),
+    );
+
+    let cart = fixture();
+    const evaluatedPayloads: Array<Array<{ variantId: string; price: string; quantity: number }>> =
+      [];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/promotions/evaluate')) {
+        const parsed = init?.body
+          ? (JSON.parse(String(init.body)) as {
+              items?: Array<{ variantId: string; price: string; quantity: number }>;
+            })
+          : {};
+        const items = parsed.items ?? [];
+        evaluatedPayloads.push(items);
+        const eligible = items.some((item) => item.variantId === 'v1');
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            subtotal: cart.total,
+            applicablePromotions: eligible
+              ? [
+                  {
+                    promotionId: 'promo-1',
+                    name: 'Giảm 50k cho Áo thử v1',
+                    discountAmount: '50000',
+                    discountType: 'FIXED_AMOUNT',
+                    finalAmount: '848000.00',
+                  },
+                ]
+              : [],
+          }),
+        } as Response;
+      }
+      return { ok: true, status: 200, json: async () => cart } as Response;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <CartPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText('Áo thử');
+    await waitFor(() =>
+      expect(evaluatedPayloads.some((items) => items.some((i) => i.variantId === 'v1'))).toBe(true),
+    );
+    expect(sessionStorage.getItem('freya_applied_promotion')).not.toBeNull();
+
+    // Đổi sang biến thể v2 nhưng giữ NGUYÊN total ('898000.00'), price ('449000') và selectedItemCount (2)
+    cart = {
+      ...cart,
+      items: [{ ...cart.items[0]!, variantId: 'v2', name: 'Áo khác cùng giá' }],
+    };
+
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: cartKeys.all });
+    });
+
+    await screen.findByText('Áo khác cùng giá');
+    await waitFor(() =>
+      expect(evaluatedPayloads.some((items) => items.some((i) => i.variantId === 'v2'))).toBe(true),
+    );
+    await waitFor(() => expect(sessionStorage.getItem('freya_applied_promotion')).toBeNull());
+  });
 });

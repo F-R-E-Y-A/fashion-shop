@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { Env } from '../../infra/config/env.js';
 import { GhnCarrierGateway } from './ghn.carrier.js';
+import { mapGhnStatus } from './ghn-status.map.js';
 
 function makeConfig(values: Partial<Record<keyof Env, unknown>> = {}): ConfigService<Env, true> {
   return {
@@ -28,14 +29,14 @@ describe('GhnCarrierGateway', () => {
     ).toBe(true);
   });
 
-  it('createOrder giải địa chỉ 2 cấp qua Master Data v3 và gửi is_new_to_address=true', async () => {
+  it('createOrder giải địa chỉ 2 cấp qua Master Data v3 (_id, name, extension_names) và gửi is_new_to_address=true', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
             code: 200,
-            data: [{ province_id: 202, province_name: 'Hồ Chí Minh', name_extensions: ['HCM'] }],
+            data: [{ _id: 202, name: 'Hồ Chí Minh', extension_names: ['HCM', 'TP.HCM'] }],
           }),
           { status: 200 },
         ),
@@ -46,9 +47,9 @@ describe('GhnCarrierGateway', () => {
             code: 200,
             data: [
               {
-                ward_code: '20101',
-                ward_name: 'Phường Bến Nghé',
-                name_extensions: ['Ben Nghe'],
+                _id: '20101',
+                name: 'Phường Bến Nghé',
+                extension_names: ['Ben Nghe'],
               },
             ],
           }),
@@ -86,8 +87,8 @@ describe('GhnCarrierGateway', () => {
       recipientName: 'Nguyễn Văn A',
       phone: '0909123456',
       detailAddress: '72 Lê Thánh Tôn',
-      commune: 'Phường Bến Nghé',
-      province: 'Thành phố Hồ Chí Minh',
+      commune: 'Ben Nghe',
+      province: 'TP.HCM',
       codAmount: 350000,
       insuranceValue: 350000,
       items: [{ name: 'Áo sơ mi', code: 'v1', quantity: 1, weightGrams: 300, price: 350000 }],
@@ -97,6 +98,7 @@ describe('GhnCarrierGateway', () => {
     expect(res.isMock).toBe(false);
     expect(res.carrierStatus).toBe('ready_to_pick');
     expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain('province_id=202');
 
     const createCall = fetchMock.mock.calls[2]!;
     const payload = JSON.parse(String(createCall[1]?.body)) as Record<string, unknown>;
@@ -104,6 +106,60 @@ describe('GhnCarrierGateway', () => {
     expect(payload.to_province_name).toBe('Hồ Chí Minh');
     expect(payload.to_ward_name).toBe('Phường Bến Nghé');
     expect(payload.cod_amount).toBe(350000);
+  });
+
+  it('queryOrderByClientCode khôi phục vận đơn GHN thật theo client_order_code và trả null khi GHN báo chưa có đơn', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: 200,
+            data: {
+              order_code: 'L4GHN777',
+              client_order_code: 'FR2611190001',
+              status: 'ready_to_pick',
+              leadtime: '2026-11-22T10:00:00Z',
+            },
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 400, message: 'Order not found' }), { status: 400 }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const gateway = new GhnCarrierGateway(
+      makeConfig({
+        NODE_ENV: 'test',
+        GHN_API_URL: 'https://dev-online-gateway.ghn.vn/shiip/public-api',
+        GHN_TOKEN: 'sandbox-tok',
+        GHN_SHOP_ID: '190001',
+      }),
+    );
+
+    const recovered = await gateway.queryOrderByClientCode('FR2611190001');
+    expect(recovered).toEqual(
+      expect.objectContaining({
+        trackingNumber: 'L4GHN777',
+        isMock: false,
+        carrierStatus: 'ready_to_pick',
+        expectedDeliveryAt: '2026-11-22T10:00:00Z',
+      }),
+    );
+
+    const missing = await gateway.queryOrderByClientCode('FR2611199999');
+    expect(missing).toBeNull();
+  });
+
+  it('mapGhnStatus giữ picking ở PENDING, chỉ chuyển IN_TRANSIT từ picked, và đưa scrap/cancel vào FAILED thay vì RETURNED', () => {
+    expect(mapGhnStatus('picking')?.status).toBe('PENDING');
+    expect(mapGhnStatus('money_collect_picking')?.status).toBe('PENDING');
+    expect(mapGhnStatus('picked')?.status).toBe('IN_TRANSIT');
+    expect(mapGhnStatus('scrap')?.status).toBe('FAILED');
+    expect(mapGhnStatus('cancel')?.status).toBe('FAILED');
+    expect(mapGhnStatus('returned')?.status).toBe('RETURNED');
   });
 
   it('createOrder chặn URL giả mạo ngoài whitelist GHN (trừ localhost khi test)', async () => {

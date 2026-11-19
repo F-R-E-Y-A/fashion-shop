@@ -12,12 +12,12 @@ const GHN_STATUS_TABLE: Record<string, { status: ShipmentStatus; note: string }>
     note: 'GHN đã tiếp nhận đơn hàng, chờ tài xế đến lấy.',
   },
   picking: {
-    status: 'IN_TRANSIT',
+    status: 'PENDING',
     note: 'Tài xế GHN đang đến shop lấy hàng.',
   },
   money_collect_picking: {
-    status: 'IN_TRANSIT',
-    note: 'Tài xế GHN đang lấy hàng và xử lý thu hộ.',
+    status: 'PENDING',
+    note: 'Tài xế GHN đang đến lấy hàng và xử lý thu hộ.',
   },
   picked: {
     status: 'IN_TRANSIT',
@@ -80,8 +80,8 @@ const GHN_STATUS_TABLE: Record<string, { status: ShipmentStatus; note: string }>
     note: 'GHN đã hoàn trả hàng về tới kho shop.',
   },
   cancel: {
-    status: 'RETURNED',
-    note: 'Vận đơn đã bị hủy trên GHN.',
+    status: 'FAILED',
+    note: 'Vận đơn đã bị hủy trên GHN, cần shop đối soát trước khi hoàn kho hoặc tạo lại.',
   },
   exception: {
     status: 'FAILED',
@@ -96,8 +96,8 @@ const GHN_STATUS_TABLE: Record<string, { status: ShipmentStatus; note: string }>
     note: 'GHN ghi nhận hàng bị hư hỏng khi vận chuyển.',
   },
   scrap: {
-    status: 'RETURNED',
-    note: 'Vận đơn đã đóng trạng thái hủy/tiêu hủy trên GHN.',
+    status: 'FAILED',
+    note: 'GHN ghi nhận hàng bị tiêu hủy, cần shop đối soát thủ công (không tự cộng tồn kho).',
   },
 };
 

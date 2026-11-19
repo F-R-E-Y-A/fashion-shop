@@ -71,6 +71,8 @@ export class AdminShipmentController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateShipmentStatusDto,
   ): Promise<ShipmentResponse> {
-    return this.shippingService.updateShipmentStatus(id, dto.status, user.id, dto.note);
+    return this.shippingService.updateShipmentStatus(id, dto.status, user.id, dto.note, {
+      manualSimulation: true,
+    });
   }
 }

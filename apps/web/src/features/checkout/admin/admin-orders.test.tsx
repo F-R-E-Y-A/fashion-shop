@@ -437,7 +437,10 @@ describe('UC-02.1/AC6, AC8 — bảo vệ dữ liệu admin dùng chung (#57)', 
     });
 
     show('/admin/orders/o1');
-    fireEvent.click(await screen.findByRole('button', { name: 'Đồng bộ từ GHN' }));
+    const syncButton = await screen.findByRole('button', { name: 'Đồng bộ từ GHN' });
+    // Vận đơn GHN thật (isMock=false) tuyệt đối không hiển thị các nút mô phỏng.
+    expect(screen.queryByRole('button', { name: /Mô phỏng:/ })).not.toBeInTheDocument();
+    fireEvent.click(syncButton);
     const title = 'Đồng bộ trạng thái từ GHN Sandbox';
     fireEvent.click(
       within(screen.getByRole('dialog', { name: title })).getByRole('button', { name: title }),

@@ -940,6 +940,7 @@ describe('ShippingService', () => {
         createOrder: vi
           .fn()
           .mockRejectedValue(new ServiceUnavailableException('GHN timeout simulation')),
+        queryOrderByClientCode: vi.fn().mockResolvedValue(null),
       } as unknown as GhnCarrierGateway;
 
       const service = new ShippingService(
@@ -953,10 +954,419 @@ describe('ShippingService', () => {
 
       const res = await service.createShipment('ord-ghn-1', { mode: 'AUTO' }, 'admin-1');
 
+      expect(mockGhn.queryOrderByClientCode).toHaveBeenCalledWith('FR2611160001');
       expect(res.isMock).toBe(true);
       expect(res.fallbackUsed).toBe(true);
       expect(res.fallbackReason).toContain('GHN timeout');
       expect(res.trackingNumber).toBe('GHN-SBX-2611160001');
+    });
+
+    it('mode AUTO khi GHN timeout nhưng tra client_order_code thấy vận đơn thật thì khôi phục vận đơn thật (không tạo mock)', async () => {
+      const now = new Date();
+      const orderRow = sampleOrderSnapshot();
+      const upsert = vi.fn().mockResolvedValue({
+        id: 'ship-ghn-recovered',
+        orderId: 'ord-ghn-1',
+        carrierName: 'GHN',
+        trackingNumber: 'L4RECOVERED',
+        status: 'PENDING',
+        isMock: false,
+        carrierStatus: 'ready_to_pick',
+        statusNote: 'Đã khôi phục vận đơn thật từ GHN Sandbox theo mã đơn hàng.',
+        expectedDeliveryAt: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      const mockPrisma = {
+        order: { findUnique: vi.fn().mockResolvedValue(orderRow) },
+        $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) =>
+          fn({
+            order: { findUnique: vi.fn().mockResolvedValue(orderRow) },
+            shipment: { upsert },
+          }),
+        ),
+      } as unknown as PrismaService;
+
+      const mockGhn = {
+        configured: vi.fn().mockReturnValue(true),
+        createOrder: vi.fn().mockRejectedValue(new ServiceUnavailableException('GHN timeout')),
+        queryOrderByClientCode: vi.fn().mockResolvedValue({
+          carrierName: 'GHN',
+          trackingNumber: 'L4RECOVERED',
+          isMock: false,
+          carrierStatus: 'ready_to_pick',
+          statusNote: 'Đã khôi phục vận đơn thật từ GHN Sandbox theo mã đơn hàng.',
+          expectedDeliveryAt: null,
+        }),
+      } as unknown as GhnCarrierGateway;
+
+      const service = new ShippingService(
+        mockPrisma,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        mockGhn,
+      );
+
+      const res = await service.createShipment('ord-ghn-1', { mode: 'AUTO' }, 'admin-1');
+
+      expect(res.isMock).toBe(false);
+      expect(res.trackingNumber).toBe('L4RECOVERED');
+      expect(res.fallbackUsed).toBeUndefined();
+      expect(upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ trackingNumber: 'L4RECOVERED', isMock: false }),
+        }),
+      );
+    });
+
+    it('mode AUTO khi createOrder timeout và tra cứu client_order_code cũng lỗi mạng thì báo 503, không tự tạo vận đơn mô phỏng lệch nhau', async () => {
+      const orderRow = sampleOrderSnapshot();
+      const txMock = vi.fn();
+      const mockPrisma = {
+        order: { findUnique: vi.fn().mockResolvedValue(orderRow) },
+        $transaction: txMock,
+      } as unknown as PrismaService;
+
+      const mockGhn = {
+        configured: vi.fn().mockReturnValue(true),
+        createOrder: vi.fn().mockRejectedValue(new ServiceUnavailableException('fetch timeout')),
+        queryOrderByClientCode: vi
+          .fn()
+          .mockRejectedValue(new ServiceUnavailableException('lookup timeout')),
+      } as unknown as GhnCarrierGateway;
+
+      const service = new ShippingService(
+        mockPrisma,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        mockGhn,
+      );
+
+      await expect(
+        service.createShipment('ord-ghn-1', { mode: 'AUTO' }, 'admin-1'),
+      ).rejects.toThrow(ServiceUnavailableException);
+      expect(txMock).not.toHaveBeenCalled();
+    });
+
+    it('chặn thao tác mô phỏng thủ công (manualSimulation=true) trên vận đơn GHN thật (isMock=false)', async () => {
+      const now = new Date();
+      const update = vi.fn();
+      const mockPrisma = {
+        $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) =>
+          fn({
+            order: {
+              findUnique: vi.fn().mockResolvedValue({
+                id: 'ord-ghn-1',
+                orderCode: 'FR2611160001',
+                status: 'SHIPPED',
+                shipment: {
+                  id: 'ship-ghn-1',
+                  orderId: 'ord-ghn-1',
+                  carrierName: 'GHN',
+                  trackingNumber: 'L4ABCDEF',
+                  status: 'IN_TRANSIT',
+                  isMock: false,
+                  createdAt: now,
+                  updatedAt: now,
+                },
+                items: [],
+                payments: [],
+              }),
+            },
+            shipment: { update },
+          }),
+        ),
+      } as unknown as PrismaService;
+
+      const service = new ShippingService(mockPrisma);
+
+      await expect(
+        service.updateShipmentStatus('ord-ghn-1', 'DELIVERED', 'admin-1', 'Bấm mô phỏng', {
+          manualSimulation: true,
+        }),
+      ).rejects.toThrow(ConflictException);
+      expect(update).not.toHaveBeenCalled();
+    });
+
+    it('cho phép giao lại thành công từ FAILED (waiting_to_return) sang DELIVERED và chốt COD', async () => {
+      const now = new Date();
+      const currentShipment = {
+        id: 'ship-ghn-1',
+        orderId: 'ord-ghn-1',
+        carrierName: 'GHN',
+        trackingNumber: 'L4ABCDEF',
+        status: 'FAILED',
+        isMock: false,
+        carrierStatus: 'waiting_to_return',
+        statusNote: 'Chờ hoàn',
+        expectedDeliveryAt: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const mockOrders = {
+        lock: vi.fn().mockResolvedValue(undefined),
+        transition: vi.fn().mockResolvedValue(undefined),
+      } as unknown as OrdersService;
+      const mockPayments = {
+        record: vi.fn().mockResolvedValue(true),
+      } as unknown as PaymentsService;
+      const mockPrisma = {
+        shipment: { findFirst: vi.fn().mockResolvedValue(currentShipment) },
+        $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) =>
+          fn({
+            order: {
+              findUnique: vi.fn().mockResolvedValue({
+                id: 'ord-ghn-1',
+                orderCode: 'FR2611160001',
+                status: 'SHIPPED',
+                shipment: currentShipment,
+                items: [],
+                payments: [{ id: 'pay-cod-1', gateway: 'COD', status: 'PENDING' }],
+              }),
+            },
+            shipment: {
+              update: vi.fn().mockResolvedValue({
+                ...currentShipment,
+                status: 'DELIVERED',
+                carrierStatus: 'delivered',
+              }),
+            },
+          }),
+        ),
+      } as unknown as PrismaService;
+
+      const service = new ShippingService(mockPrisma, mockOrders, undefined, mockPayments);
+      const res = await service.handleGhnWebhook({
+        OrderCode: 'L4ABCDEF',
+        Status: 'delivered',
+        Description: 'Giao lại thành công',
+      });
+
+      expect(res.processed).toBe(true);
+      expect((res as { status?: string }).status).toBe('DELIVERED');
+      expect(mockPayments.record).toHaveBeenCalledWith(
+        'pay-cod-1',
+        'SUCCEEDED',
+        expect.stringMatching(/^COD:FR2611160001:[0-9a-f]{8}$/),
+        expect.anything(),
+        expect.anything(),
+      );
+      expect(mockOrders.transition).toHaveBeenCalledWith(
+        'ord-ghn-1',
+        'DELIVERED',
+        expect.anything(),
+        undefined,
+        expect.objectContaining({ fromCarrierWebhook: true }),
+      );
+    });
+
+    it('webhook GHN trạng thái scrap đi vào luồng sự cố FAILED, gửi thông báo và KHÔNG cộng lại tồn kho', async () => {
+      const now = new Date();
+      const currentShipment = {
+        id: 'ship-ghn-1',
+        orderId: 'ord-ghn-1',
+        carrierName: 'GHN',
+        trackingNumber: 'L4ABCDEF',
+        status: 'IN_TRANSIT',
+        isMock: false,
+        carrierStatus: 'delivering',
+        statusNote: null,
+        expectedDeliveryAt: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const mockOrders = {
+        lock: vi.fn().mockResolvedValue(undefined),
+        transition: vi.fn(),
+      } as unknown as OrdersService;
+      const mockInventory = { restock: vi.fn() } as unknown as InventoryService;
+      const mockPayments = { record: vi.fn() } as unknown as PaymentsService;
+      const mockNotifications = {
+        notifyShipmentFailed: vi.fn().mockResolvedValue(undefined),
+      } as unknown as NotificationsService;
+      const mockPrisma = {
+        shipment: { findFirst: vi.fn().mockResolvedValue(currentShipment) },
+        $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) =>
+          fn({
+            order: {
+              findUnique: vi.fn().mockResolvedValue({
+                id: 'ord-ghn-1',
+                orderCode: 'FR2611160001',
+                userId: 'u1',
+                customerEmail: 'khach@freya.test',
+                status: 'SHIPPED',
+                shipment: currentShipment,
+                items: [{ productVariantId: 'var-1', quantity: 2 }],
+                payments: [{ id: 'pay-cod-1', gateway: 'COD', status: 'PENDING' }],
+              }),
+            },
+            shipment: {
+              update: vi.fn().mockResolvedValue({
+                ...currentShipment,
+                status: 'FAILED',
+                carrierStatus: 'scrap',
+              }),
+            },
+          }),
+        ),
+      } as unknown as PrismaService;
+
+      const service = new ShippingService(
+        mockPrisma,
+        mockOrders,
+        mockInventory,
+        mockPayments,
+        mockNotifications,
+      );
+      const res = await service.handleGhnWebhook({
+        OrderCode: 'L4ABCDEF',
+        Status: 'scrap',
+      });
+
+      expect(res.processed).toBe(true);
+      expect((res as { status?: string }).status).toBe('FAILED');
+      expect(mockInventory.restock).not.toHaveBeenCalled();
+      expect(mockPayments.record).not.toHaveBeenCalled();
+      expect(mockOrders.transition).not.toHaveBeenCalled();
+      expect(mockNotifications.notifyShipmentFailed).toHaveBeenCalledTimes(1);
+    });
+
+    it('webhook GHN trạng thái picking chỉ cập nhật sub-status trong PENDING, chưa chuyển đơn sang SHIPPED', async () => {
+      const now = new Date();
+      const currentShipment = {
+        id: 'ship-ghn-1',
+        orderId: 'ord-ghn-1',
+        carrierName: 'GHN',
+        trackingNumber: 'L4ABCDEF',
+        status: 'PENDING',
+        isMock: false,
+        carrierStatus: 'ready_to_pick',
+        statusNote: null,
+        expectedDeliveryAt: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const mockOrders = {
+        lock: vi.fn().mockResolvedValue(undefined),
+        transition: vi.fn(),
+      } as unknown as OrdersService;
+      const update = vi.fn().mockResolvedValue({
+        ...currentShipment,
+        carrierStatus: 'picking',
+        statusNote: 'Tài xế GHN đang đến shop lấy hàng.',
+      });
+      const mockPrisma = {
+        shipment: { findFirst: vi.fn().mockResolvedValue(currentShipment) },
+        $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) =>
+          fn({
+            order: {
+              findUnique: vi.fn().mockResolvedValue({
+                id: 'ord-ghn-1',
+                orderCode: 'FR2611160001',
+                status: 'PROCESSING',
+                shipment: currentShipment,
+                items: [],
+                payments: [],
+              }),
+            },
+            shipment: { update },
+          }),
+        ),
+      } as unknown as PrismaService;
+
+      const service = new ShippingService(mockPrisma, mockOrders);
+      const res = await service.handleGhnWebhook({
+        OrderCode: 'L4ABCDEF',
+        Status: 'picking',
+      });
+
+      expect(res.processed).toBe(true);
+      expect((res as { status?: string }).status).toBe('PENDING');
+      expect((res as { carrierStatus?: string }).carrierStatus).toBe('picking');
+      expect(mockOrders.transition).not.toHaveBeenCalled();
+    });
+
+    it('webhook GHN fallback theo ClientOrderCode bỏ qua nếu bản ghi là mô phỏng hoặc khác mã vận đơn thật', async () => {
+      const now = new Date();
+      const mockShipmentRecord = {
+        id: 'ship-mock-1',
+        orderId: 'ord-1',
+        carrierName: 'GHN',
+        trackingNumber: 'GHN-SBX-001',
+        status: 'PENDING',
+        isMock: true,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const mockUpdate = vi.fn();
+      const mockPrisma1 = {
+        shipment: {
+          findFirst: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(mockShipmentRecord),
+        },
+        $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) =>
+          fn({
+            order: {
+              findUnique: vi.fn().mockResolvedValue({
+                id: 'ord-1',
+                orderCode: 'FR001',
+                status: 'PROCESSING',
+                shipment: mockShipmentRecord,
+                items: [],
+                payments: [],
+              }),
+            },
+            shipment: { update: mockUpdate },
+          }),
+        ),
+      } as unknown as PrismaService;
+
+      const resMock = await new ShippingService(mockPrisma1).handleGhnWebhook({
+        OrderCode: 'L4OTHER',
+        ClientOrderCode: 'FR001',
+        Status: 'delivered',
+      });
+      expect(resMock.processed).toBe(false);
+      expect((resMock as { ignored?: boolean }).ignored).toBe(true);
+      expect(mockUpdate).not.toHaveBeenCalled();
+
+      const realOtherTracking = {
+        ...mockShipmentRecord,
+        isMock: false,
+        trackingNumber: 'L4CURRENT',
+      };
+      const mockPrisma2 = {
+        shipment: {
+          findFirst: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(realOtherTracking),
+        },
+        $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) =>
+          fn({
+            order: {
+              findUnique: vi.fn().mockResolvedValue({
+                id: 'ord-1',
+                orderCode: 'FR001',
+                status: 'SHIPPED',
+                shipment: realOtherTracking,
+                items: [],
+                payments: [],
+              }),
+            },
+            shipment: { update: mockUpdate },
+          }),
+        ),
+      } as unknown as PrismaService;
+
+      const resMismatch = await new ShippingService(mockPrisma2).handleGhnWebhook({
+        OrderCode: 'L4STALE',
+        ClientOrderCode: 'FR001',
+        Status: 'delivered',
+      });
+      expect(resMismatch.processed).toBe(false);
+      expect((resMismatch as { ignored?: boolean }).ignored).toBe(true);
+      expect(mockUpdate).not.toHaveBeenCalled();
     });
 
     it('mode GHN báo lỗi 503 ngay khi chưa cấu hình token/shopId', async () => {

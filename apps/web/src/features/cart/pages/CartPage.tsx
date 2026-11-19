@@ -234,7 +234,12 @@ export function CartPage() {
       removePromotion();
       return;
     }
-    const validationKey = `${applied.kind}:${applied.id}:${applied.code ?? ''}:${cart.total}:${cart.selectedItemCount}`;
+    const selectedSignature = cart.items
+      .filter((item) => item.isSelected)
+      .map((item) => `${item.variantId}:${item.quantity}:${item.price}`)
+      .sort()
+      .join('|');
+    const validationKey = `${applied.kind}:${applied.id}:${applied.code ?? ''}:${cart.total}:${cart.selectedItemCount}:${selectedSignature}`;
     if (lastValidatedRef.current === validationKey) return;
     lastValidatedRef.current = validationKey;
 

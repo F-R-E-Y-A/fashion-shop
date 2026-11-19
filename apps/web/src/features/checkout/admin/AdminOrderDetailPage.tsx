@@ -544,46 +544,52 @@ function AdminOrderDetail() {
                         Đồng bộ từ GHN
                       </button>
                     )}
-                  {order.shipment && order.shipment.status === 'PENDING' && (
-                    <button
-                      type="button"
-                      className={styles.primaryButton}
-                      disabled={action.isPending || needsRecheck}
-                      onClick={() => open({ kind: 'shipmentInTransit' })}
-                    >
-                      Mô phỏng: Shipper lấy hàng
-                    </button>
-                  )}
-                  {order.shipment && order.shipment.status === 'IN_TRANSIT' && (
-                    <>
+                  {order.shipment &&
+                    order.shipment.isMock !== false &&
+                    order.shipment.status === 'PENDING' && (
                       <button
                         type="button"
                         className={styles.primaryButton}
                         disabled={action.isPending || needsRecheck}
-                        onClick={() => open({ kind: 'shipmentDelivered' })}
+                        onClick={() => open({ kind: 'shipmentInTransit' })}
                       >
-                        Mô phỏng: Giao thành công
+                        Mô phỏng: Shipper lấy hàng
                       </button>
+                    )}
+                  {order.shipment &&
+                    order.shipment.isMock !== false &&
+                    order.shipment.status === 'IN_TRANSIT' && (
+                      <>
+                        <button
+                          type="button"
+                          className={styles.primaryButton}
+                          disabled={action.isPending || needsRecheck}
+                          onClick={() => open({ kind: 'shipmentDelivered' })}
+                        >
+                          Mô phỏng: Giao thành công
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.dangerButton}
+                          disabled={action.isPending || needsRecheck}
+                          onClick={() => open({ kind: 'shipmentFailed' })}
+                        >
+                          Mô phỏng: Giao thất bại
+                        </button>
+                      </>
+                    )}
+                  {order.shipment &&
+                    order.shipment.isMock !== false &&
+                    order.shipment.status === 'FAILED' && (
                       <button
                         type="button"
-                        className={styles.dangerButton}
+                        className={styles.primaryButton}
                         disabled={action.isPending || needsRecheck}
-                        onClick={() => open({ kind: 'shipmentFailed' })}
+                        onClick={() => open({ kind: 'shipmentReturned' })}
                       >
-                        Mô phỏng: Giao thất bại
+                        Mô phỏng: Hàng hoàn về kho
                       </button>
-                    </>
-                  )}
-                  {order.shipment && order.shipment.status === 'FAILED' && (
-                    <button
-                      type="button"
-                      className={styles.primaryButton}
-                      disabled={action.isPending || needsRecheck}
-                      onClick={() => open({ kind: 'shipmentReturned' })}
-                    >
-                      Mô phỏng: Hàng hoàn về kho
-                    </button>
-                  )}
+                    )}
                   {order.actions.startProcessing && (
                     <button
                       type="button"

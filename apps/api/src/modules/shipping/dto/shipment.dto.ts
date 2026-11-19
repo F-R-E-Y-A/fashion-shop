@@ -24,7 +24,9 @@ export const SHIPMENT_TRANSITIONS: Record<ShipmentStatus, readonly ShipmentStatu
   PENDING: ['IN_TRANSIT', 'FAILED', 'RETURNED'],
   IN_TRANSIT: ['DELIVERED', 'FAILED', 'RETURNED'],
   DELIVERED: [],
-  FAILED: ['RETURNED'],
+  // GHN cho phép kích hoạt giao lại (delivery-again) từ delivery_fail / waiting_to_return (FAILED)
+  // sang delivering (IN_TRANSIT) hoặc delivered (DELIVERED); đơn đã CANCELLED vẫn bị chặn ở ShippingService.
+  FAILED: ['IN_TRANSIT', 'DELIVERED', 'RETURNED'],
   RETURNED: [],
 };
 

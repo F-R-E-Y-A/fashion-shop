@@ -16,20 +16,50 @@ interface GhnEnvelope<T> {
   data?: T;
 }
 
+export class GhnApiRejectedError extends ServiceUnavailableException {
+  constructor(
+    message: string,
+    readonly httpStatus: number,
+    readonly ghnCode?: number,
+  ) {
+    super(message);
+  }
+}
+
+export function isGhnNotFoundError(err: unknown): boolean {
+  if (!(err instanceof GhnApiRejectedError)) return false;
+  return (
+    err.httpStatus === 400 || err.httpStatus === 404 || err.ghnCode === 400 || err.ghnCode === 404
+  );
+}
+
+export function isDeterministicGhnRejection(err: unknown): boolean {
+  if (!(err instanceof GhnApiRejectedError)) return false;
+  const http4xx = err.httpStatus >= 400 && err.httpStatus < 500;
+  const ghn4xx = err.ghnCode !== undefined && err.ghnCode >= 400 && err.ghnCode < 500;
+  return http4xx || ghn4xx;
+}
+
 interface GhnProvinceV3 {
+  _id?: number | string;
   province_id?: number;
   ProvinceID?: number;
+  name?: string;
   province_name?: string;
   ProvinceName?: string;
+  extension_names?: string[];
   name_extensions?: string[];
   NameExtension?: string[];
 }
 
 interface GhnWardV3 {
+  _id?: number | string;
   ward_code?: string;
   WardCode?: string;
+  name?: string;
   ward_name?: string;
   WardName?: string;
+  extension_names?: string[];
   name_extensions?: string[];
   NameExtension?: string[];
 }
@@ -214,6 +244,63 @@ export class GhnCarrierGateway implements ShippingCarrierGateway {
     };
   }
 
+  async queryOrderByClientCode(
+    clientOrderCode: string,
+  ): Promise<CreateCarrierShipmentResult | null> {
+    const trimmed = clientOrderCode.trim();
+    if (!trimmed) return null;
+    const { apiUrl, token, shopId } = this.credentials();
+    const encodedCode = encodeURIComponent(trimmed);
+
+    let detail: Record<string, unknown> | undefined;
+    try {
+      const res = await this.requestJson<Record<string, unknown>>(
+        `${apiUrl}/v2/shipping-order/detail-by-client-code?client_order_code=${encodedCode}`,
+        { method: 'GET', token, shopId },
+      );
+      detail = res.data;
+    } catch (err) {
+      if (err instanceof GhnApiRejectedError && err.httpStatus === 405) {
+        try {
+          const res = await this.requestJson<Record<string, unknown>>(
+            `${apiUrl}/v2/shipping-order/detail-by-client-code`,
+            { method: 'POST', token, shopId, body: { client_order_code: trimmed } },
+          );
+          detail = res.data;
+        } catch (postErr) {
+          if (isGhnNotFoundError(postErr)) {
+            return null;
+          }
+          throw postErr;
+        }
+      } else if (isGhnNotFoundError(err)) {
+        return null;
+      } else {
+        throw err;
+      }
+    }
+
+    if (!detail) return null;
+    const trackingNumber = readStringField(detail, ['order_code', 'OrderCode']);
+    if (!trackingNumber) return null;
+
+    const rawStatus = readStringField(detail, ['status', 'Status']);
+    const mapped = mapGhnStatus(rawStatus);
+    const note =
+      readStringField(detail, ['reason', 'Reason', 'note', 'Description']) ||
+      mapped?.defaultNote ||
+      'Đã khôi phục vận đơn thật từ GHN Sandbox theo mã đơn hàng.';
+
+    return {
+      carrierName: 'GHN',
+      trackingNumber,
+      isMock: false,
+      carrierStatus: mapped?.carrierStatus ?? 'ready_to_pick',
+      statusNote: note,
+      expectedDeliveryAt: readStringField(detail, ['leadtime', 'expected_delivery_time']) ?? null,
+    };
+  }
+
   parseWebhook(raw: Record<string, unknown>): CarrierStatusEvent | null {
     const expectedShopId = String(this.getConfig('GHN_SHOP_ID') ?? '').trim();
     const incomingShopId = raw.ShopID ?? raw.ShopId ?? raw.shop_id;
@@ -259,25 +346,31 @@ export class GhnCarrierGateway implements ShippingCarrierGateway {
       const matchedProvince = matchAreaName(
         province,
         provinces,
-        (p) => p.province_name ?? p.ProvinceName ?? '',
-        (p) => p.name_extensions ?? p.NameExtension ?? [],
+        (p) => p.name ?? p.province_name ?? p.ProvinceName ?? '',
+        (p) => p.extension_names ?? p.name_extensions ?? p.NameExtension ?? [],
       );
       if (matchedProvince) {
-        const provinceId = matchedProvince.province_id ?? matchedProvince.ProvinceID;
+        const rawProvinceId =
+          matchedProvince._id ?? matchedProvince.province_id ?? matchedProvince.ProvinceID;
+        const provinceId = Number(rawProvinceId);
         const resolvedProvinceName =
-          matchedProvince.province_name ?? matchedProvince.ProvinceName ?? province;
-        if (provinceId) {
+          matchedProvince.name ??
+          matchedProvince.province_name ??
+          matchedProvince.ProvinceName ??
+          province;
+        if (Number.isInteger(provinceId) && provinceId > 0) {
           const wards = await this.fetchV3Wards(apiUrl, token, shopId, provinceId);
           const matchedWard = matchAreaName(
             commune,
             wards,
-            (w) => w.ward_name ?? w.WardName ?? '',
-            (w) => w.name_extensions ?? w.NameExtension ?? [],
+            (w) => w.name ?? w.ward_name ?? w.WardName ?? '',
+            (w) => w.extension_names ?? w.name_extensions ?? w.NameExtension ?? [],
           );
           if (matchedWard) {
             return {
               provinceName: resolvedProvinceName,
-              wardName: matchedWard.ward_name ?? matchedWard.WardName ?? commune,
+              wardName:
+                matchedWard.name ?? matchedWard.ward_name ?? matchedWard.WardName ?? commune,
             };
           }
         }
@@ -363,7 +456,11 @@ export class GhnCarrierGateway implements ShippingCarrierGateway {
     const raw = (await response.json().catch(() => null)) as GhnEnvelope<T> | null;
     if (!response.ok || (raw && typeof raw.code === 'number' && raw.code !== 200)) {
       const reason = raw?.message || `HTTP ${response.status}`;
-      throw new ServiceUnavailableException(`GHN Sandbox từ chối hoặc gặp lỗi: ${reason}`);
+      throw new GhnApiRejectedError(
+        `GHN Sandbox từ chối hoặc gặp lỗi: ${reason}`,
+        response.status,
+        raw?.code,
+      );
     }
     return raw ?? { code: 200 };
   }

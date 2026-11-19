@@ -34,7 +34,7 @@ import {
   type ShipmentStatus,
   type ShipmentWebhookDto,
 } from './dto/shipment.dto.js';
-import { GhnCarrierGateway } from './ghn.carrier.js';
+import { GhnCarrierGateway, isDeterministicGhnRejection } from './ghn.carrier.js';
 import { MockCarrierGateway } from './mock.carrier.js';
 import type {
   CarrierMode,
@@ -145,13 +145,38 @@ export class ShippingService {
       try {
         externalResult = await this.ghn.createOrder(carrierInput);
       } catch (err) {
-        if (mode === 'GHN') throw err;
-        fallbackReason = err instanceof Error ? err.message : String(err);
-        fallbackUsed = true;
-        this.logger.warn(
-          `GHN Sandbox tạo vận đơn lỗi cho đơn ${snapshot.orderCode}, chuyển sang dự phòng mô phỏng: ${fallbackReason}`,
-        );
-        externalResult = await this.getMockGateway().createOrder(carrierInput);
+        let recovered: CreateCarrierShipmentResult | null = null;
+        let verificationFailed = false;
+        if (typeof this.ghn.queryOrderByClientCode === 'function') {
+          try {
+            recovered = await this.ghn.queryOrderByClientCode(snapshot.orderCode);
+          } catch (lookupErr) {
+            verificationFailed = true;
+            this.logger.warn(
+              `Không tra cứu xác minh được client_order_code=${snapshot.orderCode} trên GHN sau lỗi tạo đơn: ${lookupErr instanceof Error ? lookupErr.message : String(lookupErr)}`,
+            );
+          }
+        }
+
+        if (recovered) {
+          this.logger.log(
+            `Khôi phục được vận đơn GHN thật ${recovered.trackingNumber} cho đơn ${snapshot.orderCode} theo client_order_code sau lỗi tạo đơn.`,
+          );
+          externalResult = recovered;
+        } else if (mode === 'GHN') {
+          throw err;
+        } else if (verificationFailed && !isDeterministicGhnRejection(err)) {
+          throw new ServiceUnavailableException(
+            'Không xác minh được kết quả tạo vận đơn trên GHN Sandbox (có thể đã tạo đơn trước khi mất kết nối/timeout). Vui lòng thử lại để hệ thống đối soát theo mã đơn hàng, tránh tạo vận đơn mô phỏng lệch nhau.',
+          );
+        } else {
+          fallbackReason = err instanceof Error ? err.message : String(err);
+          fallbackUsed = true;
+          this.logger.warn(
+            `GHN Sandbox tạo vận đơn lỗi cho đơn ${snapshot.orderCode}, đã xác nhận chưa có đơn trên GHN, chuyển sang dự phòng mô phỏng: ${fallbackReason}`,
+          );
+          externalResult = await this.getMockGateway().createOrder(carrierInput);
+        }
       }
     }
 
@@ -270,6 +295,8 @@ export class ShippingService {
     return this.updateShipmentStatus(orderId, event.status, actorUserId, event.note, {
       carrierStatus: event.carrierStatus,
       fromWebhook: false,
+      requireRealCarrier: true,
+      expectedTrackingNumber: shipment.trackingNumber,
     });
   }
 
@@ -278,7 +305,13 @@ export class ShippingService {
     status: ShipmentStatus,
     actorUserId?: string,
     note?: string,
-    meta?: { carrierStatus?: string; fromWebhook?: boolean },
+    meta?: {
+      carrierStatus?: string;
+      fromWebhook?: boolean;
+      manualSimulation?: boolean;
+      requireRealCarrier?: boolean;
+      expectedTrackingNumber?: string;
+    },
   ): Promise<ShipmentResponse> {
     const postCommitHooks: PostCommitHook[] = [];
     const result = await this.prisma.$transaction(async (tx) => {
@@ -293,15 +326,42 @@ export class ShippingService {
       if (!order) throw new NotFoundException('Không tìm thấy đơn hàng.');
       if (!order.shipment) throw new NotFoundException('Chưa tạo vận đơn cho đơn hàng này.');
 
+      if (meta?.manualSimulation && order.shipment.isMock === false) {
+        throw new ConflictException(
+          'Vận đơn GHN thật chỉ được cập nhật qua đồng bộ GHN hoặc webhook, không thể dùng thao tác mô phỏng.',
+        );
+      }
+
+      if (meta?.requireRealCarrier && order.shipment.isMock !== false) {
+        throw new ConflictException(
+          'Bỏ qua webhook GHN vì vận đơn hiện tại đang ở chế độ mô phỏng nội bộ.',
+        );
+      }
+
+      if (
+        meta?.expectedTrackingNumber &&
+        order.shipment.trackingNumber &&
+        order.shipment.trackingNumber !== meta.expectedTrackingNumber
+      ) {
+        throw new ConflictException(
+          `Bỏ qua sự kiện vì mã vận đơn ${meta.expectedTrackingNumber} không khớp vận đơn hiện tại (${order.shipment.trackingNumber}).`,
+        );
+      }
+
       if (order.status === 'CANCELLED' && status !== 'FAILED' && status !== 'RETURNED') {
         throw new ConflictException('Đơn hàng đã bị hủy, không thể cập nhật vận chuyển.');
       }
 
       const currentStatus = order.shipment.status as ShipmentStatus;
+      const shouldFillTracking = Boolean(
+        meta?.expectedTrackingNumber && !order.shipment.trackingNumber,
+      );
 
-      // Xử lý sự kiện trùng trạng thái nội bộ (ví dụ GHN đổi sub-status picking -> delivering trong IN_TRANSIT)
+      // Xử lý sự kiện trùng trạng thái nội bộ (ví dụ ready_to_pick -> picking trong PENDING,
+      // hoặc picked -> delivering trong IN_TRANSIT)
       if (currentStatus === status) {
         const subChanged =
+          shouldFillTracking ||
           (meta?.carrierStatus !== undefined &&
             meta.carrierStatus !== order.shipment.carrierStatus) ||
           (note !== undefined && note !== order.shipment.statusNote);
@@ -309,6 +369,7 @@ export class ShippingService {
           const refreshed = await tx.shipment.update({
             where: { orderId },
             data: {
+              ...(shouldFillTracking ? { trackingNumber: meta!.expectedTrackingNumber } : {}),
               ...(meta?.carrierStatus !== undefined ? { carrierStatus: meta.carrierStatus } : {}),
               ...(note !== undefined ? { statusNote: note } : {}),
             },
@@ -318,7 +379,7 @@ export class ShippingService {
         return this.toResponse(order.shipment);
       }
 
-      // Kiểm tra ma trận chuyển trạng thái: chặn lùi trạng thái
+      // Kiểm tra ma trận chuyển trạng thái: chặn lùi trạng thái (trừ luồng giao lại từ FAILED)
       if (!canTransitionShipment(currentStatus, status)) {
         throw new ConflictException(
           `Không thể chuyển trạng thái vận đơn từ ${currentStatus} sang ${status}.`,
@@ -326,6 +387,7 @@ export class ShippingService {
       }
 
       const updateData: Prisma.ShipmentUpdateInput = { status };
+      if (shouldFillTracking) updateData.trackingNumber = meta!.expectedTrackingNumber;
       if (meta?.carrierStatus !== undefined) updateData.carrierStatus = meta.carrierStatus;
       if (note !== undefined) updateData.statusNote = note;
 
@@ -474,6 +536,7 @@ export class ShippingService {
       status: parsed.status,
       carrierStatus: parsed.carrierStatus,
       note: parsed.note,
+      requireRealCarrier: true,
     });
   }
 
@@ -484,6 +547,7 @@ export class ShippingService {
     status: ShipmentStatus;
     carrierStatus?: string;
     note?: string;
+    requireRealCarrier?: boolean;
   }) {
     let shipment = null;
     if (payload.orderId) {
@@ -505,15 +569,9 @@ export class ShippingService {
       return { received: true, processed: false, message: 'Shipment not found' };
     }
 
-    if (payload.trackingNumber && !shipment.trackingNumber) {
-      await this.prisma.shipment.update({
-        where: { id: shipment.id },
-        data: { trackingNumber: payload.trackingNumber },
-      });
-    }
-
     try {
       // Truyền actorUserId = undefined để DB ghi NULL hợp lệ cho cột UUID order_status_history.actor_user_id.
+      // Kiểm tra isMock và đối chiếu trackingNumber diễn ra trong cùng khóa giao dịch của updateShipmentStatus.
       const updated = await this.updateShipmentStatus(
         shipment.orderId,
         payload.status,
@@ -522,6 +580,8 @@ export class ShippingService {
         {
           carrierStatus: payload.carrierStatus,
           fromWebhook: true,
+          requireRealCarrier: payload.requireRealCarrier,
+          expectedTrackingNumber: payload.trackingNumber,
         },
       );
 
