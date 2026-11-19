@@ -214,19 +214,103 @@ describe('ProductsService - Import Bảo vệ Biến thể & Cặp giá (Đợt 
     });
   });
 
-  it('tự động tắt sản phẩm (isActive: false) nếu sản phẩm không còn biến thể hoạt động nào sau import', async () => {
+  it.each([
+    { wasActive: true, versionUpdate: { increment: 1 } },
+    { wasActive: false, versionUpdate: undefined },
+  ])(
+    'UC-04.2/AC13 UC-04.3/AC38 tính version theo trạng thái cuối khi hết biến thể hoạt động (isActive cũ: $wasActive)',
+    async ({ wasActive, versionUpdate }) => {
+      setupMocks();
+      tx.$queryRaw.mockResolvedValueOnce([{ id: 'cat-1' }]).mockResolvedValueOnce([
+        {
+          id: 'prod-1',
+          isActive: wasActive,
+          adminDisabled: false,
+          statusVersion: 7,
+          contentVersion: 0,
+          adminContentFields: [],
+        },
+      ]);
+      const managedVariant = {
+        productId: 'prod-1',
+        colorId: 'color-1',
+        sizeId: 'size-1',
+        listPrice: new Prisma.Decimal('200000'),
+        salePrice: null,
+        isActive: false,
+        adminManagedFields: ['isActive'],
+      };
+      tx.productVariant.findUnique.mockResolvedValue(managedVariant);
+      tx.productVariant.findMany
+        .mockResolvedValueOnce([{ productId: 'prod-1' }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([managedVariant]);
+
+      const [result] = await service.importProducts([baseRow]);
+
+      expect(result?.status).toBe('updated');
+      const statusWrites = tx.product.update.mock.calls
+        .map(([{ data }]) => ({ isActive: data.isActive, statusVersion: data.statusVersion }))
+        .filter(
+          ({ isActive, statusVersion }) => isActive !== undefined || statusVersion !== undefined,
+        );
+      expect(statusWrites).toEqual([{ isActive: false, statusVersion: versionUpdate }]);
+    },
+  );
+
+  it('UC-04.3/AC38 báo xung đột màu/cỡ với biến thể tạo tay và tiếp tục batch', async () => {
     setupMocks();
-    tx.productVariant.findUnique.mockResolvedValue(null);
-    tx.productVariant.findMany.mockResolvedValue([]); // 0 active variants
-
-    await service.importProducts([baseRow]);
-
-    expect(tx.product.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: 'prod-1' },
-        data: expect.objectContaining({ isActive: false }),
+    tx.size.findMany.mockResolvedValue([
+      { id: 'size-1', code: 'M' },
+      { id: 'size-2', code: 'L' },
+    ]);
+    tx.productVariant.findUnique
+      .mockResolvedValueOnce({
+        productId: 'prod-1',
+        colorId: 'color-1',
+        sizeId: 'size-1',
+        listPrice: new Prisma.Decimal('200000'),
+        salePrice: null,
+        isActive: true,
+        adminManagedFields: [],
+      })
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+    tx.productVariant.findMany
+      .mockResolvedValueOnce([{ productId: 'prod-1' }])
+      .mockResolvedValueOnce([]);
+    tx.productVariant.create.mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError('Unique product/color/size', {
+        code: 'P2002',
+        clientVersion: '7.10.0',
+        meta: { target: ['product_id', 'color_id', 'size_id'] },
       }),
     );
+    const conflictingRow: ImportProductRow = {
+      ...baseRow,
+      variants: [
+        ...baseRow.variants,
+        { ...baseRow.variants[0]!, sku: 'AT-NGUON-L', sizeCode: 'L' },
+      ],
+    };
+    const nextRow: ImportProductRow = {
+      ...baseRow,
+      sourceKey: 'src-2',
+      variants: [{ ...baseRow.variants[0]!, sku: 'AT-TIEP-THEO-M' }],
+    };
+
+    const results = await service.importProducts([conflictingRow, nextRow]);
+
+    expect(results).toMatchObject([
+      {
+        sourceKey: 'src-1',
+        status: 'failed',
+        reason: 'SKU_CONFLICT',
+        detail: expect.stringContaining('AT-NGUON-L'),
+      },
+      { sourceKey: 'src-2', status: 'created' },
+    ]);
+    expect(tx.productVariant.updateMany).toHaveBeenCalledTimes(1);
   });
 
   describe('Regression review-127 (B4, B5)', () => {
