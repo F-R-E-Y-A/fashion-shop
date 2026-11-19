@@ -80,6 +80,8 @@ model Product {
   statusVersion    Int      @default(0) @map("status_version")
   contentVersion   Int      @default(0) @map("content_version")
   adminContentFields String[] @default([]) @map("admin_content_fields")
+  imagesVersion    Int      @default(0) @map("images_version")
+  imagesManagedByAdmin Boolean @default(false) @map("images_managed_by_admin")
   isFeatured       Boolean  @default(false) @map("is_featured")
   // Diem trung binh va so danh gia DA DUYET, ghi san cho the san pham va sap xep. Chi
   // ProductsService.updateRatingSummary ghi, trong giao dich doi trang thai danh gia (ADR-054).

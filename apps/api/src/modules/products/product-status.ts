@@ -10,11 +10,14 @@ export async function lockProductStatus(tx: Prisma.TransactionClient, id: string
       adminDisabled: boolean;
       statusVersion: number;
       contentVersion: number;
+      imagesVersion: number;
+      imagesManagedByAdmin: boolean;
     })[]
   >`
     SELECT id, is_active AS "isActive", admin_disabled AS "adminDisabled",
       status_version AS "statusVersion", name, description, material, care_instructions AS "careInstructions",
-      content_version AS "contentVersion", admin_content_fields AS "adminContentFields"
+      content_version AS "contentVersion", admin_content_fields AS "adminContentFields",
+      images_version AS "imagesVersion", images_managed_by_admin AS "imagesManagedByAdmin"
     FROM public.products WHERE id = ${id}::uuid FOR UPDATE
   `;
   return rows[0];

@@ -413,4 +413,99 @@ describe('ProductsService - Import Bảo vệ Biến thể & Cặp giá (Đợt 
       expect(String(priceUpdates.at(-1)?.priceFrom)).toBe('180000');
     });
   });
+
+  describe('Bảo vệ bộ ảnh qua Import (Đợt 3, UC-04.2/AC48)', () => {
+    it('UC-04.2/AC48 khi imagesManagedByAdmin = true: import giữ nguyên bộ ảnh và thứ tự của admin (kể cả khi nguồn trả images: []), và tính isActive theo số ảnh thực tế còn trong DB', async () => {
+      setupMocks();
+      tx.$queryRaw.mockResolvedValue([
+        {
+          id: 'prod-1',
+          slug: 'ao-thun-phong-cach',
+          isActive: true,
+          adminDisabled: false,
+          statusVersion: 0,
+          contentVersion: 0,
+          adminContentFields: [],
+          imagesVersion: 2,
+          imagesManagedByAdmin: true,
+        },
+      ]);
+      tx.productVariant.findMany
+        .mockResolvedValueOnce([{ productId: 'prod-1' }])
+        .mockResolvedValueOnce([
+          {
+            productId: 'prod-1',
+            listPrice: new Prisma.Decimal('200000.00'),
+            salePrice: new Prisma.Decimal('150000.00'),
+          },
+        ]);
+      tx.productImage.count = vi.fn().mockResolvedValue(3); // admin vẫn còn 3 ảnh trong DB
+
+      const emptyImagesRow: ImportProductRow = {
+        ...baseRow,
+        images: [], // Nguồn rỗng ảnh
+      };
+
+      await service.importProducts([emptyImagesRow]);
+
+      // Không được ghi đè hoặc xóa ảnh của admin
+      expect(tx.productImage.upsert).not.toHaveBeenCalled();
+      expect(tx.productImage.deleteMany).not.toHaveBeenCalled();
+
+      // Sản phẩm vẫn giữ isActive: true vì admin còn 3 ảnh trong DB
+      expect(tx.product.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'prod-1' },
+          data: expect.objectContaining({ isActive: true }),
+        }),
+      );
+    });
+
+    it('UC-04.2/AC48 khi imagesManagedByAdmin = false: import làm thay đổi bộ ảnh sẽ tăng imagesVersion để vô hiệu hóa token CAS cũ; import lặp không đổi ảnh thì không tăng imagesVersion', async () => {
+      setupMocks();
+      tx.$queryRaw.mockResolvedValue([
+        {
+          id: 'prod-1',
+          slug: 'ao-thun-phong-cach',
+          isActive: true,
+          adminDisabled: false,
+          statusVersion: 0,
+          contentVersion: 0,
+          adminContentFields: [],
+          imagesVersion: 1,
+          imagesManagedByAdmin: false,
+        },
+      ]);
+      tx.productVariant.findMany
+        .mockResolvedValueOnce([{ productId: 'prod-1' }])
+        .mockResolvedValueOnce([
+          {
+            productId: 'prod-1',
+            listPrice: new Prisma.Decimal('200000.00'),
+            salePrice: new Prisma.Decimal('150000.00'),
+          },
+        ]);
+      tx.productImage.findMany = vi.fn().mockResolvedValue([
+        {
+          id: 'old-img-1',
+          url: 'https://example.test/old.jpg',
+          alt: null,
+          colorId: null,
+          sortOrder: 0,
+        },
+      ]);
+
+      await service.importProducts([baseRow]);
+
+      expect(tx.productImage.upsert).toHaveBeenCalled();
+      expect(tx.product.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'prod-1' },
+          data: expect.objectContaining({
+            imagesVersion: { increment: 1 },
+          }),
+        }),
+      );
+    });
+  });
 });

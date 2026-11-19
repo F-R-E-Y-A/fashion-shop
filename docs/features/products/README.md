@@ -1,6 +1,6 @@
 ---
 title: Khám phá sản phẩm — bản đồ và kế hoạch PH-01
-updated: 2026-11-14
+updated: 2026-11-19
 status: đang làm
 owner: Bảo
 ---
@@ -278,3 +278,8 @@ chưa rollout DB phát triển. Giữ slug/giá/trạng thái/kho/đơn theo h�
 409 giữ draft, ghép ba bản gốc/đang soạn/máy chủ; xung đột cùng trường cần người dùng chọn.
 GET tải lại giữ phần gõ thêm trong lúc chờ; timeout/network/5xx cần đối chiếu trước lưu tiếp.
 Quyết định [ADR-052](LOG.md#adr-052) còn đề xuất; chưa tự coi là đã nghiệm thu hoặc merge Issue77.
+
+## Quản trị biến thể và ảnh sản phẩm — Đợt 2 (#127) và Đợt 3
+
+Đợt 2 ([Issue #127](https://github.com/F-R-E-Y-A/fashion-shop/issues/127), [PR #149](https://github.com/F-R-E-Y-A/fashion-shop/pull/149), [AC29–40](use-cases-admin-variants.md), [ADR-061](LOG.md#adr-061)) bổ sung thêm/sửa biến thể, giá và bảo vệ mở bán.
+Đợt 3 ([AC41–52](use-cases-admin-media.md), [ADR-109](LOG.md#adr-109)) mở quản trị bộ ảnh sản phẩm tại `/admin/products/:id`: cấp phiếu tải ảnh `product` riêng cho ADMIN (`POST /api/admin/products/upload-tickets`), lưu nguyên tử bộ ảnh có thứ tự với CAS `imagesVersion` (`PUT /api/admin/products/:id/images`), giới hạn 8 ảnh khi thêm mới, chuyển quyền quản lý toàn bộ bộ ảnh sang admin từ lần sửa thực tế đầu tiên (`imagesManagedByAdmin`), và giữ asset từng gắn trong MVP để bảo toàn snapshot đơn cũ. Một migration bổ sung `images_version` và `images_managed_by_admin` trên `products`; phạm vi `catalog.prisma`, import và Uploads chờ Bảo review.

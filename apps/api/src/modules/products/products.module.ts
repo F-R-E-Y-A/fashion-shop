@@ -5,6 +5,7 @@ import type { Env } from '../../infra/config/env.js';
 import { RateLimitModule } from '../../infra/rate-limit/rate-limit.module.js';
 import { AuthModule } from '../auth/index.js';
 import { InventoryModule } from '../inventory/index.js';
+import { UploadsModule } from '../uploads/index.js';
 import { AdminCategoriesController } from './admin-categories.controller.js';
 import { AdminCategoriesService } from './admin-categories.service.js';
 import { AdminProductsController } from './admin-products.controller.js';
@@ -31,7 +32,7 @@ import { SuggestRateLimitService } from './search/suggest-rate-limit.service.js'
  * Vi vay exports luon liet ke service, khong bao gio la controller.
  */
 @Module({
-  imports: [RateLimitModule, InventoryModule, AuthModule],
+  imports: [RateLimitModule, InventoryModule, AuthModule, UploadsModule],
   controllers: [
     AdminCategoriesController,
     AdminProductsController,
