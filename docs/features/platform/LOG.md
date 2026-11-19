@@ -1,6 +1,6 @@
 ---
 title: Nền tảng — nhật ký quyết định và thay đổi
-updated: 2026-11-14
+updated: 2026-11-17
 status: đang dùng
 owner: Bảo
 ---
@@ -197,3 +197,40 @@ Xem lại khi: `develop` đỏ vì bản ghép thêm lần nữa, hoặc số l�
 **Loại:** cấu hình · **Phạm vi:** `.github/workflows/ci.yml`, PR `task/` → `feature/` · **Commit:** (điền khi gộp)
 
 Hoàn tác phần "PR vào `feature/**` có CI" của mục ngay trên, cùng ngày, trước khi lên `develop`. Bảo bỏ vì không chặn được gì (nhánh feature không có ruleset, PR `feature/` → `develop` đã có CI chặn), không thêm điểm rubric, mà còn có thể kéo tỉ lệ CI xanh xuống: script minh chứng đếm mọi lượt CI, kể cả PR task còn non. Lần chạy duy nhất: run 43566364525 cho PR #125, 7/7 xanh. Tài liệu đã sửa theo: [git.md](../../shared/git.md), [staging.md](staging.md).
+
+<a id="adr-071"></a>
+## 2026-11-17 · ADR-071 — Chia kiểm thử HTTP của CI cho ba máy chạy song song
+
+**Loại:** quyết định · **Phạm vi:** `.github/workflows/ci.yml` chặng 4, thời gian commit → staging · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- Rubric V2-1 TC2.6 Mức 5 đòi commit → staging ≤ 15 phút. Đo các lần đẩy lên `develop` 09–17/11 (script ghép mỗi lượt CD với lượt CI đã kích nó, `git merge-base --is-ancestor` để biết commit đã lên staging): n = 23, trung vị 13,7 phút, p75 15,6, p90 18,6; 16/23 lần ≤ 15. Chỉ tính CI xanh ngay lần đầu: 15/17, lâu nhất 18,6.
+- Chặng 4 là đường găng: CI `c4d1272` (run 43695198998) job HTTP 7′07″, trong đó bước test 5′48″; Playwright 3′30″, Docker 2′52″, unit 2′43″; CD khoảng 2′47″.
+- Project `http` chạy tuần tự từng tệp (`fileParallelism: false`, `apps/api/vitest.config.ts`) vì mọi tệp dùng chung một CSDL; số tệp tăng theo từng PR (develop 39, có nhánh 40), nên thời gian còn tăng.
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| **A. Ba máy, mỗi máy Postgres/Redis riêng, Vitest `--shard`, job gộp giữ tên check (chọn)** | Bước test còn khoảng một phần ba (suy luận); thêm tệp test không phải sửa CI; không đụng mã test | Mỗi lượt CI từ 7 lên 10 job; job gộp thêm một lần `npm ci` sau shard chậm nhất; tệp test phụ thuộc dữ liệu tệp khác để lại có thể lộ ra | Được: hoàn tác một commit `ci.yml` |
+| B. Nhiều CSDL trên một máy, bật `fileParallelism` | Không thêm job | Phải sửa `test/setup-env.ts` cấp CSDL theo worker; Redis giới hạn tần suất dùng chung khoá; máy 4 CPU | Được, nhưng sửa nhiều chỗ |
+| Không làm gì | Không tốn công | Trung vị đã sát 15 phút, p90 vượt; càng thêm test càng chậm | — |
+
+**Chọn A** vì chỉ sửa một tệp workflow, giữ nguyên tên sáu check bắt buộc của ruleset 26305126. Gói Free cho 20 job cùng lúc trên cả tài khoản; 10 job một lượt nên dừng ở ba máy, chưa đo thì không tăng. Trade-off chấp nhận: tốn thêm phút máy (repo public không tính phút).
+
+Chi tiết cài đặt: shard ghi kết quả và độ phủ ra `blob-report/` (không dùng `.vitest/blob` mặc định vì `upload-artifact@v4` bỏ thư mục bắt đầu bằng dấu chấm); `db:drift` chỉ chạy ở shard 1; job gộp `if: ${{ !cancelled() }}` vì job bị bỏ qua vẫn được tính là đạt check bắt buộc, còn `always()` sẽ biến lượt PR bị huỷ thành lượt đỏ.
+
+### Phản biện
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| Câu hỏi phản biện | Bảo hỏi gói Free public có cho chạy song song không, vì sao luôn là 39 tệp, production xử lý bộ test phình ra sao | Free cho 20 job cùng lúc; số tệp đổi theo nhánh; Vitest chia tệp lúc chạy nên không cần cập nhật danh sách |
+| AI gợi ý | Claude Code (Opus 5.5, 17/11): job gộp phải mang đúng tên check bắt buộc và tự đỏ khi có shard không xanh; dùng `!cancelled()` thay `always()` | giữ |
+
+**Kết luận:** chặng 4 chạy kiểm thử HTTP trên ba máy song song, job gộp giữ tên check và báo cáo độ phủ như cũ.
+**Bằng chứng:** chạy thử đúng các cờ trong `ci.yml` trên project `unit` ở máy ngày 17/11: ba shard sinh `blob-1-3.json`…`blob-3-3.json`, `vitest run --mergeReports=blob-report --coverage` → `Test Files 72`, `Tests 698`, `Lines 52.44% (2364/4508)`, bằng lần chạy cả bộ. Chưa chạy trên CI thật.
+
+### Kết quả mong đợi → thực tế
+Mong đợi (suy luận): job HTTP dài nhất khoảng 2–3 phút cộng job gộp khoảng 1,5 phút; CI khoảng 5 phút; commit → staging khoảng 8–9 phút. Ghi thời gian bước test của từng shard để biết chia có lệch không. Shard đỏ ở bài vốn xanh khi chạy cả bộ thì coi là tệp phụ thuộc thứ tự, sửa tệp đó, không thêm retry.
+Thực tế: (điền sau lượt CI thật).
+
+### Điều kiện xem lại
+Một shard chậm gấp rưỡi shard khác qua ba lượt, hoặc commit → staging vẫn > 15 phút ở p75: chia theo thời lượng hoặc thêm máy sau khi đo giới hạn job cùng lúc.
