@@ -15,8 +15,9 @@ Tách tài liệu để giữ giới hạn300dòng; không đổi số hoặc ý
 Giữ AC1–10 của lát đọc. Tài chốt giữ ngừng bán thủ công qua mọi lần import; chỉ ADMIN chủ động gỡ. Không xóa dữ liệu, không tự bật danh mục/biến thể, chọn lại giỏ hoặc sửa đơn/payment/inventory. Bật lại tính cờ hiệu lực theo ảnh nguồn hiện có; gỡ hold không đồng nghĩa mua được.
 - [ ] **AC11** (âm) PATCH trạng thái kiểm ADMIN trước validation; UUID/body/type/trường lạ/version sai400,
   guest401/CUSTOMER403, thiếu404, version cũ409; response allowlist, no-store, không toggle.
-- [ ] **AC12** (thuận) Ngừng bán đặt manual hold và tắt cờ; bật lại gỡ hold/tính điều kiện nguồn. Version chỉ tăng
-  khi hold/cờ đổi, phát hiện ABA; no-op giữ version. Migration false/0 giữ isActive cũ.
+- [ ] **AC12** (thuận) Ngừng bán đặt manual hold và tắt cờ. Bật lại cần ít nhất một biến thể hoạt động theo
+  [AC37](use-cases-admin-variants.md), sau đó gỡ hold và tính điều kiện nguồn. Version chỉ tăng khi hold/cờ đổi,
+  phát hiện ABA; no-op giữ version. Migration false/0 giữ isActive cũ.
 - [ ] **AC13** (biên) Import và admin khóa cùng hàng, giữ hold kể cả có/không ảnh; lặp không tăng version vô cớ,
   cạnh tranh cả hai thứ tự không mất cập nhật. Không đổi hợp đồng importProducts hoặc ghi bảng ngoài products.
 - [ ] **AC14** (âm) Sau ngừng bán public list/search/suggest/detail ẩn; lần đọc giỏ sau báo INACTIVE/bỏ chọn,

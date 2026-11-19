@@ -115,8 +115,10 @@ model ProductVariant {
   sku       String   @unique @db.VarChar
   listPrice Decimal  @map("list_price") @db.Decimal(12, 2)
   salePrice Decimal? @map("sale_price") @db.Decimal(12, 2)
-  isActive  Boolean  @default(true) @map("is_active")
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  isActive           Boolean  @default(true) @map("is_active")
+  isCustom           Boolean  @default(false) @map("is_custom")
+  adminManagedFields String[] @default([]) @map("admin_managed_fields")
+  createdAt          DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   product                Product                @relation(fields: [productId], references: [id], onDelete: Restrict, onUpdate: NoAction)

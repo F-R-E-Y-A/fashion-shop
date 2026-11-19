@@ -261,19 +261,43 @@ describe('UC-04.2 admin product status HTTP PostgreSQL', () => {
       where: { productId: id },
       data: { isActive: false },
     });
-    await change(false, 1).expect(200);
-    expect((await t.http.get('/api/cart').set(auth()).expect(200)).body.items[0].isSelected).toBe(
-      false,
+    const disabled = await state();
+    const blocked = await change(false, 1).expect(422);
+    expect(blocked.body.code).toBe('NO_ACTIVE_VARIANTS_FOR_ACTIVE_PRODUCT');
+    expect(await state()).toEqual(disabled);
+    expect(await t.prisma.productVariant.count({ where: { productId: id, isActive: true } })).toBe(
+      0,
     );
+
+    const variant = await t.prisma.productVariant.findUniqueOrThrow({ where: { id: variantId } });
+    await t.http
+      .patch(`/api/admin/products/${id}/variants/${variantId}`)
+      .set(auth())
+      .send({ isActive: true, expectedUpdatedAt: variant.updatedAt.toISOString() })
+      .expect(200);
+    expect((await change(false, 1).expect(200)).body).toMatchObject({
+      adminDisabled: false,
+      isActive: true,
+      statusVersion: 2,
+    });
     expect(await t.prisma.category.findUnique({ where: { id: before.categoryId } })).toMatchObject({
       isActive: false,
     });
     expect(
-      (await t.prisma.productVariant.findMany({ where: { productId: id } })).every(
-        (v) => !v.isActive,
-      ),
-    ).toBe(true);
+      await t.prisma.productVariant.findMany({
+        where: { productId: id, isActive: true },
+        select: { id: true },
+      }),
+    ).toEqual([{ id: variantId }]);
     await t.http.get(`/api/products/${before.slug}`).expect(404);
+
+    await t.prisma.category.update({ where: { id: before.categoryId }, data: { isActive: true } });
+    await t.http.get(`/api/products/${before.slug}`).expect(200);
+    const restoredCart = await t.http.get('/api/cart').set(auth()).expect(200);
+    expect(restoredCart.body.items[0]).toMatchObject({
+      availability: 'AVAILABLE',
+      isSelected: false,
+    });
   });
   it('UC-04.2/AC14 don COD da tao va stock/reservation/payment/history giu nguyen ca hai huong', async () => {
     const addressId = await prepareCheckout();
