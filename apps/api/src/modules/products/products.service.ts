@@ -4,7 +4,7 @@ import { skipOf, toPage } from '../../common/pagination/page.response.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { InventoryService } from '../inventory/index.js';
-import { lockCategoryBySlug } from './category-visibility.js';
+import { isUniqueViolationError, lockCategoryBySlug } from './category-visibility.js';
 import { ListProductsQuery } from './dto/list-products.query.js';
 import { ProductListResponse, ProductResponse } from './dto/product.response.js';
 import { ProductDetailResponse } from './dto/product-detail.response.js';
@@ -186,19 +186,19 @@ export class ProductsService {
       // Suy tu slug danh muc nguon luc nap; nap lai thi cap nhat theo nguon (3.2b, ADR-019).
       audience: audienceFrom(row.attributes, row.name),
     };
-    const product = existingProductId
+    const hasImages = row.images.length > 0;
+    const product = status
       ? await tx.product.update({
-          where: { id: existingProductId },
+          where: { id: status.id },
           data: {
             ...productData,
-            ...importedContent(status!, productData),
-            ...productStatusChange(status!, status!.adminDisabled, row.images.length > 0),
+            ...importedContent(status, productData),
           },
         })
       : await tx.product.create({
           data: {
             ...productData,
-            isActive: row.images.length > 0,
+            isActive: hasImages,
             slug: sourceSlug(row.name, row.sourceKey),
           },
         });
@@ -228,19 +228,27 @@ export class ProductsService {
         const listPrice = new Prisma.Decimal(variant.listPrice);
         const salePrice =
           variant.salePrice === undefined ? null : new Prisma.Decimal(variant.salePrice);
-        await tx.productVariant.create({
-          data: {
-            sku: variant.sku,
-            productId: product.id,
-            colorId,
-            sizeId,
-            listPrice,
-            salePrice,
-            isActive: true,
-            isCustom: false,
-            adminManagedFields: [],
-          },
-        });
+        try {
+          await tx.productVariant.create({
+            data: {
+              sku: variant.sku,
+              productId: product.id,
+              colorId,
+              sizeId,
+              listPrice,
+              salePrice,
+              isActive: true,
+              isCustom: false,
+              adminManagedFields: [],
+            },
+          });
+        } catch (error) {
+          if (!isUniqueViolationError(error)) throw error;
+          throw new ImportRowError(
+            'SKU_CONFLICT',
+            `SKU ${variant.sku} hoặc tổ hợp màu/cỡ của biến thể đã tồn tại`,
+          );
+        }
       } else {
         if (
           existingVariant.productId !== product.id ||
@@ -304,26 +312,24 @@ export class ProductsService {
       where: { productId: product.id, isActive: true },
       select: { listPrice: true, salePrice: true },
     });
-    if (allActiveVariants.length > 0) {
-      priceFrom = Prisma.Decimal.min(...allActiveVariants.map((v) => v.salePrice ?? v.listPrice));
-      await tx.product.update({
-        where: { id: product.id },
-        data: { priceFrom },
-      });
-    } else {
-      const allVariants = await tx.productVariant.findMany({
-        where: { productId: product.id },
-        select: { listPrice: true, salePrice: true },
-      });
-      const fallbackPrice =
-        allVariants.length > 0
-          ? Prisma.Decimal.min(...allVariants.map((v) => v.salePrice ?? v.listPrice))
-          : priceFrom;
-      await tx.product.update({
-        where: { id: product.id },
-        data: { isActive: false, priceFrom: fallbackPrice },
-      });
-    }
+    const hasActiveVariants = allActiveVariants.length > 0;
+    const variantsForPrice = hasActiveVariants
+      ? allActiveVariants
+      : await tx.productVariant.findMany({
+          where: { productId: product.id },
+          select: { listPrice: true, salePrice: true },
+        });
+    const finalPriceFrom =
+      variantsForPrice.length > 0
+        ? Prisma.Decimal.min(...variantsForPrice.map((v) => v.salePrice ?? v.listPrice))
+        : priceFrom;
+    const finalStatus = status
+      ? productStatusChange(status, status.adminDisabled, hasImages, hasActiveVariants)
+      : { isActive: hasImages && hasActiveVariants };
+    await tx.product.update({
+      where: { id: product.id },
+      data: { ...finalStatus, priceFrom: finalPriceFrom },
+    });
 
     for (const [sortOrder, image] of row.images.entries()) {
       const colorId = image.colorCode ? (colorByCode.get(image.colorCode) ?? null) : null;
