@@ -38,6 +38,7 @@ import {
   ResendVerificationResponse,
   ResetPasswordResponse,
   VerifyEmailResponse,
+  VerifyPasswordResetOtpResponse,
 } from './dto/auth.response.js';
 import { LoginRequest, RegisterRequest } from './dto/auth-credentials.request.js';
 import { ChangePasswordRequest } from './dto/change-password.request.js';
@@ -45,6 +46,7 @@ import { ForgotPasswordRequest } from './dto/forgot-password.request.js';
 import { ResendVerificationRequest } from './dto/resend-verification.request.js';
 import { ResetPasswordRequest } from './dto/reset-password.request.js';
 import { VerifyEmailRequest } from './dto/verify-email.request.js';
+import { VerifyPasswordResetOtpRequest } from './dto/verify-password-reset-otp.request.js';
 import {
   clearRefreshCookieOptions,
   REFRESH_TOKEN_COOKIE_NAME,
@@ -182,16 +184,39 @@ export class AuthController {
     return this.auth.forgotPassword(request, ip);
   }
 
+  @Post('verify-password-reset-otp')
+  @ApiTooManyRequestsResponse({
+    description:
+      'Vuot gioi han toc do; xem header Retry-After (giay). Khong tiet lo tai khoan co ton tai hay khong.',
+  })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Xac thuc OTP dat lai mat khau va cap resetToken ngan han (dung 1 lan)',
+  })
+  @ApiOkResponse({ type: VerifyPasswordResetOtpResponse })
+  @ApiBadRequestResponse({
+    description: 'Ma xac thuc khong dung, da het han, hoac vuot qua so lan thu',
+  })
+  async verifyPasswordResetOtp(
+    @Body() request: VerifyPasswordResetOtpRequest,
+    @Ip() ip: string | undefined,
+  ): Promise<VerifyPasswordResetOtpResponse> {
+    return this.auth.verifyPasswordResetOtp(request, ip);
+  }
+
   @Post('reset-password')
   @ApiTooManyRequestsResponse({
     description:
       'Vuot gioi han toc do; xem header Retry-After (giay). Khong tiet lo tai khoan co ton tai hay khong.',
   })
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Dat lai mat khau bang OTP; khong cap phien dang nhap' })
+  @ApiOperation({
+    summary: 'Dat lai mat khau bang resetToken (hoac email+OTP); khong cap phien dang nhap',
+  })
   @ApiOkResponse({ type: ResetPasswordResponse })
   @ApiBadRequestResponse({
-    description: 'Ma OTP khong dung/het han/vuot qua so lan thu, hoac mat khau moi khong hop le',
+    description:
+      'resetToken khong hop le/het han/da dung, OTP khong dung, hoac mat khau moi khong hop le',
   })
   async resetPassword(
     @Body() request: ResetPasswordRequest,

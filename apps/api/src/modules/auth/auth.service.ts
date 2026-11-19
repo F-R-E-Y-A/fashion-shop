@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 
 import {
   BadRequestException,
@@ -11,6 +11,7 @@ import {
 
 import { OtpPurpose, Prisma, UserStatus } from '../../generated/prisma/client.js';
 import { MailService } from '../../infra/mail/mail.service.js';
+import { describeMailFailure } from '../../infra/mail/smtp-mail.service.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { AuthRateLimitService } from './auth-rate-limit.service.js';
 import type {
@@ -21,6 +22,7 @@ import type {
   ResendVerificationResponse,
   ResetPasswordResponse,
   VerifyEmailResponse,
+  VerifyPasswordResetOtpResponse,
 } from './dto/auth.response.js';
 import { LoginRequest, RegisterRequest } from './dto/auth-credentials.request.js';
 import { ChangePasswordRequest } from './dto/change-password.request.js';
@@ -28,13 +30,18 @@ import { ForgotPasswordRequest } from './dto/forgot-password.request.js';
 import { ResendVerificationRequest } from './dto/resend-verification.request.js';
 import { ResetPasswordRequest } from './dto/reset-password.request.js';
 import { VerifyEmailRequest } from './dto/verify-email.request.js';
+import { VerifyPasswordResetOtpRequest } from './dto/verify-password-reset-otp.request.js';
 import { normalizeEmail } from './email.js';
 import { OtpService } from './otp.service.js';
 import { PasswordHasherService } from './password-hasher.service.js';
-import { buildPasswordResetEmail } from './password-reset-email.js';
+import { buildPasswordChangedEmail, buildPasswordResetEmail } from './password-reset-email.js';
 import { RoleCode } from './role-code.js';
 import { TokenService } from './token.service.js';
-import { lockUserForSession, lockUserForSessionEnd } from './user-session-lock.js';
+import {
+  type LockedUserState,
+  lockUserForSession,
+  lockUserForSessionEnd,
+} from './user-session-lock.js';
 import { buildVerificationEmail } from './verification-email.js';
 
 const UNKNOWN_PASSWORD_HASH = '$2b$12$kzzzR78c851Kd4LxTJycQe/toZ7t7DbCWRLKxCDY8FpcWnrPLk48e';
@@ -47,6 +54,11 @@ interface AuthenticationResult extends AuthResponse {
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+
+  /** Synchronization hooks used for race-condition regression tests. */
+  public resetGateHook?: () => Promise<void>;
+  public verifyGateHook?: () => Promise<void>;
+  public changePasswordGateHook?: () => Promise<void>;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -278,6 +290,12 @@ export class AuthService {
         purpose: OtpPurpose.PASSWORD_RESET,
         userId: user.id,
       });
+      if (issued) {
+        await transaction.passwordResetGrant.updateMany({
+          where: { userId: user.id, consumedAt: null },
+          data: { consumedAt: new Date() },
+        });
+      }
       return issued?.code ?? null;
     });
     if (!issuedCode) return accepted;
@@ -292,30 +310,38 @@ export class AuthService {
   }
 
   /**
-   * Changes the password on a correct, unexpired, not-yet-exhausted PASSWORD_RESET OTP, and revokes
-   * every refresh session the user currently holds (not just one family) so a stolen/old session
-   * cannot survive a password reset. Follows the exact same outcome-after-transaction discipline as
-   * verifyEmail(): nothing throws inside the transaction for an expected outcome, so the OTP
-   * consumption, password change, and session revocation either all commit together or none do —
-   * there is no state where the password changed but the OTP is still usable, or vice versa.
-   *
-   * The same transaction also bumps `authVersion`, so every access token issued before the reset
-   * (which carries the old `ver`) is rejected by AuthGuard immediately instead of surviving until
-   * its own TTL. There is no per-token blacklist: the version compare is enough and needs no cache.
+   * Verifies a PASSWORD_RESET OTP and issues a single-use, 10-minute opaque reset grant token.
+   * Does NOT log the user in.
    */
-  async resetPassword(
-    request: ResetPasswordRequest,
+  async verifyPasswordResetOtp(
+    request: VerifyPasswordResetOtpRequest,
     ip: string | undefined,
-  ): Promise<ResetPasswordResponse> {
-    await this.limits.enforce('RESET_PASSWORD', { ip });
+  ): Promise<VerifyPasswordResetOtpResponse> {
     const email = normalizeEmail(request.email);
+    await this.limits.enforce('VERIFY_PASSWORD_RESET_OTP', { ip });
+
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true, status: true, authVersion: true },
+    });
+    if (!user || user.status !== UserStatus.ACTIVE) {
+      throw this.otpInvalid();
+    }
+
+    if (this.verifyGateHook) {
+      await this.verifyGateHook();
+    }
+
+    const rawToken = randomBytes(32).toString('hex');
+    const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 10 * 60 * 1000);
 
     const outcome = await this.prisma.$transaction(async (transaction) => {
-      const user = await transaction.user.findUnique({
-        where: { email },
-        select: { id: true, status: true },
-      });
-      if (!user || user.status !== UserStatus.ACTIVE) return { status: 'INVALID' } as const;
+      const locked = await lockUserForSession(transaction, user.id);
+      if (!locked || locked.status !== UserStatus.ACTIVE) {
+        return { status: 'INVALID' } as const;
+      }
 
       const result = await this.otp.verify(transaction, {
         email,
@@ -324,6 +350,172 @@ export class AuthService {
       });
       if (result.status !== 'VERIFIED') return result;
 
+      await transaction.passwordResetGrant.updateMany({
+        where: { userId: user.id, consumedAt: null },
+        data: { consumedAt: now },
+      });
+
+      await transaction.passwordResetGrant.create({
+        data: {
+          userId: user.id,
+          tokenHash,
+          authVersion: locked.authVersion,
+          expiresAt,
+        },
+      });
+
+      return { status: 'VERIFIED' } as const;
+    });
+
+    switch (outcome.status) {
+      case 'VERIFIED':
+        return { resetToken: rawToken };
+      case 'EXPIRED':
+        throw this.otpExpired();
+      case 'ATTEMPTS_EXCEEDED':
+        throw this.otpAttemptsExceeded();
+      case 'INVALID':
+        throw this.otpInvalid();
+    }
+  }
+
+  /**
+   * Resets password using either a verified opaque resetToken (Step 3 of 3-step flow)
+   * or legacy { email, code, newPassword } for backwards compatibility.
+   * Acquires user lock FOR NO KEY UPDATE, enforces CAS check on authVersion for grants,
+   * bumps authVersion to invalidate old sessions/grants, revokes refresh tokens,
+   * and sends an email notification with a 3-second timeout outside the transaction.
+   */
+  async resetPassword(
+    request: ResetPasswordRequest,
+    ip: string | undefined,
+  ): Promise<ResetPasswordResponse> {
+    await this.limits.enforce('RESET_PASSWORD', { ip });
+
+    if (this.resetGateHook) {
+      await this.resetGateHook();
+    }
+
+    if (request.resetToken) {
+      const tokenHash = createHash('sha256').update(request.resetToken).digest('hex');
+      const now = new Date();
+
+      const outcome = await this.prisma.$transaction(async (transaction) => {
+        const grant = await transaction.passwordResetGrant.findUnique({
+          where: { tokenHash },
+          include: { user: { select: { id: true, email: true } } },
+        });
+
+        if (!grant) {
+          return { status: 'GRANT_INVALID' } as const;
+        }
+        if (grant.consumedAt !== null) {
+          return { status: 'GRANT_EXHAUSTED' } as const;
+        }
+        if (grant.expiresAt <= now) {
+          return { status: 'GRANT_EXPIRED' } as const;
+        }
+
+        const rows = await transaction.$queryRaw<LockedUserState[]>`
+          SELECT "status"::text AS "status", "auth_version" AS "authVersion"
+          FROM "users"
+          WHERE "id" = ${grant.userId}::uuid
+          FOR NO KEY UPDATE
+        `;
+        const lockedUser = rows[0];
+        if (!lockedUser || lockedUser.status !== UserStatus.ACTIVE) {
+          return { status: 'GRANT_INVALID' } as const;
+        }
+
+        if (lockedUser.authVersion !== grant.authVersion) {
+          return { status: 'GRANT_STALE' } as const;
+        }
+
+        const claimTime = new Date();
+        if (grant.expiresAt <= claimTime) {
+          return { status: 'GRANT_EXPIRED' } as const;
+        }
+
+        const grantClaimed = await transaction.passwordResetGrant.updateMany({
+          where: { id: grant.id, consumedAt: null, expiresAt: { gt: claimTime } },
+          data: { consumedAt: claimTime },
+        });
+        if (grantClaimed.count === 0) {
+          const freshGrant = await transaction.passwordResetGrant.findUnique({
+            where: { id: grant.id },
+            select: { consumedAt: true, expiresAt: true },
+          });
+          if (freshGrant && freshGrant.consumedAt === null && freshGrant.expiresAt <= claimTime) {
+            return { status: 'GRANT_EXPIRED' } as const;
+          }
+          return { status: 'GRANT_EXHAUSTED' } as const;
+        }
+
+        const passwordHash = await this.passwordHasher.hash(request.newPassword);
+        await transaction.user.update({
+          where: { id: grant.userId },
+          data: { passwordHash, authVersion: { increment: 1 } },
+        });
+
+        await transaction.refreshToken.updateMany({
+          where: { userId: grant.userId, revokedAt: null },
+          data: { revokedAt: claimTime },
+        });
+
+        return { status: 'RESET', email: grant.user.email } as const;
+      });
+
+      switch (outcome.status) {
+        case 'RESET':
+          await this.sendPasswordChangedNotificationWithTimeout(outcome.email);
+          return { reset: true };
+        case 'GRANT_STALE':
+          throw this.resetGrantStale();
+        case 'GRANT_EXPIRED':
+          throw this.resetGrantExpired();
+        case 'GRANT_EXHAUSTED':
+          throw this.resetGrantExhausted();
+        case 'GRANT_INVALID':
+          throw this.resetGrantInvalid();
+      }
+    }
+
+    if (!request.email || !request.code) {
+      throw this.otpInvalid();
+    }
+
+    const email = normalizeEmail(request.email);
+    const now = new Date();
+
+    const outcome = await this.prisma.$transaction(async (transaction) => {
+      const user = await transaction.user.findUnique({
+        where: { email },
+        select: { id: true, status: true },
+      });
+      if (!user || user.status !== UserStatus.ACTIVE) return { status: 'INVALID' } as const;
+
+      const rows = await transaction.$queryRaw<LockedUserState[]>`
+        SELECT "status"::text AS "status", "auth_version" AS "authVersion"
+        FROM "users"
+        WHERE "id" = ${user.id}::uuid
+        FOR NO KEY UPDATE
+      `;
+      const lockedUser = rows[0];
+      if (!lockedUser || lockedUser.status !== UserStatus.ACTIVE)
+        return { status: 'INVALID' } as const;
+
+      const result = await this.otp.verify(transaction, {
+        email,
+        purpose: OtpPurpose.PASSWORD_RESET,
+        code: request.code!,
+      });
+      if (result.status !== 'VERIFIED') return result;
+
+      await transaction.passwordResetGrant.updateMany({
+        where: { userId: user.id, consumedAt: null },
+        data: { consumedAt: now },
+      });
+
       const passwordHash = await this.passwordHasher.hash(request.newPassword);
       await transaction.user.update({
         where: { id: user.id },
@@ -331,13 +523,14 @@ export class AuthService {
       });
       await transaction.refreshToken.updateMany({
         where: { userId: user.id, revokedAt: null },
-        data: { revokedAt: new Date() },
+        data: { revokedAt: now },
       });
-      return result;
+      return { status: 'VERIFIED', email } as const;
     });
 
     switch (outcome.status) {
       case 'VERIFIED':
+        await this.sendPasswordChangedNotificationWithTimeout(outcome.email);
         return { reset: true };
       case 'EXPIRED':
         throw this.otpExpired();
@@ -386,6 +579,10 @@ export class AuthService {
     if (sameAsCurrent) throw this.newPasswordSameAsCurrent();
 
     const newPasswordHash = await this.passwordHasher.hash(request.newPassword);
+
+    if (this.changePasswordGateHook) {
+      await this.changePasswordGateHook();
+    }
 
     const outcome = await this.prisma.$transaction(async (transaction) => {
       const updated = await transaction.user.updateMany({
@@ -622,6 +819,54 @@ export class AuthService {
       error: 'OTP_ATTEMPTS_EXCEEDED',
       message: 'Da nhap sai qua so lan cho phep, hay yeu cau ma moi',
     });
+  }
+
+  private resetGrantInvalid(): BadRequestException {
+    return new BadRequestException({
+      error: 'RESET_GRANT_INVALID',
+      message: 'Yeu cau dat lai mat khau khong hop le hoac da het han',
+    });
+  }
+
+  private resetGrantExpired(): BadRequestException {
+    return new BadRequestException({
+      error: 'RESET_GRANT_EXPIRED',
+      message: 'Phien dat lai mat khau da het han, hay yeu cau ma moi',
+    });
+  }
+
+  private resetGrantExhausted(): BadRequestException {
+    return new BadRequestException({
+      error: 'RESET_GRANT_EXHAUSTED',
+      message: 'Yeu cau dat lai mat khau da duoc su dung',
+    });
+  }
+
+  private resetGrantStale(): BadRequestException {
+    return new BadRequestException({
+      error: 'RESET_GRANT_STALE',
+      message: 'Trang thai tai khoan hoac mat khau da thay doi, vui long yeu cau ma moi',
+    });
+  }
+
+  private async sendPasswordChangedNotificationWithTimeout(email: string): Promise<void> {
+    const EMAIL_TIMEOUT_MS = 3_000;
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      await Promise.race([
+        this.mail.send(buildPasswordChangedEmail({ to: email, changedAt: new Date() })),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error('ETIMEDOUT')), EMAIL_TIMEOUT_MS);
+          if (typeof timer.unref === 'function') {
+            timer.unref();
+          }
+        }),
+      ]);
+    } catch (error) {
+      this.logger.warn(`Gui email thong bao doi mat khau that bai (${describeMailFailure(error)})`);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
   }
 
   private customerRoleMissing(): InternalServerErrorException {

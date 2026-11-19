@@ -1,6 +1,6 @@
 ---
 title: Tài khoản và xác thực — nhật ký quyết định và thay đổi
-updated: 2026-09-30
+updated: 2026-11-14
 status: đang dùng
 owner: Tài
 ---
@@ -630,3 +630,27 @@ Thực tế (18/10, chưa commit):
 - Cần đăng xuất tức thì cả access token.
 - Trình duyệt mục tiêu không có Web Locks hay `BroadcastChannel`.
 - Có dữ liệu cho thấy tab bị xóa trạng thái vì đăng nhập lại cùng tài khoản gây phiền.
+
+---
+
+<a id="adr-073"></a>
+
+## 2026-11-14 · ADR-073 — Luồng quên mật khẩu ba bước với `PasswordResetGrant` ngắn hạn và kiểm soát tranh chấp
+
+**Loại:** quyết định · **Phạm vi:** Auth API & Web (`apps/api/src/modules/auth`, `apps/web/src/features/account`, `identity.prisma`) · **Trạng thái:** đề xuất · **Người quyết:** Tài · **Commit:** (điền khi thi hành)
+
+### Bối cảnh
+Luồng cũ gộp email, OTP và mật khẩu mới ở `/dat-lai-mat-khau`, khiến người dùng nhập mật khẩu mới xong mới biết OTP sai/hết hạn và phải thao tác lại. Cần tách thành 3 bước `Email → Xác thực OTP → Đặt lại mật khẩu` nhưng vẫn bảo đảm tương thích rollout (API trước, web sau) và an toàn trước các kịch bản đua (resend/verify/reset/change-password/lock).
+
+### Quyết định
+- **Grant opaque ngắn hạn:** `POST /api/auth/verify-password-reset-otp` xác thực OTP (dưới advisory lock), consume OTP và tạo `PasswordResetGrant` (token opaque 32-byte hex, chỉ lưu `token_hash` SHA-256 trên DB, hạn 10 phút, dùng 1 lần, gắn `auth_version` tại thời điểm cấp).
+- **Dual-contract trên `POST /api/auth/reset-password`:** Chấp nhận `{ resetToken, newPassword }` hoặc payload cũ `{ email, code, newPassword }` với `@Validate(ResetPasswordProofConstraint)` trên field bắt buộc để từ chối 400 trước DB/hash khi thiếu proof.
+- **Kiểm soát tranh chấp và hết hạn:**
+  - `forgotPassword` chỉ thu hồi grant chưa dùng khi `OtpService.issue()` thực sự phát mã mới (`issued !== null`).
+  - `resetPassword` khóa dòng `users` bằng `FOR NO KEY UPDATE`, kiểm tra `status === ACTIVE`, `authVersion === grant.authVersion`, rồi mới lấy `claimTime = new Date()` để kiểm tra `expiresAt > claimTime` và consume có điều kiện (`consumedAt: null, expiresAt: { gt: claimTime }`).
+- **Bảo vệ phía client (`ResetPasswordPage`):** `resetToken` chỉ giữ trong React state memory; lưu `step` trong `location.state` để khi reload mất grant sẽ hướng dẫn người dùng **Yêu cầu mã mới**; dùng generation counter + `activeEmailRef` để hủy bỏ kết quả verify/resend đến muộn khi người dùng đổi email.
+- **Email thông báo sau commit:** Gửi bằng `MailService` với timeout 3 giây, không làm fail phản hồi HTTP 200 của `resetPassword`.
+
+### Hậu quả
+- Tách biệt được bước xác thực OTP và đặt mật khẩu mà không phải giữ OTP sống qua bước 3 hoặc đưa token ra `localStorage`/URL.
+- Dual-contract cho phép triển khai API và Web độc lập mà không gián đoạn bản web cũ trong thời gian rollout.
