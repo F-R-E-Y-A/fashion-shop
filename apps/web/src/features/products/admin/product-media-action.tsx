@@ -232,11 +232,13 @@ export function useProductMediaAction(product: AdminCatalogDetail | undefined) {
   const [reloading, setReloading] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  const uploadingRef = useRef(false);
   const mountedRef = useRef(false);
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      uploadingRef.current = false;
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
@@ -536,7 +538,7 @@ export function useProductMediaAction(product: AdminCatalogDetail | undefined) {
 
   // Tải ảnh mới lên kho qua ticket product (dùng chung cho chọn tệp và kéo-thả tệp)
   const uploadFiles = async (files: readonly File[]) => {
-    if (files.length === 0 || !product || busy || uncertain) return;
+    if (files.length === 0 || !product || busy || uncertain || uploadingRef.current) return;
 
     if (!uploadsEnabled) {
       showNotice({
@@ -583,6 +585,7 @@ export function useProductMediaAction(product: AdminCatalogDetail | undefined) {
     setUploadErrors(newErrors);
     if (validFiles.length === 0) return;
 
+    uploadingRef.current = true;
     setUploadingCount((c) => c + validFiles.length);
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -669,6 +672,7 @@ export function useProductMediaAction(product: AdminCatalogDetail | undefined) {
         });
       }
     } finally {
+      uploadingRef.current = false;
       if (abortControllerRef.current === controller) {
         abortControllerRef.current = null;
       }
@@ -1495,10 +1499,18 @@ export function ProductMediaSection({
     }
   };
 
+  const leaveItemDrag = (e: DragEvent<HTMLElement>, targetIndex: number) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+      setFileDragOver(false);
+      setDropIndex((prev) => (prev === targetIndex ? null : prev));
+    }
+  };
+
   const dropOnItem = (e: DragEvent<HTMLElement>, targetIndex: number) => {
     const droppedFiles = e.dataTransfer?.files;
     if (droppedFiles && droppedFiles.length > 0) {
       e.preventDefault();
+      e.stopPropagation();
       setFileDragOver(false);
       setDragIndex(null);
       setDropIndex(null);
@@ -1509,6 +1521,7 @@ export function ProductMediaSection({
     }
     if (!canReorderDrag) return;
     e.preventDefault();
+    e.stopPropagation();
     const raw = e.dataTransfer?.getData('text/plain') ?? '';
     const sourceIndex = dragIndex ?? (raw ? Number.parseInt(raw, 10) : Number.NaN);
     setDragIndex(null);
@@ -1702,10 +1715,15 @@ export function ProductMediaSection({
               setFileDragOver(true);
             }
           }}
-          onDragLeave={() => setFileDragOver(false)}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+              setFileDragOver(false);
+            }
+          }}
           onDrop={(e) => {
             if (e.dataTransfer?.files?.length) {
               e.preventDefault();
+              e.stopPropagation();
               setFileDragOver(false);
               if (canAddMore) void handleFilesDropped(e.dataTransfer.files);
             }
@@ -1741,6 +1759,7 @@ export function ProductMediaSection({
             onDrop={(e) => {
               if (e.dataTransfer?.files?.length) {
                 e.preventDefault();
+                e.stopPropagation();
                 setFileDragOver(false);
                 if (canAddMore) void handleFilesDropped(e.dataTransfer.files);
               }
@@ -1775,6 +1794,11 @@ export function ProductMediaSection({
                     onClick={() => jumpToCard(img.id)}
                     onDragStart={(e) => beginDrag(e, index)}
                     onDragOver={(e) => hoverItemDrag(e, index)}
+                    onDragLeave={(e) => {
+                      if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                        setDropIndex((prev) => (prev === index ? null : prev));
+                      }
+                    }}
                     onDrop={(e) => dropOnItem(e, index)}
                     onDragEnd={endDrag}
                   >
@@ -1801,7 +1825,14 @@ export function ProductMediaSection({
             </div>
           </div>
 
-          <div className={styles.mediaGrid}>
+          <div
+            className={styles.mediaGrid}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                setFileDragOver(false);
+              }
+            }}
+          >
             {items.map((img, index) => {
               const position = index + 1;
               const isPrimary = index === 0;
@@ -1829,6 +1860,7 @@ export function ProductMediaSection({
                     beginDrag(e, index);
                   }}
                   onDragOver={(e) => hoverItemDrag(e, index)}
+                  onDragLeave={(e) => leaveItemDrag(e, index)}
                   onDrop={(e) => dropOnItem(e, index)}
                   onDragEnd={endDrag}
                   key={img.id}
