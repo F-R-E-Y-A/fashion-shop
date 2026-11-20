@@ -1,6 +1,6 @@
 ---
 title: Payments — nhật ký
-updated: 2026-10-28
+updated: 2026-11-20
 status: đang dùng
 owner: Bảo
 ---
@@ -90,3 +90,46 @@ Bằng chứng: `npx vitest run src/modules/payments test/checkout-refund.http.s
 Chưa đối chiếu được trang đặc tả: `developers.momo.vn` trả 403 cho công cụ đọc; thứ tự trường ký lấy từ kết quả tìm kiếm trên trang [Reverse & Refund](https://developers.momo.vn/v3/docs/payment/api/payment-api/refund/) (suy luận, cần mở trang bằng trình duyệt để xác nhận). Phản hồi refund không kiểm chữ ký, giống `query`: chỉ nhận từ allowlist HTTPS và khớp `partnerCode`, `orderId`, `requestId`, `amount`. Chưa thử MoMo sandbox thật.
 
 Bằng chứng: `npx vitest run src/modules/payments/momo.adapter.spec.ts` → 8 test đạt; `npx vitest run --project http test/checkout-momo.http.spec.ts test/checkout-refund.http.spec.ts` → 2 tệp, 19 test đạt, gồm khách hủy đơn trả MoMo ra `REFUNDED` và MoMo từ chối thì đơn vẫn hủy, lệnh giữ chờ, bấm lại không gửi lệnh thứ hai. Tài liệu đã sửa theo: [README.md](README.md) mục hoàn tiền.
+
+<a id="adr-111"></a>
+## 2026-11-20 · ADR-111 — Đơn trả trước được hoàn tay bằng mã chuyển khoản, cổng hoàn qua API bật theo môi trường
+
+**Loại:** quyết định · **Phạm vi:** Payments, Checkout, Returns, trang đơn admin; ADMIN vận hành staging · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- Tại `8e539fd`, hệ thống coi cổng có hàm `refund` và đủ khoá là hoàn được, không xét môi trường: [checkout.service.ts:422](https://github.com/F-R-E-Y-A/fashion-shop/blob/8e539fd/apps/api/src/modules/checkout/checkout.service.ts#L422) (`selfRefundablePayment`), [:583](https://github.com/F-R-E-Y-A/fashion-shop/blob/8e539fd/apps/api/src/modules/checkout/checkout.service.ts#L583) (`refundPayment`), [order-admin.service.ts:133](https://github.com/F-R-E-Y-A/fashion-shop/blob/8e539fd/apps/api/src/modules/checkout/order-admin.service.ts#L133) (nút hoàn trang đơn admin).
+- Đơn trả trước không có đường hoàn ngoài cổng; COD thì có, qua `recordManualRefund` [checkout.service.ts:810](https://github.com/F-R-E-Y-A/fashion-shop/blob/8e539fd/apps/api/src/modules/checkout/checkout.service.ts#L810), gọi từ trả hàng nhánh `BANK_TRANSFER` [admin-returns.service.ts:143](https://github.com/F-R-E-Y-A/fashion-shop/blob/8e539fd/apps/api/src/modules/returns/admin-returns.service.ts#L143), mà [return-rows.ts:47](https://github.com/F-R-E-Y-A/fashion-shop/blob/8e539fd/apps/api/src/modules/returns/return-rows.ts#L47) chỉ trả `BANK_TRANSFER` cho COD.
+- Staging: hai lệnh hoàn VNPAY cho yêu cầu trả `14c1b42f…` đều quá 8 s (18/11; lần đầu chốt `FAILED`, lần hai còn treo). Ngày 20/11 06:17Z, `POST /api/orders/:id/reconcile` trên Render mất 8,14 s và 8,12 s, `last_checked_at` lùi 280 s (vào nhánh `backoff`); cùng phút, `curl -d {}` từ máy local tới `sandbox.vnpayment.vn/merchant_webapi/api/transaction` trả 200 trong 0,13–0,16 s, 3/3 lần. Timeout cứng 8000 ms ở [vnpay.service.ts:124](../../../apps/api/src/modules/payments/vnpay.service.ts#L124) và [:191](../../../apps/api/src/modules/payments/vnpay.service.ts#L191).
+- Nguyên nhân, đo ngày 20/11 khoảng 09:00Z bằng check-host.net: `curl "https://check-host.net/check-tcp?host=sandbox.vnpayment.vn:443&max_nodes=40"` rồi đọc `check-result/<id>` → node Việt Nam `vn1` nối được trong 0,055 s, 38 node nước khác `Connection timed out`, 1 node không trả kết quả; dò riêng `sg1`, `hk1`, `jp1`, `vn1` → chỉ `vn1` nối được; đối chứng `pay.vnpay.vn:443` → 40/40 node nối được. Log Render 7 ngày chỉ có `VNPAY query unavailable (TimeoutError)` lặp lại, không có dòng phản hồi nào của VNPAY. Kết luận: `sandbox.vnpayment.vn` (103.220.84.173) chỉ nhận kết nối TCP từ IP Việt Nam, nên máy chủ đặt ở Singapore không gọi được `merchant_webapi`, cả `refund` lẫn `querydr`; không phải lỗi mã, không phải Render chặn chiều ra. Riêng việc chính dải IP ra của Render bị bỏ gói là suy luận: gói Free không có Shell để đo từ trong máy chủ.
+- Chưa có lần hoàn VNPAY sandbox thật nào thành công, kể cả từ máy ở Việt Nam ([ADR-036](#adr-036), phần Thực tế 28/10: "chưa thử Refund API sandbox thật"); `curl -d {}` ở trên chỉ chứng minh nối được.
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Tăng timeout, gọi lại VNPAY | Không đổi luồng | Không chữa được: VNPAY sandbox bỏ gói TCP từ IP ngoài Việt Nam, chờ lâu hơn vẫn không có phản hồi; mỗi lần thử để thêm một lệnh treo | Có |
+| **B. Cờ `REFUND_GATEWAYS` + hoàn tay bằng `transferReference` (chọn)** | Đóng được mọi ca treo bằng sổ có mã đối chiếu; staging không còn tạo lệnh treo VNPAY | ADMIN chuyển khoản ngoài hệ thống; khách không tự hủy-hoàn đơn `CONFIRMED` của cổng bị tắt | Có: bỏ biến là về như cũ |
+| C. Chỉ thêm hoàn tay, không cờ | Ít mã | Nút hoàn qua cổng vẫn hiện trên staging và tiếp tục treo | Có |
+| Không làm gì | — | Lệnh treo không có cách đóng ngoài chốt `SUCCEEDED` sai sự thật | — |
+
+**Chọn B** (Bảo chọn R1 ngày 20/11). `REFUND_GATEWAYS` ([env.ts:112](../../../apps/api/src/infra/config/env.ts#L112)): bỏ trống là mọi cổng có refund, `none` là tắt hết, còn lại là danh sách mã cổng. `GatewayRegistry.autoRefund` ([gateway-registry.ts:34](../../../apps/api/src/modules/payments/gateway-registry.ts#L34)) đọc cờ mỗi lần gọi; `CheckoutService.autoRefund` là facade cho returns. `POST /api/admin/payments/:id/refund` có `transferReference` thì gọi `refundManually` ([checkout.service.ts:675](../../../apps/api/src/modules/checkout/checkout.service.ts#L675)), ghi `REFUND:MANUAL:{mã}` dưới khoá đơn bằng `recordManualRefund`; còn lệnh qua cổng chưa chốt thì 409 `REFUND_PENDING`, đơn `CONFIRMED` thì 409, payment COD thì 409 (COD hoàn qua trả hàng). Trang đơn admin nhận `refundMode` `GATEWAY`/`MANUAL` và hiện ô mã chuyển khoản. Trả hàng: `refundMethodOf` trả `BANK_TRANSFER` cho COD và cổng bị tắt; đơn trả trước gửi kèm `transferReference` cũng đi nhánh tay, và dòng `refunds` đã có từ lần gọi cổng được cập nhật thành `SUCCEEDED` thay vì tạo dòng thứ hai. Staging đặt `REFUND_GATEWAYS=MOMO,MOMO_ATM` trong `render.yaml`.
+
+Trade-off chấp nhận: cổng tắt hoàn tự động thì đơn `CONFIRMED` không hủy-hoàn được, cả khách lẫn ADMIN (`actions.cancelRefund` false, `POST /api/admin/orders/:id/cancel-refund` 409, có test); chưa có nút hủy kèm hoàn tay, để mở. Yêu cầu trả tạo lúc cổng còn bật không có tài khoản nhận của khách, ADMIN phải hỏi lại khách. Ghi đè bằng `transferReference` khi cổng vẫn bật chỉ có ở API trả hàng, trang trả hàng admin chưa có ô nhập.
+
+### Phản biện
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| AI gợi ý | Claude Opus 5.5: đề xuất R1 (hoàn tay + cờ môi trường) và chỉ ra giới hạn đơn `CONFIRMED` | giữ |
+| AI sai | Claude ghi trước số ADR-074 theo ghi chú cũ; grep `adr-[0-9]{3}` cho số lớn nhất 109 và PR #155 đang giữ 110 | Claude tự bắt bằng grep và `gh pr diff` |
+| AI sai | Claude ghi "gọi hoàn lại" như việc chưa làm, trong khi đã gọi ngày 18/11 | Claude bắt khi đọc lại sổ đo, báo Bảo |
+| AI sai | Claude ghi "trả tiền và IPN vẫn chạy vì là chiều vào" vào `staging.md`; IPN về staging chưa có bằng chứng (Render Free tắt Request logs) | Claude bắt khi rà log Render ngày 20/11, sửa lại câu |
+| Câu hỏi phản biện | Bảo: kiểm lại vấn đề thật sự, không dừng ở "suy luận lọc theo IP" | Dò TCP từ 40 node cho bằng chứng ở Hiện trạng |
+
+**Kết luận:** hoàn tay là đường đóng ca chính thức cho mọi cổng; cổng hoàn qua API bật theo môi trường.
+**Bằng chứng:** `npx vitest run test/checkout-refund.http.spec.ts test/returns.http.spec.ts` (thư mục `apps/api`) → 29 test đạt; `npx vitest run src/features/checkout/admin` (thư mục `apps/web`) → 48 test đạt. Link theo commit điền khi đẩy.
+
+### Kết quả mong đợi → thực tế
+Mong đợi: sau khi gộp và Render dựng lại, trang đơn VNPAY đã giao trên staging hiện ô mã chuyển khoản; yêu cầu trả `14c1b42f…` đóng được bằng hoàn tay sau khi chốt `FAILED` lệnh `1c92a855…`, không thêm lệnh gửi VNPAY.
+Thực tế: <điền sau>.
+
+### Điều kiện xem lại
+Máy chủ có đường ra bằng IP Việt Nam tới `merchant_webapi` và một lệnh `refund` sandbox thật trả `00` (dò lại bằng lệnh check-host ở Hiện trạng); VNPAY sandbox mở cho IP nước ngoài; chuyển sang VNPAY production; có nhu cầu hủy-hoàn đơn `CONFIRMED` khi cổng bị tắt.
