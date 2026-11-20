@@ -1,6 +1,6 @@
 ---
 title: Môi trường thử — dựng và vận hành
-updated: 2026-11-17
+updated: 2026-11-20
 status: đang dùng
 owner: Bảo
 ---
@@ -145,13 +145,15 @@ Diễn tập ngày 12/11 trên máy, không chạm Render. Nguồn là DB dev `f
 | Log triển khai | GitHub → **Actions** → **CD staging** |
 | Quay về bản trước | Render → **Events** → lượt cũ → **Rollback**; Vercel → **Deployments** → lượt cũ → **Promote to Production** |
 
-## Bảy cái bẫy đã biết
+## Tám cái bẫy đã biết
 
 **Gọi lần đầu rất chậm.** Gói miễn phí của Render cho máy chủ ngủ sau một thời gian không ai dùng, đánh thức mất khoảng một phút. Lúc trình bày thì mở trang trước vài phút. Bước đợi trong `cd-staging.yml` đã cho tới 10 phút vì lý do này.
 
 **Máy chủ treo hẳn sau một quãng không ai gọi.** Ngày 08/11 API treo nhiều lần: log dừng, `/api/healthz` giữ kết nối mà không trả lời, Restart không sinh dòng log nào, chỉ Manual Deploy chữa được. Lần có request đều đặn (gọi `healthz` mỗi 30 giây, 19:24–19:55) thì không treo; các lần treo quan sát được đều sau một quãng log không có request (sau 12:32, sau 21:51). Bản có cache catalog (`489b0b3`) vẫn treo, nên không phải do nạp catalog. Nguyên nhân phía Render chưa rõ (suy luận: đánh thức thất bại), chưa gửi ticket. Cách giữ: một dịch vụ ping ngoài (Bảo chọn UptimeRobot) gọi `/api/healthz` khoảng 5–10 phút một lần [TBD — Bảo xác nhận đã bật]. Treo thì Render → **Manual Deploy → Deploy latest commit**.
 
 **Sửa `render.yaml` là Render tự deploy.** Dịch vụ do Blueprint quản lý, nên khi `render.yaml` trên `develop` đổi, Render đồng bộ và dựng lại ngay lúc gộp (trigger "Blueprint"), dù `autoDeployTrigger: off`. Lượt CD sau đó gọi hook dựng thêm một lần nữa; không hại, chỉ tốn vài phút.
+
+**VNPAY sandbox chỉ nhận kết nối từ IP Việt Nam, nên staging không gọi ra được API của nó.** Ngày 20/11, `POST /api/orders/:id/reconcile` từ staging mất 8,14 s và 8,12 s rồi vào nhánh lùi lịch (`last_checked_at` lùi 280 s), tức `querydr` không có phản hồi trong 8 s; cùng phút, `curl` từ máy local tới cùng endpoint trả 200 trong 0,13–0,16 s, 3/3 lần. Dò TCP cổng 443 của `sandbox.vnpayment.vn` từ 40 node của check-host.net cùng ngày: chỉ node Việt Nam nối được (0,055 s), 38 node nước khác timeout, gồm Singapore, Hong Kong, Nhật; `pay.vnpay.vn` thì 40/40 nối được (lệnh và số đo ở [ADR-111](../payments/LOG.md#adr-111)). Đây là lọc phía VNPAY, không phải Render chặn chiều ra và không phải lỗi mã; đổi sang cloud nước ngoài khác không chữa được. Riêng việc dải IP ra của Render bị bỏ gói là suy luận, vì gói Free không có Shell để đo từ trong máy chủ. Khách trả tiền vẫn được: trình duyệt của khách tự mở trang VNPAY và return có chữ ký chốt đơn. IPN từ VNPAY về staging **chưa có bằng chứng** (Render Free tắt Request logs). Vì vậy `render.yaml` đặt hai biến: `REFUND_GATEWAYS=MOMO,MOMO_ATM` để đơn VNPAY hoàn tay bằng mã chuyển khoản ([ADR-111](../payments/LOG.md#adr-111), đề xuất), và `QUERY_GATEWAYS=MOMO,MOMO_ATM` để worker và nút đối soát thôi gọi QueryDR treo 8 s mỗi phút ([ADR-112](../payments/LOG.md#adr-112), đề xuất). Hệ quả: khách trả VNPAY xong mà đóng tab trước khi về trang kết quả thì đơn chỉ còn trông vào IPN. Có đường ra bằng IP Việt Nam thì bỏ hai biến.
 
 **Đổi địa chỉ máy chủ phải dựng lại giao diện.** Xem bước 2.3.
 

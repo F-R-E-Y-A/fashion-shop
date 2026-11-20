@@ -133,3 +133,41 @@ Thực tế: <điền sau>.
 
 ### Điều kiện xem lại
 Máy chủ có đường ra bằng IP Việt Nam tới `merchant_webapi` và một lệnh `refund` sandbox thật trả `00` (dò lại bằng lệnh check-host ở Hiện trạng); VNPAY sandbox mở cho IP nước ngoài; chuyển sang VNPAY production; có nhu cầu hủy-hoàn đơn `CONFIRMED` khi cổng bị tắt.
+
+<a id="adr-112"></a>
+## 2026-11-20 · ADR-112 — Cổng nào được gọi API truy vấn kết quả là cấu hình theo môi trường; staging tắt QueryDR của VNPAY
+
+**Loại:** quyết định · **Phạm vi:** Payments, Checkout (worker đối soát, `POST /api/orders/:id/reconcile`); staging trên Render · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- Tại `8e539fd`, worker đối soát chạy 30 giây một lần ([settlement.service.ts:39](https://github.com/F-R-E-Y-A/fashion-shop/blob/8e539fd/apps/api/src/modules/checkout/settlement.service.ts#L39)), lấy payment chưa `SUCCEEDED` trong 24 giờ của mọi cổng trừ COD ([payments.service.ts:125](https://github.com/F-R-E-Y-A/fashion-shop/blob/8e539fd/apps/api/src/modules/payments/payments.service.ts#L125)) rồi gọi `adapter.query`; không tới được cổng thì lùi 30 giây và thử lại ([settlement.service.ts:143](https://github.com/F-R-E-Y-A/fashion-shop/blob/8e539fd/apps/api/src/modules/checkout/settlement.service.ts#L143)). Không có cách tắt theo môi trường.
+- `sandbox.vnpayment.vn` chỉ nhận kết nối TCP từ IP Việt Nam (số đo ở [ADR-111](#adr-111)), nên trên staging ở Singapore mọi lần `querydr` treo đủ 8 s ([vnpay.service.ts:124](https://github.com/F-R-E-Y-A/fashion-shop/blob/8e539fd/apps/api/src/modules/payments/vnpay.service.ts#L124)). Log Render ngày 20/11, xem lùi 7 ngày: `WARN [SettlementService] VNPAY query unavailable (TimeoutError); retry soon.` lặp lại khoảng mỗi phút, không có lần QueryDR nào thành công. `POST /api/orders/:id/reconcile` không kèm return có chữ ký giữ khách 8,14 s và 8,12 s (đo 20/11 06:17Z).
+- Chốt đơn không phụ thuộc QueryDR: return có chữ ký tự chốt ([settlement.service.ts:116](https://github.com/F-R-E-Y-A/fashion-shop/blob/8e539fd/apps/api/src/modules/checkout/settlement.service.ts#L116)), IPN cũng chốt. IPN từ VNPAY về staging chưa có bằng chứng: Render Free tắt Request logs.
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Giãn lịch thử lại khi timeout liên tiếp | Tự thích nghi, không thêm biến | Vẫn gọi treo, chỉ thưa hơn; thêm trạng thái đếm lỗi; nút đối soát vẫn chờ 8 s | Có |
+| **B. Cờ `QUERY_GATEWAYS`, cùng dạng `REFUND_GATEWAYS` (chọn)** | Staging hết lệnh gọi treo và hết dòng WARN mỗi phút; bỏ trống là mọi cổng nên local và môi trường có IP Việt Nam không đổi | Thêm một biến môi trường; cổng bị tắt mất đường phục hồi khi khách không quay lại trang kết quả và IPN không tới | Có: bỏ biến là về như cũ |
+| C. Dùng luôn `REFUND_GATEWAYS` cho cả query | Một biến | Dính hai quyết định vào nhau: môi trường muốn hoàn tay nhưng vẫn đối soát thì không cấu hình được | Có |
+| Không làm gì | — | Mỗi phút một lệnh gọi treo 8 s không thu được gì, log thật bị che, nút đối soát giữ khách 8 s | — |
+
+**Chọn B** (Bảo yêu cầu làm ngày 20/11). `QUERY_GATEWAYS` ([env.ts:118](../../../apps/api/src/infra/config/env.ts#L118)) dùng chung khuôn kiểm với `REFUND_GATEWAYS`: bỏ trống là mọi cổng, `none` là tắt hết, còn lại là danh sách mã cổng. `GatewayRegistry.queryEnabled` ([gateway-registry.ts:42](../../../apps/api/src/modules/payments/gateway-registry.ts#L42)) đọc cờ mỗi lần gọi. `SettlementService.reconcile` thoát trước `claim` khi cổng bị tắt ([settlement.service.ts:157](../../../apps/api/src/modules/checkout/settlement.service.ts#L157)); `PaymentsService.candidates` bỏ cổng bị tắt ([payments.service.ts:127](../../../apps/api/src/modules/payments/payments.service.ts#L127)) vì cùng lý do đã bỏ COD: thoát trước `claim` thì `lastCheckedAt` không được ghi và mỗi tick lại lấy lại toàn bộ. Return có chữ ký và IPN không đổi. Staging đặt `QUERY_GATEWAYS=MOMO,MOMO_ATM` trong `render.yaml`.
+
+Trade-off chấp nhận: trên môi trường tắt query của VNPAY, khách trả tiền xong mà không quay lại trang kết quả thì chỉ còn IPN để chốt; IPN về staging chưa kiểm chứng, nên đơn đó có thể ở lại `PENDING_PAYMENT` rồi bị hủy khi hết hạn giữ hàng. Trước quyết định này ca đó cũng không được cứu, vì QueryDR không tới được VNPAY. Với MoMo, tắt query cũng dừng việc worker tạo lại link cho payment chưa có `checkoutUrl` (cùng danh sách `candidates`); staging không tắt MoMo.
+
+### Phản biện
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| AI gợi ý | Claude Fable 5.2: đề xuất cờ riêng cho query sau khi thấy dòng timeout lặp mỗi phút trong log Render | giữ |
+| AI gợi ý | Agent phản biện của Claude Code: lọc cả `candidates()` chứ không chỉ `reconcile()`, trả `[]` tường minh khi không còn cổng nào, và chạy riêng bộ HTTP vì `npm run check` chỉ chạy unit | giữ |
+
+**Kết luận:** gọi API truy vấn của cổng là cấu hình theo môi trường; staging ngoài Việt Nam tắt QueryDR của VNPAY cho tới khi có đường ra IP Việt Nam.
+**Bằng chứng:** ngày 20/11, thư mục `apps/api`, DB test local, mã chưa commit trên `8e539fd`. `npx vitest run --project http test/checkout-payment.http.spec.ts` → 1 tệp, 33 test đạt, gồm bốn ca mới: `QUERY_GATEWAYS=MOMO,MOMO_ATM` và `none` (worker và nút đối soát không gọi QueryDR, `lastCheckedAt` giữ `null`, bỏ cờ thì worker chốt được), return có chữ ký và IPN ký đúng vẫn chốt đơn khi query tắt. Chạy chung năm tệp `checkout-payment`, `checkout-momo`, `cod`, `checkout-refund`, `returns` lúc máy đang chạy việc khác → 79/84 đạt, 5 ca của `checkout-momo` rớt ở `resetDatabase` (Prisma: transaction 5000 ms hết hạn sau 11917 ms); chạy lại riêng `test/checkout-momo.http.spec.ts` → 10/10 đạt. `npm run check` (gốc kho) → exit 0, unit API 77 tệp/748 test, web 63 tệp/808 test. `adapter.query` chỉ có một chỗ gọi, nằm trong `reconcile` ([settlement.service.ts:163](../../../apps/api/src/modules/checkout/settlement.service.ts#L163)), nên cổng `queryEnabled` chặn được mọi lệnh QueryDR. Link theo commit điền khi đẩy.
+
+### Kết quả mong đợi → thực tế
+Mong đợi: sau khi gộp và Render dựng lại, log Render không còn dòng `VNPAY query unavailable`, và `POST /api/orders/:id/reconcile` của một đơn VNPAY đang chờ thanh toán trả về dưới 1 s; kiểm trong ngày triển khai.
+Thực tế: <điền sau>.
+
+### Điều kiện xem lại
+Staging có đường ra bằng IP Việt Nam hoặc VNPAY sandbox mở cho IP nước ngoài (bỏ biến); xác nhận được IPN không về staging và có đơn bị hủy oan vì khách không quay lại trang kết quả.
