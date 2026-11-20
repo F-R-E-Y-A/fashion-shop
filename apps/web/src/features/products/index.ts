@@ -42,6 +42,9 @@ export const SearchPage = lazy(() =>
 export const AdminCatalogPage = lazy(() =>
   import('./admin/AdminCatalogPage.js').then((m) => ({ default: m.AdminCatalogPage })),
 );
+export const AdminProductNewPage = lazy(() =>
+  import('./admin/AdminProductNewPage.js').then((m) => ({ default: m.AdminProductNewPage })),
+);
 export const AdminCatalogDetailPage = lazy(() =>
   import('./admin/AdminCatalogDetailPage.js').then((m) => ({ default: m.AdminCatalogDetailPage })),
 );

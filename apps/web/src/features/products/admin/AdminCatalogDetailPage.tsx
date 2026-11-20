@@ -18,10 +18,21 @@ import {
   useProductContentAction,
 } from './product-content-action.js';
 import {
+  ProductMediaFeedback,
+  ProductMediaSection,
+  useProductMediaAction,
+} from './product-media-action.js';
+import {
   ProductStatusButton,
   ProductStatusFeedback,
   useProductStatusAction,
 } from './product-status-action.js';
+import {
+  AddVariantButton,
+  EditVariantButton,
+  ProductVariantFeedback,
+  useProductVariantAction,
+} from './product-variant-action.js';
 import { useAdminCatalog } from './use-admin-catalog.js';
 
 export function AdminCatalogDetailPage() {
@@ -32,6 +43,7 @@ export function AdminCatalogDetailPage() {
 function CatalogDetail({ id }: { id: string }) {
   const statusAction = useProductStatusAction();
   const contentAction = useProductContentAction();
+  const variantAction = useProductVariantAction(id);
   const { user } = useAuth();
   const location = useLocation();
   const query = parseCatalogQuery(location.search);
@@ -42,6 +54,7 @@ function CatalogDetail({ id }: { id: string }) {
     path,
     canonical === location.search,
   );
+  const mediaAction = useProductMediaAction(data);
   if (forbidden) return <AdminForbidden />;
   if (canonical !== location.search) return <Navigate replace to={`${path}${canonical}`} />;
   return (
@@ -51,6 +64,8 @@ function CatalogDetail({ id }: { id: string }) {
       </Link>
       <ProductStatusFeedback action={statusAction} />
       <ProductContentFeedback action={contentAction} />
+      <ProductVariantFeedback action={variantAction} />
+      <ProductMediaFeedback action={mediaAction} />
       {result.isPending && <Loading label="Đang tải chi tiết sản phẩm…" />}
       {result.isError && (
         <ErrorNote
@@ -70,6 +85,7 @@ function CatalogDetail({ id }: { id: string }) {
             <div className={styles.actionGroup}>
               <ProductStatusButton product={data} action={statusAction} />
               <ProductContentButton product={data} action={contentAction} />
+              <AddVariantButton product={data} action={variantAction} />
             </div>
           </header>
           <div className={styles.detailGrid}>
@@ -138,6 +154,8 @@ function CatalogDetail({ id }: { id: string }) {
                       <th scope="col">Giá niêm yết</th>
                       <th scope="col">Giá giảm</th>
                       <th scope="col">Cờ hoạt động</th>
+                      <th scope="col">Nguồn / Bảo vệ</th>
+                      <th scope="col">Thao tác</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -154,7 +172,27 @@ function CatalogDetail({ id }: { id: string }) {
                           {variant.salePrice === null ? 'Không có' : formatPrice(variant.salePrice)}
                         </td>
                         <td data-label="Cờ hoạt động">
-                          {variant.isActive ? 'Đang bật' : 'Đã ngừng bán'}
+                          <span
+                            className={styles.badge}
+                            data-tone={variant.isActive ? 'accent' : 'muted'}
+                          >
+                            {variant.isActive ? 'Đang bật' : 'Đã ngừng bán'}
+                          </span>
+                        </td>
+                        <td data-label="Nguồn / Bảo vệ">
+                          {variant.isCustom ? 'Tự tạo' : 'Từ nguồn'}
+                          {variant.adminManagedFields && variant.adminManagedFields.length > 0 && (
+                            <span className={styles.sub}>
+                              Khóa: {variant.adminManagedFields.join(', ')}
+                            </span>
+                          )}
+                        </td>
+                        <td data-label="Thao tác">
+                          <EditVariantButton
+                            product={data}
+                            variant={variant}
+                            action={variantAction}
+                          />
                         </td>
                       </tr>
                     ))}
@@ -163,25 +201,7 @@ function CatalogDetail({ id }: { id: string }) {
               </div>
             )}
           </section>
-          <section aria-labelledby="catalog-images" className={styles.section}>
-            <h2 id="catalog-images" className={styles.panelTitle}>
-              Hình ảnh ({data.images.length})
-            </h2>
-            {data.images.length === 0 ? (
-              <Empty label="Chưa có ảnh." />
-            ) : (
-              <div className={styles.gallery}>
-                {data.images.map((img) => (
-                  <figure className={styles.figure} key={img.id}>
-                    <img src={img.url} alt={img.alt ?? data.name} loading="lazy" />
-                    <figcaption>
-                      Thứ tự {img.sortOrder} · {img.color?.name ?? 'Ảnh chung'}
-                    </figcaption>
-                  </figure>
-                ))}
-              </div>
-            )}
-          </section>
+          <ProductMediaSection product={data} action={mediaAction} />
         </>
       )}
     </div>

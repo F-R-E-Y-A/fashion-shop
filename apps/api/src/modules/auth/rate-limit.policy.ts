@@ -53,6 +53,10 @@ export const RATE_LIMIT_POLICY = {
   },
   // Chi la tran khoi luong theo IP: chan chinh la 5 lan sai tren moi OTP trong Postgres.
   VERIFY_EMAIL: { ip: { limit: 30, windowSeconds: FIFTEEN_MINUTES }, onStoreError: 'ALLOW' },
+  VERIFY_PASSWORD_RESET_OTP: {
+    ip: { limit: 30, windowSeconds: FIFTEEN_MINUTES },
+    onStoreError: 'ALLOW',
+  },
   RESET_PASSWORD: { ip: { limit: 30, windowSeconds: FIFTEEN_MINUTES }, onStoreError: 'ALLOW' },
   // Danh tinh la userId cua nguoi da xac thuc; can token hop le moi toi duoc day.
   CHANGE_PASSWORD: {

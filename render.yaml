@@ -26,6 +26,14 @@ services:
       # Tim kiem ngu nghia can ~500 MB RAM, Render Free chi 512 MB: giu off (ADR-048, ND-17).
       - key: SEARCH_SEMANTIC
         value: 'off'
+      # sandbox.vnpayment.vn chi nhan ket noi tu IP Viet Nam (do 20/11, staging.md): tu Singapore moi
+      # lan goi merchant_webapi treo du 8 s. VNPAY hoan tay bang ma chuyen khoan, MoMo van hoan qua
+      # API (ADR-111, de xuat); worker va reconcile khong goi QueryDR, VNPAY chot bang return co chu
+      # ky va IPN (ADR-112, de xuat). Co duong ra IP Viet Nam thi bo hai bien nay.
+      - key: REFUND_GATEWAYS
+        value: MOMO,MOMO_ATM
+      - key: QUERY_GATEWAYS
+        value: MOMO,MOMO_ATM
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: OTP_PEPPER

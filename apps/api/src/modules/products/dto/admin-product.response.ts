@@ -38,11 +38,16 @@ export class AdminProductColor {
 export class AdminProductVariant {
   @ApiProperty() id!: string;
   @ApiProperty() sku!: string;
+  @ApiProperty({ required: false }) colorId?: string;
+  @ApiProperty({ required: false }) sizeId?: string;
   @ApiProperty({ type: AdminProductColor }) color!: AdminProductColor;
   @ApiProperty({ description: 'Ma co, ke ca FREE' }) sizeCode!: string;
   @ApiProperty() listPrice!: string;
   @ApiProperty({ type: String, nullable: true }) salePrice!: string | null;
   @ApiProperty() isActive!: boolean;
+  @ApiProperty() isCustom!: boolean;
+  @ApiProperty({ type: [String] }) adminManagedFields!: string[];
+  @ApiProperty({ format: 'date-time' }) updatedAt!: string;
 }
 export class AdminProductImage {
   @ApiProperty() id!: string;
@@ -54,6 +59,10 @@ export class AdminProductImage {
 export class AdminProductDetail extends AdminProductSummary {
   @ApiProperty() contentVersion!: number;
   @ApiProperty({ type: [String] }) adminContentFields!: string[];
+  @ApiProperty() imagesVersion!: number;
+  @ApiProperty() imagesManagedByAdmin!: boolean;
+  @ApiProperty() isCustom!: boolean;
+  @ApiProperty({ type: String, nullable: true }) createPayloadHash!: string | null;
   @ApiProperty({ type: String, nullable: true }) description!: string | null;
   @ApiProperty({ type: String, nullable: true }) material!: string | null;
   @ApiProperty({ type: String, nullable: true }) careInstructions!: string | null;

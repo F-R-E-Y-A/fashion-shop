@@ -49,3 +49,5 @@ export class ResetPasswordResponse {
   @ApiProperty({ example: true })
   reset!: true;
 }
+
+export { VerifyPasswordResetOtpResponse } from './verify-password-reset-otp.response.js';

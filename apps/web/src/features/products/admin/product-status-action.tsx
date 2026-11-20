@@ -175,6 +175,10 @@ export function useProductStatusAction() {
         if (!current(v)) return;
       }
       const status = error instanceof ApiError ? error.body.statusCode : 0;
+      const serverMessage =
+        error instanceof ApiError && typeof error.body.message === 'string'
+          ? error.body.message
+          : null;
       finish({
         error: true,
         text:
@@ -184,9 +188,11 @@ export function useProductStatusAction() {
               ? 'Sản phẩm không còn tồn tại.'
               : status === 400
                 ? 'Yêu cầu thay đổi trạng thái không hợp lệ.'
-                : kind === 'unauthenticated'
-                  ? 'Phiên đăng nhập đã hết. Vui lòng đăng nhập lại.'
-                  : 'Không thể thay đổi trạng thái sản phẩm. Kiểm tra điều kiện rồi thử lại.',
+                : status === 422 && serverMessage
+                  ? serverMessage
+                  : kind === 'unauthenticated'
+                    ? 'Phiên đăng nhập đã hết. Vui lòng đăng nhập lại.'
+                    : 'Không thể thay đổi trạng thái sản phẩm. Kiểm tra điều kiện rồi thử lại.',
       });
     },
     onSettled: (_data, _error, v) => {

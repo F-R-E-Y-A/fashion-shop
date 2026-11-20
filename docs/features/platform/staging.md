@@ -1,6 +1,6 @@
 ---
 title: Môi trường thử — dựng và vận hành
-updated: 2026-11-14
+updated: 2026-11-20
 status: đang dùng
 owner: Bảo
 ---
@@ -22,6 +22,8 @@ Máy chủ chạy **Render**, giao diện chạy **Vercel**. Đây là lựa ch�
 Triển khai **tự chạy sau khi gộp vào `develop` và CI xanh**: CI chạy bảy chặng → `cd-staging.yml` gọi Render Deploy Hook **kèm `ref=<mã commit>`** → đợi `/api/healthz` trả đúng mã commit vừa gộp → gọi thử một đường dẫn thật. Render để `autoDeployTrigger: off` để không dựng hai lần cho cùng commit. Vercel theo dõi `develop` trực tiếp và tự dựng giao diện mỗi khi nhánh có commit mới.
 
 Từ 14/11 ([ADR-065](LOG.md#adr-065)): mỗi commit trên `develop` có một lượt CI riêng, gộp dồn không còn huỷ lượt của commit giữa. CI các commit chạy song song nên có thể xanh lệch thứ tự; CD hỏi `/api/healthz` trước, staging đã chạy bản chứa commit này thì bỏ qua (bước gọi Render hiện `skipped`), để staging không lùi về bản cũ. Còn hở: nhóm `cd-staging` chỉ giữ một lượt chờ, gộp ba PR trong vòng một lượt CD (2–5 phút) thì lượt ở giữa bị thay; staging vẫn đúng bản nhưng thiếu một lần đếm triển khai. Máy không chặn việc này; gộp cách nhau vài phút chỉ là lời khuyên. Không dùng merge queue tới 22/11, lý do ở [LOG.md](LOG.md) mục 14/11 "Không bật merge queue". **Hạn chế đã biết:** giao diện trên Vercel không chờ CI; web mới có thể chạy trước API khoảng 10–15 phút (suy luận).
+
+Từ [ADR-071](LOG.md#adr-071) (đề xuất): chặng 4 chia kiểm thử HTTP cho ba máy chạy song song (`api-shard`, mỗi máy Postgres và Redis riêng); job `api` giữ tên check bắt buộc "4. Migration va kiem thu qua HTTP", gộp kết quả và độ phủ vào artifact `coverage-http` như cũ. Một shard đỏ thì job `api` đỏ.
 
 Làm vậy để lịch sử triển khai và thời gian từ commit tới khi lên môi trường thử đều nằm trong GitHub Actions, đúng thứ rubric TC2.6 đòi. Nếu để Render tự dựng khi thấy commit mới thì mã chưa qua kiểm cũng lên, và không có số liệu nào để nộp.
 
@@ -143,13 +145,15 @@ Diễn tập ngày 12/11 trên máy, không chạm Render. Nguồn là DB dev `f
 | Log triển khai | GitHub → **Actions** → **CD staging** |
 | Quay về bản trước | Render → **Events** → lượt cũ → **Rollback**; Vercel → **Deployments** → lượt cũ → **Promote to Production** |
 
-## Bảy cái bẫy đã biết
+## Tám cái bẫy đã biết
 
 **Gọi lần đầu rất chậm.** Gói miễn phí của Render cho máy chủ ngủ sau một thời gian không ai dùng, đánh thức mất khoảng một phút. Lúc trình bày thì mở trang trước vài phút. Bước đợi trong `cd-staging.yml` đã cho tới 10 phút vì lý do này.
 
 **Máy chủ treo hẳn sau một quãng không ai gọi.** Ngày 08/11 API treo nhiều lần: log dừng, `/api/healthz` giữ kết nối mà không trả lời, Restart không sinh dòng log nào, chỉ Manual Deploy chữa được. Lần có request đều đặn (gọi `healthz` mỗi 30 giây, 19:24–19:55) thì không treo; các lần treo quan sát được đều sau một quãng log không có request (sau 12:32, sau 21:51). Bản có cache catalog (`489b0b3`) vẫn treo, nên không phải do nạp catalog. Nguyên nhân phía Render chưa rõ (suy luận: đánh thức thất bại), chưa gửi ticket. Cách giữ: một dịch vụ ping ngoài (Bảo chọn UptimeRobot) gọi `/api/healthz` khoảng 5–10 phút một lần [TBD — Bảo xác nhận đã bật]. Treo thì Render → **Manual Deploy → Deploy latest commit**.
 
 **Sửa `render.yaml` là Render tự deploy.** Dịch vụ do Blueprint quản lý, nên khi `render.yaml` trên `develop` đổi, Render đồng bộ và dựng lại ngay lúc gộp (trigger "Blueprint"), dù `autoDeployTrigger: off`. Lượt CD sau đó gọi hook dựng thêm một lần nữa; không hại, chỉ tốn vài phút.
+
+**VNPAY sandbox chỉ nhận kết nối từ IP Việt Nam, nên staging không gọi ra được API của nó.** Ngày 20/11, `POST /api/orders/:id/reconcile` từ staging mất 8,14 s và 8,12 s rồi vào nhánh lùi lịch (`last_checked_at` lùi 280 s), tức `querydr` không có phản hồi trong 8 s; cùng phút, `curl` từ máy local tới cùng endpoint trả 200 trong 0,13–0,16 s, 3/3 lần. Dò TCP cổng 443 của `sandbox.vnpayment.vn` từ 40 node của check-host.net cùng ngày: chỉ node Việt Nam nối được (0,055 s), 38 node nước khác timeout, gồm Singapore, Hong Kong, Nhật; `pay.vnpay.vn` thì 40/40 nối được (lệnh và số đo ở [ADR-111](../payments/LOG.md#adr-111)). Đây là lọc phía VNPAY, không phải Render chặn chiều ra và không phải lỗi mã; đổi sang cloud nước ngoài khác không chữa được. Riêng việc dải IP ra của Render bị bỏ gói là suy luận, vì gói Free không có Shell để đo từ trong máy chủ. Khách trả tiền vẫn được: trình duyệt của khách tự mở trang VNPAY và return có chữ ký chốt đơn. IPN từ VNPAY về staging **chưa có bằng chứng** (Render Free tắt Request logs). Vì vậy `render.yaml` đặt hai biến: `REFUND_GATEWAYS=MOMO,MOMO_ATM` để đơn VNPAY hoàn tay bằng mã chuyển khoản ([ADR-111](../payments/LOG.md#adr-111), đề xuất), và `QUERY_GATEWAYS=MOMO,MOMO_ATM` để worker và nút đối soát thôi gọi QueryDR treo 8 s mỗi phút ([ADR-112](../payments/LOG.md#adr-112), đề xuất). Hệ quả: khách trả VNPAY xong mà đóng tab trước khi về trang kết quả thì đơn chỉ còn trông vào IPN. Có đường ra bằng IP Việt Nam thì bỏ hai biến.
 
 **Đổi địa chỉ máy chủ phải dựng lại giao diện.** Xem bước 2.3.
 

@@ -44,7 +44,7 @@ export class SmtpMailService extends MailService {
 }
 
 /** Chi tra ve cac truong phan loai co hinh dang co dinh, khong bao gio chua van ban tu do. */
-function describeMailFailure(error: unknown): string {
+export function describeMailFailure(error: unknown): string {
   const { code, responseCode } = (error ?? {}) as { code?: unknown; responseCode?: unknown };
   const safeCode = typeof code === 'string' && /^[A-Z0-9_]{1,32}$/.test(code) ? code : 'UNKNOWN';
   const safeResponse = Number.isInteger(responseCode) ? String(responseCode) : '-';

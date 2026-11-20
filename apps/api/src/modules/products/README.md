@@ -1,6 +1,6 @@
 ---
 title: Hợp đồng module products
-updated: 2026-11-08
+updated: 2026-11-19
 status: đang dùng; trạng thái admin chờ review
 owner: Bảo
 ---
@@ -95,7 +95,7 @@ Luật của `importProducts`, theo mô hình M2 ([erd.md](../../../../../docs/f
 | 1 | **Nhận ra sản phẩm qua `sku`**: không `sku` nào của dòng có sẵn thì tạo sản phẩm mới; có và cùng thuộc một sản phẩm thì cập nhật sản phẩm đó; thuộc từ hai sản phẩm trở lên hoặc lặp SKU ngay trong dòng thì `SKU_CONFLICT`. Tài sinh `sku` ổn định từ nguồn, ví dụ `<SOURCE>-<sourceProductId>-<MAU>-<CO>` | Tên sản phẩm đổi giữa hai lần chạy vẫn nhận ra, mà không phải thêm cột nguồn vào bảng của Bảo |
 | 2 | **`slug` sinh một lần khi tạo**: `slugify(name)` + `-` + 6 ký tự đầu của `sha1(sourceKey)`; cập nhật không đổi `slug` | Hai sản phẩm trùng tên không đụng nhau; đường dẫn cũ không gãy khi tên đổi |
 | 3 | Cập nhật ghi đè tên, mô tả, danh mục, thương hiệu, giá. Biến thể có trong dòng thì bật `is_active = true`; biến thể vắng thì tắt, **không xoá**. Product có ảnh thì bật trừ khi adminDisabled; import giữ manual hold, statusVersion chỉ tăng khi hold/cờ đổi. price_from tính lại | Giỏ/đơn trỏ biến thể; import không ghi đè quyết định ngừng bán của admin. Bảo review thay đổi hợp đồng này ở Issue #65 |
-| 4 | Ảnh ghi theo `(product_id, sort_order)` bằng thứ tự mảng, ảnh thừa bị xoá. `colorCode` không thuộc màu của dòng được lưu thành ảnh chung (`colorId = null`) | Ảnh không ai khác trỏ vào; ảnh không khớp màu vẫn dùng được |
+| 4 | Ảnh ghi theo `(product_id, sort_order)` bằng thứ tự mảng, ảnh thừa bị xoá. `colorCode` không thuộc màu của dòng được lưu thành ảnh chung (`colorId = null`). Khi sản phẩm đã được admin chỉnh sửa bộ ảnh (`imagesManagedByAdmin = true`), import giữ nguyên bộ ảnh và thứ tự của admin (kể cả khi nguồn rỗng) và tính trạng thái bán theo số ảnh thực tế còn lại | Ảnh không ai khác trỏ vào; bảo vệ bộ ảnh đã được admin sắp xếp/tải lên qua các lần nạp lại ([ADR-109](../../../../../docs/features/products/LOG.md#adr-109)) |
 | 5 | Danh mục và cỡ là **danh sách đóng**: không có thì dòng lỗi, không tự tạo. Thương hiệu và màu là **danh sách mở**: chưa có thì tạo, có rồi giữ nguyên tên | Danh mục có cây, cỡ có thứ tự: tự tạo sẽ lệch menu và nút cỡ. Một dòng nạp không được sửa tên màu mà sản phẩm khác đang dùng |
 | 6 | **Mỗi dòng một giao dịch**; dòng lỗi không kéo dòng khác. Hàm không ghi bảng `staging` | Tài đánh dấu `IMPORTED` cho dòng `created`, `updated` trong giao dịch của mình. Nếu chết giữa hai bước thì chạy lại: luật 1 làm lần sau thành cập nhật, không sinh bản trùng |
 
@@ -153,3 +153,4 @@ Issue #65 bổ sung trạng thái admin qua service nội bộ; chữ ký import
 Import và mutation khóa cùng hàng Product trước đọc hold/ảnh và ghi, version phát hiện cả đổi qua lại.
 Không ghi bảng giỏ/đơn/kho; không tự hủy checkout đã đọc Catalog trước thời điểm ngừng bán.
 Public DTO không chứa manual hold/version; API quản trị lấy hình dạng từ Swagger, không xuất qua index.
+Đợt 3 ([ADR-109](../../../../../docs/features/products/LOG.md#adr-109)) bổ sung quản trị bộ ảnh qua `UploadsModule` (cửa `uploads/index.ts`): cấp phiếu `product` riêng cho ADMIN và lưu nguyên tử bộ ảnh có thứ tự với CAS `imagesVersion`, giữ asset từng gắn để bảo toàn snapshot đơn cũ.

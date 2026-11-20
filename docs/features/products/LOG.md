@@ -1,6 +1,6 @@
 ---
 title: Khám phá sản phẩm — nhật ký quyết định và thay đổi
-updated: 2026-09-30
+updated: 2026-11-19
 status: đang dùng
 owner: Bảo
 ---
@@ -530,4 +530,77 @@ test riêng của Issue77; chưa rollout DB phát triển. Kế hoạch, log và
 4. UI giữ `uncertainCreate` (UUID + payload) qua điều hướng; nếu `GET` đối chiếu trả `404`, giữ marker và chỉ cho phép gửi lại bằng đúng UUID cũ.
 
 **Đánh đổi:** Thêm cột `admin_managed_fields` qua một migration và yêu cầu writer cùng danh mục chờ khóa theo thứ tự ID; chưa hỗ trợ xóa cứng danh mục ở đợt này.
+
+---
+
+<a id="adr-061"></a>
+## ADR-061 · Quản trị biến thể sản phẩm, SKU và giá với CAS và bảo vệ import
+
+**Trạng thái:** đề xuất · **Ngày:** 2026-11-14 · **Người đề xuất:** Tài (AI hỗ trợ).
+
+**Bối cảnh:** Issue #127 (Đợt 2 Quản trị sản phẩm: Biến thể & Giá) mở rộng UC-04.3 để admin thêm biến thể mới (từ màu/cỡ có sẵn), sửa giá niêm yết/giá bán, bật/ngừng bán biến thể; tính toán lại `priceFrom` tức thời; bảo vệ dữ liệu admin quản lý trước crawler `importProducts`; đồng thời bảo vệ toàn vẹn: chặn tắt biến thể cuối cùng khi sản phẩm đang mở bán, và chặn mở bán sản phẩm khi có 0 biến thể hoạt động.
+
+**Phương án:**
+1. Thêm `isCustom Boolean @default(false)` và `adminManagedFields String[] @default([])` vào `ProductVariant` qua 1 migration duy nhất (`20261114140000_ph03_admin_variant_fields`).
+2. `POST /api/admin/products/:id/variants`: bắt buộc client sinh UUID v4 (`id`); bắt buộc chọn màu/cỡ có sẵn từ baseline database; SKU bất biến sau tạo, kiểm tra duy nhất toàn cục và tổ hợp `(productId, colorId, sizeId)` duy nhất; gán `isCustom: true` và `adminManagedFields: ['listPrice', 'salePrice', 'isActive']`. Hỗ trợ replay idempotent (cùng id + cùng payload = 200/201, cùng id + khác payload = 409 `IDEMPOTENCY_PAYLOAD_MISMATCH`).
+3. `PATCH /api/admin/products/:id/variants/:variantId`: CAS token `expectedUpdatedAt` so sánh chính xác ISO timestamp; xử lý No-op (không bump `updatedAt` khi dữ liệu không đổi); ghi nhận trường thay đổi vào `adminManagedFields`.
+4. Giao thức khóa phân cấp: khóa Product cha (`lockProductStatus`) trước khi khóa/thao tác Variant trong cả Admin API và `importProducts`, triệt tiêu hoàn toàn nguy cơ deadlock (40P01).
+5. Tính lại `priceFrom` của sản phẩm cha ngay trong transaction từ `min(activeVariants.salePrice ?? listPrice)`. Khi 0 biến thể active, fallback giá nhỏ nhất của tất cả biến thể hoặc giá vừa cập nhật, giữ cột `priceFrom` NOT NULL hợp lệ.
+6. Hợp đồng tồn kho với Inventory: Giữ `UNKNOWN` (`null`), không tự động tạo bản ghi `Inventory(0)`.
+7. Bảo vệ hai chiều mở bán:
+   - Chặn tắt biến thể cuối cùng khi sản phẩm đang bán: `422 LAST_ACTIVE_VARIANT_BLOCKED` (hướng dẫn admin ngừng bán sản phẩm trước).
+   - Chặn mở bán sản phẩm khi có 0 biến thể active: `422 NO_ACTIVE_VARIANTS_FOR_ACTIVE_PRODUCT`.
+8. Bảo vệ Import: bảo toàn `adminManagedFields` và `isCustom`; khi cặp giá hợp nhất xung đột (`effectiveSalePrice > effectiveListPrice`), giữ nguyên cả cặp giá hiện có trong DB và ghi `logger.warn`; biến thể vắng mặt chỉ bị vô hiệu hóa nếu `isCustom: false` và `isActive` không nằm trong `adminManagedFields`.
+9. Frontend: Giữ uncertain marker qua điều hướng route trong cùng phiên (`actorId`, `sessionEpoch`, `productId`, `variantId`); khóa tạo mới theo tài nguyên `new`; giải phóng marker chỉ bằng chứng thực máy chủ; guard chống late response / 403.
+
+**Đánh đổi:** Thêm 2 cột vào `product_variants` qua 1 migration; admin chỉ được chọn màu và cỡ có sẵn, không tự tạo màu/cỡ tự do; không hỗ trợ xóa cứng biến thể (chỉ chuyển `isActive = false`).
+
+---
+
+<a id="adr-109"></a>
+## ADR-109 · Quản trị bộ ảnh sản phẩm với ticket `product`, CAS `imagesVersion` và bảo vệ import
+
+**Trạng thái:** đề xuất · **Ngày:** 2026-11-19 · **Người đề xuất:** Tài (AI hỗ trợ).
+
+**Bối cảnh:** Đợt 3 của PH-03 mở quản trị bộ ảnh sản phẩm hiện có tại `/admin/products/:id` (tải ảnh mới, sửa mô tả thay thế `alt`, đưa ảnh lên đầu làm ảnh đại diện, đổi thứ tự và gỡ ảnh). Cần đảm bảo ba quyết định nghiệp vụ:
+1. Cấp phiếu tải ảnh mục đích `product` ở đường riêng có kiểm vai `ADMIN`, trong khi đường khách hàng `/api/uploads/tickets` giữ nguyên chỉ cho `review` và `return`.
+2. Giới hạn 8 ảnh mỗi sản phẩm khi tải thêm ảnh mới (bộ ảnh legacy >8 ảnh vẫn sửa `alt`, sắp xếp và gỡ được); lưu nguyên tử toàn bộ thứ tự với CAS phiên bản riêng mà không đụng ràng buộc unique `(product_id, sort_order)` hay `sort_order >= 0`.
+3. Từ lần chỉnh sửa thực tế đầu tiên của admin, toàn bộ thành phần và thứ tự bộ ảnh do admin quản lý qua các lần `importProducts` tiếp theo (kể cả khi nguồn không trả ảnh); gỡ ảnh khỏi catalog giữ nguyên asset từng gắn để không làm hỏng URL ảnh đã chụp trong snapshot đơn hàng cũ.
+
+**Phương án:**
+1. Thêm `imagesVersion Int @default(0)` và `imagesManagedByAdmin Boolean @default(false)` vào bảng `products` qua một migration duy nhất (`20261119140000_ph03_admin_product_media`), kèm ràng buộc `CHECK (images_version >= 0)`.
+2. Bổ sung `PRODUCT_MEDIA_ROOT = 'freya/products'` trong `UploadsService` (cho phép `ticket(userId, 'product')` và `resolveMedia(userId, 'product', keys)`), nhưng giữ `UPLOAD_PURPOSES = ['review', 'return']` ở DTO khách hàng `/api/uploads/tickets`. Mở endpoint quản trị `POST /api/admin/products/upload-tickets` sau `@RequireRoles(RoleCode.ADMIN)` trong `AdminProductsController`.
+3. Mở `PUT /api/admin/products/:id/images` nhận `{ items, expectedVersion }`, trong đó mỗi phần tử là ảnh hiện hữu (`{ id, alt }`) hoặc ảnh mới (`{ id, key, alt }` với `id` UUID v4 do client sinh để đối chiếu kết quả bất đồng bộ).
+4. Dưới khóa dòng `lockProductStatus(tx, productId)` (`SELECT ... FOR UPDATE`):
+   - Kiểm tra CAS `before.imagesVersion === input.expectedVersion` trước no-op; lệch trả `409 Conflict`.
+   - Kiểm tra mọi `id` ảnh cũ thuộc sản phẩm, không trùng `id`/`key`, giới hạn 8 ảnh khi có ảnh mới (`422 IMAGE_LIMIT_EXCEEDED`), và chặn gỡ hết ảnh khi `product.isActive = true` (`422 LAST_IMAGE_OF_ACTIVE_PRODUCT`).
+   - Nếu không có ảnh mới và danh sách `(id, alt)` giữ nguyên thứ tự thì trả kết quả no-op (không ghi DB, không tăng `imagesVersion`, không đổi `imagesManagedByAdmin`).
+   - Khi có thay đổi: gọi `UploadsService.resolveMedia(actorId, 'product', newKeys)` trước/trong luồng, nhận phiếu `UploadsService.attach(actorId, newKeys, tx)` trong cùng transaction, xóa ảnh bị gỡ khỏi `product_images` (không gọi `UploadsService.release`), dịch tạm `sort_order` của các ảnh giữ lại bằng `+ 1000` rồi cập nhật về `0..N-1` để tránh va chạm unique `(product_id, sort_order)` và `CHECK (sort_order >= 0)`, tạo các ảnh mới với `colorId = null`, đặt `imagesManagedByAdmin = true` và tăng `imagesVersion`.
+5. Trong `ProductsService.importOne`: đọc `imagesManagedByAdmin` và `imagesVersion` sau `lockProductStatus`. Khi `imagesManagedByAdmin = true`, bỏ qua ghi đè `product_images` từ nguồn và tính `hasImages` theo số ảnh thực tế đang có trong DB để quyết định `isActive`. Khi `imagesManagedByAdmin = false`, chỉ ghi `product_images` và tăng `imagesVersion` nếu bộ ảnh nguồn thực sự khác bộ ảnh hiện có trong DB.
+6. Giao diện Web (`/admin/products/:id`): dùng CSS Modules, AdminKit, `ActionFeedback`; hỗ trợ nút di chuyển lên/xuống/đưa lên đầu/gỡ ảnh có nhãn bàn phím rõ ràng; vẫn thao tác được ảnh hiện có khi kho tắt; cô lập draft và marker `uncertain` theo `actorId`, `sessionEpoch`, `accessGeneration` và `productId`; đối chiếu `GET` theo danh sách `id` ổn định, thứ tự, `alt` và `imagesVersion` mà không tự động gửi lại.
+
+**Đánh đổi:** Thêm 2 cột vào `products` qua 1 migration; giữ asset đã từng gắn vào sản phẩm trên kho trong MVP để bảo toàn tuyệt đối snapshot đơn hàng cũ (việc dọn vật lý ảnh sản phẩm đã gỡ cần hợp đồng kiểm tra tham chiếu `order_items.product_snapshot` ở đợt riêng). Phạm vi `catalog.prisma`, import và Uploads chờ Bảo review.
+
+---
+
+<a id="adr-110"></a>
+## ADR-110 · Tạo sản phẩm từ quản trị với `isCustom`, dấu vết `createPayloadHash` và điều kiện công bố riêng
+
+**Trạng thái:** đề xuất · **Ngày:** 2026-11-20 · **Người đề xuất:** Tài (AI hỗ trợ).
+
+**Bối cảnh:** Đợt 4 của PH-03 mở luồng tạo sản phẩm mới hoàn chỉnh từ `/admin/products/new` (chọn danh mục lá, thương hiệu, khai báo ≥1 biến thể và 0–8 ảnh tùy chọn). Cần giải quyết bốn vấn đề trước khi cài đặt:
+1. Sau timeout/gửi lại cùng client UUID `id`, dữ liệu sản phẩm có thể đã bị chỉnh sửa hoặc phiếu ảnh đã được gắn; đồng thời hai request cùng UUID có thể chạy song song.
+2. Bước gắn ảnh ban đầu phải giữ đúng giới hạn 1 giờ của mục đích `product` trong Đợt 3, không dùng giới hạn mặc định khác.
+3. Storefront công khai lọc sản phẩm theo cả trạng thái danh mục lá và danh mục cha; sản phẩm mới tạo tay cần tránh trạng thái API báo mở bán thành công nhưng khách không thấy vì chưa có ảnh hoặc danh mục đang ẩn, đồng thời không làm thay đổi hành vi hiện có của sản phẩm import (`AC14`).
+4. Client cần phân biệt được `GET /api/admin/products/:id` trả `200` do đúng yêu cầu tạo ban đầu đã thành công hay do UUID vô tình khớp bản ghi khác.
+
+**Phương án:**
+1. Bổ sung `isCustom Boolean @default(false)` và `createPayloadHash String? @db.Char(64)` trên `products` qua một migration duy nhất (`20261120010000_ph03_admin_product_create`), trả `isCustom` và `createPayloadHash` trong `AdminProductDetail`.
+2. Trong `POST /api/admin/products`, lấy khóa transaction `pg_advisory_xact_lock` trên `product-create:<id>` và khóa cấu trúc danh mục dùng chung với luồng danh mục; kiểm tra `products.findUnique({ where: { id } })` **trước** khi gọi `UploadsService.resolveMedia`: khớp `createPayloadHash` (SHA-256 JSON chuẩn hóa) → trả lại bản ghi hiện tại; khác hash → `409 IDEMPOTENCY_PAYLOAD_MISMATCH`.
+3. Gọi `UploadsService.attach(actorId, imageKeys, tx, { purpose: 'product' })` để áp đúng hạn ticket 1 giờ khi gắn ảnh ban đầu; rollback toàn bộ nếu bất kỳ ảnh nào sai chủ/sai mục đích/hết hạn.
+4. Giữ `isActive = false`, `adminDisabled = true` khi tạo mới và tính `priceFrom` từ biến thể đang hoạt động trong transaction. Chỉ sản phẩm tạo tay (`isCustom = true`) khi chuyển sang công bố (`adminDisabled: false`) mới khóa `Category` trước `Product` và kiểm thêm ảnh (`422 NO_IMAGES_FOR_ACTIVE_PRODUCT`) cùng trạng thái bật của danh mục lá & danh mục cha (`422 CATEGORY_HIDDEN_FOR_ACTIVE_PRODUCT`).
+5. Trong `ProductsService.importOne`, bỏ qua/báo xung đột khi gặp SKU của sản phẩm `isCustom = true`; không ghi bất kỳ dòng nào vào bảng `inventory` (duy trì trạng thái `UNKNOWN` qua `InventoryService`).
+6. Trên Web, `uncertainCreate` đối chiếu `GET /api/admin/products/:id` theo **cả UUID và `createPayloadHash`** trước khi xác nhận tạo thành công; nếu lệch hash thì hiển thị cảnh báo xung đột UUID kèm nút cấp UUID mới thay vì điều hướng nhầm.
+
+**Đánh đổi:** Thêm 2 cột trên `products`; `slug` giữ bất biến sau tạo ở đợt này và CRUD thương hiệu/màu/cỡ tiếp tục dùng dữ liệu seed sẵn. Phạm vi `catalog.prisma`, import, Uploads chờ Bảo review và hợp đồng tồn kho `UNKNOWN` chờ Duy xác nhận.
 

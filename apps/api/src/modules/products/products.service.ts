@@ -1,10 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 
 import { skipOf, toPage } from '../../common/pagination/page.response.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { InventoryService } from '../inventory/index.js';
-import { lockCategoryBySlug } from './category-visibility.js';
+import { isUniqueViolationError, lockCategoryBySlug } from './category-visibility.js';
 import { ListProductsQuery } from './dto/list-products.query.js';
 import { ProductListResponse, ProductResponse } from './dto/product.response.js';
 import { ProductDetailResponse } from './dto/product-detail.response.js';
@@ -63,6 +63,8 @@ type ImportSuccess = Extract<ImportRowResult, { status: 'created' | 'updated' }>
  */
 @Injectable()
 export class ProductsService {
+  private readonly logger = new Logger(ProductsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly inventory: InventoryService,
@@ -138,6 +140,9 @@ export class ProductsService {
     // khong dung snapshot tu luc tim SKU de tranh import mo lai san pham vua ngung ban.
     const status = existingProductId ? await lockProductStatus(tx, existingProductId) : undefined;
     if (existingProductId && !status) throw new Error('Sản phẩm biến mất trong lúc import');
+    if (status?.isCustom) {
+      throw new ImportRowError('SKU_CONFLICT', 'SKU thuộc sản phẩm tạo tay bởi quản trị viên');
+    }
 
     const brand = row.brand
       ? await tx.brand.upsert({
@@ -171,6 +176,49 @@ export class ProductsService {
       if (price.lt(priceFrom)) priceFrom = price;
     }
 
+    const isMediaManagedByAdmin = Boolean(status?.imagesManagedByAdmin);
+    let existingImagesForCompare: { url: string; alt: string | null; colorId: string | null }[] =
+      [];
+    let effectiveHasImages = row.images.length > 0;
+    if (existingProductId) {
+      if (isMediaManagedByAdmin) {
+        const currentImgCount =
+          typeof tx.productImage.count === 'function'
+            ? await tx.productImage.count({ where: { productId: existingProductId } })
+            : ((
+                await tx.productImage.findMany?.({
+                  where: { productId: existingProductId },
+                  select: { id: true },
+                })
+              )?.length ?? 0);
+        effectiveHasImages = currentImgCount > 0;
+      } else if (typeof tx.productImage.findMany === 'function') {
+        existingImagesForCompare =
+          (await tx.productImage.findMany({
+            where: { productId: existingProductId },
+            orderBy: { sortOrder: 'asc' },
+            select: { url: true, alt: true, colorId: true },
+          })) ?? [];
+      }
+    }
+
+    const incomingImages = row.images.map((image) => ({
+      url: image.url,
+      alt: image.alt ?? null,
+      colorId: image.colorCode ? (colorByCode.get(image.colorCode) ?? null) : null,
+    }));
+
+    const imagesChangedByImport =
+      Boolean(existingProductId) &&
+      !isMediaManagedByAdmin &&
+      (existingImagesForCompare.length !== incomingImages.length ||
+        incomingImages.some(
+          (img, idx) =>
+            existingImagesForCompare[idx]?.url !== img.url ||
+            (existingImagesForCompare[idx]?.alt ?? null) !== img.alt ||
+            (existingImagesForCompare[idx]?.colorId ?? null) !== img.colorId,
+        ));
+
     const productData = {
       categoryId: category.id,
       brandId: brand?.id ?? null,
@@ -184,19 +232,20 @@ export class ProductsService {
       // Suy tu slug danh muc nguon luc nap; nap lai thi cap nhat theo nguon (3.2b, ADR-019).
       audience: audienceFrom(row.attributes, row.name),
     };
-    const product = existingProductId
+    const hasImages = row.images.length > 0;
+    const product = status
       ? await tx.product.update({
-          where: { id: existingProductId },
+          where: { id: status.id },
           data: {
             ...productData,
-            ...importedContent(status!, productData),
-            ...productStatusChange(status!, status!.adminDisabled, row.images.length > 0),
+            ...importedContent(status, productData),
+            ...(imagesChangedByImport ? { imagesVersion: { increment: 1 } } : {}),
           },
         })
       : await tx.product.create({
           data: {
             ...productData,
-            isActive: row.images.length > 0,
+            isActive: hasImages,
             slug: sourceSlug(row.name, row.sourceKey),
           },
         });
@@ -207,37 +256,140 @@ export class ProductsService {
       const colorId = colorByCode.get(code);
       const sizeId = sizeByCode.get(sizeCode);
       if (!colorId || !sizeId) throw new Error('Thiếu màu/cỡ sau khi đã kiểm tra');
-      const variantData = {
-        productId: product.id,
-        colorId,
-        sizeId,
-        listPrice: new Prisma.Decimal(variant.listPrice),
-        salePrice: variant.salePrice === undefined ? null : new Prisma.Decimal(variant.salePrice),
-        isActive: true,
-      };
-      await tx.productVariant.upsert({
+
+      const existingVariant = await tx.productVariant.findUnique({
         where: { sku: variant.sku },
-        create: { sku: variant.sku, ...variantData },
-        update: variantData,
+        select: {
+          id: true,
+          productId: true,
+          colorId: true,
+          sizeId: true,
+          listPrice: true,
+          salePrice: true,
+          isActive: true,
+          adminManagedFields: true,
+        },
       });
+
+      if (!existingVariant) {
+        const listPrice = new Prisma.Decimal(variant.listPrice);
+        const salePrice =
+          variant.salePrice === undefined ? null : new Prisma.Decimal(variant.salePrice);
+        try {
+          await tx.productVariant.create({
+            data: {
+              sku: variant.sku,
+              productId: product.id,
+              colorId,
+              sizeId,
+              listPrice,
+              salePrice,
+              isActive: true,
+              isCustom: false,
+              adminManagedFields: [],
+            },
+          });
+        } catch (error) {
+          if (!isUniqueViolationError(error)) throw error;
+          throw new ImportRowError(
+            'SKU_CONFLICT',
+            `SKU ${variant.sku} hoặc tổ hợp màu/cỡ của biến thể đã tồn tại`,
+          );
+        }
+      } else {
+        if (
+          existingVariant.productId !== product.id ||
+          existingVariant.colorId !== colorId ||
+          existingVariant.sizeId !== sizeId
+        ) {
+          throw new ImportRowError(
+            'SKU_CONFLICT',
+            `SKU ${variant.sku} đã tồn tại với sản phẩm/màu/cỡ khác`,
+          );
+        }
+
+        const managed = existingVariant.adminManagedFields ?? [];
+        const sourceList = new Prisma.Decimal(variant.listPrice);
+        const sourceSale =
+          variant.salePrice === undefined ? null : new Prisma.Decimal(variant.salePrice);
+
+        const effectiveList = managed.includes('listPrice')
+          ? existingVariant.listPrice
+          : sourceList;
+        const effectiveSale = managed.includes('salePrice')
+          ? existingVariant.salePrice
+          : sourceSale;
+
+        let finalList = effectiveList;
+        let finalSale = effectiveSale;
+
+        if (effectiveSale !== null && effectiveSale.gt(effectiveList)) {
+          this.logger.warn(
+            `[Import Catalog] Xung đột cặp giá hợp nhất cho SKU ${variant.sku}: ` +
+              `effectiveSalePrice (${effectiveSale}) > effectiveListPrice (${effectiveList}). ` +
+              `Bảo vệ dữ liệu: Giữ nguyên cả cặp giá hiện có trong DB (listPrice: ${existingVariant.listPrice}, salePrice: ${existingVariant.salePrice}).`,
+          );
+          finalList = existingVariant.listPrice;
+          finalSale = existingVariant.salePrice;
+        }
+
+        const effectiveIsActive = managed.includes('isActive') ? existingVariant.isActive : true;
+
+        await tx.productVariant.update({
+          where: { sku: variant.sku },
+          data: {
+            listPrice: finalList,
+            salePrice: finalSale,
+            isActive: effectiveIsActive,
+          },
+        });
+      }
     }
     await tx.productVariant.updateMany({
-      where: { productId: product.id, sku: { notIn: skus } },
+      where: {
+        productId: product.id,
+        sku: { notIn: skus },
+        isCustom: false,
+        NOT: { adminManagedFields: { has: 'isActive' } },
+      },
       data: { isActive: false },
     });
 
-    for (const [sortOrder, image] of row.images.entries()) {
-      const colorId = image.colorCode ? (colorByCode.get(image.colorCode) ?? null) : null;
-      const imageData = { url: image.url, alt: image.alt ?? null, colorId };
-      await tx.productImage.upsert({
-        where: { productId_sortOrder: { productId: product.id, sortOrder } },
-        create: { productId: product.id, sortOrder, ...imageData },
-        update: imageData,
+    const allActiveVariants = await tx.productVariant.findMany({
+      where: { productId: product.id, isActive: true },
+      select: { listPrice: true, salePrice: true },
+    });
+    const hasActiveVariants = allActiveVariants.length > 0;
+    const variantsForPrice = hasActiveVariants
+      ? allActiveVariants
+      : await tx.productVariant.findMany({
+          where: { productId: product.id },
+          select: { listPrice: true, salePrice: true },
+        });
+    const finalPriceFrom =
+      variantsForPrice.length > 0
+        ? Prisma.Decimal.min(...variantsForPrice.map((v) => v.salePrice ?? v.listPrice))
+        : priceFrom;
+    const finalStatus = status
+      ? productStatusChange(status, status.adminDisabled, effectiveHasImages, hasActiveVariants)
+      : { isActive: hasImages && hasActiveVariants };
+    await tx.product.update({
+      where: { id: product.id },
+      data: { ...finalStatus, priceFrom: finalPriceFrom },
+    });
+
+    if (!isMediaManagedByAdmin) {
+      for (const [sortOrder, imageData] of incomingImages.entries()) {
+        await tx.productImage.upsert({
+          where: { productId_sortOrder: { productId: product.id, sortOrder } },
+          create: { productId: product.id, sortOrder, ...imageData },
+          update: imageData,
+        });
+      }
+      await tx.productImage.deleteMany({
+        where: { productId: product.id, sortOrder: { gte: incomingImages.length } },
       });
     }
-    await tx.productImage.deleteMany({
-      where: { productId: product.id, sortOrder: { gte: row.images.length } },
-    });
 
     return {
       sourceKey: row.sourceKey,

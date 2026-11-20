@@ -9,6 +9,7 @@ import type {
   ResendVerificationResponse,
   ResetPasswordResponse,
   VerifyEmailResponse,
+  VerifyPasswordResetOtpResponse,
 } from '../types.js';
 
 const cookieRequest = { credentials: 'include' as const };
@@ -28,15 +29,38 @@ export const resendVerification = (email: string): Promise<ResendVerificationRes
 export const forgotPassword = (email: string): Promise<ForgotPasswordResponse> =>
   apiRequest<ForgotPasswordResponse>('/auth/forgot-password', { method: 'POST', body: { email } });
 
-export const resetPassword = (
+export const verifyPasswordResetOtp = (
+  email: string,
+  code: string,
+): Promise<VerifyPasswordResetOtpResponse> =>
+  apiRequest<VerifyPasswordResetOtpResponse>('/auth/verify-password-reset-otp', {
+    method: 'POST',
+    body: { email, code },
+  });
+
+export function resetPassword(
+  resetToken: string,
+  newPassword: string,
+): Promise<ResetPasswordResponse>;
+export function resetPassword(
   email: string,
   code: string,
   newPassword: string,
-): Promise<ResetPasswordResponse> =>
-  apiRequest<ResetPasswordResponse>('/auth/reset-password', {
+): Promise<ResetPasswordResponse>;
+export function resetPassword(
+  tokenOrEmail: string,
+  codeOrPassword: string,
+  maybePassword?: string,
+): Promise<ResetPasswordResponse> {
+  const body =
+    maybePassword !== undefined
+      ? { email: tokenOrEmail, code: codeOrPassword, newPassword: maybePassword }
+      : { resetToken: tokenOrEmail, newPassword: codeOrPassword };
+  return apiRequest<ResetPasswordResponse>('/auth/reset-password', {
     method: 'POST',
-    body: { email, code, newPassword },
+    body,
   });
+}
 
 export const login = (credentials: Credentials, signal?: AbortSignal): Promise<AuthResponse> =>
   apiRequest<AuthResponse>('/auth/login', {
