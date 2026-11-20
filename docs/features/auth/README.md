@@ -1,6 +1,6 @@
 ---
 title: Tài khoản và xác thực — bản đồ
-updated: 2026-11-02
+updated: 2026-11-14
 status: đang làm
 owner: Tài
 ---
@@ -144,20 +144,26 @@ khoản. Đăng ký không rollback khi gửi email thất bại: user vẫn ở
 dùng resend. Các việc PH3.1 chưa làm — rate limiting, phát hiện replay refresh token, quên/đặt lại
 mật khẩu, đổi mật khẩu — đã làm ở PH3.2–PH3.4; chỉ còn OAuth, 2FA và RBAC admin.
 
-## PH3.2 — Quên mật khẩu / đặt lại mật khẩu, nhánh `feature/ph3-password-recovery`
+## PH3.2 — Quên mật khẩu / đặt lại mật khẩu ba bước, nhánh `task/password-recovery-three-step`
 
 ### Luồng
 
 ```
-POST /auth/forgot-password  -> luon tra { accepted: true }. Chi tao OTP PASSWORD_RESET + gui email
-                                khi user dang ACTIVE (xem "Policy theo UserStatus" duoi day).
-POST /auth/reset-password   -> dung OTP dung: doi passwordHash, consume OTP, revoke MOI refresh
-                                token con hieu luc cua user (khong chi mot family). Khong cap session.
+POST /auth/forgot-password          -> luôn trả { accepted: true }. Chỉ tạo OTP PASSWORD_RESET + gửi
+                                       email khi user đang ACTIVE; thu hồi grant chưa dùng nếu phát mã mới.
+POST /auth/verify-password-reset-otp -> xác thực OTP (consume + advisory lock + kiểm authVersion), cấp
+                                       resetToken opaque ngắn hạn (10 phút, dùng 1 lần, chỉ lưu hash SHA-256).
+POST /auth/reset-password           -> dual-contract: nhận { resetToken, newPassword } (ưu tiên) hoặc
+                                       { email, code, newPassword }. Khóa user (FOR NO KEY UPDATE), kiểm
+                                       hạn/consume grant và authVersion CAS, đổi passwordHash, tăng
+                                       authVersion, revoke mọi refresh token; gửi mail thông báo sau commit
+                                       với timeout 3s (không làm fail HTTP 200).
 ```
 
-Giao diện: `/quen-mat-khau` (nhập email, luôn hiện thông báo chung chung) → `/dat-lai-mat-khau`
-(email + OTP + mật khẩu mới + xác nhận). Đặt lại thành công hiện nút "Đăng nhập ngay", không tự
-đăng nhập — giống hệt cách `/xac-thuc-email` xử lý ở PH3.1. `LoginPage` có thêm link "Quên mật khẩu?".
+Giao diện 3 bước: `/quen-mat-khau` (Bước 1: nhập email, luôn hiện thông báo chung và tự chuyển bước) →
+`/dat-lai-mat-khau` (Bước 2: nhập OTP 6 số, cooldown gửi lại 60s, đổi email → xác thực cấp `resetToken`
+chỉ giữ trong React memory → Bước 3: nhập mật khẩu mới và xác nhận; nếu reload mất grant sẽ yêu cầu
+lấy mã mới). Đặt lại thành công hiện nút "Đăng nhập ngay", không tự đăng nhập. `LoginPage` có link "Quên mật khẩu?".
 
 ### Policy theo UserStatus (quyết định của PH3.2)
 
