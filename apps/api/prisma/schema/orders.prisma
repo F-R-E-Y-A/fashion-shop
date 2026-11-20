@@ -208,6 +208,7 @@ model Shipment {
   carrierStatus      String?        @map("carrier_status") @db.VarChar(64)
   statusNote         String?        @map("status_note") @db.VarChar(500)
   expectedDeliveryAt DateTime?      @map("expected_delivery_at") @db.Timestamptz(3)
+  carrierUpdatedAt   DateTime?      @map("carrier_updated_at") @db.Timestamptz(3)
   createdAt          DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt          DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 

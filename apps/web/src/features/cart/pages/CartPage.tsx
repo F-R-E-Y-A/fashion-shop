@@ -241,19 +241,21 @@ export function CartPage() {
       .join('|');
     const validationKey = `${applied.kind}:${applied.id}:${applied.code ?? ''}:${cart.total}:${cart.selectedItemCount}:${selectedSignature}`;
     if (lastValidatedRef.current === validationKey) return;
-    lastValidatedRef.current = validationKey;
 
     let cancelled = false;
     const controller = new AbortController();
     const revalidate = async () => {
       try {
         if (applied.kind === 'VOUCHER' && applied.code) {
-          const res = await applyVoucher(applied.code, cart.total);
+          const res = await applyVoucher(applied.code, cart.total, controller.signal);
           if (cancelled || !res) return;
           if (!res.valid) {
             removePromotion();
-          } else if (res.discountAmount !== applied.discountAmount) {
-            applyVoucherResult(res);
+          } else {
+            lastValidatedRef.current = validationKey;
+            if (res.discountAmount !== applied.discountAmount) {
+              applyVoucherResult(res);
+            }
           }
         } else if (applied.kind === 'PROMOTION') {
           const selectedItems = cart.items
@@ -268,8 +270,11 @@ export function CartPage() {
           const match = res.applicablePromotions.find((promo) => promo.promotionId === applied.id);
           if (!match || Number(match.discountAmount) <= 0) {
             removePromotion();
-          } else if (match.discountAmount !== applied.discountAmount) {
-            applyEvaluatedPromotion(match);
+          } else {
+            lastValidatedRef.current = validationKey;
+            if (match.discountAmount !== applied.discountAmount) {
+              applyEvaluatedPromotion(match);
+            }
           }
         }
       } catch (err: unknown) {

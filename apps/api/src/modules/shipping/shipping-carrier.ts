@@ -30,9 +30,11 @@ export interface CreateCarrierShipmentResult {
   carrierName: string;
   trackingNumber: string;
   isMock: boolean;
+  status?: ShipmentStatus;
   carrierStatus: string;
   statusNote: string;
   expectedDeliveryAt: string | null;
+  occurredAt?: string;
 }
 
 export interface CarrierStatusEvent {

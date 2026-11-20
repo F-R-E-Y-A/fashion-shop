@@ -417,6 +417,11 @@ describe('UC-02.1/AC6, AC8 — bảo vệ dữ liệu admin dùng chung (#57)', 
         return {
           ...base,
           status: 'SHIPPED',
+          actions: {
+            ...base.actions,
+            markDelivered: true,
+            deliveryFailed: true,
+          },
           shipment: {
             id: 's-real',
             carrierName: 'GHN',
@@ -438,8 +443,10 @@ describe('UC-02.1/AC6, AC8 — bảo vệ dữ liệu admin dùng chung (#57)', 
 
     show('/admin/orders/o1');
     const syncButton = await screen.findByRole('button', { name: 'Đồng bộ từ GHN' });
-    // Vận đơn GHN thật (isMock=false) tuyệt đối không hiển thị các nút mô phỏng.
+    // Vận đơn GHN thật (isMock=false) tuyệt đối không hiển thị các nút mô phỏng hay chốt tay cũ.
     expect(screen.queryByRole('button', { name: /Mô phỏng:/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Đã giao/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Giao thất bại' })).not.toBeInTheDocument();
     fireEvent.click(syncButton);
     const title = 'Đồng bộ trạng thái từ GHN Sandbox';
     fireEvent.click(

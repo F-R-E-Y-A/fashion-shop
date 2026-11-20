@@ -237,4 +237,95 @@ describe('PH-11 Cart storefront', () => {
     );
     await waitFor(() => expect(sessionStorage.getItem('freya_applied_promotion')).toBeNull());
   });
+
+  it('R2-P2.6: nếu request đánh giá lại ưu đãi lần 1 bị abort giữa chừng khi giỏ refetch cùng khóa, lần 2 vẫn chạy lại và gỡ ưu đãi hết điều kiện', async () => {
+    sessionStorage.setItem(
+      'freya_applied_promotion',
+      JSON.stringify({
+        kind: 'VOUCHER',
+        id: 'voucher-expired',
+        code: 'EXPIRED50',
+        name: 'Mã ưu đãi EXPIRED50',
+        discountAmount: '50000',
+        discountType: 'FIXED_AMOUNT',
+      }),
+    );
+
+    const cart = fixture();
+    let applyCount = 0;
+    let cartFetchCount = 0;
+    let firstAborted = false;
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/promotions/vouchers/apply')) {
+        applyCount += 1;
+        if (applyCount === 1) {
+          return new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => {
+              firstAborted = true;
+              reject(new DOMException('Aborted', 'AbortError'));
+            });
+          });
+        }
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            valid: false,
+            code: 'EXPIRED50',
+            voucherId: 'voucher-expired',
+            discountType: 'FIXED_AMOUNT',
+            discountValue: '50000',
+            discountAmount: '0',
+            finalAmount: cart.total,
+            minOrderAmount: null,
+            maxDiscountAmount: null,
+          }),
+        } as Response;
+      }
+      if (url.includes('/promotions/evaluate')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ subtotal: cart.total, applicablePromotions: [] }),
+        } as Response;
+      }
+      // Đổi availableQuantity (không nằm trong validationKey) để React Query trả reference cart mới nhưng giữ nguyên validationKey
+      cartFetchCount += 1;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          ...cart,
+          items: cart.items.map((item) => ({
+            ...item,
+            availableQuantity: Math.max(2, (item.availableQuantity ?? 10) - cartFetchCount),
+          })),
+        }),
+      } as Response;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <CartPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText('Áo thử');
+    await waitFor(() => expect(applyCount).toBe(1));
+
+    // Kích hoạt refetch giỏ khi lần revalidate #1 chưa xong -> cleanup hủy lần #1, lần #2 phải chạy tiếp
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: cartKeys.all });
+    });
+
+    await waitFor(() => expect(firstAborted).toBe(true));
+    await waitFor(() => expect(applyCount).toBe(2));
+    await waitFor(() => expect(sessionStorage.getItem('freya_applied_promotion')).toBeNull());
+  });
 });

@@ -53,9 +53,37 @@ type ShipmentRow = {
   carrierStatus?: string | null;
   statusNote?: string | null;
   expectedDeliveryAt?: Date | null;
+  carrierUpdatedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
+
+type ShipmentStatusMeta = {
+  carrierStatus?: string;
+  fromWebhook?: boolean;
+  manualSimulation?: boolean;
+  requireRealCarrier?: boolean;
+  expectedTrackingNumber?: string;
+  occurredAt?: string;
+  expectedUpdatedAt?: Date;
+};
+
+type LockedOrderWithShipment = {
+  id: string;
+  orderCode: string;
+  userId: string | null;
+  customerEmail: string;
+  status: string;
+  shipment: ShipmentRow | null;
+  items?: Array<{ productVariantId: string; quantity: number }>;
+  payments?: Array<{ id: string; gateway: string | null; status: string }>;
+};
+
+function parseEventTime(raw?: string): Date | null {
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
 
 @Injectable()
 export class ShippingService {
@@ -187,7 +215,7 @@ export class ShippingService {
 
       const order = await tx.order.findUnique({
         where: { id: orderId },
-        include: { shipment: true },
+        include: { shipment: true, items: true, payments: true },
       });
       if (!order) throw new NotFoundException('Không tìm thấy đơn hàng.');
       this.assertOrderReadyForShipment(order);
@@ -212,8 +240,68 @@ export class ShippingService {
       const expectedDeliveryDate = carrierResult.expectedDeliveryAt
         ? new Date(carrierResult.expectedDeliveryAt)
         : null;
+      const recoveredStatus: ShipmentStatus = carrierResult.status ?? 'PENDING';
+      const recoveredAt = parseEventTime(carrierResult.occurredAt);
+      const fallbackMeta = fallbackUsed ? { fallbackUsed: true, fallbackReason } : undefined;
 
-      const shipment = await tx.shipment.upsert({
+      if (recoveredStatus === 'PENDING') {
+        const shipment = await tx.shipment.upsert({
+          where: { orderId },
+          create: {
+            orderId,
+            carrierName: carrierResult.carrierName,
+            trackingNumber: carrierResult.trackingNumber,
+            status: 'PENDING',
+            isMock: carrierResult.isMock,
+            carrierStatus: carrierResult.carrierStatus,
+            statusNote: carrierResult.statusNote,
+            expectedDeliveryAt: expectedDeliveryDate,
+            ...(recoveredAt ? { carrierUpdatedAt: recoveredAt } : {}),
+          },
+          update: {
+            carrierName: carrierResult.carrierName,
+            trackingNumber: carrierResult.trackingNumber,
+            isMock: carrierResult.isMock,
+            carrierStatus: carrierResult.carrierStatus,
+            statusNote: carrierResult.statusNote,
+            expectedDeliveryAt: expectedDeliveryDate,
+            ...(recoveredAt ? { carrierUpdatedAt: recoveredAt } : {}),
+          },
+        });
+
+        // Nếu đơn đang CONFIRMED, tự chuyển sang PROCESSING (chuẩn bị giao) và kèm thông tin vận đơn
+        if (order.status === 'CONFIRMED' && this.orders) {
+          await this.orders.transition(orderId, 'PROCESSING', tx, actorUserId, {
+            carrierName: carrierResult.carrierName,
+            trackingNumber: carrierResult.trackingNumber,
+            isMockShipment: carrierResult.isMock,
+            expectedDeliveryAt: carrierResult.expectedDeliveryAt,
+          });
+        } else if (order.status === 'PROCESSING' && this.notifications) {
+          postCommitHooks.push(() =>
+            this.notifications!.notifyShipmentCreated(
+              {
+                id: order.id,
+                orderCode: order.orderCode,
+                customerEmail: order.customerEmail,
+                userId: order.userId,
+              },
+              {
+                carrierName: carrierResult.carrierName,
+                trackingNumber: carrierResult.trackingNumber,
+                isMock: carrierResult.isMock,
+                expectedDeliveryAt: carrierResult.expectedDeliveryAt,
+              },
+            ),
+          );
+        }
+
+        return this.toResponse(shipment, fallbackMeta);
+      }
+
+      // Vận đơn khôi phục từ GHN đã tiến qua trạng thái khác PENDING (IN_TRANSIT/DELIVERED/FAILED/RETURNED):
+      // lưu bản ghi gốc PENDING rồi chạy qua cùng nhánh chuyển trạng thái trong 1 transaction để đồng bộ đơn/COD/kho.
+      const baseShipment = await tx.shipment.upsert({
         where: { orderId },
         create: {
           orderId,
@@ -221,50 +309,57 @@ export class ShippingService {
           trackingNumber: carrierResult.trackingNumber,
           status: 'PENDING',
           isMock: carrierResult.isMock,
-          carrierStatus: carrierResult.carrierStatus,
-          statusNote: carrierResult.statusNote,
+          carrierStatus: 'ready_to_pick',
+          statusNote: 'Đã khôi phục vận đơn thật từ GHN Sandbox theo mã đơn hàng.',
           expectedDeliveryAt: expectedDeliveryDate,
         },
         update: {
           carrierName: carrierResult.carrierName,
           trackingNumber: carrierResult.trackingNumber,
+          status: 'PENDING',
           isMock: carrierResult.isMock,
-          carrierStatus: carrierResult.carrierStatus,
-          statusNote: carrierResult.statusNote,
+          carrierStatus: 'ready_to_pick',
+          statusNote: 'Đã khôi phục vận đơn thật từ GHN Sandbox theo mã đơn hàng.',
           expectedDeliveryAt: expectedDeliveryDate,
+          carrierUpdatedAt: null,
         },
       });
 
-      // Nếu đơn đang CONFIRMED, tự chuyển sang PROCESSING (chuẩn bị giao) và kèm thông tin vận đơn
-      if (order.status === 'CONFIRMED' && this.orders) {
+      let effectiveOrderStatus = order.status;
+      if (
+        order.status === 'CONFIRMED' &&
+        (recoveredStatus === 'FAILED' || recoveredStatus === 'RETURNED') &&
+        this.orders
+      ) {
         await this.orders.transition(orderId, 'PROCESSING', tx, actorUserId, {
           carrierName: carrierResult.carrierName,
           trackingNumber: carrierResult.trackingNumber,
           isMockShipment: carrierResult.isMock,
           expectedDeliveryAt: carrierResult.expectedDeliveryAt,
         });
-      } else if (order.status === 'PROCESSING' && this.notifications) {
-        postCommitHooks.push(() =>
-          this.notifications!.notifyShipmentCreated(
-            {
-              id: order.id,
-              orderCode: order.orderCode,
-              customerEmail: order.customerEmail,
-              userId: order.userId,
-            },
-            {
-              carrierName: carrierResult.carrierName,
-              trackingNumber: carrierResult.trackingNumber,
-              isMock: carrierResult.isMock,
-              expectedDeliveryAt: carrierResult.expectedDeliveryAt,
-            },
-          ),
-        );
+        effectiveOrderStatus = 'PROCESSING';
       }
 
-      return this.toResponse(shipment, {
-        ...(fallbackUsed ? { fallbackUsed: true, fallbackReason } : {}),
-      });
+      const applied = await this.applyShipmentStatusInTx(
+        tx,
+        {
+          ...order,
+          status: effectiveOrderStatus,
+          shipment: baseShipment,
+        },
+        recoveredStatus,
+        actorUserId,
+        carrierResult.statusNote,
+        {
+          carrierStatus: carrierResult.carrierStatus,
+          fromWebhook: false,
+          requireRealCarrier: !carrierResult.isMock,
+          expectedTrackingNumber: carrierResult.trackingNumber,
+          occurredAt: carrierResult.occurredAt,
+        },
+        postCommitHooks,
+      );
+      return fallbackMeta ? { ...applied, ...fallbackMeta } : applied;
     });
 
     await runPostCommitHooks(postCommitHooks);
@@ -297,6 +392,8 @@ export class ShippingService {
       fromWebhook: false,
       requireRealCarrier: true,
       expectedTrackingNumber: shipment.trackingNumber,
+      occurredAt: event.occurredAt,
+      expectedUpdatedAt: shipment.updatedAt,
     });
   }
 
@@ -305,13 +402,7 @@ export class ShippingService {
     status: ShipmentStatus,
     actorUserId?: string,
     note?: string,
-    meta?: {
-      carrierStatus?: string;
-      fromWebhook?: boolean;
-      manualSimulation?: boolean;
-      requireRealCarrier?: boolean;
-      expectedTrackingNumber?: string;
-    },
+    meta?: ShipmentStatusMeta,
   ): Promise<ShipmentResponse> {
     const postCommitHooks: PostCommitHook[] = [];
     const result = await this.prisma.$transaction(async (tx) => {
@@ -324,195 +415,255 @@ export class ShippingService {
         include: { shipment: true, items: true, payments: true },
       });
       if (!order) throw new NotFoundException('Không tìm thấy đơn hàng.');
-      if (!order.shipment) throw new NotFoundException('Chưa tạo vận đơn cho đơn hàng này.');
-
-      if (meta?.manualSimulation && order.shipment.isMock === false) {
-        throw new ConflictException(
-          'Vận đơn GHN thật chỉ được cập nhật qua đồng bộ GHN hoặc webhook, không thể dùng thao tác mô phỏng.',
-        );
-      }
-
-      if (meta?.requireRealCarrier && order.shipment.isMock !== false) {
-        throw new ConflictException(
-          'Bỏ qua webhook GHN vì vận đơn hiện tại đang ở chế độ mô phỏng nội bộ.',
-        );
-      }
-
-      if (
-        meta?.expectedTrackingNumber &&
-        order.shipment.trackingNumber &&
-        order.shipment.trackingNumber !== meta.expectedTrackingNumber
-      ) {
-        throw new ConflictException(
-          `Bỏ qua sự kiện vì mã vận đơn ${meta.expectedTrackingNumber} không khớp vận đơn hiện tại (${order.shipment.trackingNumber}).`,
-        );
-      }
-
-      if (order.status === 'CANCELLED' && status !== 'FAILED' && status !== 'RETURNED') {
-        throw new ConflictException('Đơn hàng đã bị hủy, không thể cập nhật vận chuyển.');
-      }
-
-      const currentStatus = order.shipment.status as ShipmentStatus;
-      const shouldFillTracking = Boolean(
-        meta?.expectedTrackingNumber && !order.shipment.trackingNumber,
+      return this.applyShipmentStatusInTx(
+        tx,
+        order,
+        status,
+        actorUserId,
+        note,
+        meta,
+        postCommitHooks,
       );
-
-      // Xử lý sự kiện trùng trạng thái nội bộ (ví dụ ready_to_pick -> picking trong PENDING,
-      // hoặc picked -> delivering trong IN_TRANSIT)
-      if (currentStatus === status) {
-        const subChanged =
-          shouldFillTracking ||
-          (meta?.carrierStatus !== undefined &&
-            meta.carrierStatus !== order.shipment.carrierStatus) ||
-          (note !== undefined && note !== order.shipment.statusNote);
-        if (subChanged) {
-          const refreshed = await tx.shipment.update({
-            where: { orderId },
-            data: {
-              ...(shouldFillTracking ? { trackingNumber: meta!.expectedTrackingNumber } : {}),
-              ...(meta?.carrierStatus !== undefined ? { carrierStatus: meta.carrierStatus } : {}),
-              ...(note !== undefined ? { statusNote: note } : {}),
-            },
-          });
-          return this.toResponse(refreshed);
-        }
-        return this.toResponse(order.shipment);
-      }
-
-      // Kiểm tra ma trận chuyển trạng thái: chặn lùi trạng thái (trừ luồng giao lại từ FAILED)
-      if (!canTransitionShipment(currentStatus, status)) {
-        throw new ConflictException(
-          `Không thể chuyển trạng thái vận đơn từ ${currentStatus} sang ${status}.`,
-        );
-      }
-
-      const updateData: Prisma.ShipmentUpdateInput = { status };
-      if (shouldFillTracking) updateData.trackingNumber = meta!.expectedTrackingNumber;
-      if (meta?.carrierStatus !== undefined) updateData.carrierStatus = meta.carrierStatus;
-      if (note !== undefined) updateData.statusNote = note;
-
-      const updatedShipment = await tx.shipment.update({
-        where: { orderId },
-        data: updateData,
-      });
-
-      const sharedContext: OrderStatusNotificationContext = {
-        carrierName: updatedShipment.carrierName,
-        trackingNumber: updatedShipment.trackingNumber,
-        isMockShipment: updatedShipment.isMock ?? true,
-        expectedDeliveryAt: updatedShipment.expectedDeliveryAt?.toISOString() ?? null,
-        ...(note !== undefined ? { note } : {}),
-        ...(meta?.fromWebhook !== undefined ? { fromCarrierWebhook: meta.fromWebhook } : {}),
-      };
-      const hasRichContext = note !== undefined || meta?.fromWebhook !== undefined;
-
-      // Đồng bộ trạng thái đơn hàng theo luồng vận chuyển
-      if (status === 'IN_TRANSIT') {
-        if (order.status === 'CONFIRMED' && this.orders) {
-          await this.orders.transition(
-            orderId,
-            'PROCESSING',
-            tx,
-            actorUserId,
-            hasRichContext ? sharedContext : undefined,
-          );
-        }
-        if ((order.status === 'PROCESSING' || order.status === 'CONFIRMED') && this.orders) {
-          await this.orders.transition(
-            orderId,
-            'SHIPPED',
-            tx,
-            actorUserId,
-            hasRichContext ? sharedContext : undefined,
-          );
-        }
-      } else if (status === 'DELIVERED') {
-        if (order.status === 'CONFIRMED' && this.orders) {
-          await this.orders.transition(orderId, 'PROCESSING', tx, actorUserId);
-          await this.orders.transition(orderId, 'SHIPPED', tx, actorUserId);
-        } else if (order.status === 'PROCESSING' && this.orders) {
-          await this.orders.transition(orderId, 'SHIPPED', tx, actorUserId);
-        }
-        if (order.status !== 'DELIVERED' && this.orders) {
-          const cod = order.payments.find((p) => p.gateway === 'COD' && p.status === 'PENDING');
-          if (cod && this.payments) {
-            await this.payments.record(
-              cod.id,
-              'SUCCEEDED',
-              `COD:${order.orderCode}:${randomUUID().slice(0, 8)}`,
-              { note: note ?? 'Shipper giao hàng thành công', actor: actorUserId ?? 'CARRIER' },
-              tx,
-            );
-          }
-          await this.orders.transition(
-            orderId,
-            'DELIVERED',
-            tx,
-            actorUserId,
-            hasRichContext ? sharedContext : undefined,
-          );
-        }
-      } else if (status === 'FAILED') {
-        if (this.notifications) {
-          postCommitHooks.push(() =>
-            this.notifications!.notifyShipmentFailed({
-              id: order.id,
-              orderCode: order.orderCode,
-              customerEmail: order.customerEmail,
-              userId: order.userId,
-              carrierName: updatedShipment.carrierName,
-              trackingNumber: updatedShipment.trackingNumber,
-              note,
-            }),
-          );
-        }
-      } else if (status === 'RETURNED') {
-        const cod = order.payments.find((p) => p.gateway === 'COD' && p.status === 'PENDING');
-        if (cod && ['PROCESSING', 'SHIPPED'].includes(order.status)) {
-          if (this.payments) {
-            await this.payments.record(
-              cod.id,
-              'FAILED',
-              `COD-FAILED:${order.orderCode}`,
-              { note: note ?? 'Hàng hoàn về kho', actor: actorUserId ?? 'CARRIER' },
-              tx,
-            );
-          }
-          if (this.inventory) {
-            const stockItems = order.items.map((i) => ({
-              variantId: i.productVariantId,
-              quantity: i.quantity,
-            }));
-            await this.inventory.restock(orderId, stockItems, tx);
-          }
-          // Don huy thi tra luot voucher, cung transaction (UC-07.2), nhu deliveryFailed.
-          await this.promotions?.releaseVoucherUsage(orderId, tx);
-          if (this.orders) {
-            await this.orders.transition(orderId, 'CANCELLED', tx, actorUserId, {
-              ...sharedContext,
-              cancelSource: 'DELIVERY_FAILED',
-              reason: note ?? 'Giao hàng không thành công, hàng đã hoàn về kho',
-            });
-          }
-        } else if (this.notifications) {
-          postCommitHooks.push(() =>
-            this.notifications!.notifyShipmentFailed({
-              id: order.id,
-              orderCode: order.orderCode,
-              customerEmail: order.customerEmail,
-              userId: order.userId,
-              carrierName: updatedShipment.carrierName,
-              trackingNumber: updatedShipment.trackingNumber,
-              note: note ?? 'Hàng hoàn về kho — bộ phận CSKH sẽ liên hệ xử lý hoàn tiền.',
-            }),
-          );
-        }
-      }
-
-      return this.toResponse(updatedShipment);
     });
     await runPostCommitHooks(postCommitHooks);
     return result;
+  }
+
+  private async applyShipmentStatusInTx(
+    tx: Prisma.TransactionClient,
+    order: LockedOrderWithShipment,
+    status: ShipmentStatus,
+    actorUserId: string | undefined,
+    note: string | undefined,
+    meta: ShipmentStatusMeta | undefined,
+    postCommitHooks: PostCommitHook[],
+  ): Promise<ShipmentResponse> {
+    const orderId = order.id;
+    const shipment = order.shipment;
+    if (!shipment) throw new NotFoundException('Chưa tạo vận đơn cho đơn hàng này.');
+
+    if (meta?.manualSimulation && shipment.isMock === false) {
+      throw new ConflictException(
+        'Vận đơn GHN thật chỉ được cập nhật qua đồng bộ GHN hoặc webhook, không thể dùng thao tác mô phỏng.',
+      );
+    }
+
+    if (meta?.requireRealCarrier && shipment.isMock !== false) {
+      throw new ConflictException(
+        'Bỏ qua webhook GHN vì vận đơn hiện tại đang ở chế độ mô phỏng nội bộ.',
+      );
+    }
+
+    if (
+      meta?.expectedTrackingNumber &&
+      shipment.trackingNumber &&
+      shipment.trackingNumber !== meta.expectedTrackingNumber
+    ) {
+      throw new ConflictException(
+        `Bỏ qua sự kiện vì mã vận đơn ${meta.expectedTrackingNumber} không khớp vận đơn hiện tại (${shipment.trackingNumber}).`,
+      );
+    }
+
+    if (order.status === 'CANCELLED' && status !== 'FAILED' && status !== 'RETURNED') {
+      throw new ConflictException('Đơn hàng đã bị hủy, không thể cập nhật vận chuyển.');
+    }
+
+    const currentStatus = shipment.status as ShipmentStatus;
+    const incomingEventAt = parseEventTime(meta?.occurredAt);
+    const storedCarrierAt = shipment.carrierUpdatedAt ?? null;
+    const isRedeliveryFromFailed =
+      currentStatus === 'FAILED' && (status === 'IN_TRANSIT' || status === 'DELIVERED');
+
+    if (meta?.requireRealCarrier) {
+      if (incomingEventAt && storedCarrierAt) {
+        if (incomingEventAt.getTime() < storedCarrierAt.getTime()) {
+          throw new ConflictException('Bỏ qua sự kiện GHN cũ hơn trạng thái đã ghi nhận gần nhất.');
+        }
+        if (isRedeliveryFromFailed && incomingEventAt.getTime() === storedCarrierAt.getTime()) {
+          throw new ConflictException(
+            'Bỏ qua sự kiện GHN không mới hơn mốc giao thất bại đã ghi nhận.',
+          );
+        }
+      } else {
+        if (
+          meta.expectedUpdatedAt &&
+          shipment.updatedAt.getTime() > meta.expectedUpdatedAt.getTime()
+        ) {
+          throw new ConflictException(
+            'Vận đơn vừa được cập nhật trong lúc đồng bộ từ GHN, vui lòng đồng bộ lại.',
+          );
+        }
+        if (isRedeliveryFromFailed && storedCarrierAt && !incomingEventAt) {
+          throw new ConflictException(
+            'Không thể chuyển từ trạng thái giao thất bại sang đang giao/đã giao khi sự kiện GHN thiếu mốc thời gian đối chiếu.',
+          );
+        }
+      }
+    }
+
+    const shouldFillTracking = Boolean(meta?.expectedTrackingNumber && !shipment.trackingNumber);
+    const nextCarrierUpdatedAt =
+      incomingEventAt && (!storedCarrierAt || incomingEventAt.getTime() > storedCarrierAt.getTime())
+        ? incomingEventAt
+        : undefined;
+
+    // Xử lý sự kiện trùng trạng thái nội bộ (ví dụ ready_to_pick -> picking trong PENDING,
+    // hoặc picked -> delivering trong IN_TRANSIT)
+    if (currentStatus === status) {
+      const subChanged =
+        shouldFillTracking ||
+        nextCarrierUpdatedAt !== undefined ||
+        (meta?.carrierStatus !== undefined && meta.carrierStatus !== shipment.carrierStatus) ||
+        (note !== undefined && note !== shipment.statusNote);
+      if (subChanged) {
+        const refreshed = await tx.shipment.update({
+          where: { orderId },
+          data: {
+            ...(shouldFillTracking ? { trackingNumber: meta!.expectedTrackingNumber } : {}),
+            ...(meta?.carrierStatus !== undefined ? { carrierStatus: meta.carrierStatus } : {}),
+            ...(note !== undefined ? { statusNote: note } : {}),
+            ...(nextCarrierUpdatedAt ? { carrierUpdatedAt: nextCarrierUpdatedAt } : {}),
+          },
+        });
+        return this.toResponse(refreshed);
+      }
+      return this.toResponse(shipment);
+    }
+
+    // Kiểm tra ma trận chuyển trạng thái: chặn lùi trạng thái (trừ luồng giao lại từ FAILED)
+    if (!canTransitionShipment(currentStatus, status)) {
+      throw new ConflictException(
+        `Không thể chuyển trạng thái vận đơn từ ${currentStatus} sang ${status}.`,
+      );
+    }
+
+    const updateData: Prisma.ShipmentUpdateInput = { status };
+    if (shouldFillTracking) updateData.trackingNumber = meta!.expectedTrackingNumber;
+    if (meta?.carrierStatus !== undefined) updateData.carrierStatus = meta.carrierStatus;
+    if (note !== undefined) updateData.statusNote = note;
+    if (nextCarrierUpdatedAt) updateData.carrierUpdatedAt = nextCarrierUpdatedAt;
+
+    const updatedShipment = await tx.shipment.update({
+      where: { orderId },
+      data: updateData,
+    });
+
+    const sharedContext: OrderStatusNotificationContext = {
+      carrierName: updatedShipment.carrierName,
+      trackingNumber: updatedShipment.trackingNumber,
+      isMockShipment: updatedShipment.isMock ?? true,
+      expectedDeliveryAt: updatedShipment.expectedDeliveryAt?.toISOString() ?? null,
+      ...(note !== undefined ? { note } : {}),
+      ...(meta?.fromWebhook !== undefined ? { fromCarrierWebhook: meta.fromWebhook } : {}),
+    };
+    const hasRichContext = note !== undefined || meta?.fromWebhook !== undefined;
+    const orderItems = order.items ?? [];
+    const orderPayments = order.payments ?? [];
+
+    // Đồng bộ trạng thái đơn hàng theo luồng vận chuyển
+    if (status === 'IN_TRANSIT') {
+      if (order.status === 'CONFIRMED' && this.orders) {
+        await this.orders.transition(
+          orderId,
+          'PROCESSING',
+          tx,
+          actorUserId,
+          hasRichContext ? sharedContext : undefined,
+        );
+      }
+      if ((order.status === 'PROCESSING' || order.status === 'CONFIRMED') && this.orders) {
+        await this.orders.transition(
+          orderId,
+          'SHIPPED',
+          tx,
+          actorUserId,
+          hasRichContext ? sharedContext : undefined,
+        );
+      }
+    } else if (status === 'DELIVERED') {
+      if (order.status === 'CONFIRMED' && this.orders) {
+        await this.orders.transition(orderId, 'PROCESSING', tx, actorUserId);
+        await this.orders.transition(orderId, 'SHIPPED', tx, actorUserId);
+      } else if (order.status === 'PROCESSING' && this.orders) {
+        await this.orders.transition(orderId, 'SHIPPED', tx, actorUserId);
+      }
+      if (order.status !== 'DELIVERED' && this.orders) {
+        const cod = orderPayments.find((p) => p.gateway === 'COD' && p.status === 'PENDING');
+        if (cod && this.payments) {
+          await this.payments.record(
+            cod.id,
+            'SUCCEEDED',
+            `COD:${order.orderCode}:${randomUUID().slice(0, 8)}`,
+            { note: note ?? 'Shipper giao hàng thành công', actor: actorUserId ?? 'CARRIER' },
+            tx,
+          );
+        }
+        await this.orders.transition(
+          orderId,
+          'DELIVERED',
+          tx,
+          actorUserId,
+          hasRichContext ? sharedContext : undefined,
+        );
+      }
+    } else if (status === 'FAILED') {
+      if (this.notifications) {
+        postCommitHooks.push(() =>
+          this.notifications!.notifyShipmentFailed({
+            id: order.id,
+            orderCode: order.orderCode,
+            customerEmail: order.customerEmail,
+            userId: order.userId,
+            carrierName: updatedShipment.carrierName,
+            trackingNumber: updatedShipment.trackingNumber,
+            note,
+          }),
+        );
+      }
+    } else if (status === 'RETURNED') {
+      const cod = orderPayments.find((p) => p.gateway === 'COD' && p.status === 'PENDING');
+      if (cod && ['PROCESSING', 'SHIPPED'].includes(order.status)) {
+        if (this.payments) {
+          await this.payments.record(
+            cod.id,
+            'FAILED',
+            `COD-FAILED:${order.orderCode}`,
+            { note: note ?? 'Hàng hoàn về kho', actor: actorUserId ?? 'CARRIER' },
+            tx,
+          );
+        }
+        if (this.inventory) {
+          const stockItems = orderItems.map((i) => ({
+            variantId: i.productVariantId,
+            quantity: i.quantity,
+          }));
+          await this.inventory.restock(orderId, stockItems, tx);
+        }
+        // Don huy thi tra luot voucher, cung transaction (UC-07.2), nhu deliveryFailed.
+        await this.promotions?.releaseVoucherUsage(orderId, tx);
+        if (this.orders) {
+          await this.orders.transition(orderId, 'CANCELLED', tx, actorUserId, {
+            ...sharedContext,
+            cancelSource: 'DELIVERY_FAILED',
+            reason: note ?? 'Giao hàng không thành công, hàng đã hoàn về kho',
+          });
+        }
+      } else if (this.notifications) {
+        postCommitHooks.push(() =>
+          this.notifications!.notifyShipmentFailed({
+            id: order.id,
+            orderCode: order.orderCode,
+            customerEmail: order.customerEmail,
+            userId: order.userId,
+            carrierName: updatedShipment.carrierName,
+            trackingNumber: updatedShipment.trackingNumber,
+            note: note ?? 'Hàng hoàn về kho — bộ phận CSKH sẽ liên hệ xử lý hoàn tiền.',
+          }),
+        );
+      }
+    }
+
+    return this.toResponse(updatedShipment);
   }
 
   async handleWebhook(payload: ShipmentWebhookDto) {
@@ -536,6 +687,7 @@ export class ShippingService {
       status: parsed.status,
       carrierStatus: parsed.carrierStatus,
       note: parsed.note,
+      occurredAt: parsed.occurredAt,
       requireRealCarrier: true,
     });
   }
@@ -547,6 +699,7 @@ export class ShippingService {
     status: ShipmentStatus;
     carrierStatus?: string;
     note?: string;
+    occurredAt?: string;
     requireRealCarrier?: boolean;
   }) {
     let shipment = null;
@@ -582,6 +735,7 @@ export class ShippingService {
           fromWebhook: true,
           requireRealCarrier: payload.requireRealCarrier,
           expectedTrackingNumber: payload.trackingNumber,
+          occurredAt: payload.occurredAt,
         },
       );
 
@@ -614,14 +768,23 @@ export class ShippingService {
 
   private assertOrderReadyForShipment(order: {
     status: string;
-    shipment: { status: string } | null;
+    shipment: { status: string; isMock?: boolean; trackingNumber?: string | null } | null;
   }) {
-    if (['CANCELLED', 'REFUNDED', 'PARTIALLY_REFUNDED', 'PAYMENT_REVIEW'].includes(order.status)) {
+    if (
+      ['CANCELLED', 'DELIVERED', 'REFUNDED', 'PARTIALLY_REFUNDED', 'PAYMENT_REVIEW'].includes(
+        order.status,
+      )
+    ) {
       throw new ConflictException(`Đơn hàng ở trạng thái ${order.status}, không thể tạo vận đơn.`);
     }
     if (['PENDING_PAYMENT', 'PENDING_CONFIRMATION'].includes(order.status)) {
       throw new ConflictException(
         'Đơn hàng chưa sẵn sàng để tạo vận đơn. Vui lòng xác nhận hoặc thanh toán trước.',
+      );
+    }
+    if (order.shipment && order.shipment.isMock === false) {
+      throw new ConflictException(
+        `Đơn hàng đã có vận đơn GHN thật (${order.shipment.trackingNumber ?? 'chưa rõ mã'}), không thể tạo mới hoặc ghi đè bằng vận đơn khác.`,
       );
     }
     if (order.shipment && order.shipment.status !== 'PENDING') {

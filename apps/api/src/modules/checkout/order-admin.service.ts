@@ -71,6 +71,10 @@ export class OrderAdminService {
     return this.step(id, async (order, tx) => {
       if (!IN_DELIVERY.includes(order.status))
         throw new ConflictException('Chỉ đánh dấu đã giao cho đơn đang giao.');
+      if (hasRealCarrierShipment(order))
+        throw new ConflictException(
+          'Đơn hàng đang giao qua vận đơn GHN thật, chỉ chốt giao thành công qua đồng bộ GHN hoặc webhook.',
+        );
       const cod = codPayment(order);
       if (cod?.status === 'PENDING')
         await this.checkout.payments.record(
@@ -93,6 +97,10 @@ export class OrderAdminService {
       const cod = codPayment(order);
       if (!IN_DELIVERY.includes(order.status) || cod?.status !== 'PENDING')
         throw new ConflictException('Chỉ ghi giao thất bại cho đơn COD đang giao, chưa thu tiền.');
+      if (hasRealCarrierShipment(order))
+        throw new ConflictException(
+          'Đơn hàng đang giao qua vận đơn GHN thật, không thể tự chốt giao thất bại hoặc hoàn kho khi GHN chưa xác nhận.',
+        );
       await this.checkout.inventory.restock(id, this.checkout.stockItems(order), tx);
       await this.checkout.payments.record(
         cod.id,
@@ -149,6 +157,7 @@ export class OrderAdminService {
       };
     });
     const cod = codPayment(order);
+    const realCarrier = hasRealCarrierShipment(order);
     return {
       ...this.checkout.view(order),
       userId: order.userId,
@@ -163,8 +172,9 @@ export class OrderAdminService {
         confirmCod: order.status === 'PENDING_CONFIRMATION' && cod?.status === 'PENDING',
         startProcessing: order.status === 'CONFIRMED',
         cancelRefund: !!this.checkout.selfRefundablePayment(order),
-        markDelivered: IN_DELIVERY.includes(order.status),
-        deliveryFailed: IN_DELIVERY.includes(order.status) && cod?.status === 'PENDING',
+        markDelivered: IN_DELIVERY.includes(order.status) && !realCarrier,
+        deliveryFailed:
+          IN_DELIVERY.includes(order.status) && cod?.status === 'PENDING' && !realCarrier,
       },
     };
   }
@@ -172,6 +182,9 @@ export class OrderAdminService {
 
 const codPayment = (order: OrderDetails) =>
   order.payments.find((payment) => payment.gateway === 'COD');
+
+const hasRealCarrierShipment = (order: OrderDetails) =>
+  Boolean(order.shipment && order.shipment.isMock === false);
 
 function summary(order: OrderDetails) {
   const latest = order.payments[0];

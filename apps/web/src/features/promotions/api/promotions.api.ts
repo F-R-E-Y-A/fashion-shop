@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiRequest } from '@/core';
+import { apiGet, apiRequest } from '@/core';
 
 export interface Voucher {
   id: string;
@@ -55,8 +55,16 @@ export const getAvailableVouchers = ({ signal }: { signal?: AbortSignal } = {}):
   Voucher[]
 > => apiGet<Voucher[]>('/promotions/vouchers/available', undefined, { signal });
 
-export const applyVoucher = (code: string, subtotal: string): Promise<VoucherApplyResult> =>
-  apiPost<VoucherApplyResult>('/promotions/vouchers/apply', { code, subtotal });
+export const applyVoucher = (
+  code: string,
+  subtotal: string,
+  signal?: AbortSignal,
+): Promise<VoucherApplyResult> =>
+  apiRequest<VoucherApplyResult>('/promotions/vouchers/apply', {
+    method: 'POST',
+    body: { code, subtotal },
+    signal,
+  });
 
 export const evaluateCart = (
   subtotal: string,

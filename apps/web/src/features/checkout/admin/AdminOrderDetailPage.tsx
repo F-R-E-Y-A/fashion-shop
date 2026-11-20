@@ -610,7 +610,7 @@ function AdminOrderDetail() {
                       Hủy và hoàn tiền
                     </button>
                   )}
-                  {order.actions.markDelivered && (
+                  {order.actions.markDelivered && order.shipment?.isMock !== false && (
                     <button
                       type="button"
                       className={styles.primaryButton}
@@ -620,7 +620,7 @@ function AdminOrderDetail() {
                       {titleOf({ kind: 'markDelivered' }, order)}
                     </button>
                   )}
-                  {order.actions.deliveryFailed && (
+                  {order.actions.deliveryFailed && order.shipment?.isMock !== false && (
                     <button
                       type="button"
                       className={styles.dangerButton}
@@ -753,9 +753,13 @@ function AdminOrderDetail() {
 }
 
 const hasAction = (order: AdminOrder) =>
-  Object.values(order.actions).some(Boolean) ||
-  ['CONFIRMED', 'PROCESSING'].includes(order.status) ||
-  Boolean(order.shipment) ||
+  order.actions.confirmCod ||
+  order.actions.startProcessing ||
+  order.actions.cancelRefund ||
+  ((order.actions.markDelivered || order.actions.deliveryFailed) &&
+    order.shipment?.isMock !== false) ||
+  (['CONFIRMED', 'PROCESSING'].includes(order.status) && !order.shipment) ||
+  Boolean(order.shipment && !['DELIVERED', 'RETURNED'].includes(order.shipment.status)) ||
   order.ledgers.some((ledger) => ledger.refundableAmount || ledger.pendingRefund?.resolvable);
 
 const TITLE: Record<Dialog['kind'], string> = {

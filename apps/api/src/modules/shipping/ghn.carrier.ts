@@ -13,14 +13,20 @@ import type {
 interface GhnEnvelope<T> {
   code?: number;
   message?: string;
+  code_message?: string;
+  code_message_value?: string;
   data?: T;
 }
+
+const GHN_NOT_FOUND_CODES = new Set(['ORDER_NOT_FOUND', 'NOT_FOUND', 'ORDER_CODE_NOT_FOUND']);
 
 export class GhnApiRejectedError extends ServiceUnavailableException {
   constructor(
     message: string,
     readonly httpStatus: number,
     readonly ghnCode?: number,
+    readonly codeMessage?: string,
+    readonly rawMessage?: string,
   ) {
     super(message);
   }
@@ -28,8 +34,22 @@ export class GhnApiRejectedError extends ServiceUnavailableException {
 
 export function isGhnNotFoundError(err: unknown): boolean {
   if (!(err instanceof GhnApiRejectedError)) return false;
+  if (err.httpStatus === 404 || err.ghnCode === 404) return true;
+  const normalizedCode = err.codeMessage?.trim().toUpperCase();
+  if (normalizedCode) {
+    return GHN_NOT_FOUND_CODES.has(normalizedCode);
+  }
+  if (err.httpStatus !== 400 && err.ghnCode !== 400) return false;
+  const msg = (err.rawMessage ?? err.message)
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/đ/giu, 'd')
+    .toLowerCase();
   return (
-    err.httpStatus === 400 || err.httpStatus === 404 || err.ghnCode === 400 || err.ghnCode === 404
+    msg.includes('order not found') ||
+    msg.includes('don hang khong ton tai') ||
+    msg.includes('khong tim thay don hang') ||
+    msg.includes('khong tim thay thong tin don hang')
   );
 }
 
@@ -201,6 +221,7 @@ export class GhnCarrierGateway implements ShippingCarrierGateway {
       carrierName: 'GHN',
       trackingNumber,
       isMock: false,
+      status: 'PENDING',
       carrierStatus: 'ready_to_pick',
       statusNote: 'Đã tạo vận đơn thành công trên GHN Sandbox, chờ lấy hàng.',
       expectedDeliveryAt: json.data?.expected_delivery_time ?? null,
@@ -295,9 +316,11 @@ export class GhnCarrierGateway implements ShippingCarrierGateway {
       carrierName: 'GHN',
       trackingNumber,
       isMock: false,
+      status: mapped?.status ?? 'PENDING',
       carrierStatus: mapped?.carrierStatus ?? 'ready_to_pick',
       statusNote: note,
       expectedDeliveryAt: readStringField(detail, ['leadtime', 'expected_delivery_time']) ?? null,
+      occurredAt: readStringField(detail, ['updated_date', 'UpdatedDate']),
     };
   }
 
@@ -460,6 +483,8 @@ export class GhnCarrierGateway implements ShippingCarrierGateway {
         `GHN Sandbox từ chối hoặc gặp lỗi: ${reason}`,
         response.status,
         raw?.code,
+        raw?.code_message,
+        raw?.message,
       );
     }
     return raw ?? { code: 200 };

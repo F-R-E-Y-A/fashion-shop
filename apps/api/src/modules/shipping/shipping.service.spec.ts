@@ -12,7 +12,7 @@ import type { InventoryService } from '../inventory/index.js';
 import type { NotificationsService } from '../notifications/index.js';
 import { type OrdersService, registerPostCommitHook } from '../orders/index.js';
 import type { PaymentsService } from '../payments/index.js';
-import type { GhnCarrierGateway } from './ghn.carrier.js';
+import { GhnApiRejectedError, type GhnCarrierGateway } from './ghn.carrier.js';
 import { ShippingService } from './shipping.service.js';
 
 describe('ShippingService', () => {
@@ -1523,6 +1523,326 @@ describe('ShippingService', () => {
         undefined,
         expect.objectContaining({ fromCarrierWebhook: true }),
       );
+    });
+
+    it('R2-P1.2: createOrder timeout + queryOrderByClientCode gặp HTTP 400 CLIENT_NOT_OWNER_OF_SHOP thì báo 503, không rơi sang mock', async () => {
+      const orderRow = sampleOrderSnapshot();
+      const txMock = vi.fn();
+      const mockPrisma = {
+        order: { findUnique: vi.fn().mockResolvedValue(orderRow) },
+        $transaction: txMock,
+      } as unknown as PrismaService;
+      const mockGhn = {
+        configured: vi.fn().mockReturnValue(true),
+        createOrder: vi.fn().mockRejectedValue(new ServiceUnavailableException('GHN timeout')),
+        queryOrderByClientCode: vi
+          .fn()
+          .mockRejectedValue(
+            new GhnApiRejectedError(
+              'GHN Sandbox từ chối hoặc gặp lỗi: Client không thuộc shop',
+              400,
+              400,
+              'CLIENT_NOT_OWNER_OF_SHOP',
+              'Client không thuộc shop',
+            ),
+          ),
+      } as unknown as GhnCarrierGateway;
+
+      const service = new ShippingService(
+        mockPrisma,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        mockGhn,
+      );
+
+      await expect(
+        service.createShipment('ord-ghn-1', { mode: 'AUTO' }, 'admin-1'),
+      ).rejects.toThrow(ServiceUnavailableException);
+      expect(txMock).not.toHaveBeenCalled();
+    });
+
+    it('R2-P1.3: chặn tạo vận đơn MOCK từ tab cũ ghi đè vận đơn GHN thật đang ở PENDING dưới khóa đơn', async () => {
+      const now = new Date();
+      const upsert = vi.fn();
+      const mockOrders = { lock: vi.fn().mockResolvedValue(undefined) } as unknown as OrdersService;
+      const mockPrisma = {
+        $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) =>
+          fn({
+            order: {
+              findUnique: vi.fn().mockResolvedValue({
+                ...sampleOrderSnapshot(),
+                shipment: {
+                  id: 'ship-real-1',
+                  orderId: 'ord-ghn-1',
+                  carrierName: 'GHN',
+                  trackingNumber: 'L4REALPENDING',
+                  status: 'PENDING',
+                  isMock: false,
+                  createdAt: now,
+                  updatedAt: now,
+                },
+              }),
+            },
+            shipment: { upsert },
+          }),
+        ),
+      } as unknown as PrismaService;
+
+      const service = new ShippingService(mockPrisma, mockOrders);
+      await expect(
+        service.createShipment('ord-ghn-1', { mode: 'MOCK' }, 'admin-2'),
+      ).rejects.toThrow(ConflictException);
+      expect(mockOrders.lock).toHaveBeenCalledWith('ord-ghn-1', expect.anything());
+      expect(upsert).not.toHaveBeenCalled();
+    });
+
+    it('R2-P2.4: khôi phục vận đơn GHN đã DELIVERED sẽ chạy luôn nhánh chuyển trạng thái đơn + chốt thu COD trong cùng transaction', async () => {
+      const now = new Date();
+      const orderRow = {
+        ...sampleOrderSnapshot(),
+        payments: [{ id: 'pay-cod-1', gateway: 'COD', status: 'PENDING' }],
+      };
+      const baseShipment = {
+        id: 'ship-ghn-rec',
+        orderId: 'ord-ghn-1',
+        carrierName: 'GHN',
+        trackingNumber: 'L4RECDELIVERED',
+        status: 'PENDING',
+        isMock: false,
+        carrierStatus: 'ready_to_pick',
+        statusNote: 'Đã khôi phục vận đơn thật từ GHN Sandbox theo mã đơn hàng.',
+        expectedDeliveryAt: null,
+        carrierUpdatedAt: null,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const deliveredShipment = {
+        ...baseShipment,
+        status: 'DELIVERED',
+        carrierStatus: 'delivered',
+        statusNote: 'GHN đã giao hàng thành công đến người nhận.',
+        carrierUpdatedAt: new Date('2026-11-20T02:00:00.000Z'),
+      };
+      const mockOrders = {
+        lock: vi.fn().mockResolvedValue(undefined),
+        transition: vi.fn().mockResolvedValue(undefined),
+      } as unknown as OrdersService;
+      const mockPayments = {
+        record: vi.fn().mockResolvedValue(true),
+      } as unknown as PaymentsService;
+      const update = vi.fn().mockResolvedValue(deliveredShipment);
+      const mockPrisma = {
+        order: { findUnique: vi.fn().mockResolvedValue(orderRow) },
+        $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) =>
+          fn({
+            order: { findUnique: vi.fn().mockResolvedValue(orderRow) },
+            shipment: {
+              upsert: vi.fn().mockResolvedValue(baseShipment),
+              update,
+            },
+          }),
+        ),
+      } as unknown as PrismaService;
+      const mockGhn = {
+        configured: vi.fn().mockReturnValue(true),
+        createOrder: vi.fn().mockRejectedValue(new ServiceUnavailableException('GHN timeout')),
+        queryOrderByClientCode: vi.fn().mockResolvedValue({
+          carrierName: 'GHN',
+          trackingNumber: 'L4RECDELIVERED',
+          isMock: false,
+          status: 'DELIVERED',
+          carrierStatus: 'delivered',
+          statusNote: 'GHN đã giao hàng thành công đến người nhận.',
+          expectedDeliveryAt: null,
+          occurredAt: '2026-11-20T02:00:00.000Z',
+        }),
+      } as unknown as GhnCarrierGateway;
+
+      const service = new ShippingService(
+        mockPrisma,
+        mockOrders,
+        undefined,
+        mockPayments,
+        undefined,
+        mockGhn,
+      );
+
+      const res = await service.createShipment('ord-ghn-1', { mode: 'AUTO' }, 'admin-1');
+
+      expect(res.status).toBe('DELIVERED');
+      expect(res.carrierStatus).toBe('delivered');
+      expect(update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: 'DELIVERED',
+            carrierStatus: 'delivered',
+            carrierUpdatedAt: new Date('2026-11-20T02:00:00.000Z'),
+          }),
+        }),
+      );
+      expect(mockPayments.record).toHaveBeenCalledWith(
+        'pay-cod-1',
+        'SUCCEEDED',
+        expect.stringMatching(/^COD:FR2611160001:[0-9a-f]{8}$/),
+        expect.anything(),
+        expect.anything(),
+      );
+      expect(mockOrders.transition).toHaveBeenCalledWith(
+        'ord-ghn-1',
+        'SHIPPED',
+        expect.anything(),
+        'admin-1',
+      );
+      expect(mockOrders.transition).toHaveBeenCalledWith(
+        'ord-ghn-1',
+        'DELIVERED',
+        expect.anything(),
+        'admin-1',
+        expect.objectContaining({ trackingNumber: 'L4RECDELIVERED' }),
+      );
+    });
+
+    it('R2-P2.5: syncShipmentFromCarrier trả dữ liệu cũ hơn (hoặc DB vừa đổi lúc đang sync) bị chặn 409, không ghi đè FAILED về IN_TRANSIT', async () => {
+      const t0 = new Date('2026-11-20T01:00:00.000Z');
+      const tWebhook = new Date('2026-11-20T01:05:00.000Z');
+      const tNewer = new Date('2026-11-20T01:10:00.000Z');
+
+      const failedShipment: {
+        id: string;
+        orderId: string;
+        carrierName: string;
+        trackingNumber: string;
+        status: string;
+        isMock: boolean;
+        carrierStatus: string;
+        statusNote: string;
+        expectedDeliveryAt: null;
+        carrierUpdatedAt: Date | null;
+        createdAt: Date;
+        updatedAt: Date;
+      } = {
+        id: 'ship-ghn-1',
+        orderId: 'ord-ghn-1',
+        carrierName: 'GHN',
+        trackingNumber: 'L4ABCDEF',
+        status: 'FAILED',
+        isMock: false,
+        carrierStatus: 'waiting_to_return',
+        statusNote: 'Chờ hoàn',
+        expectedDeliveryAt: null,
+        carrierUpdatedAt: tWebhook,
+        createdAt: t0,
+        updatedAt: tWebhook,
+      };
+      const update = vi.fn().mockResolvedValue({
+        ...failedShipment,
+        status: 'IN_TRANSIT',
+        carrierStatus: 'delivering',
+        carrierUpdatedAt: tNewer,
+      });
+
+      const makePrisma = (
+        outsideShipment: typeof failedShipment,
+        lockedShipment: typeof failedShipment,
+      ) =>
+        ({
+          shipment: { findUnique: vi.fn().mockResolvedValue(outsideShipment) },
+          $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) =>
+            fn({
+              order: {
+                findUnique: vi.fn().mockResolvedValue({
+                  id: 'ord-ghn-1',
+                  orderCode: 'FR2611160001',
+                  status: 'SHIPPED',
+                  shipment: lockedShipment,
+                  items: [],
+                  payments: [],
+                }),
+              },
+              shipment: { update },
+            }),
+          ),
+        }) as unknown as PrismaService;
+
+      // Ca 1: Sync trả về delivering có updated_date CŨ HƠN (01:00 < 01:05) -> phải chặn 409
+      const staleGhn = {
+        configured: vi.fn().mockReturnValue(true),
+        queryOrder: vi.fn().mockResolvedValue({
+          trackingNumber: 'L4ABCDEF',
+          status: 'IN_TRANSIT',
+          carrierStatus: 'delivering',
+          note: 'Đang giao (cũ)',
+          occurredAt: t0.toISOString(),
+        }),
+      } as unknown as GhnCarrierGateway;
+      await expect(
+        new ShippingService(
+          makePrisma(failedShipment, failedShipment),
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          staleGhn,
+        ).syncShipmentFromCarrier('ord-ghn-1', 'admin-1'),
+      ).rejects.toThrow(ConflictException);
+      expect(update).not.toHaveBeenCalled();
+
+      // Ca 2: Sync thiếu updated_date và DB đã bị webhook cập nhật trong lúc sync đang bay (updatedAt > expectedUpdatedAt) -> chặn 409
+      const beforeWebhookShipment = {
+        ...failedShipment,
+        status: 'IN_TRANSIT',
+        carrierUpdatedAt: null,
+        updatedAt: t0,
+      };
+      const afterWebhookNoCarrierTime = {
+        ...failedShipment,
+        carrierUpdatedAt: null,
+        updatedAt: tWebhook,
+      };
+      const noTimeGhn = {
+        configured: vi.fn().mockReturnValue(true),
+        queryOrder: vi.fn().mockResolvedValue({
+          trackingNumber: 'L4ABCDEF',
+          status: 'IN_TRANSIT',
+          carrierStatus: 'delivering',
+          note: 'Đang giao',
+        }),
+      } as unknown as GhnCarrierGateway;
+      await expect(
+        new ShippingService(
+          makePrisma(beforeWebhookShipment, afterWebhookNoCarrierTime),
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          noTimeGhn,
+        ).syncShipmentFromCarrier('ord-ghn-1', 'admin-1'),
+      ).rejects.toThrow(ConflictException);
+      expect(update).not.toHaveBeenCalled();
+
+      // Ca 3: Sync trả về delivering MỚI HƠN (01:10 > 01:05, giao lại thành công) -> cho phép chuyển sang IN_TRANSIT
+      const newerGhn = {
+        configured: vi.fn().mockReturnValue(true),
+        queryOrder: vi.fn().mockResolvedValue({
+          trackingNumber: 'L4ABCDEF',
+          status: 'IN_TRANSIT',
+          carrierStatus: 'delivering',
+          note: 'Kích hoạt giao lại',
+          occurredAt: tNewer.toISOString(),
+        }),
+      } as unknown as GhnCarrierGateway;
+      const synced = await new ShippingService(
+        makePrisma(failedShipment, failedShipment),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        newerGhn,
+      ).syncShipmentFromCarrier('ord-ghn-1', 'admin-1');
+      expect(synced.status).toBe('IN_TRANSIT');
+      expect(update).toHaveBeenCalledTimes(1);
     });
   });
 });

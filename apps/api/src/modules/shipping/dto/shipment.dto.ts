@@ -21,7 +21,8 @@ export const SHIPMENT_STATUSES = Object.values(ShipmentStatus);
  * - DELIVERED và RETURNED là trạng thái kết thúc (terminal states).
  */
 export const SHIPMENT_TRANSITIONS: Record<ShipmentStatus, readonly ShipmentStatus[]> = {
-  PENDING: ['IN_TRANSIT', 'FAILED', 'RETURNED'],
+  // Cho phép PENDING -> DELIVERED khi khôi phục đơn GHN đã giao xong hoặc thiếu webhook trung gian.
+  PENDING: ['IN_TRANSIT', 'DELIVERED', 'FAILED', 'RETURNED'],
   IN_TRANSIT: ['DELIVERED', 'FAILED', 'RETURNED'],
   DELIVERED: [],
   // GHN cho phép kích hoạt giao lại (delivery-again) từ delivery_fail / waiting_to_return (FAILED)

@@ -108,7 +108,7 @@ describe('GhnCarrierGateway', () => {
     expect(payload.cod_amount).toBe(350000);
   });
 
-  it('queryOrderByClientCode khôi phục vận đơn GHN thật theo client_order_code và trả null khi GHN báo chưa có đơn', async () => {
+  it('queryOrderByClientCode khôi phục trạng thái + updated_date, chỉ trả null khi ORDER_NOT_FOUND/404 và ném lỗi khi HTTP 400 khác (CLIENT_NOT_OWNER_OF_SHOP)', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -118,15 +118,33 @@ describe('GhnCarrierGateway', () => {
             data: {
               order_code: 'L4GHN777',
               client_order_code: 'FR2611190001',
-              status: 'ready_to_pick',
+              status: 'delivered',
               leadtime: '2026-11-22T10:00:00Z',
+              updated_date: '2026-11-20T01:05:00Z',
             },
           }),
           { status: 200 },
         ),
       )
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ code: 400, message: 'Order not found' }), { status: 400 }),
+        new Response(
+          JSON.stringify({
+            code: 400,
+            code_message: 'ORDER_NOT_FOUND',
+            message: 'ORDER_NOT_FOUND - không tìm thấy đơn hàng',
+          }),
+          { status: 400 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: 400,
+            code_message: 'CLIENT_NOT_OWNER_OF_SHOP',
+            message: 'Client không thuộc shop này',
+          }),
+          { status: 400 },
+        ),
       );
     vi.stubGlobal('fetch', fetchMock);
 
@@ -144,13 +162,20 @@ describe('GhnCarrierGateway', () => {
       expect.objectContaining({
         trackingNumber: 'L4GHN777',
         isMock: false,
-        carrierStatus: 'ready_to_pick',
+        status: 'DELIVERED',
+        carrierStatus: 'delivered',
         expectedDeliveryAt: '2026-11-22T10:00:00Z',
+        occurredAt: '2026-11-20T01:05:00Z',
       }),
     );
 
     const missing = await gateway.queryOrderByClientCode('FR2611199999');
     expect(missing).toBeNull();
+
+    // R2-P1.2: HTTP 400 với code_message=CLIENT_NOT_OWNER_OF_SHOP KHÔNG được coi là "không tìm thấy"
+    await expect(gateway.queryOrderByClientCode('FR2611198888')).rejects.toThrow(
+      ServiceUnavailableException,
+    );
   });
 
   it('mapGhnStatus giữ picking ở PENDING, chỉ chuyển IN_TRANSIT từ picked, và đưa scrap/cancel vào FAILED thay vì RETURNED', () => {

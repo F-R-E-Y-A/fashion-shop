@@ -256,4 +256,97 @@ describe('PH-02 Shipping GHN Sandbox, du phong mo phong va webhook (PostgreSQL)'
       .send({ status: 'IN_TRANSIT', note: 'Mô phỏng lấy hàng' })
       .expect(200);
   });
+
+  it('R2-P1.1 + R2-P1.3 + R2-P2.5: chan route deliver/delivery-failed va ghi de MOCK tren van don GHN that, chan webhook cu ghi de FAILED', async () => {
+    const { orderId } = await createProcessingCodOrder();
+    await t.prisma.shipment.create({
+      data: {
+        orderId,
+        carrierName: 'GHN',
+        trackingNumber: 'L4REAL003',
+        status: 'PENDING',
+        isMock: false,
+        carrierStatus: 'ready_to_pick',
+        statusNote: 'Chờ lấy hàng',
+      },
+    });
+
+    // R2-P1.1: GET chi tiết đơn trả actions.markDelivered=false & deliveryFailed=false
+    const detailRes = await t.http.get(`/api/admin/orders/${orderId}`).set(adminAuth()).expect(200);
+    expect(detailRes.body.actions.markDelivered).toBe(false);
+    expect(detailRes.body.actions.deliveryFailed).toBe(false);
+
+    // R2-P1.1: Hai route quản trị thủ công cũ đều phải bị chặn 409 khi đã có vận đơn GHN thật
+    await t.http
+      .post(`/api/admin/orders/${orderId}/delivered`)
+      .set(adminAuth())
+      .send({})
+      .expect(409);
+    await t.http
+      .post(`/api/admin/orders/${orderId}/delivery-failed`)
+      .set(adminAuth())
+      .send({ reason: 'Thử chốt tay khi có GHN thật' })
+      .expect(409);
+
+    const stockUnchanged = (
+      await t.prisma.inventory.findUniqueOrThrow({ where: { productVariantId: variantId } })
+    ).quantityOnHand;
+    expect(stockUnchanged).toBe(8);
+    const orderUnchanged = await t.prisma.order.findUniqueOrThrow({
+      where: { id: orderId },
+      include: { payments: true },
+    });
+    expect(orderUnchanged.status).toBe('PROCESSING');
+    expect(orderUnchanged.payments[0]?.status).toBe('PENDING');
+
+    // R2-P1.3: Request tạo MOCK từ tab cũ không được ghi đè vận đơn GHN thật đang ở PENDING
+    await t.http
+      .post(`/api/admin/orders/${orderId}/shipment`)
+      .set(adminAuth())
+      .send({ mode: 'MOCK' })
+      .expect(409);
+    const shipmentPreserved = await t.prisma.shipment.findUniqueOrThrow({ where: { orderId } });
+    expect(shipmentPreserved.trackingNumber).toBe('L4REAL003');
+    expect(shipmentPreserved.isMock).toBe(false);
+
+    // R2-P2.5: Webhook waiting_to_return có mốc Time mới hơn -> FAILED; webhook delivering cũ hơn bị bỏ qua
+    await t.http
+      .post('/api/shipping/webhook/ghn')
+      .set('x-carrier-token', 'test-ghn-webhook-secret')
+      .send({
+        OrderCode: 'L4REAL003',
+        Status: 'waiting_to_return',
+        Time: '2026-11-20T01:05:00Z',
+      })
+      .expect(200);
+
+    const staleWebhook = await t.http
+      .post('/api/shipping/webhook/ghn')
+      .set('x-carrier-token', 'test-ghn-webhook-secret')
+      .send({
+        OrderCode: 'L4REAL003',
+        Status: 'delivering',
+        Time: '2026-11-20T01:00:00Z',
+      })
+      .expect(200);
+    expect(staleWebhook.body).toMatchObject({ processed: false, ignored: true });
+    expect((await t.prisma.shipment.findUniqueOrThrow({ where: { orderId } })).status).toBe(
+      'FAILED',
+    );
+
+    // Sự kiện giao lại có Time mới hơn (01:10 > 01:05) được chấp nhận
+    const newerRedelivery = await t.http
+      .post('/api/shipping/webhook/ghn')
+      .set('x-carrier-token', 'test-ghn-webhook-secret')
+      .send({
+        OrderCode: 'L4REAL003',
+        Status: 'delivering',
+        Time: '2026-11-20T01:10:00Z',
+      })
+      .expect(200);
+    expect(newerRedelivery.body).toMatchObject({ processed: true, status: 'IN_TRANSIT' });
+    const afterRedelivery = await t.prisma.shipment.findUniqueOrThrow({ where: { orderId } });
+    expect(afterRedelivery.status).toBe('IN_TRANSIT');
+    expect(afterRedelivery.carrierUpdatedAt?.toISOString()).toBe('2026-11-20T01:10:00.000Z');
+  });
 });
