@@ -31,6 +31,7 @@ import { IsUUID } from 'class-validator';
 import { CurrentUser, type CurrentUserType, RequireRoles, RoleCode } from '../auth/index.js';
 import { UploadTicketResponse } from '../uploads/index.js';
 import { AdminProductsService } from './admin-products.service.js';
+import { AdminCreateOptionsResponse } from './dto/admin-create-options.response.js';
 import {
   AdminProductDetail,
   AdminProductIdParam,
@@ -40,6 +41,7 @@ import {
 import { AdminVariantOptionsResponse } from './dto/admin-variant-options.response.js';
 import { AdminProductContent, ChangeProductContentDto } from './dto/change-product-content.dto.js';
 import { AdminProductStatus, ChangeProductStatusDto } from './dto/change-product-status.dto.js';
+import { CreateProductDto } from './dto/create-product.dto.js';
 import { CreateProductVariantDto } from './dto/create-product-variant.dto.js';
 import { ListAdminProductsQuery } from './dto/list-admin-products.query.js';
 import {
@@ -71,6 +73,14 @@ export class AdminProductsController {
     return this.products.getVariantOptions();
   }
 
+  @Get('create-options')
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Danh sach thuong hieu, mau sac va kich co kha dung de tao san pham' })
+  @ApiOkResponse({ type: AdminCreateOptionsResponse })
+  createOptions(): Promise<AdminCreateOptionsResponse> {
+    return this.products.getCreateOptions();
+  }
+
   @Post('upload-tickets')
   @HttpCode(HttpStatus.OK)
   @Header('Cache-Control', 'no-store')
@@ -90,6 +100,25 @@ export class AdminProductsController {
   @ApiOkResponse({ type: AdminProductPage })
   list(@Query() query: ListAdminProductsQuery): Promise<AdminProductPage> {
     return this.products.list(query);
+  }
+
+  @Post()
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Tao san pham moi (mac dinh an, client-generated UUID, idempotent)' })
+  @ApiCreatedResponse({ type: AdminProductDetail })
+  @ApiNotFoundResponse({ description: 'Khong tim thay danh muc, thuong hieu, mau hoac co' })
+  @ApiConflictResponse({
+    description: 'Trung slug, trung SKU, trung id bien the/anh, hoac trung UUID voi noi dung khac',
+  })
+  @ApiUnprocessableEntityResponse({
+    description: 'Danh muc khong phai la, qua 8 anh, hoac khoa anh khong hop le',
+  })
+  @ApiServiceUnavailableResponse({ description: 'Kho anh loi hoac chua bat khi co anh' })
+  createProduct(
+    @CurrentUser() user: CurrentUserType,
+    @Body() input: CreateProductDto,
+  ): Promise<AdminProductDetail> {
+    return this.products.createProduct(user.id, input);
   }
 
   @Get(':id')

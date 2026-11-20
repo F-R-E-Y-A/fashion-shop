@@ -140,6 +140,9 @@ export class ProductsService {
     // khong dung snapshot tu luc tim SKU de tranh import mo lai san pham vua ngung ban.
     const status = existingProductId ? await lockProductStatus(tx, existingProductId) : undefined;
     if (existingProductId && !status) throw new Error('Sản phẩm biến mất trong lúc import');
+    if (status?.isCustom) {
+      throw new ImportRowError('SKU_CONFLICT', 'SKU thuộc sản phẩm tạo tay bởi quản trị viên');
+    }
 
     const brand = row.brand
       ? await tx.brand.upsert({

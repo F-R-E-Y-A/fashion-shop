@@ -61,6 +61,8 @@ export class AdminProductDetail extends AdminProductSummary {
   @ApiProperty({ type: [String] }) adminContentFields!: string[];
   @ApiProperty() imagesVersion!: number;
   @ApiProperty() imagesManagedByAdmin!: boolean;
+  @ApiProperty() isCustom!: boolean;
+  @ApiProperty({ type: String, nullable: true }) createPayloadHash!: string | null;
   @ApiProperty({ type: String, nullable: true }) description!: string | null;
   @ApiProperty({ type: String, nullable: true }) material!: string | null;
   @ApiProperty({ type: String, nullable: true }) careInstructions!: string | null;
