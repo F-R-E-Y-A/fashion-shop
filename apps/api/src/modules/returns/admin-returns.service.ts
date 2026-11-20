@@ -20,6 +20,7 @@ import {
   wrongReturnState,
 } from './return-errors.js';
 import {
+  type AutoRefund,
   refundMethodOf,
   refundOf,
   returnInclude,
@@ -43,6 +44,7 @@ export class AdminReturnsService implements OnModuleInit {
     private readonly prisma: PrismaService,
     private readonly checkout: CheckoutService,
   ) {}
+  private readonly autoRefund: AutoRefund = (gateway) => this.checkout.autoRefund(gateway);
 
   /** Lenh hoan qua cong chot muon (resolveRefund o trang don) van dong duoc yeu cau tra. */
   onModuleInit() {
@@ -62,11 +64,15 @@ export class AdminReturnsService implements OnModuleInit {
       }),
       this.prisma.return.count({ where }),
     ]);
-    return toPage(rows.map(toAdminReturnResponse), total, query);
+    return toPage(
+      rows.map((row) => toAdminReturnResponse(row, this.autoRefund)),
+      total,
+      query,
+    );
   }
 
   async detail(id: string): Promise<AdminReturnResponse> {
-    return toAdminReturnResponse(await this.load(id));
+    return toAdminReturnResponse(await this.load(id), this.autoRefund);
   }
 
   async approve(id: string, actor: string, input: ApproveReturnRequest) {
@@ -140,7 +146,11 @@ export class AdminReturnsService implements OnModuleInit {
     const amount = breakdown.total.toFixed(2);
     const reason = `Trả hàng ${row.order.orderCode}`;
 
-    if (refundMethodOf(row.order.payments) === 'BANK_TRANSFER') {
+    // Tra truoc co ma chuyen khoan cung hoan tay (ADR-111): cong treo/tu choi, ADMIN da chot FAILED.
+    if (
+      refundMethodOf(row.order.payments, this.autoRefund) === 'BANK_TRANSFER' ||
+      input.transferReference
+    ) {
       if (!input.transferReference) throw transferReferenceRequired();
       const reference = input.transferReference;
       await this.step(id, async (current, tx) => {
@@ -152,18 +162,26 @@ export class AdminReturnsService implements OnModuleInit {
           { amount, reference, reason },
           tx,
         );
-        await tx.refund.create({
-          data: {
-            returnId: id,
-            paymentId: payment.id,
-            amount,
-            status: 'SUCCEEDED',
-            idempotencyKey: refundKey(id),
-            externalRefundId: receipt,
-            reason,
-            items: { create: this.refundItems(current, breakdown.items) },
-          },
-        });
+        // Lan hoan qua cong truoc do da de lai dong PROCESSING; recordManualRefund chan khi lenh con cho.
+        const existing = await tx.refund.findUnique({ where: { idempotencyKey: refundKey(id) } });
+        if (existing)
+          await tx.refund.update({
+            where: { id: existing.id },
+            data: { status: 'SUCCEEDED', externalRefundId: receipt },
+          });
+        else
+          await tx.refund.create({
+            data: {
+              returnId: id,
+              paymentId: payment.id,
+              amount,
+              status: 'SUCCEEDED',
+              idempotencyKey: refundKey(id),
+              externalRefundId: receipt,
+              reason,
+              items: { create: this.refundItems(current, breakdown.items) },
+            },
+          });
         if (!(await this.complete(id, tx))) throw wrongReturnState('Yêu cầu đã được hoàn tiền.');
       });
       return this.detail(id);

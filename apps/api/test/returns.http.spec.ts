@@ -498,4 +498,31 @@ describe('UC-14.1, UC-14.2 tra hang va hoan tien (PostgreSQL + cong VNPAY gia)',
     expect(refund.status).toBe('SUCCEEDED');
     expect(refund.externalRefundId).toMatch(/^REFUND:MANUAL:/);
   });
+
+  it('UC-14.2/E3 ADR-111 cong treo: chot FAILED roi nhap ma chuyen khoan, yeu cau COMPLETED, mot dong refunds', async () => {
+    await w.deliveredItem();
+    const { orderId, orderItemId, paymentId } = await deliveredVnpayOrder();
+    const created = await submit(w.buyer, orderId, {
+      items: [{ orderItemId, quantity: 1 }],
+      reasonCode: 'NOT_AS_EXPECTED',
+      mediaKeys: [await photo(w.buyer)],
+    }).expect(201);
+    await admin(`${created.body.id}/approve`).expect(200);
+    await admin(`${created.body.id}/receive`).expect(200);
+    gateway = 'drop';
+    await admin(`${created.body.id}/refund`).expect(503);
+    await admin(`${created.body.id}/refund`, { transferReference: 'FT26112003' }).expect(409);
+    await t.http
+      .post(`/api/admin/payments/${paymentId}/refund/resolve`)
+      .set(w.admin.auth)
+      .send({ outcome: 'FAILED', note: 'Merchant portal không có giao dịch hoàn.' })
+      .expect(201);
+    const done = await admin(`${created.body.id}/refund`, {
+      transferReference: 'FT26112003',
+    }).expect(200);
+    expect(done.body).toMatchObject({ status: 'COMPLETED', refund: { status: 'SUCCEEDED' } });
+    const rows = await t.prisma.refund.findMany({ where: { returnId: created.body.id } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.externalRefundId).toBe('REFUND:MANUAL:FT26112003');
+  });
 });

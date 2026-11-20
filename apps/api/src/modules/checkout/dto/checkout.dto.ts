@@ -43,6 +43,17 @@ export class RefundDto {
   @IsOptional()
   @IsString()
   reason?: string;
+  @ApiProperty({
+    required: false,
+    description:
+      'Có thì ghi hoàn tay (shop đã chuyển khoản), không gọi cổng (ADR-111). Bắt buộc khi refundMode là MANUAL.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Za-z0-9._-]{4,64}$/u, {
+    message: 'Mã giao dịch gồm 4-64 ký tự chữ, số, dấu chấm, gạch',
+  })
+  transferReference?: string;
 }
 /** Admin chot lenh hoan chua ro ket qua sau khi doi chieu tren cong (merchant portal). */
 export class ResolveRefundDto {

@@ -24,7 +24,12 @@ import {
   type PostCommitHook,
   runPostCommitHooks,
 } from '../orders/index.js';
-import { type GatewayCode, PaymentsService, SETTLEMENT_BUFFER_MINUTES } from '../payments/index.js';
+import {
+  type GatewayCode,
+  gatewayCodes,
+  PaymentsService,
+  SETTLEMENT_BUFFER_MINUTES,
+} from '../payments/index.js';
 import { PromotionsService } from '../promotions/index.js';
 import { ShippingService } from '../shipping/index.js';
 import { CheckoutAddressService } from '../users/index.js';
@@ -416,12 +421,21 @@ export class CheckoutService {
   selfRefundablePayment(order: OrderDetails) {
     if (order.status !== 'CONFIRMED') return null;
     const payment = order.payments.find((row) => row.status === 'SUCCEEDED');
-    if (!payment?.gateway || payment.gateway === 'COD') return null;
-    const adapter = this.payments.gateways.get(payment.gateway as GatewayCode);
+    if (!payment?.gateway || !this.autoRefund(payment.gateway)) return null;
     const ledger = refundSummary(payment.transactions);
-    return adapter.refund && adapter.configured() && ledger.refunded.isZero() && !ledger.pending
-      ? payment
-      : null;
+    return ledger.refunded.isZero() && !ledger.pending ? payment : null;
+  }
+
+  /**
+   * Hoan duoc qua API cong luc nay khong (ADR-111): COD va cong bi tat trong REFUND_GATEWAYS thi
+   * khong, phan he goi chuyen sang hoan tay bang ma chuyen khoan.
+   */
+  autoRefund(gateway: string | null): boolean {
+    return (
+      !!gateway &&
+      (gatewayCodes as readonly string[]).includes(gateway) &&
+      this.payments.gateways.autoRefund(gateway as GatewayCode)
+    );
   }
 
   view(order: OrderDetails) {
@@ -580,8 +594,10 @@ export class CheckoutService {
     if (input.intentId !== undefined && !input.intentId.startsWith(REFUND_INTENT))
       throw new Error(`intentId phai bat dau bang ${REFUND_INTENT}`);
     const { order, userId, adapter } = await this.refundTarget(paymentId);
-    if (!adapter.refund)
-      throw new ConflictException(`Cổng ${adapter.code} chưa hỗ trợ hoàn tiền tự động.`);
+    if (!adapter.refund || !this.autoRefund(adapter.code))
+      throw new ConflictException(
+        `Cổng ${adapter.code} không hoàn tự động trên môi trường này. Chuyển khoản cho khách rồi nhập mã giao dịch để ghi hoàn tay.`,
+      );
     const claim = await this.withOrder(order.id, userId, async (current, tx) => {
       const payment = await tx.payment.findUniqueOrThrow({ where: { id: paymentId } });
       if (payment.status !== 'SUCCEEDED')
@@ -647,6 +663,43 @@ export class CheckoutService {
     await this.settleRefund(order.id, userId, payment.gateway!, intentId, actor, {
       receipt: `REFUND:${result.requestId}`,
       payload: result.payload,
+    });
+    return this.view(await this.orders.get(order.id, userId));
+  }
+
+  /**
+   * Hoan tay don tra truoc (ADR-111): shop da chuyen khoan cho khach, ADMIN nhap ma giao dich. Ghi
+   * REFUND:MANUAL:{ma} duoi khoa don nhu COD; con lenh qua cong dang cho thi 409, phai chot truoc.
+   * Don CONFIRMED (hang chua roi kho) khong hoan tay o day, giong nut hoan qua cong.
+   */
+  async refundManually(
+    paymentId: string,
+    actor: string,
+    input: { amount?: string; reason?: string; transferReference: string },
+  ) {
+    const { order, userId, adapter } = await this.refundTarget(paymentId);
+    // COD hoan tay qua luong tra hang (co dong refunds va tai khoan khach), khong qua day.
+    if (adapter.code === 'COD')
+      throw new ConflictException('Đơn COD hoàn tiền qua yêu cầu trả hàng.');
+    await this.withOrder(order.id, userId, async (current, tx) => {
+      if (current.status === 'CONFIRMED')
+        throw new ConflictException(
+          'Đơn chưa rời kho: dùng Hủy và hoàn tiền thay vì hoàn tay từng phần.',
+        );
+      const payment = await tx.payment.findUniqueOrThrow({ where: { id: paymentId } });
+      const ledger = await this.refundLedger(paymentId, tx);
+      const remaining = payment.amount.minus(ledger.refunded);
+      if (remaining.lte(0)) throw new ConflictException('Thanh toán đã được hoàn đủ.');
+      await this.recordManualRefund(
+        paymentId,
+        actor,
+        {
+          amount: input.amount ?? remaining.toFixed(2),
+          reference: input.transferReference,
+          reason: input.reason ?? 'Hoàn tay bằng chuyển khoản',
+        },
+        tx,
+      );
     });
     return this.view(await this.orders.get(order.id, userId));
   }

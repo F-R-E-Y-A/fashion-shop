@@ -42,6 +42,7 @@ export const base: AdminOrder = {
       amount: '230000.00',
       refundedAmount: '0.00',
       refundableAmount: '230000.00',
+      refundMode: 'GATEWAY',
       refunds: [],
       pendingRefund: null,
     },
