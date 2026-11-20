@@ -210,6 +210,37 @@ describe('UC-04.2 Quản trị Ảnh Sản Phẩm (Đợt 3 Frontend, AC50 - AC5
     expect(putReq).toBeDefined();
   });
 
+  it('UC-04.2/AC46 xung đột mã ảnh mới giữ bản nháp và cho sửa ngay', async () => {
+    const api = backend();
+    api.state.products = [structuredClone(productWithImages)];
+    api.state.override = ({ method, path }) => {
+      if (method === 'PUT' && path === imagesApiPath) {
+        return reply(
+          { statusCode: 409, code: 'PRODUCT_IMAGE_CONFLICT', message: 'Xung đột ảnh mới' },
+          409,
+        );
+      }
+    };
+    mountCatalog(detailPath);
+
+    await screen.findByRole('heading', { name: 'Hình ảnh (3)' });
+    const file = new File(['valid-image-bytes'], 'ao-moi.webp', { type: 'image/webp' });
+    fireEvent.change(screen.getByLabelText('Chọn tệp ảnh sản phẩm để tải lên'), {
+      target: { files: [file] },
+    });
+    await screen.findByRole('heading', { name: 'Hình ảnh (4)' });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Mô tả thay thế ảnh vị trí 1' }), {
+      target: { value: 'Bản nháp còn giữ lại' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu bộ ảnh' }));
+
+    expect(await screen.findByText(/gỡ ảnh mới khỏi bản nháp rồi tải lại/i)).toBeInTheDocument();
+    expect(screen.getByDisplayValue('Bản nháp còn giữ lại')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Gỡ ảnh vị trí 4' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Tải dữ liệu mới nhất' })).not.toBeInTheDocument();
+  });
+
   it('UC-04.2/AC51 xung đột 409 giữ nguyên bản nháp, khóa nút Lưu cho đến khi bấm Tải dữ liệu mới nhất để đối chiếu', async () => {
     const api = backend();
     api.state.products = [structuredClone(productWithImages)];

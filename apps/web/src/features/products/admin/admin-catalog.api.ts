@@ -282,6 +282,8 @@ export function imagesMutationErrorText(error: unknown): string {
         return 'Máy chủ chưa cấu hình kho ảnh.';
       case 'UPLOADS_UNAVAILABLE':
         return 'Kho ảnh đang tạm thời lỗi. Vui lòng thử lại sau.';
+      case 'PRODUCT_IMAGE_CONFLICT':
+        return 'Mã hoặc vị trí của ảnh mới bị trùng. Hãy gỡ ảnh mới khỏi bản nháp rồi tải lại trước khi lưu.';
       case 'CONCURRENT_MODIFICATION':
         return 'Bộ ảnh sản phẩm đã thay đổi trên máy chủ. Vui lòng tải bản mới để đối chiếu trước khi lưu.';
     }

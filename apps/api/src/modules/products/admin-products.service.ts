@@ -11,6 +11,7 @@ import { skipOf, toPage } from '../../common/pagination/page.response.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { UploadsService, type UploadTicketResponse } from '../uploads/index.js';
+import { isUniqueViolationError } from './category-visibility.js';
 import type {
   AdminProductDetail,
   AdminProductPage,
@@ -737,16 +738,24 @@ export class AdminProductsService {
           if (!url) {
             throw new BadRequestException('Không xác định được URL của ảnh mới tải lên.');
           }
-          await tx.productImage.create({
-            data: {
-              id: item.id,
-              productId,
-              url,
-              alt: item.alt,
-              sortOrder,
-              colorId: null,
-            },
-          });
+          try {
+            await tx.productImage.create({
+              data: {
+                id: item.id,
+                productId,
+                url,
+                alt: item.alt,
+                sortOrder,
+                colorId: null,
+              },
+            });
+          } catch (error) {
+            if (!isUniqueViolationError(error)) throw error;
+            throw new ConflictException({
+              error: 'PRODUCT_IMAGE_CONFLICT',
+              message: 'Mã hoặc vị trí của ảnh mới bị trùng. Không thể lưu bộ ảnh.',
+            });
+          }
         }
       }
 

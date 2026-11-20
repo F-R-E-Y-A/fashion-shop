@@ -182,6 +182,58 @@ describe('UC-04.2 Quản trị Ảnh Sản Phẩm HTTP API (Đợt 3, PostgreSQL
   });
 
   describe('2. Lưu nguyên tử bộ ảnh, thứ tự, alt, giới hạn và bảo vệ lỗi (AC42, AC43, AC44, AC45, AC46, AC47)', () => {
+    it('UC-04.2/AC46 trả 409 khi mã ảnh mới đã thuộc sản phẩm khác và rollback toàn bộ lần lưu', async () => {
+      const otherImage = await t.prisma.productImage.findFirstOrThrow({
+        where: { productId: { not: productId } },
+      });
+      const before = await t.prisma.product.findUniqueOrThrow({
+        where: { id: productId },
+        select: {
+          imagesVersion: true,
+          imagesManagedByAdmin: true,
+          images: { orderBy: { sortOrder: 'asc' } },
+        },
+      });
+      const key = await issueAndUploadProductPhoto();
+      const path = `/api/admin/products/${productId}/images`;
+
+      const conflict = await t.http
+        .put(path)
+        .set(adminAuth())
+        .send({
+          expectedVersion: before.imagesVersion,
+          items: [{ id: otherImage.id, key }],
+        })
+        .expect(409);
+
+      expect(conflict.body.code).toBe('PRODUCT_IMAGE_CONFLICT');
+      expect(
+        await t.prisma.product.findUniqueOrThrow({
+          where: { id: productId },
+          select: {
+            imagesVersion: true,
+            imagesManagedByAdmin: true,
+            images: { orderBy: { sortOrder: 'asc' } },
+          },
+        }),
+      ).toEqual(before);
+      expect(await t.prisma.productImage.findUnique({ where: { id: otherImage.id } })).toEqual(
+        otherImage,
+      );
+      expect(await t.prisma.mediaUpload.findUnique({ where: { storageKey: key } })).toMatchObject({
+        status: 'PENDING',
+      });
+
+      await t.http
+        .put(path)
+        .set(adminAuth())
+        .send({
+          expectedVersion: before.imagesVersion,
+          items: [{ id: randomUUID(), key }],
+        })
+        .expect(200);
+    });
+
     it('UC-04.2/AC42,AC45 thêm ảnh mới, đổi thứ tự, đưa lên đầu làm ảnh đại diện, sửa alt, bảo toàn color của ảnh cũ và phản ánh ngoài storefront', async () => {
       const detailBefore = await t.http
         .get(`/api/admin/products/${productId}`)

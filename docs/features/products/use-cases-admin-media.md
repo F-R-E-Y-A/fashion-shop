@@ -1,6 +1,6 @@
 ---
 title: UC-04.2 — quản trị ảnh sản phẩm
-updated: 2026-11-19
+updated: 2026-11-20
 status: đề xuất, đang triển khai Đợt 3
 owner: Tài
 ---
@@ -26,7 +26,7 @@ Tại `/admin/products/:id`, ADMIN xem bộ ảnh hiện có, tải ảnh mới,
 - [ ] **AC43** (âm) Từ chối khóa ảnh sai chủ sở hữu, sai mục đích (`review`/`return`), chưa tải lên kho, sai định dạng/quá 5 MB, hoặc ticket đã gắn/hết hạn/đang dọn bằng `422 INVALID_MEDIA`; khi kho lỗi trả `503 UPLOADS_UNAVAILABLE`; toàn bộ transaction rollback, không mất ảnh cũ và không tiêu thụ ticket hợp lệ khác trong cùng lô.
 - [ ] **AC44** (biên) Giới hạn 8 ảnh: từ chối bằng `422 IMAGE_LIMIT_EXCEEDED` khi tổng ảnh vượt 8 và có thêm ảnh mới (`key`). Bộ ảnh legacy có sẵn >8 ảnh vẫn cho phép sửa `alt`, đổi thứ tự hoặc gỡ bớt ảnh khi không thêm ảnh mới.
 - [ ] **AC45** (thuận) Đổi thứ tự, đưa ảnh lên đầu và sửa `alt` (trim, chuỗi rỗng thành `null`, tối đa 200 ký tự) bảo toàn `colorId` của từng ảnh hiện có, không đụng unique constraint `(product_id, sort_order)` hoặc `sort_order >= 0`, và cập nhật ảnh đại diện ngoài storefront/chi tiết sản phẩm.
-- [ ] **AC46** (âm) Chặn gỡ hết ảnh (`items: []`) khi sản phẩm đang mở bán (`isActive = true`) bằng `422 LAST_IMAGE_OF_ACTIVE_PRODUCT`; cho phép gỡ hết ảnh nếu sản phẩm đang ngừng bán (`isActive = false`). Từ chối `id` ảnh không thuộc sản phẩm, trùng `id` hoặc trùng `key`.
+- [ ] **AC46** (âm) Chặn gỡ hết ảnh (`items: []`) khi sản phẩm đang mở bán (`isActive = true`) bằng `422 LAST_IMAGE_OF_ACTIVE_PRODUCT`; cho phép gỡ hết ảnh nếu sản phẩm đang ngừng bán (`isActive = false`). Từ chối `id` ảnh hiện hữu không thuộc sản phẩm, trùng `id` hoặc trùng `key` trong yêu cầu. Nếu mã ảnh mới đã thuộc sản phẩm khác, trả `409 PRODUCT_IMAGE_CONFLICT`, giữ nguyên bộ ảnh, phiên bản và phiếu tải. Giao diện giữ bản nháp để admin gỡ ảnh báo lỗi và tải lại.
 - [ ] **AC47** (biên) CAS và No-op: kiểm `expectedVersion` dưới khóa `FOR UPDATE` trước no-op; lệch phiên bản trả `409 Conflict`. Hai request cùng `expectedVersion` chỉ một thành công (`200`), một nhận `409`. Lần lưu no-op (không có ảnh mới, cùng danh sách `id` theo đúng thứ tự và cùng `alt` sau chuẩn hóa) trả `200`, giữ nguyên `imagesVersion`, `imagesManagedByAdmin` và không ghi DB.
 - [ ] **AC48** (biên) Đồng thời và Import: `importProducts` và admin khóa cùng dòng `Product` trước khi đọc/ghi ảnh. Khi `imagesManagedByAdmin = true`, import giữ nguyên bộ ảnh và thứ tự của admin (kể cả khi nguồn rỗng `images: []`) và tính trạng thái bán theo số ảnh thực tế còn lại. Khi `imagesManagedByAdmin = false`, import cập nhật bộ ảnh theo nguồn và tăng `imagesVersion` nếu bộ ảnh thực tế thay đổi. Kiểm cả hai thứ tự lấy khóa (`admin` trước / `import` trước).
 - [ ] **AC49** (thuận) Bảo toàn dữ liệu liên quan: gỡ hoặc đổi ảnh chỉ cập nhật `product_images` và `products`, không làm hỏng URL ảnh đã lưu trong `order_items.product_snapshot` của đơn hàng cũ, không xóa asset đã gắn trên kho, và không làm thay đổi giá, biến thể hay tồn kho.

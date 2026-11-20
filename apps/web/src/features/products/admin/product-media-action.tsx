@@ -874,7 +874,8 @@ export function useProductMediaAction(product: AdminCatalogDetail | undefined) {
         return;
       }
 
-      if (kind === 'conflict') {
+      const code = error instanceof ApiError ? error.body.code : undefined;
+      if (kind === 'conflict' && code !== 'PRODUCT_IMAGE_CONFLICT') {
         client.setQueryData<UncertainImagesUpdate | null>(uncertainKeyAtCall, (prev) =>
           !prev || prev.operationId === opId ? null : prev,
         );
