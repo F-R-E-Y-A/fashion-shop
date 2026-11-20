@@ -6,7 +6,11 @@ import { vi } from 'vitest';
 import { AppRoutes } from '@/app';
 import { type AuthenticatedUser, AuthProvider, useAuth } from '@/features/account';
 
-import type { AdminCatalogDetail } from './admin-catalog.api.js';
+import {
+  type AdminCatalogDetail,
+  computeCreateProductRequestHash,
+  type CreateProductPayload,
+} from './admin-catalog.api.js';
 
 export const actorA: AuthenticatedUser = {
   id: 'a0000000-0000-4000-8000-00000000000a',
@@ -30,6 +34,8 @@ export const product: AdminCatalogDetail = {
   adminContentFields: [],
   imagesVersion: 0,
   imagesManagedByAdmin: false,
+  isCustom: false,
+  createPayloadHash: null,
   createdAt: '2026-01-01T00:00:00Z',
   updatedAt: '2026-01-02T00:00:00Z',
   imageUrl: null,
@@ -150,6 +156,124 @@ export function backend() {
             ? actorB
             : actorA;
         return session();
+      }
+      if (url.pathname === '/api/admin/products/create-options') {
+        return reply({
+          brands: [{ id: 'br-1', name: 'Maison Studio', slug: 'maison-studio' }],
+          colors: [
+            { id: 'col-1', code: 'den', name: 'Đen', hex: '#000000' },
+            { id: 'col-2', code: 'trang', name: 'Trắng', hex: '#ffffff' },
+          ],
+          sizes: [
+            { id: 'sz-1', code: 'S', sortOrder: 10 },
+            { id: 'sz-2', code: 'M', sortOrder: 20 },
+            { id: 'sz-3', code: 'L', sortOrder: 30 },
+          ],
+        });
+      }
+      if (url.pathname === '/api/admin/categories' && r.method === 'GET') {
+        return reply([
+          {
+            id: 'cat-root',
+            name: 'Áo',
+            slug: 'ao',
+            parentId: null,
+            sortOrder: 10,
+            isActive: true,
+            effectiveActive: true,
+            parentHidden: false,
+            productCount: 0,
+            subtreeProductCount: 1,
+            updatedAt: '2026-11-10T08:00:00.000Z',
+            children: [
+              {
+                id: 'cat-leaf',
+                name: 'Áo sơ mi',
+                slug: 'ao-so-mi',
+                parentId: 'cat-root',
+                sortOrder: 10,
+                isActive: true,
+                effectiveActive: true,
+                parentHidden: false,
+                productCount: 1,
+                subtreeProductCount: 1,
+                updatedAt: '2026-11-10T08:00:00.000Z',
+                children: [],
+              },
+            ],
+          },
+        ]);
+      }
+      if (url.pathname === '/api/admin/products' && r.method === 'POST') {
+        const body = r.body as CreateProductPayload;
+        const resolvedSlug = body.slug ?? 'san-pham-moi';
+        const hash = computeCreateProductRequestHash({ ...body, slug: resolvedSlug });
+        const existing = state.products.find((p) => p.id === body.id);
+        if (existing) {
+          if (existing.createPayloadHash === hash) return reply(existing, 200);
+          return reply(
+            {
+              statusCode: 409,
+              code: 'IDEMPOTENCY_PAYLOAD_MISMATCH',
+              message: 'UUID sản phẩm đã được dùng cho yêu cầu tạo khác.',
+            },
+            409,
+          );
+        }
+        const createdImages = (body.images ?? []).map((img, idx) => ({
+          id: img.id,
+          url: `https://cdn.test/${img.key}.jpg`,
+          alt: img.alt ?? null,
+          sortOrder: idx,
+          color: null,
+        }));
+        const createdVariants = body.variants.map((v) => ({
+          id: v.id,
+          sku: v.sku,
+          color:
+            v.colorId === 'col-2'
+              ? { code: 'trang', name: 'Trắng', hex: '#ffffff' }
+              : { code: 'den', name: 'Đen', hex: '#000000' },
+          sizeCode: v.sizeId === 'sz-1' ? 'S' : v.sizeId === 'sz-3' ? 'L' : 'M',
+          listPrice: v.listPrice,
+          salePrice: v.salePrice ?? null,
+          isActive: v.isActive ?? true,
+          isCustom: true,
+          adminManagedFields: ['listPrice', 'salePrice', 'isActive'],
+          updatedAt: '2026-11-20T01:00:00.000Z',
+        }));
+        const prices = createdVariants.map((v) => Number(v.salePrice ?? v.listPrice));
+        const priceFrom = String(Math.min(...prices));
+        const created: AdminCatalogDetail = {
+          id: body.id,
+          name: body.name,
+          slug: resolvedSlug,
+          priceFrom,
+          isActive: false,
+          adminDisabled: true,
+          statusVersion: 1,
+          contentVersion: 1,
+          adminContentFields: ['name', 'description', 'material', 'careInstructions'],
+          imagesVersion: createdImages.length > 0 ? 1 : 0,
+          imagesManagedByAdmin: createdImages.length > 0,
+          isCustom: true,
+          createPayloadHash: hash,
+          createdAt: '2026-11-20T01:00:00.000Z',
+          updatedAt: '2026-11-20T01:00:00.000Z',
+          imageUrl: createdImages[0]?.url ?? null,
+          category: { id: body.categoryId, name: 'Áo sơ mi', slug: 'ao-so-mi', isActive: true },
+          brand: body.brandId ? { id: body.brandId, name: 'Maison Studio' } : null,
+          description: body.description ?? null,
+          material: body.material ?? null,
+          careInstructions: body.careInstructions ?? null,
+          isFeatured: false,
+          audience: body.audience ?? null,
+          variants: createdVariants,
+          images: createdImages,
+        };
+        state.products = [created, ...state.products];
+        state.total += 1;
+        return reply(created, 201);
       }
       if (url.pathname === '/api/admin/products') {
         const page = Number(url.searchParams.get('page') ?? 1);

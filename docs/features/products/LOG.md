@@ -581,3 +581,26 @@ test riêng của Issue77; chưa rollout DB phát triển. Kế hoạch, log và
 
 **Đánh đổi:** Thêm 2 cột vào `products` qua 1 migration; giữ asset đã từng gắn vào sản phẩm trên kho trong MVP để bảo toàn tuyệt đối snapshot đơn hàng cũ (việc dọn vật lý ảnh sản phẩm đã gỡ cần hợp đồng kiểm tra tham chiếu `order_items.product_snapshot` ở đợt riêng). Phạm vi `catalog.prisma`, import và Uploads chờ Bảo review.
 
+---
+
+<a id="adr-110"></a>
+## ADR-110 · Tạo sản phẩm từ quản trị với `isCustom`, dấu vết `createPayloadHash` và điều kiện công bố riêng
+
+**Trạng thái:** đề xuất · **Ngày:** 2026-11-20 · **Người đề xuất:** Tài (AI hỗ trợ).
+
+**Bối cảnh:** Đợt 4 của PH-03 mở luồng tạo sản phẩm mới hoàn chỉnh từ `/admin/products/new` (chọn danh mục lá, thương hiệu, khai báo ≥1 biến thể và 0–8 ảnh tùy chọn). Cần giải quyết bốn vấn đề trước khi cài đặt:
+1. Sau timeout/gửi lại cùng client UUID `id`, dữ liệu sản phẩm có thể đã bị chỉnh sửa hoặc phiếu ảnh đã được gắn; đồng thời hai request cùng UUID có thể chạy song song.
+2. Bước gắn ảnh ban đầu phải giữ đúng giới hạn 1 giờ của mục đích `product` trong Đợt 3, không dùng giới hạn mặc định khác.
+3. Storefront công khai lọc sản phẩm theo cả trạng thái danh mục lá và danh mục cha; sản phẩm mới tạo tay cần tránh trạng thái API báo mở bán thành công nhưng khách không thấy vì chưa có ảnh hoặc danh mục đang ẩn, đồng thời không làm thay đổi hành vi hiện có của sản phẩm import (`AC14`).
+4. Client cần phân biệt được `GET /api/admin/products/:id` trả `200` do đúng yêu cầu tạo ban đầu đã thành công hay do UUID vô tình khớp bản ghi khác.
+
+**Phương án:**
+1. Bổ sung `isCustom Boolean @default(false)` và `createPayloadHash String? @db.Char(64)` trên `products` qua một migration duy nhất (`20261120010000_ph03_admin_product_create`), trả `isCustom` và `createPayloadHash` trong `AdminProductDetail`.
+2. Trong `POST /api/admin/products`, lấy khóa transaction `pg_advisory_xact_lock` trên `product-create:<id>` và khóa cấu trúc danh mục dùng chung với luồng danh mục; kiểm tra `products.findUnique({ where: { id } })` **trước** khi gọi `UploadsService.resolveMedia`: khớp `createPayloadHash` (SHA-256 JSON chuẩn hóa) → trả lại bản ghi hiện tại; khác hash → `409 IDEMPOTENCY_PAYLOAD_MISMATCH`.
+3. Gọi `UploadsService.attach(actorId, imageKeys, tx, { purpose: 'product' })` để áp đúng hạn ticket 1 giờ khi gắn ảnh ban đầu; rollback toàn bộ nếu bất kỳ ảnh nào sai chủ/sai mục đích/hết hạn.
+4. Giữ `isActive = false`, `adminDisabled = true` khi tạo mới và tính `priceFrom` từ biến thể đang hoạt động trong transaction. Chỉ sản phẩm tạo tay (`isCustom = true`) khi chuyển sang công bố (`adminDisabled: false`) mới khóa `Category` trước `Product` và kiểm thêm ảnh (`422 NO_IMAGES_FOR_ACTIVE_PRODUCT`) cùng trạng thái bật của danh mục lá & danh mục cha (`422 CATEGORY_HIDDEN_FOR_ACTIVE_PRODUCT`).
+5. Trong `ProductsService.importOne`, bỏ qua/báo xung đột khi gặp SKU của sản phẩm `isCustom = true`; không ghi bất kỳ dòng nào vào bảng `inventory` (duy trì trạng thái `UNKNOWN` qua `InventoryService`).
+6. Trên Web, `uncertainCreate` đối chiếu `GET /api/admin/products/:id` theo **cả UUID và `createPayloadHash`** trước khi xác nhận tạo thành công; nếu lệch hash thì hiển thị cảnh báo xung đột UUID kèm nút cấp UUID mới thay vì điều hướng nhầm.
+
+**Đánh đổi:** Thêm 2 cột trên `products`; `slug` giữ bất biến sau tạo ở đợt này và CRUD thương hiệu/màu/cỡ tiếp tục dùng dữ liệu seed sẵn. Phạm vi `catalog.prisma`, import, Uploads chờ Bảo review và hợp đồng tồn kho `UNKNOWN` chờ Duy xác nhận.
+
