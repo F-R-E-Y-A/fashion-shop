@@ -1,4 +1,16 @@
-import { Body, Controller, Get, Header, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiConflictResponse,
@@ -8,13 +20,16 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiProperty,
+  ApiServiceUnavailableResponse,
   ApiTags,
+  ApiTooManyRequestsResponse,
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { IsUUID } from 'class-validator';
 
-import { RequireRoles, RoleCode } from '../auth/index.js';
+import { CurrentUser, type CurrentUserType, RequireRoles, RoleCode } from '../auth/index.js';
+import { UploadTicketResponse } from '../uploads/index.js';
 import { AdminProductsService } from './admin-products.service.js';
 import {
   AdminProductDetail,
@@ -27,6 +42,10 @@ import { AdminProductContent, ChangeProductContentDto } from './dto/change-produ
 import { AdminProductStatus, ChangeProductStatusDto } from './dto/change-product-status.dto.js';
 import { CreateProductVariantDto } from './dto/create-product-variant.dto.js';
 import { ListAdminProductsQuery } from './dto/list-admin-products.query.js';
+import {
+  AdminProductImagesResponse,
+  UpdateProductImagesDto,
+} from './dto/update-product-images.dto.js';
 import { UpdateProductVariantDto } from './dto/update-product-variant.dto.js';
 
 export class AdminVariantIdParam extends AdminProductIdParam {
@@ -50,6 +69,19 @@ export class AdminProductsController {
   @ApiOkResponse({ type: AdminVariantOptionsResponse })
   variantOptions(): Promise<AdminVariantOptionsResponse> {
     return this.products.getVariantOptions();
+  }
+
+  @Post('upload-tickets')
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary: 'Cap phieu ky san de ADMIN tai anh san pham thang len kho (purpose: product)',
+  })
+  @ApiOkResponse({ type: UploadTicketResponse })
+  @ApiServiceUnavailableResponse({ description: 'UPLOADS_DISABLED: chua cau hinh CLOUDINARY_URL' })
+  @ApiTooManyRequestsResponse({ description: 'RATE_LIMITED: qua 30 phieu moi gio' })
+  createUploadTicket(@CurrentUser() user: CurrentUserType): Promise<UploadTicketResponse> {
+    return this.products.createUploadTicket(user.id);
   }
 
   @Get()
@@ -133,5 +165,27 @@ export class AdminProductsController {
     @Body() input: ChangeProductStatusDto,
   ): Promise<AdminProductStatus> {
     return this.products.changeStatus(id, input);
+  }
+
+  @Put(':id/images')
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary:
+      'Luu nguyen tu bo anh co thu tu voi CAS imagesVersion; chuyen quyen quan ly anh sang admin',
+  })
+  @ApiOkResponse({ type: AdminProductImagesResponse })
+  @ApiNotFoundResponse({ description: 'Khong tim thay san pham' })
+  @ApiConflictResponse({ description: 'Bo anh da doi, tai lai truoc khi luu' })
+  @ApiUnprocessableEntityResponse({
+    description:
+      'Qua gioi han 8 anh khi them moi, go anh cuoi cua san pham dang ban, hoac khoa anh khong hop le',
+  })
+  @ApiServiceUnavailableResponse({ description: 'Kho anh loi hoac chua bat khi co anh moi' })
+  updateImages(
+    @Param() { id }: AdminProductIdParam,
+    @CurrentUser() user: CurrentUserType,
+    @Body() input: UpdateProductImagesDto,
+  ): Promise<AdminProductImagesResponse> {
+    return this.products.updateImages(id, user.id, input);
   }
 }

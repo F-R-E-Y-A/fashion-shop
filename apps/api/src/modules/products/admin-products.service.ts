@@ -3,12 +3,15 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
   UnprocessableEntityException,
 } from '@nestjs/common';
 
 import { skipOf, toPage } from '../../common/pagination/page.response.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
+import { UploadsService, type UploadTicketResponse } from '../uploads/index.js';
+import { isUniqueViolationError } from './category-visibility.js';
 import type {
   AdminProductDetail,
   AdminProductPage,
@@ -26,6 +29,11 @@ import type {
 } from './dto/change-product-status.dto.js';
 import type { CreateProductVariantDto } from './dto/create-product-variant.dto.js';
 import type { ListAdminProductsQuery } from './dto/list-admin-products.query.js';
+import {
+  type AdminProductImagesResponse,
+  MAX_PRODUCT_IMAGES,
+  type UpdateProductImagesDto,
+} from './dto/update-product-images.dto.js';
 import type { UpdateProductVariantDto } from './dto/update-product-variant.dto.js';
 import { adminContentChange } from './product-content.js';
 import { lockProductStatus, productStatusChange } from './product-status.js';
@@ -49,6 +57,8 @@ const detailSelect = {
   ...summarySelect,
   contentVersion: true,
   adminContentFields: true,
+  imagesVersion: true,
+  imagesManagedByAdmin: true,
   description: true,
   material: true,
   careInstructions: true,
@@ -148,7 +158,17 @@ function parseMoney(val: unknown, fieldName: string): Prisma.Decimal {
 
 @Injectable()
 export class AdminProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly uploads?: UploadsService,
+  ) {}
+
+  async createUploadTicket(actorId: string): Promise<UploadTicketResponse> {
+    if (!this.uploads) {
+      throw new Error('UploadsService chưa được cấu hình');
+    }
+    return this.uploads.ticket(actorId, 'product');
+  }
 
   async getVariantOptions(): Promise<AdminVariantOptionsResponse> {
     const [colors, sizes] = await Promise.all([
@@ -552,6 +572,228 @@ export class AdminProductsService {
     });
   }
 
+  async updateImages(
+    productId: string,
+    actorId: string,
+    input: UpdateProductImagesDto,
+  ): Promise<AdminProductImagesResponse> {
+    const normalizeAlt = (val: string | null | undefined): string | null => {
+      if (typeof val !== 'string') return null;
+      const trimmed = val.trim();
+      return trimmed.length > 0 ? trimmed : null;
+    };
+
+    const items = input.items.map((item) => ({
+      id: item.id,
+      key: item.key?.trim() || undefined,
+      alt: normalizeAlt(item.alt),
+    }));
+
+    // Kiểm tra trùng ID, trùng key và giới hạn 8 ảnh khi thêm mới trước khi gọi kho ảnh (không giữ khóa DB khi I/O mạng)
+    const seenIds = new Set<string>();
+    const seenKeys = new Set<string>();
+    const newKeys: string[] = [];
+
+    for (const item of items) {
+      if (seenIds.has(item.id)) {
+        throw new BadRequestException('Danh sách ảnh có ID bị trùng lặp.');
+      }
+      seenIds.add(item.id);
+
+      if (item.key !== undefined) {
+        if (seenKeys.has(item.key)) {
+          throw new BadRequestException('Một khóa ảnh mới bị gửi lặp nhiều lần.');
+        }
+        seenKeys.add(item.key);
+        newKeys.push(item.key);
+      }
+    }
+
+    // Giới hạn 8 ảnh chỉ áp dụng khi thêm ảnh mới (bộ ảnh legacy > 8 vẫn sửa alt, đổi thứ tự, gỡ được)
+    if (newKeys.length > 0 && items.length > MAX_PRODUCT_IMAGES) {
+      throw new UnprocessableEntityException({
+        error: 'IMAGE_LIMIT_EXCEEDED',
+        message: `Mỗi sản phẩm tối đa ${MAX_PRODUCT_IMAGES} ảnh khi tải thêm ảnh mới.`,
+      });
+    }
+
+    // Xác thực tệp trên kho ảnh NGOÀI transaction để kho phản hồi chậm không làm hết hạn transaction lưu
+    const resolvedByKey = new Map<string, string>();
+    if (newKeys.length > 0) {
+      if (!this.uploads) {
+        throw new Error('UploadsService chưa được cấu hình');
+      }
+      const resolved = await this.uploads.resolveMedia(actorId, 'product', newKeys);
+      for (const r of resolved) {
+        resolvedByKey.set(r.key, r.url);
+      }
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const before = await lockProductStatus(tx, productId);
+      if (!before) throw new NotFoundException('Không tìm thấy sản phẩm');
+
+      // CAS Check trước no-op
+      if ((before.imagesVersion ?? 0) !== input.expectedVersion) {
+        throw new ConflictException({
+          error: 'CONCURRENT_MODIFICATION',
+          message: 'Bộ ảnh sản phẩm đã thay đổi trên máy chủ. Vui lòng tải bản mới trước khi lưu.',
+        });
+      }
+
+      const existingImages = await tx.productImage.findMany({
+        where: { productId },
+        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+        select: {
+          id: true,
+          url: true,
+          alt: true,
+          sortOrder: true,
+          colorId: true,
+          color: { select: colorSelect },
+        },
+      });
+      const existingById = new Map(existingImages.map((img) => [img.id, img]));
+
+      for (const item of items) {
+        if (item.key !== undefined) {
+          if (existingById.has(item.id)) {
+            throw new BadRequestException('ID của ảnh mới trùng với ảnh đã tồn tại của sản phẩm.');
+          }
+        } else if (!existingById.has(item.id)) {
+          throw new BadRequestException('Ảnh hiện hữu không thuộc sản phẩm này hoặc đã bị gỡ.');
+        }
+      }
+
+      // Chặn gỡ hết ảnh của sản phẩm đang mở bán
+      if (items.length === 0 && before.isActive) {
+        throw new UnprocessableEntityException({
+          error: 'LAST_IMAGE_OF_ACTIVE_PRODUCT',
+          message:
+            'Không thể gỡ ảnh cuối cùng khi sản phẩm đang mở bán. Vui lòng chuyển sản phẩm sang Ngừng bán trước.',
+        });
+      }
+
+      // Kiểm tra No-op: không có ảnh mới, số lượng bằng nhau, từng vị trí có cùng id và cùng alt
+      const isNoOp =
+        newKeys.length === 0 &&
+        items.length === existingImages.length &&
+        items.every(
+          (item, index) =>
+            existingImages[index]?.id === item.id &&
+            (existingImages[index]?.alt ?? null) === item.alt,
+        );
+
+      if (isNoOp) {
+        return {
+          id: productId,
+          imagesVersion: before.imagesVersion ?? 0,
+          imagesManagedByAdmin: before.imagesManagedByAdmin ?? false,
+          imageUrl: existingImages[0]?.url ?? null,
+          images: existingImages.map((img) => ({
+            id: img.id,
+            url: img.url,
+            alt: img.alt,
+            sortOrder: img.sortOrder,
+            color: img.color,
+          })),
+        };
+      }
+
+      // Nhận ticket của các ảnh mới trong cùng transaction (siết thời hạn ticket product 1 giờ)
+      if (newKeys.length > 0) {
+        await this.uploads!.attach(actorId, newKeys, tx, { purpose: 'product' });
+      }
+
+      // Xóa các ảnh cũ không còn trong danh sách (chỉ gỡ khỏi catalog, giữ asset cho snapshot đơn cũ)
+      const removedIds = existingImages.filter((img) => !seenIds.has(img.id)).map((img) => img.id);
+      if (removedIds.length > 0) {
+        await tx.productImage.deleteMany({
+          where: { productId, id: { in: removedIds } },
+        });
+      }
+
+      // Dịch tạm sortOrder của các ảnh cũ được giữ lại (+1000) để không đụng unique (product_id, sort_order) và sort_order >= 0
+      const keptExistingItems = items.filter((item) => item.key === undefined);
+      if (keptExistingItems.length > 0) {
+        await tx.$executeRaw`
+          UPDATE public.product_images
+          SET sort_order = sort_order + 1000
+          WHERE product_id = ${productId}::uuid
+        `;
+      }
+
+      // Cập nhật sortOrder chuẩn 0..N-1 và alt cho ảnh giữ lại, hoặc tạo bản ghi cho ảnh mới
+      for (const [sortOrder, item] of items.entries()) {
+        if (item.key === undefined) {
+          await tx.productImage.update({
+            where: { id: item.id },
+            data: {
+              sortOrder,
+              alt: item.alt,
+            },
+          });
+        } else {
+          const url = resolvedByKey.get(item.key);
+          if (!url) {
+            throw new BadRequestException('Không xác định được URL của ảnh mới tải lên.');
+          }
+          try {
+            await tx.productImage.create({
+              data: {
+                id: item.id,
+                productId,
+                url,
+                alt: item.alt,
+                sortOrder,
+                colorId: null,
+              },
+            });
+          } catch (error) {
+            if (!isUniqueViolationError(error)) throw error;
+            throw new ConflictException({
+              error: 'PRODUCT_IMAGE_CONFLICT',
+              message: 'Mã hoặc vị trí của ảnh mới bị trùng. Không thể lưu bộ ảnh.',
+            });
+          }
+        }
+      }
+
+      const updatedProduct = await tx.product.update({
+        where: { id: productId },
+        data: {
+          imagesManagedByAdmin: true,
+          imagesVersion: { increment: 1 },
+        },
+        select: {
+          id: true,
+          imagesVersion: true,
+          imagesManagedByAdmin: true,
+        },
+      });
+
+      const finalImages = await tx.productImage.findMany({
+        where: { productId },
+        orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+        select: {
+          id: true,
+          url: true,
+          alt: true,
+          sortOrder: true,
+          color: { select: colorSelect },
+        },
+      });
+
+      return {
+        id: updatedProduct.id,
+        imagesVersion: updatedProduct.imagesVersion,
+        imagesManagedByAdmin: updatedProduct.imagesManagedByAdmin,
+        imageUrl: finalImages[0]?.url ?? null,
+        images: finalImages,
+      };
+    });
+  }
+
   async list(query: ListAdminProductsQuery): Promise<AdminProductPage> {
     const pattern = query.q?.replace(/[\\%_]/g, (char) => `\\${char}`);
     const where: Prisma.ProductWhereInput = {
@@ -592,6 +834,8 @@ export class AdminProductsService {
       ...toSummary(row),
       contentVersion: row.contentVersion,
       adminContentFields: row.adminContentFields,
+      imagesVersion: row.imagesVersion ?? 0,
+      imagesManagedByAdmin: row.imagesManagedByAdmin ?? false,
       description: row.description,
       material: row.material,
       careInstructions: row.careInstructions,

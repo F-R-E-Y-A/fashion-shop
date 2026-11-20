@@ -18,6 +18,11 @@ import {
   useProductContentAction,
 } from './product-content-action.js';
 import {
+  ProductMediaFeedback,
+  ProductMediaSection,
+  useProductMediaAction,
+} from './product-media-action.js';
+import {
   ProductStatusButton,
   ProductStatusFeedback,
   useProductStatusAction,
@@ -49,6 +54,7 @@ function CatalogDetail({ id }: { id: string }) {
     path,
     canonical === location.search,
   );
+  const mediaAction = useProductMediaAction(data);
   if (forbidden) return <AdminForbidden />;
   if (canonical !== location.search) return <Navigate replace to={`${path}${canonical}`} />;
   return (
@@ -59,6 +65,7 @@ function CatalogDetail({ id }: { id: string }) {
       <ProductStatusFeedback action={statusAction} />
       <ProductContentFeedback action={contentAction} />
       <ProductVariantFeedback action={variantAction} />
+      <ProductMediaFeedback action={mediaAction} />
       {result.isPending && <Loading label="Đang tải chi tiết sản phẩm…" />}
       {result.isError && (
         <ErrorNote
@@ -194,25 +201,7 @@ function CatalogDetail({ id }: { id: string }) {
               </div>
             )}
           </section>
-          <section aria-labelledby="catalog-images" className={styles.section}>
-            <h2 id="catalog-images" className={styles.panelTitle}>
-              Hình ảnh ({data.images.length})
-            </h2>
-            {data.images.length === 0 ? (
-              <Empty label="Chưa có ảnh." />
-            ) : (
-              <div className={styles.gallery}>
-                {data.images.map((img) => (
-                  <figure className={styles.figure} key={img.id}>
-                    <img src={img.url} alt={img.alt ?? data.name} loading="lazy" />
-                    <figcaption>
-                      Thứ tự {img.sortOrder} · {img.color?.name ?? 'Ảnh chung'}
-                    </figcaption>
-                  </figure>
-                ))}
-              </div>
-            )}
-          </section>
+          <ProductMediaSection product={data} action={mediaAction} />
         </>
       )}
     </div>

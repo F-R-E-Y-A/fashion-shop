@@ -1,6 +1,6 @@
 ---
 title: Khám phá sản phẩm — nhật ký quyết định và thay đổi
-updated: 2026-09-30
+updated: 2026-11-19
 status: đang dùng
 owner: Bảo
 ---
@@ -554,4 +554,30 @@ test riêng của Issue77; chưa rollout DB phát triển. Kế hoạch, log và
 9. Frontend: Giữ uncertain marker qua điều hướng route trong cùng phiên (`actorId`, `sessionEpoch`, `productId`, `variantId`); khóa tạo mới theo tài nguyên `new`; giải phóng marker chỉ bằng chứng thực máy chủ; guard chống late response / 403.
 
 **Đánh đổi:** Thêm 2 cột vào `product_variants` qua 1 migration; admin chỉ được chọn màu và cỡ có sẵn, không tự tạo màu/cỡ tự do; không hỗ trợ xóa cứng biến thể (chỉ chuyển `isActive = false`).
+
+---
+
+<a id="adr-109"></a>
+## ADR-109 · Quản trị bộ ảnh sản phẩm với ticket `product`, CAS `imagesVersion` và bảo vệ import
+
+**Trạng thái:** đề xuất · **Ngày:** 2026-11-19 · **Người đề xuất:** Tài (AI hỗ trợ).
+
+**Bối cảnh:** Đợt 3 của PH-03 mở quản trị bộ ảnh sản phẩm hiện có tại `/admin/products/:id` (tải ảnh mới, sửa mô tả thay thế `alt`, đưa ảnh lên đầu làm ảnh đại diện, đổi thứ tự và gỡ ảnh). Cần đảm bảo ba quyết định nghiệp vụ:
+1. Cấp phiếu tải ảnh mục đích `product` ở đường riêng có kiểm vai `ADMIN`, trong khi đường khách hàng `/api/uploads/tickets` giữ nguyên chỉ cho `review` và `return`.
+2. Giới hạn 8 ảnh mỗi sản phẩm khi tải thêm ảnh mới (bộ ảnh legacy >8 ảnh vẫn sửa `alt`, sắp xếp và gỡ được); lưu nguyên tử toàn bộ thứ tự với CAS phiên bản riêng mà không đụng ràng buộc unique `(product_id, sort_order)` hay `sort_order >= 0`.
+3. Từ lần chỉnh sửa thực tế đầu tiên của admin, toàn bộ thành phần và thứ tự bộ ảnh do admin quản lý qua các lần `importProducts` tiếp theo (kể cả khi nguồn không trả ảnh); gỡ ảnh khỏi catalog giữ nguyên asset từng gắn để không làm hỏng URL ảnh đã chụp trong snapshot đơn hàng cũ.
+
+**Phương án:**
+1. Thêm `imagesVersion Int @default(0)` và `imagesManagedByAdmin Boolean @default(false)` vào bảng `products` qua một migration duy nhất (`20261119140000_ph03_admin_product_media`), kèm ràng buộc `CHECK (images_version >= 0)`.
+2. Bổ sung `PRODUCT_MEDIA_ROOT = 'freya/products'` trong `UploadsService` (cho phép `ticket(userId, 'product')` và `resolveMedia(userId, 'product', keys)`), nhưng giữ `UPLOAD_PURPOSES = ['review', 'return']` ở DTO khách hàng `/api/uploads/tickets`. Mở endpoint quản trị `POST /api/admin/products/upload-tickets` sau `@RequireRoles(RoleCode.ADMIN)` trong `AdminProductsController`.
+3. Mở `PUT /api/admin/products/:id/images` nhận `{ items, expectedVersion }`, trong đó mỗi phần tử là ảnh hiện hữu (`{ id, alt }`) hoặc ảnh mới (`{ id, key, alt }` với `id` UUID v4 do client sinh để đối chiếu kết quả bất đồng bộ).
+4. Dưới khóa dòng `lockProductStatus(tx, productId)` (`SELECT ... FOR UPDATE`):
+   - Kiểm tra CAS `before.imagesVersion === input.expectedVersion` trước no-op; lệch trả `409 Conflict`.
+   - Kiểm tra mọi `id` ảnh cũ thuộc sản phẩm, không trùng `id`/`key`, giới hạn 8 ảnh khi có ảnh mới (`422 IMAGE_LIMIT_EXCEEDED`), và chặn gỡ hết ảnh khi `product.isActive = true` (`422 LAST_IMAGE_OF_ACTIVE_PRODUCT`).
+   - Nếu không có ảnh mới và danh sách `(id, alt)` giữ nguyên thứ tự thì trả kết quả no-op (không ghi DB, không tăng `imagesVersion`, không đổi `imagesManagedByAdmin`).
+   - Khi có thay đổi: gọi `UploadsService.resolveMedia(actorId, 'product', newKeys)` trước/trong luồng, nhận phiếu `UploadsService.attach(actorId, newKeys, tx)` trong cùng transaction, xóa ảnh bị gỡ khỏi `product_images` (không gọi `UploadsService.release`), dịch tạm `sort_order` của các ảnh giữ lại bằng `+ 1000` rồi cập nhật về `0..N-1` để tránh va chạm unique `(product_id, sort_order)` và `CHECK (sort_order >= 0)`, tạo các ảnh mới với `colorId = null`, đặt `imagesManagedByAdmin = true` và tăng `imagesVersion`.
+5. Trong `ProductsService.importOne`: đọc `imagesManagedByAdmin` và `imagesVersion` sau `lockProductStatus`. Khi `imagesManagedByAdmin = true`, bỏ qua ghi đè `product_images` từ nguồn và tính `hasImages` theo số ảnh thực tế đang có trong DB để quyết định `isActive`. Khi `imagesManagedByAdmin = false`, chỉ ghi `product_images` và tăng `imagesVersion` nếu bộ ảnh nguồn thực sự khác bộ ảnh hiện có trong DB.
+6. Giao diện Web (`/admin/products/:id`): dùng CSS Modules, AdminKit, `ActionFeedback`; hỗ trợ nút di chuyển lên/xuống/đưa lên đầu/gỡ ảnh có nhãn bàn phím rõ ràng; vẫn thao tác được ảnh hiện có khi kho tắt; cô lập draft và marker `uncertain` theo `actorId`, `sessionEpoch`, `accessGeneration` và `productId`; đối chiếu `GET` theo danh sách `id` ổn định, thứ tự, `alt` và `imagesVersion` mà không tự động gửi lại.
+
+**Đánh đổi:** Thêm 2 cột vào `products` qua 1 migration; giữ asset đã từng gắn vào sản phẩm trên kho trong MVP để bảo toàn tuyệt đối snapshot đơn hàng cũ (việc dọn vật lý ảnh sản phẩm đã gỡ cần hợp đồng kiểm tra tham chiếu `order_items.product_snapshot` ở đợt riêng). Phạm vi `catalog.prisma`, import và Uploads chờ Bảo review.
 

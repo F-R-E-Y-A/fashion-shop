@@ -36,9 +36,18 @@ export interface AdminProductVariantItem {
   adminManagedFields?: string[];
   updatedAt: string;
 }
+export interface AdminProductImageItem {
+  id: string;
+  url: string;
+  alt: string | null;
+  color: Color | null;
+  sortOrder: number;
+}
 export interface AdminCatalogDetail extends AdminCatalogProduct {
   contentVersion: number;
   adminContentFields: string[];
+  imagesVersion?: number;
+  imagesManagedByAdmin?: boolean;
   description: string | null;
   material: string | null;
   careInstructions: string | null;
@@ -46,7 +55,51 @@ export interface AdminCatalogDetail extends AdminCatalogProduct {
   audience: string | null;
   updatedAt: string;
   variants: AdminProductVariantItem[];
-  images: { id: string; url: string; alt: string | null; color: Color | null; sortOrder: number }[];
+  images: AdminProductImageItem[];
+}
+export interface UploadConfigResponse {
+  enabled: boolean;
+  maxBytes: number;
+  formats: string[];
+}
+export interface UploadTicketResponse {
+  uploadUrl: string;
+  fields: Record<string, string>;
+  key: string;
+  expiresAt: string;
+  maxBytes: number;
+  formats: string[];
+}
+export interface UpdateProductImagesItemPayload {
+  id: string;
+  key?: string;
+  alt: string | null;
+}
+export interface UpdateProductImagesPayload {
+  items: UpdateProductImagesItemPayload[];
+  expectedVersion: number;
+}
+export interface AdminProductImagesResult {
+  id: string;
+  imagesVersion: number;
+  imagesManagedByAdmin: boolean;
+  imageUrl: string | null;
+  images: AdminProductImageItem[];
+}
+export interface DraftProductImageItem {
+  id: string;
+  url: string;
+  alt: string;
+  color: Color | null;
+  key?: string;
+  isNew?: boolean;
+}
+export interface UncertainImagesUpdate {
+  operationId: number;
+  productId: string;
+  payload: UpdateProductImagesPayload;
+  draftItems: DraftProductImageItem[];
+  status: 'pending' | 'uncertain';
 }
 export interface AdminVariantColorOption {
   id: string;
@@ -132,6 +185,11 @@ export const adminCatalogKeys = {
     [...adminCatalogKeys.all(actorId), 'detail', id] as const,
   variantOptions: (actorId: string) =>
     [...adminCatalogKeys.all(actorId), 'variant-options'] as const,
+  uploadConfig: (actorId: string) => [...adminCatalogKeys.all(actorId), 'upload-config'] as const,
+  imagesDraft: (actorId: string, epoch: number, productId: string) =>
+    [...adminCatalogKeys.all(actorId), 'images-draft', epoch, productId] as const,
+  uncertainImagesUpdate: (actorId: string, epoch: number, productId: string) =>
+    ['uncertain', 'admin', 'products', actorId, 'images-update', epoch, productId] as const,
   uncertainVariantCreate: (actorId: string, epoch: number, productId: string) =>
     ['uncertain', 'admin-catalog', 'variant-create', actorId, epoch, productId] as const,
   uncertainVariantUpdate: (actorId: string, epoch: number, productId: string, variantId: string) =>
@@ -208,4 +266,36 @@ export function variantMutationErrorText(error: unknown): string {
     }
   }
   return 'Thao tác không thành công. Vui lòng kiểm tra lại kết nối và thử lại.';
+}
+export function imagesMutationErrorText(error: unknown): string {
+  if (error instanceof ApiError) {
+    switch (error.body.code) {
+      case 'IMAGE_LIMIT_EXCEEDED':
+        return 'Mỗi sản phẩm tối đa 8 ảnh khi tải thêm ảnh mới.';
+      case 'LAST_IMAGE_OF_ACTIVE_PRODUCT':
+        return 'Không thể gỡ ảnh cuối cùng khi sản phẩm đang mở bán. Vui lòng chuyển sản phẩm sang Ngừng bán trước.';
+      case 'INVALID_MEDIA':
+        return typeof error.body.message === 'string'
+          ? error.body.message
+          : 'Ảnh tải lên không hợp lệ, đã quá hạn hoặc sai định dạng (JPG, PNG, WebP tối đa 5 MB).';
+      case 'UPLOADS_DISABLED':
+        return 'Máy chủ chưa cấu hình kho ảnh.';
+      case 'UPLOADS_UNAVAILABLE':
+        return 'Kho ảnh đang tạm thời lỗi. Vui lòng thử lại sau.';
+      case 'PRODUCT_IMAGE_CONFLICT':
+        return 'Mã hoặc vị trí của ảnh mới bị trùng. Hãy gỡ ảnh mới khỏi bản nháp rồi tải lại trước khi lưu.';
+      case 'CONCURRENT_MODIFICATION':
+        return 'Bộ ảnh sản phẩm đã thay đổi trên máy chủ. Vui lòng tải bản mới để đối chiếu trước khi lưu.';
+    }
+    if (error.body.statusCode === 409) {
+      return 'Bộ ảnh sản phẩm đã thay đổi trên máy chủ. Vui lòng tải bản mới để đối chiếu trước khi lưu.';
+    }
+    if (error.body.statusCode === 404) {
+      return 'Sản phẩm không còn tồn tại.';
+    }
+    if (error.body.statusCode === 400) {
+      return 'Dữ liệu bộ ảnh không hợp lệ.';
+    }
+  }
+  return 'Không thể lưu bộ ảnh sản phẩm. Kiểm tra điều kiện rồi thử lại.';
 }

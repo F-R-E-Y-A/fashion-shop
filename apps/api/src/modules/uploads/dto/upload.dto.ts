@@ -2,12 +2,13 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsIn } from 'class-validator';
 
 export const UPLOAD_PURPOSES = ['review', 'return'] as const;
-export type UploadPurpose = (typeof UPLOAD_PURPOSES)[number];
+export type CustomerUploadPurpose = (typeof UPLOAD_PURPOSES)[number];
+export type UploadPurpose = CustomerUploadPurpose | 'product';
 
 export class CreateUploadTicketRequest {
   @ApiProperty({ enum: UPLOAD_PURPOSES, description: 'Anh dung vao dau; quyet dinh thu muc' })
   @IsIn(UPLOAD_PURPOSES, { message: 'purpose khong hop le' })
-  purpose!: UploadPurpose;
+  purpose!: CustomerUploadPurpose;
 }
 
 export class UploadConfigResponse {

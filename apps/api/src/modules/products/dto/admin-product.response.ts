@@ -59,6 +59,8 @@ export class AdminProductImage {
 export class AdminProductDetail extends AdminProductSummary {
   @ApiProperty() contentVersion!: number;
   @ApiProperty({ type: [String] }) adminContentFields!: string[];
+  @ApiProperty() imagesVersion!: number;
+  @ApiProperty() imagesManagedByAdmin!: boolean;
   @ApiProperty({ type: String, nullable: true }) description!: string | null;
   @ApiProperty({ type: String, nullable: true }) material!: string | null;
   @ApiProperty({ type: String, nullable: true }) careInstructions!: string | null;
