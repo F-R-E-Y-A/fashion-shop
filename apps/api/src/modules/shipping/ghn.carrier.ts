@@ -38,9 +38,13 @@ export function isGhnNotFoundError(err: unknown): boolean {
   if (normalizedCode) {
     return GHN_NOT_FOUND_CODES.has(normalizedCode);
   }
-  if (err.httpStatus === 404 || err.ghnCode === 404) return true;
+  // Chỉ coi 404 là xác nhận không tìm thấy đơn khi GHN trả envelope JSON hợp lệ (có ghnCode=404 hoặc rawMessage),
+  // tránh nhận nhầm trang HTML 404 từ proxy/gateway/sai URL là xác nhận chưa có đơn.
+  if (err.ghnCode === 404) return true;
+  if (err.httpStatus === 404 && Boolean(err.rawMessage)) return true;
   if (err.httpStatus !== 400 && err.ghnCode !== 400) return false;
-  const msg = (err.rawMessage ?? err.message)
+  if (!err.rawMessage) return false;
+  const msg = err.rawMessage
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
     .replace(/đ/giu, 'd')
@@ -242,7 +246,11 @@ export class GhnCarrierGateway implements ShippingCarrierGateway {
       detail = res.data;
     }
 
-    if (!detail) return null;
+    if (!detail || typeof detail !== 'object' || Array.isArray(detail)) {
+      throw new ServiceUnavailableException(
+        'GHN Sandbox trả về dữ liệu chi tiết vận đơn trống hoặc sai định dạng.',
+      );
+    }
     const rawStatus = readStringField(detail, ['status', 'Status']);
     const mapped = mapGhnStatus(rawStatus);
     if (!mapped) return null;
@@ -264,7 +272,11 @@ export class GhnCarrierGateway implements ShippingCarrierGateway {
     clientOrderCode: string,
   ): Promise<CreateCarrierShipmentResult | null> {
     const trimmed = clientOrderCode.trim();
-    if (!trimmed) return null;
+    if (!trimmed) {
+      throw new ServiceUnavailableException(
+        'Thiếu mã đơn hàng nội bộ để đối soát với GHN Sandbox.',
+      );
+    }
     const { apiUrl, token, shopId } = this.credentials();
     const encodedCode = encodeURIComponent(trimmed);
 
@@ -296,9 +308,17 @@ export class GhnCarrierGateway implements ShippingCarrierGateway {
       }
     }
 
-    if (!detail) return null;
+    if (!detail || typeof detail !== 'object' || Array.isArray(detail)) {
+      throw new ServiceUnavailableException(
+        'GHN Sandbox trả về dữ liệu tra cứu trống hoặc sai định dạng, không đủ căn cứ đối soát.',
+      );
+    }
     const trackingNumber = readStringField(detail, ['order_code', 'OrderCode']);
-    if (!trackingNumber) return null;
+    if (!trackingNumber) {
+      throw new ServiceUnavailableException(
+        'GHN Sandbox trả về bản ghi tra cứu thiếu mã vận đơn (order_code), không đủ căn cứ đối soát.',
+      );
+    }
 
     const rawStatus = readStringField(detail, ['status', 'Status']);
     const mapped = mapGhnStatus(rawStatus);
@@ -487,7 +507,12 @@ export class GhnCarrierGateway implements ShippingCarrierGateway {
         rawCombined,
       );
     }
-    return raw ?? { code: 200 };
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      throw new ServiceUnavailableException(
+        'GHN Sandbox trả về phản hồi không phải JSON hợp lệ, không đủ căn cứ đối soát.',
+      );
+    }
+    return raw;
   }
 }
 

@@ -474,7 +474,7 @@ function AdminOrderDetail() {
                         <div>
                           <dt>Mã trạng thái GHN</dt>
                           <dd>
-                            <code>{order.shipment.carrierStatus}</code>
+                            <code>{formatCarrierStatusLabel(order.shipment.carrierStatus)}</code>
                           </dd>
                         </div>
                       )}
@@ -499,6 +499,20 @@ function AdminOrderDetail() {
                 <h2 id="ops" className={styles.panelTitle}>
                   Thao tác
                 </h2>
+                {isPendingGhnIntent(order) && (
+                  <p className={styles.notice} data-tone="warning" role="status">
+                    {order.shipment?.carrierStatus?.startsWith('create_uncertain')
+                      ? 'Chưa xác minh được kết quả tạo vận đơn trên GHN Sandbox. Bấm "Đối soát / tạo lại vận đơn GHN" để kiểm tra theo mã đơn trước khi tạo mới.'
+                      : 'Đơn hàng đang khởi tạo vận đơn trên GHN Sandbox. Nếu quá lâu không nhận được mã vận đơn, bấm "Đối soát / tạo lại vận đơn GHN" để kiểm tra lại.'}
+                  </p>
+                )}
+                {isCancelledGhnBeforePickup(order) && (
+                  <p className={styles.notice} data-tone="warning" role="status">
+                    Vận đơn GHN đã bị hủy trước khi lấy hàng (hàng vẫn còn tại kho). Sau khi kiểm
+                    tra kho, bạn có thể tạo vận đơn thay thế hoặc ghi giao thất bại để hủy đơn COD
+                    và hoàn kho.
+                  </p>
+                )}
                 <div className={styles.actions}>
                   {order.actions.confirmCod && (
                     <button
@@ -510,7 +524,18 @@ function AdminOrderDetail() {
                       Xác nhận và giao COD
                     </button>
                   )}
-                  {['CONFIRMED', 'PROCESSING'].includes(order.status) && !order.shipment && (
+                  {isPendingGhnIntent(order) && (
+                    <button
+                      type="button"
+                      className={styles.primaryButton}
+                      disabled={action.isPending || needsRecheck}
+                      onClick={() => open({ kind: 'createShipment' })}
+                    >
+                      Đối soát / tạo lại vận đơn GHN
+                    </button>
+                  )}
+                  {((['CONFIRMED', 'PROCESSING'].includes(order.status) && !order.shipment) ||
+                    isCancelledGhnBeforePickup(order)) && (
                     <>
                       <button
                         type="button"
@@ -518,9 +543,13 @@ function AdminOrderDetail() {
                         disabled={action.isPending || needsRecheck}
                         onClick={() => open({ kind: 'createShipment' })}
                       >
-                        {ghnConfigured
-                          ? 'Tạo vận đơn GHN (Sandbox)'
-                          : 'Tạo vận đơn GHN (Dự phòng mô phỏng)'}
+                        {isCancelledGhnBeforePickup(order)
+                          ? ghnConfigured
+                            ? 'Tạo vận đơn GHN thay thế'
+                            : 'Tạo vận đơn thay thế (Dự phòng mô phỏng)'
+                          : ghnConfigured
+                            ? 'Tạo vận đơn GHN (Sandbox)'
+                            : 'Tạo vận đơn GHN (Dự phòng mô phỏng)'}
                       </button>
                       {ghnConfigured && (
                         <button
@@ -536,7 +565,9 @@ function AdminOrderDetail() {
                   )}
                   {order.shipment &&
                     order.shipment.isMock === false &&
-                    !['DELIVERED', 'RETURNED'].includes(order.shipment.status) && (
+                    Boolean(order.shipment.trackingNumber) &&
+                    !['DELIVERED', 'RETURNED'].includes(order.shipment.status) &&
+                    !isCancelledGhnBeforePickup(order) && (
                       <button
                         type="button"
                         className={styles.primaryButton}
@@ -622,16 +653,17 @@ function AdminOrderDetail() {
                       {titleOf({ kind: 'markDelivered' }, order)}
                     </button>
                   )}
-                  {order.actions.deliveryFailed && order.shipment?.isMock !== false && (
-                    <button
-                      type="button"
-                      className={styles.dangerButton}
-                      disabled={action.isPending || needsRecheck}
-                      onClick={() => open({ kind: 'deliveryFailed' })}
-                    >
-                      Giao thất bại
-                    </button>
-                  )}
+                  {order.actions.deliveryFailed &&
+                    (order.shipment?.isMock !== false || isCancelledGhnBeforePickup(order)) && (
+                      <button
+                        type="button"
+                        className={styles.dangerButton}
+                        disabled={action.isPending || needsRecheck}
+                        onClick={() => open({ kind: 'deliveryFailed' })}
+                      >
+                        Giao thất bại
+                      </button>
+                    )}
                   {order.ledgers.map((ledger) => (
                     <span key={ledger.paymentId} className={styles.actions}>
                       {ledger.refundableAmount && (
@@ -754,14 +786,51 @@ function AdminOrderDetail() {
   );
 }
 
+const isPendingGhnIntent = (order: AdminOrder) =>
+  Boolean(
+    order.shipment &&
+    order.shipment.isMock === false &&
+    !order.shipment.trackingNumber &&
+    (order.shipment.carrierStatus === 'creating' ||
+      order.shipment.carrierStatus?.startsWith('creating:') ||
+      order.shipment.carrierStatus === 'create_uncertain' ||
+      order.shipment.carrierStatus?.startsWith('create_uncertain:')),
+  );
+
+const isCancelledGhnBeforePickup = (order: AdminOrder) =>
+  Boolean(
+    order.shipment &&
+    order.shipment.isMock === false &&
+    order.shipment.status === 'FAILED' &&
+    order.shipment.carrierStatus === 'cancel' &&
+    order.status === 'PROCESSING',
+  );
+
+function formatCarrierStatusLabel(carrierStatus: string): string {
+  if (carrierStatus === 'creating' || carrierStatus.startsWith('creating:')) {
+    return 'creating (đang khởi tạo trên GHN)';
+  }
+  if (carrierStatus === 'create_uncertain' || carrierStatus.startsWith('create_uncertain:')) {
+    return 'create_uncertain (chờ đối soát GHN)';
+  }
+  return carrierStatus;
+}
+
 const hasAction = (order: AdminOrder) =>
   order.actions.confirmCod ||
   order.actions.startProcessing ||
   order.actions.cancelRefund ||
-  ((order.actions.markDelivered || order.actions.deliveryFailed) &&
-    order.shipment?.isMock !== false) ||
+  (order.actions.markDelivered && order.shipment?.isMock !== false) ||
+  (order.actions.deliveryFailed &&
+    (order.shipment?.isMock !== false || isCancelledGhnBeforePickup(order))) ||
+  isPendingGhnIntent(order) ||
+  isCancelledGhnBeforePickup(order) ||
   (['CONFIRMED', 'PROCESSING'].includes(order.status) && !order.shipment) ||
-  Boolean(order.shipment && !['DELIVERED', 'RETURNED'].includes(order.shipment.status)) ||
+  Boolean(
+    order.shipment &&
+    !['DELIVERED', 'RETURNED'].includes(order.shipment.status) &&
+    (order.shipment.isMock !== false || Boolean(order.shipment.trackingNumber)),
+  ) ||
   order.ledgers.some((ledger) => ledger.refundableAmount || ledger.pendingRefund?.resolvable);
 
 const TITLE: Record<Dialog['kind'], string> = {

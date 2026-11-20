@@ -206,6 +206,51 @@ describe('GhnCarrierGateway', () => {
     );
   });
 
+  it('R3-P2.2: queryOrderByClientCode báo 503 khi HTTP 200 trả thân không phải JSON, thiếu data, thiếu order_code hoặc trang HTML 404 (không trả null)', async () => {
+    const fetchMock = vi
+      .fn()
+      // 1. HTTP 200 thân HTML (không phải JSON)
+      .mockResolvedValueOnce(new Response('<html>Gateway Page</html>', { status: 200 }))
+      // 2. HTTP 200 JSON rỗng thiếu data
+      .mockResolvedValueOnce(new Response(JSON.stringify({ code: 200 }), { status: 200 }))
+      // 3. HTTP 200 có data nhưng thiếu order_code
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 200, data: { status: 'ready_to_pick' } }), {
+          status: 200,
+        }),
+      )
+      // 4. HTTP 404 trang HTML từ proxy/gateway (không phải JSON envelope của GHN)
+      .mockResolvedValueOnce(new Response('<html>404 Not Found</html>', { status: 404 }))
+      // 5. HTTP 404 JSON envelope hợp lệ từ GHN -> trả null
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ code: 404, message: 'Order not found' }), { status: 404 }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const gateway = new GhnCarrierGateway(
+      makeConfig({
+        NODE_ENV: 'test',
+        GHN_API_URL: 'https://dev-online-gateway.ghn.vn/shiip/public-api',
+        GHN_TOKEN: 'sandbox-tok',
+        GHN_SHOP_ID: '190001',
+      }),
+    );
+
+    await expect(gateway.queryOrderByClientCode('FR-HTML-200')).rejects.toThrow(
+      ServiceUnavailableException,
+    );
+    await expect(gateway.queryOrderByClientCode('FR-NO-DATA')).rejects.toThrow(
+      ServiceUnavailableException,
+    );
+    await expect(gateway.queryOrderByClientCode('FR-NO-CODE')).rejects.toThrow(
+      ServiceUnavailableException,
+    );
+    await expect(gateway.queryOrderByClientCode('FR-HTML-404')).rejects.toThrow(
+      ServiceUnavailableException,
+    );
+    expect(await gateway.queryOrderByClientCode('FR-JSON-404')).toBeNull();
+  });
+
   it('mapGhnStatus giữ picking ở PENDING, chỉ chuyển IN_TRANSIT từ picked, và đưa scrap/cancel vào FAILED thay vì RETURNED', () => {
     expect(mapGhnStatus('picking')?.status).toBe('PENDING');
     expect(mapGhnStatus('money_collect_picking')?.status).toBe('PENDING');

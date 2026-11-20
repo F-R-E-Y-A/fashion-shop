@@ -64,9 +64,92 @@ type ShipmentStatusMeta = {
   manualSimulation?: boolean;
   requireRealCarrier?: boolean;
   expectedTrackingNumber?: string;
+  expectedClientOrderCode?: string;
   occurredAt?: string;
   expectedUpdatedAt?: Date;
 };
+
+const INTENT_CREATING_PREFIX = 'creating';
+const INTENT_UNCERTAIN_PREFIX = 'create_uncertain';
+const IN_FLIGHT_CREATING_TTL_MS = 45_000;
+
+function isCreatingIntent(carrierStatus?: string | null): boolean {
+  return Boolean(
+    carrierStatus &&
+    (carrierStatus === INTENT_CREATING_PREFIX ||
+      carrierStatus.startsWith(`${INTENT_CREATING_PREFIX}:`)),
+  );
+}
+
+function isUncertainIntent(carrierStatus?: string | null): boolean {
+  return Boolean(
+    carrierStatus &&
+    (carrierStatus === INTENT_UNCERTAIN_PREFIX ||
+      carrierStatus.startsWith(`${INTENT_UNCERTAIN_PREFIX}:`)),
+  );
+}
+
+function isCreateIntentStatus(carrierStatus?: string | null): boolean {
+  return isCreatingIntent(carrierStatus) || isUncertainIntent(carrierStatus);
+}
+
+function encodeIntentStatus(
+  kind: 'creating' | 'create_uncertain',
+  clientOrderCode: string,
+  baseOrderCode: string,
+): string {
+  return clientOrderCode === baseOrderCode ? kind : `${kind}:${clientOrderCode}`;
+}
+
+function decodeIntentClientOrderCode(
+  carrierStatus: string | null | undefined,
+  baseOrderCode: string,
+): string {
+  if (!carrierStatus) return baseOrderCode;
+  const idx = carrierStatus.indexOf(':');
+  if (idx === -1) return baseOrderCode;
+  const code = carrierStatus.slice(idx + 1).trim();
+  return code || baseOrderCode;
+}
+
+function isActiveCreatingIntent(shipment: {
+  trackingNumber?: string | null;
+  isMock?: boolean;
+  carrierStatus?: string | null;
+  updatedAt?: Date;
+}): boolean {
+  if (shipment.isMock !== false || shipment.trackingNumber) return false;
+  if (!isCreatingIntent(shipment.carrierStatus)) return false;
+  if (!shipment.updatedAt) return true;
+  return Date.now() - shipment.updatedAt.getTime() < IN_FLIGHT_CREATING_TTL_MS;
+}
+
+function isReconcilableIntent(shipment: {
+  trackingNumber?: string | null;
+  isMock?: boolean;
+  carrierStatus?: string | null;
+  updatedAt?: Date;
+}): boolean {
+  if (shipment.isMock !== false || shipment.trackingNumber) return false;
+  if (isUncertainIntent(shipment.carrierStatus)) return true;
+  if (isCreatingIntent(shipment.carrierStatus)) {
+    return !isActiveCreatingIntent(shipment);
+  }
+  return false;
+}
+
+function isCancelledGhnBeforePickup(order: {
+  status: string;
+  shipment: { status: string; isMock?: boolean; carrierStatus?: string | null } | null;
+}): boolean {
+  return Boolean(
+    order.shipment &&
+    order.shipment.isMock === false &&
+    order.shipment.status === 'FAILED' &&
+    order.shipment.carrierStatus === 'cancel' &&
+    order.status === 'PROCESSING',
+  );
+}
 
 type LockedOrderWithShipment = {
   id: string;
@@ -160,51 +243,242 @@ export class ShippingService {
     let externalResult: CreateCarrierShipmentResult | null = null;
     let fallbackUsed = false;
     let fallbackReason: string | null = null;
+    let verificationFailed = false;
+    let cleanupIntentAndThrow: unknown = null;
+    let phase1ClientOrderCode: string | null = null;
+    let phase1PreviousShipment: ShipmentRow | null = null;
 
     if (shouldCallGhn && this.ghn) {
-      const snapshot = await this.prisma.order.findUnique({
-        where: { id: orderId },
-        include: { shipment: true, items: true, payments: true },
-      });
-      if (!snapshot) throw new NotFoundException('Không tìm thấy đơn hàng.');
-      this.assertOrderReadyForShipment(snapshot);
+      // Pha 1 (dưới khóa OrdersService.lock): chốt đơn sang PROCESSING (khóa khách/admin tự hủy & hoàn tiền)
+      // và ghi nhận bản ghi intent Shipment (`creating[:clientCode]`) TRƯỚC khi gọi HTTP ra ngoài GHN.
+      const phase1Hooks: PostCommitHook[] = [];
+      const phase1 = await this.prisma.$transaction(async (tx) => {
+        attachPostCommitHooks(tx, phase1Hooks);
+        if (this.orders) await this.orders.lock(orderId, tx);
 
-      const carrierInput = this.buildCarrierInput(snapshot, requestedCarrier, customTracking);
-      try {
-        externalResult = await this.ghn.createOrder(carrierInput);
-      } catch (err) {
-        let recovered: CreateCarrierShipmentResult | null = null;
-        let verificationFailed = false;
-        if (typeof this.ghn.queryOrderByClientCode === 'function') {
-          try {
-            recovered = await this.ghn.queryOrderByClientCode(snapshot.orderCode);
-          } catch (lookupErr) {
-            verificationFailed = true;
-            this.logger.warn(
-              `Không tra cứu xác minh được client_order_code=${snapshot.orderCode} trên GHN sau lỗi tạo đơn: ${lookupErr instanceof Error ? lookupErr.message : String(lookupErr)}`,
+        const order = await tx.order.findUnique({
+          where: { id: orderId },
+          include: { shipment: true, items: true, payments: true },
+        });
+        if (!order) throw new NotFoundException('Không tìm thấy đơn hàng.');
+        this.assertOrderReadyForShipment(order, true);
+
+        const existingShipment = order.shipment as ShipmentRow | null;
+        const retryingIntent = Boolean(existingShipment && isReconcilableIntent(existingShipment));
+        const replacingCancelledGhn = isCancelledGhnBeforePickup(order);
+
+        let clientOrderCode = order.orderCode;
+        if (retryingIntent && existingShipment) {
+          clientOrderCode = decodeIntentClientOrderCode(
+            existingShipment.carrierStatus,
+            order.orderCode,
+          );
+        } else if (replacingCancelledGhn) {
+          clientOrderCode = `${order.orderCode}-R${randomUUID().slice(0, 4).toUpperCase()}`;
+        }
+
+        const previousSnapshot: ShipmentRow | null =
+          existingShipment && !retryingIntent ? { ...existingShipment } : null;
+
+        if (order.status === 'CONFIRMED' && this.orders) {
+          await this.orders.transition(orderId, 'PROCESSING', tx, actorUserId);
+        }
+
+        const intentStatus = encodeIntentStatus('creating', clientOrderCode, order.orderCode);
+        await tx.shipment.upsert({
+          where: { orderId },
+          create: {
+            orderId,
+            carrierName: requestedCarrier,
+            trackingNumber: null,
+            status: 'PENDING',
+            isMock: false,
+            carrierStatus: intentStatus,
+            statusNote: 'Đang khởi tạo vận đơn trên GHN Sandbox...',
+            expectedDeliveryAt: null,
+          },
+          update: {
+            carrierName: requestedCarrier,
+            trackingNumber: null,
+            status: 'PENDING',
+            isMock: false,
+            carrierStatus: intentStatus,
+            statusNote: 'Đang khởi tạo vận đơn trên GHN Sandbox...',
+            expectedDeliveryAt: null,
+            carrierUpdatedAt: null,
+          },
+        });
+
+        return {
+          clientOrderCode,
+          reconcileFirst: retryingIntent,
+          previousSnapshot,
+          carrierInput: this.buildCarrierInput(
+            order,
+            requestedCarrier,
+            customTracking,
+            clientOrderCode,
+          ),
+        };
+      });
+      await runPostCommitHooks(phase1Hooks);
+
+      phase1ClientOrderCode = phase1.clientOrderCode;
+      phase1PreviousShipment = phase1.previousSnapshot;
+
+      const tryLookupByClientCode = async (): Promise<
+        | { outcome: 'found'; result: CreateCarrierShipmentResult }
+        | { outcome: 'not_found' }
+        | { outcome: 'failed' }
+      > => {
+        if (typeof this.ghn?.queryOrderByClientCode !== 'function') {
+          return { outcome: 'not_found' };
+        }
+        try {
+          const found = await this.ghn.queryOrderByClientCode(phase1.clientOrderCode);
+          return found ? { outcome: 'found', result: found } : { outcome: 'not_found' };
+        } catch (lookupErr) {
+          this.logger.warn(
+            `Không tra cứu xác minh được client_order_code=${phase1.clientOrderCode} trên GHN: ${lookupErr instanceof Error ? lookupErr.message : String(lookupErr)}`,
+          );
+          return { outcome: 'failed' };
+        }
+      };
+
+      if (phase1.reconcileFirst) {
+        const preLookup = await tryLookupByClientCode();
+        if (preLookup.outcome === 'found') {
+          this.logger.log(
+            `Đối soát lại thành công vận đơn GHN thật ${preLookup.result.trackingNumber} theo client_order_code=${phase1.clientOrderCode}.`,
+          );
+          externalResult = preLookup.result;
+        } else if (preLookup.outcome === 'failed') {
+          verificationFailed = true;
+        }
+      }
+
+      if (!externalResult && !verificationFailed) {
+        try {
+          externalResult = await this.ghn.createOrder(phase1.carrierInput);
+        } catch (err) {
+          const postLookup = await tryLookupByClientCode();
+          if (postLookup.outcome === 'found') {
+            this.logger.log(
+              `Khôi phục được vận đơn GHN thật ${postLookup.result.trackingNumber} cho đơn ${phase1.clientOrderCode} theo client_order_code sau lỗi tạo đơn.`,
             );
+            externalResult = postLookup.result;
+          } else if (postLookup.outcome === 'failed') {
+            verificationFailed = true;
+          } else if (mode === 'GHN') {
+            cleanupIntentAndThrow = err;
+          } else {
+            fallbackReason = err instanceof Error ? err.message : String(err);
+            fallbackUsed = true;
+            this.logger.warn(
+              `GHN Sandbox tạo vận đơn lỗi cho đơn ${phase1.clientOrderCode}, đã xác nhận chưa có đơn trên GHN, chuyển sang dự phòng mô phỏng: ${fallbackReason}`,
+            );
+            externalResult = await this.getMockGateway().createOrder(phase1.carrierInput);
           }
         }
+      }
 
-        if (recovered) {
-          this.logger.log(
-            `Khôi phục được vận đơn GHN thật ${recovered.trackingNumber} cho đơn ${snapshot.orderCode} theo client_order_code sau lỗi tạo đơn.`,
+      // Pha 2 (nhánh chưa xác minh được kết quả GHN): chuyển intent sang `create_uncertain[:clientCode]` để lần sau đối soát lại.
+      if (verificationFailed) {
+        const uncertainResult = await this.prisma.$transaction(async (tx) => {
+          if (this.orders) await this.orders.lock(orderId, tx);
+          const order = await tx.order.findUnique({
+            where: { id: orderId },
+            include: { shipment: true },
+          });
+          if (!order) return null;
+          // Nếu webhook khớp mã đã kịp điền trackingNumber thật thì không ghi đè thành create_uncertain
+          if (order.shipment && order.shipment.isMock === false && order.shipment.trackingNumber) {
+            return this.toResponse(order.shipment);
+          }
+          const uncertainStatus = encodeIntentStatus(
+            'create_uncertain',
+            phase1.clientOrderCode,
+            order.orderCode,
           );
-          externalResult = recovered;
-        } else if (mode === 'GHN') {
-          throw err;
-        } else if (verificationFailed) {
-          throw new ServiceUnavailableException(
-            'Không xác minh được kết quả tạo vận đơn trên GHN Sandbox (có thể đã tạo đơn trước khi mất kết nối/timeout). Vui lòng thử lại để hệ thống đối soát theo mã đơn hàng, tránh tạo vận đơn mô phỏng lệch nhau.',
-          );
-        } else {
-          fallbackReason = err instanceof Error ? err.message : String(err);
-          fallbackUsed = true;
-          this.logger.warn(
-            `GHN Sandbox tạo vận đơn lỗi cho đơn ${snapshot.orderCode}, đã xác nhận chưa có đơn trên GHN, chuyển sang dự phòng mô phỏng: ${fallbackReason}`,
-          );
-          externalResult = await this.getMockGateway().createOrder(carrierInput);
-        }
+          await tx.shipment.upsert({
+            where: { orderId },
+            create: {
+              orderId,
+              carrierName: requestedCarrier,
+              trackingNumber: null,
+              status: 'PENDING',
+              isMock: false,
+              carrierStatus: uncertainStatus,
+              statusNote:
+                'Chưa xác minh được kết quả tạo vận đơn trên GHN Sandbox. Bấm "Đối soát / tạo lại vận đơn GHN" để kiểm tra lại theo mã đơn.',
+              expectedDeliveryAt: null,
+            },
+            update: {
+              carrierName: requestedCarrier,
+              trackingNumber: null,
+              status: 'PENDING',
+              isMock: false,
+              carrierStatus: uncertainStatus,
+              statusNote:
+                'Chưa xác minh được kết quả tạo vận đơn trên GHN Sandbox. Bấm "Đối soát / tạo lại vận đơn GHN" để kiểm tra lại theo mã đơn.',
+              expectedDeliveryAt: null,
+            },
+          });
+          return null;
+        });
+        if (uncertainResult) return uncertainResult;
+        throw new ServiceUnavailableException(
+          'Không xác minh được kết quả tạo vận đơn trên GHN Sandbox (có thể đã tạo đơn trước khi mất kết nối/timeout). Vui lòng thử lại để hệ thống đối soát theo mã đơn hàng, tránh tạo vận đơn mô phỏng lệch nhau.',
+        );
+      }
+
+      // Pha 2 (nhánh mode='GHN' bị từ chối và GHN đã xác nhận không có đơn): hoàn tác/dọn intent.
+      if (cleanupIntentAndThrow) {
+        await this.prisma.$transaction(async (tx) => {
+          if (this.orders) await this.orders.lock(orderId, tx);
+          const order = await tx.order.findUnique({
+            where: { id: orderId },
+            include: { shipment: true },
+          });
+          if (
+            !order?.shipment ||
+            order.shipment.trackingNumber ||
+            !isCreateIntentStatus(order.shipment.carrierStatus)
+          ) {
+            return;
+          }
+          if (phase1PreviousShipment) {
+            await tx.shipment.upsert({
+              where: { orderId },
+              create: {
+                orderId,
+                carrierName: phase1PreviousShipment.carrierName,
+                trackingNumber: phase1PreviousShipment.trackingNumber,
+                status: phase1PreviousShipment.status as ShipmentStatus,
+                isMock: phase1PreviousShipment.isMock ?? false,
+                carrierStatus: phase1PreviousShipment.carrierStatus ?? null,
+                statusNote: phase1PreviousShipment.statusNote ?? null,
+                expectedDeliveryAt: phase1PreviousShipment.expectedDeliveryAt ?? null,
+                carrierUpdatedAt: phase1PreviousShipment.carrierUpdatedAt ?? null,
+              },
+              update: {
+                carrierName: phase1PreviousShipment.carrierName,
+                trackingNumber: phase1PreviousShipment.trackingNumber,
+                status: phase1PreviousShipment.status as ShipmentStatus,
+                isMock: phase1PreviousShipment.isMock ?? false,
+                carrierStatus: phase1PreviousShipment.carrierStatus ?? null,
+                statusNote: phase1PreviousShipment.statusNote ?? null,
+                expectedDeliveryAt: phase1PreviousShipment.expectedDeliveryAt ?? null,
+                carrierUpdatedAt: phase1PreviousShipment.carrierUpdatedAt ?? null,
+              },
+            });
+          } else if (typeof tx.shipment.deleteMany === 'function') {
+            await tx.shipment.deleteMany({ where: { orderId } });
+          } else if (typeof tx.shipment.delete === 'function') {
+            await tx.shipment.delete({ where: { orderId } });
+          }
+        });
+        throw cleanupIntentAndThrow;
       }
     }
 
@@ -218,7 +492,42 @@ export class ShippingService {
         include: { shipment: true, items: true, payments: true },
       });
       if (!order) throw new NotFoundException('Không tìm thấy đơn hàng.');
-      this.assertOrderReadyForShipment(order);
+
+      if (phase1ClientOrderCode) {
+        // Pha 2 hoàn tất intent GHN (hoặc fallback mock sau khi đã xác nhận không có đơn trên GHN)
+        if (
+          order.shipment &&
+          order.shipment.isMock === false &&
+          order.shipment.trackingNumber &&
+          externalResult
+        ) {
+          if (
+            externalResult.isMock === false &&
+            order.shipment.trackingNumber === externalResult.trackingNumber
+          ) {
+            return this.applyShipmentStatusInTx(
+              tx,
+              order,
+              externalResult.status ?? 'PENDING',
+              actorUserId,
+              externalResult.statusNote,
+              {
+                carrierStatus: externalResult.carrierStatus,
+                fromWebhook: false,
+                requireRealCarrier: true,
+                expectedTrackingNumber: externalResult.trackingNumber,
+                occurredAt: externalResult.occurredAt,
+              },
+              postCommitHooks,
+            );
+          }
+          throw new ConflictException(
+            `Đơn hàng đã có vận đơn GHN thật (${order.shipment.trackingNumber}), không thể ghi đè.`,
+          );
+        }
+      } else {
+        this.assertOrderReadyForShipment(order, false);
+      }
 
       const carrierResult =
         externalResult ??
@@ -261,11 +570,12 @@ export class ShippingService {
           update: {
             carrierName: carrierResult.carrierName,
             trackingNumber: carrierResult.trackingNumber,
+            status: 'PENDING',
             isMock: carrierResult.isMock,
             carrierStatus: carrierResult.carrierStatus,
             statusNote: carrierResult.statusNote,
             expectedDeliveryAt: expectedDeliveryDate,
-            ...(recoveredAt ? { carrierUpdatedAt: recoveredAt } : {}),
+            carrierUpdatedAt: recoveredAt,
           },
         });
 
@@ -462,6 +772,30 @@ export class ShippingService {
       throw new ConflictException(
         `Bỏ qua sự kiện vì mã vận đơn ${meta.expectedTrackingNumber} không khớp vận đơn hiện tại (${shipment.trackingNumber}).`,
       );
+    }
+
+    if (
+      meta?.fromWebhook &&
+      shipment.isMock === false &&
+      !shipment.trackingNumber &&
+      isCreateIntentStatus(shipment.carrierStatus)
+    ) {
+      if (isActiveCreatingIntent(shipment)) {
+        throw new ConflictException(
+          'Vận đơn đang được khởi tạo trên GHN, tạm bỏ qua webhook trung gian để tránh ghi đè chéo.',
+        );
+      }
+      const expectedIntentCode = decodeIntentClientOrderCode(
+        shipment.carrierStatus,
+        order.orderCode,
+      );
+      if (
+        !meta.expectedTrackingNumber ||
+        !meta.expectedClientOrderCode ||
+        meta.expectedClientOrderCode !== expectedIntentCode
+      ) {
+        throw new ConflictException('Bỏ qua webhook GHN vì không khớp mã đơn đang chờ đối soát.');
+      }
     }
 
     if (order.status === 'CANCELLED' && status !== 'FAILED' && status !== 'RETURNED') {
@@ -712,8 +1046,16 @@ export class ShippingService {
       });
     }
     if (!shipment && payload.clientOrderCode) {
+      const baseOrderCode = payload.clientOrderCode.replace(/-R[0-9A-Fa-f]{4}$/u, '');
       shipment = await this.prisma.shipment.findFirst({
-        where: { order: { orderCode: payload.clientOrderCode } },
+        where: {
+          order: {
+            orderCode:
+              baseOrderCode !== payload.clientOrderCode
+                ? { in: [payload.clientOrderCode, baseOrderCode] }
+                : payload.clientOrderCode,
+          },
+        },
       });
     }
 
@@ -734,6 +1076,7 @@ export class ShippingService {
           fromWebhook: true,
           requireRealCarrier: payload.requireRealCarrier,
           expectedTrackingNumber: payload.trackingNumber,
+          expectedClientOrderCode: payload.clientOrderCode,
           occurredAt: payload.occurredAt,
         },
       );
@@ -765,10 +1108,19 @@ export class ShippingService {
     return this.mockCarrier ?? new MockCarrierGateway();
   }
 
-  private assertOrderReadyForShipment(order: {
-    status: string;
-    shipment: { status: string; isMock?: boolean; trackingNumber?: string | null } | null;
-  }) {
+  private assertOrderReadyForShipment(
+    order: {
+      status: string;
+      shipment: {
+        status: string;
+        isMock?: boolean;
+        trackingNumber?: string | null;
+        carrierStatus?: string | null;
+        updatedAt?: Date;
+      } | null;
+    },
+    allowGhnIntentReconcile = false,
+  ) {
     if (
       ['CANCELLED', 'DELIVERED', 'REFUNDED', 'PARTIALLY_REFUNDED', 'PAYMENT_REVIEW'].includes(
         order.status,
@@ -781,12 +1133,27 @@ export class ShippingService {
         'Đơn hàng chưa sẵn sàng để tạo vận đơn. Vui lòng xác nhận hoặc thanh toán trước.',
       );
     }
-    if (order.shipment && order.shipment.isMock === false) {
+    if (!order.shipment) return;
+    // GHN chỉ cho hủy vận đơn (`cancel`) trước lúc lấy hàng (đơn vẫn ở PROCESSING, hàng còn tại kho):
+    // cho phép admin tạo vận đơn thay thế (GHN với hậu tố -Rxxxx hoặc mô phỏng).
+    if (isCancelledGhnBeforePickup(order)) return;
+    if (order.shipment.isMock === false) {
+      if (isActiveCreatingIntent(order.shipment)) {
+        throw new ConflictException(
+          'Đang có yêu cầu tạo vận đơn GHN cho đơn hàng này, vui lòng chờ hoàn tất rồi kiểm tra lại.',
+        );
+      }
+      if (isReconcilableIntent(order.shipment)) {
+        if (allowGhnIntentReconcile) return;
+        throw new ConflictException(
+          'Đơn hàng đang chờ đối soát kết quả tạo vận đơn GHN thật, không thể tạo vận đơn mô phỏng. Vui lòng đối soát lại với GHN.',
+        );
+      }
       throw new ConflictException(
         `Đơn hàng đã có vận đơn GHN thật (${order.shipment.trackingNumber ?? 'chưa rõ mã'}), không thể tạo mới hoặc ghi đè bằng vận đơn khác.`,
       );
     }
-    if (order.shipment && order.shipment.status !== 'PENDING') {
+    if (order.shipment.status !== 'PENDING') {
       throw new ConflictException(
         `Vận đơn đang ở trạng thái ${order.shipment.status}, không thể tạo mới hoặc ghi đè mã vận đơn.`,
       );
@@ -810,6 +1177,7 @@ export class ShippingService {
     },
     carrierName: string,
     customTrackingNumber?: string,
+    clientOrderCode?: string,
   ): CreateCarrierShipmentInput {
     const addr = (order.shippingAddressSnapshot ?? {}) as Record<string, unknown>;
     const hasPendingCod = order.payments.some((p) => p.gateway === 'COD' && p.status === 'PENDING');
@@ -817,7 +1185,7 @@ export class ShippingService {
 
     return {
       orderId: order.id,
-      orderCode: order.orderCode,
+      orderCode: clientOrderCode ?? order.orderCode,
       carrierName,
       customTrackingNumber,
       recipientName: typeof addr.recipientName === 'string' ? addr.recipientName : 'Khách hàng',

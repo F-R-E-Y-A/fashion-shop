@@ -97,7 +97,7 @@ export class OrderAdminService {
       const cod = codPayment(order);
       if (!IN_DELIVERY.includes(order.status) || cod?.status !== 'PENDING')
         throw new ConflictException('Chỉ ghi giao thất bại cho đơn COD đang giao, chưa thu tiền.');
-      if (hasRealCarrierShipment(order))
+      if (hasRealCarrierShipment(order) && !isCancelledRealCarrierBeforePickup(order))
         throw new ConflictException(
           'Đơn hàng đang giao qua vận đơn GHN thật, không thể tự chốt giao thất bại hoặc hoàn kho khi GHN chưa xác nhận.',
         );
@@ -158,6 +158,7 @@ export class OrderAdminService {
     });
     const cod = codPayment(order);
     const realCarrier = hasRealCarrierShipment(order);
+    const cancelledBeforePickup = isCancelledRealCarrierBeforePickup(order);
     return {
       ...this.checkout.view(order),
       userId: order.userId,
@@ -174,7 +175,9 @@ export class OrderAdminService {
         cancelRefund: !!this.checkout.selfRefundablePayment(order),
         markDelivered: IN_DELIVERY.includes(order.status) && !realCarrier,
         deliveryFailed:
-          IN_DELIVERY.includes(order.status) && cod?.status === 'PENDING' && !realCarrier,
+          IN_DELIVERY.includes(order.status) &&
+          cod?.status === 'PENDING' &&
+          (!realCarrier || cancelledBeforePickup),
       },
     };
   }
@@ -185,6 +188,20 @@ const codPayment = (order: OrderDetails) =>
 
 const hasRealCarrierShipment = (order: OrderDetails) =>
   Boolean(order.shipment && order.shipment.isMock === false);
+
+/**
+ * GHN chỉ cho hủy vận đơn (`cancel`) trước khi shipper lấy hàng (`order.status === 'PROCESSING'`).
+ * Khi đó `cancel` là trạng thái cuối bên GHN và hàng vẫn còn trong kho, nên admin được phép
+ * chốt hủy đơn COD & hoàn kho (hoặc tạo vận đơn thay thế) sau khi xác nhận hàng tại kho.
+ */
+const isCancelledRealCarrierBeforePickup = (order: OrderDetails) =>
+  Boolean(
+    order.shipment &&
+    order.shipment.isMock === false &&
+    order.shipment.status === 'FAILED' &&
+    order.shipment.carrierStatus === 'cancel' &&
+    order.status === 'PROCESSING',
+  );
 
 function summary(order: OrderDetails) {
   const latest = order.payments[0];
