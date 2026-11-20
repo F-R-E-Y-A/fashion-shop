@@ -17,4 +17,4 @@
 | `userStream(userId)` | Cung cấp luồng SSE realtime cho người dùng | Storefront, Web Client |
 | `adminStream()` | Cung cấp luồng SSE realtime cho quản trị viên | Admin Dashboard |
 
-[Tài liệu chi tiết và ma trận bước/nội dung/kênh](../../../../../docs/features/notifications/README.md) · [ADR-071](../../../../../docs/features/notifications/LOG.md#adr-071).
+[Tài liệu chi tiết và ma trận bước/nội dung/kênh](../../../../../docs/features/notifications/README.md) · [ADR-072](../../../../../docs/features/notifications/LOG.md#adr-072).

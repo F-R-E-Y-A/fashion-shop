@@ -34,7 +34,7 @@ import {
   type ShipmentStatus,
   type ShipmentWebhookDto,
 } from './dto/shipment.dto.js';
-import { GhnCarrierGateway, isDeterministicGhnRejection } from './ghn.carrier.js';
+import { GhnCarrierGateway } from './ghn.carrier.js';
 import { MockCarrierGateway } from './mock.carrier.js';
 import type {
   CarrierMode,
@@ -193,7 +193,7 @@ export class ShippingService {
           externalResult = recovered;
         } else if (mode === 'GHN') {
           throw err;
-        } else if (verificationFailed && !isDeterministicGhnRejection(err)) {
+        } else if (verificationFailed) {
           throw new ServiceUnavailableException(
             'Không xác minh được kết quả tạo vận đơn trên GHN Sandbox (có thể đã tạo đơn trước khi mất kết nối/timeout). Vui lòng thử lại để hệ thống đối soát theo mã đơn hàng, tránh tạo vận đơn mô phỏng lệch nhau.',
           );

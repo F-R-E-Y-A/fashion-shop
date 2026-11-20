@@ -248,6 +248,8 @@ describe('GhnCarrierGateway', () => {
     expect(
       gateway.parseWebhook({ ShopID: 999999, OrderCode: 'L4GHN', Status: 'delivering' }),
     ).toBeNull();
+    expect(gateway.parseWebhook(null as unknown as Record<string, unknown>)).toBeNull();
+    expect(gateway.parseWebhook([] as unknown as Record<string, unknown>)).toBeNull();
 
     const parsed = gateway.parseWebhook({
       ShopID: 190001,

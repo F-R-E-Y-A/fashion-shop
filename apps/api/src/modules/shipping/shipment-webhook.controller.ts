@@ -1,3 +1,5 @@
+import { timingSafeEqual } from 'node:crypto';
+
 import {
   Body,
   Controller,
@@ -79,7 +81,15 @@ export class ShipmentWebhookController {
       this.config?.get('SHIPPING_WEBHOOK_SECRET', { infer: true }) ||
       process.env.SHIPPING_WEBHOOK_SECRET;
 
-    if (!expectedSecret || !incomingToken || incomingToken !== expectedSecret) {
+    if (!expectedSecret || !incomingToken) {
+      throw new UnauthorizedException(
+        'Xác thực webhook thất bại: Thiếu hoặc sai token xác thực của hãng vận chuyển.',
+      );
+    }
+
+    const expectedBuf = Buffer.from(expectedSecret, 'utf8');
+    const incomingBuf = Buffer.from(incomingToken, 'utf8');
+    if (expectedBuf.length !== incomingBuf.length || !timingSafeEqual(expectedBuf, incomingBuf)) {
       throw new UnauthorizedException(
         'Xác thực webhook thất bại: Thiếu hoặc sai token xác thực của hãng vận chuyển.',
       );

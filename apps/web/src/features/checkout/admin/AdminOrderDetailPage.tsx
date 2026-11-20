@@ -99,9 +99,11 @@ function AdminOrderDetail() {
       if (!stillCurrent(variables)) throw new SessionChangedError();
       const { current } = variables;
       const controller = new AbortController();
+      const timeoutMs =
+        current.kind === 'createShipment' || current.kind === 'syncShipment' ? 35_000 : 15_000;
       const timer = setTimeout(
         () => controller.abort(new DOMException('Hết giờ chờ phản hồi', 'TimeoutError')),
-        15_000,
+        timeoutMs,
       );
       const post = (path: string, body?: object) =>
         request<unknown>(path, {

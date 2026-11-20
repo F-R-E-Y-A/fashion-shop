@@ -55,13 +55,6 @@ export function isGhnNotFoundError(err: unknown): boolean {
   );
 }
 
-export function isDeterministicGhnRejection(err: unknown): boolean {
-  if (!(err instanceof GhnApiRejectedError)) return false;
-  const http4xx = err.httpStatus >= 400 && err.httpStatus < 500;
-  const ghn4xx = err.ghnCode !== undefined && err.ghnCode >= 400 && err.ghnCode < 500;
-  return http4xx || ghn4xx;
-}
-
 interface GhnProvinceV3 {
   _id?: number | string;
   province_id?: number;
@@ -327,6 +320,9 @@ export class GhnCarrierGateway implements ShippingCarrierGateway {
   }
 
   parseWebhook(raw: Record<string, unknown>): CarrierStatusEvent | null {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+      return null;
+    }
     const expectedShopId = String(this.getConfig('GHN_SHOP_ID') ?? '').trim();
     const incomingShopId = raw.ShopID ?? raw.ShopId ?? raw.shop_id;
     if (

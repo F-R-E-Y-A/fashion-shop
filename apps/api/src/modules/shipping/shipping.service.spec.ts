@@ -1561,6 +1561,30 @@ describe('ShippingService', () => {
         service.createShipment('ord-ghn-1', { mode: 'AUTO' }, 'admin-1'),
       ).rejects.toThrow(ServiceUnavailableException);
       expect(txMock).not.toHaveBeenCalled();
+
+      // Kể cả khi createOrder trả 400 (ví dụ client_order_code đã tồn tại khi thử lại) mà lookup cũng lỗi -> vẫn báo 503, không tạo mock
+      const duplicate400Ghn = {
+        configured: vi.fn().mockReturnValue(true),
+        createOrder: vi
+          .fn()
+          .mockRejectedValue(
+            new GhnApiRejectedError('Duplicate client_order_code', 400, 400, 'ORDER_EXISTED'),
+          ),
+        queryOrderByClientCode: vi
+          .fn()
+          .mockRejectedValue(new ServiceUnavailableException('lookup network timeout')),
+      } as unknown as GhnCarrierGateway;
+      await expect(
+        new ShippingService(
+          mockPrisma,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          duplicate400Ghn,
+        ).createShipment('ord-ghn-1', { mode: 'AUTO' }, 'admin-1'),
+      ).rejects.toThrow(ServiceUnavailableException);
+      expect(txMock).not.toHaveBeenCalled();
     });
 
     it('R2-P1.3: chặn tạo vận đơn MOCK từ tab cũ ghi đè vận đơn GHN thật đang ở PENDING dưới khóa đơn', async () => {
