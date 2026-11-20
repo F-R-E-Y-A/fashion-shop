@@ -1822,6 +1822,42 @@ describe('ShippingService', () => {
       ).rejects.toThrow(ConflictException);
       expect(update).not.toHaveBeenCalled();
 
+      // Ca 2b: Dù cả bản ghi cũ lẫn sync đều có carrierUpdatedAt/occurredAt (01:03 > 01:00),
+      // nhưng webhook không kèm Time vừa cập nhật DB lên FAILED trong lúc sync đang bay (updatedAt > expectedUpdatedAt) -> vẫn phải chặn 409
+      const beforeWebhookWithCarrierTime = {
+        ...failedShipment,
+        status: 'PENDING',
+        carrierUpdatedAt: t0,
+        updatedAt: t0,
+      };
+      const afterWebhookKeepingOldCarrierTime = {
+        ...failedShipment,
+        status: 'FAILED',
+        carrierUpdatedAt: t0,
+        updatedAt: tWebhook,
+      };
+      const midTimeGhn = {
+        configured: vi.fn().mockReturnValue(true),
+        queryOrder: vi.fn().mockResolvedValue({
+          trackingNumber: 'L4ABCDEF',
+          status: 'IN_TRANSIT',
+          carrierStatus: 'delivering',
+          note: 'Đang giao trước khi webhook FAILED tới',
+          occurredAt: '2026-11-20T01:03:00.000Z',
+        }),
+      } as unknown as GhnCarrierGateway;
+      await expect(
+        new ShippingService(
+          makePrisma(beforeWebhookWithCarrierTime, afterWebhookKeepingOldCarrierTime),
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          midTimeGhn,
+        ).syncShipmentFromCarrier('ord-ghn-1', 'admin-1'),
+      ).rejects.toThrow(ConflictException);
+      expect(update).not.toHaveBeenCalled();
+
       // Ca 3: Sync trả về delivering MỚI HƠN (01:10 > 01:05, giao lại thành công) -> cho phép chuyển sang IN_TRANSIT
       const newerGhn = {
         configured: vi.fn().mockReturnValue(true),

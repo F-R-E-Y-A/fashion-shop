@@ -241,6 +241,7 @@ export function CartPage() {
       .join('|');
     const validationKey = `${applied.kind}:${applied.id}:${applied.code ?? ''}:${cart.total}:${cart.selectedItemCount}:${selectedSignature}`;
     if (lastValidatedRef.current === validationKey) return;
+    lastValidatedRef.current = null;
 
     let cancelled = false;
     const controller = new AbortController();

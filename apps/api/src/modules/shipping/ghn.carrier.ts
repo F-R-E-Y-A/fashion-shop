@@ -34,19 +34,21 @@ export class GhnApiRejectedError extends ServiceUnavailableException {
 
 export function isGhnNotFoundError(err: unknown): boolean {
   if (!(err instanceof GhnApiRejectedError)) return false;
-  if (err.httpStatus === 404 || err.ghnCode === 404) return true;
   const normalizedCode = err.codeMessage?.trim().toUpperCase();
   if (normalizedCode) {
     return GHN_NOT_FOUND_CODES.has(normalizedCode);
   }
+  if (err.httpStatus === 404 || err.ghnCode === 404) return true;
   if (err.httpStatus !== 400 && err.ghnCode !== 400) return false;
   const msg = (err.rawMessage ?? err.message)
     .normalize('NFD')
     .replace(/\p{Diacritic}/gu, '')
     .replace(/đ/giu, 'd')
+    .replace(/[_-]+/gu, ' ')
     .toLowerCase();
   return (
     msg.includes('order not found') ||
+    msg.includes('order code not found') ||
     msg.includes('don hang khong ton tai') ||
     msg.includes('khong tim thay don hang') ||
     msg.includes('khong tim thay thong tin don hang')
@@ -478,13 +480,15 @@ export class GhnCarrierGateway implements ShippingCarrierGateway {
 
     const raw = (await response.json().catch(() => null)) as GhnEnvelope<T> | null;
     if (!response.ok || (raw && typeof raw.code === 'number' && raw.code !== 200)) {
-      const reason = raw?.message || `HTTP ${response.status}`;
+      const reason = raw?.message || raw?.code_message_value || `HTTP ${response.status}`;
+      const rawCombined =
+        [raw?.message, raw?.code_message_value].filter(Boolean).join(' ') || undefined;
       throw new GhnApiRejectedError(
         `GHN Sandbox từ chối hoặc gặp lỗi: ${reason}`,
         response.status,
         raw?.code,
         raw?.code_message,
-        raw?.message,
+        rawCombined,
       );
     }
     return raw ?? { code: 200 };

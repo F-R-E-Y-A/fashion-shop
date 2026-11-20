@@ -475,6 +475,15 @@ export class ShippingService {
       currentStatus === 'FAILED' && (status === 'IN_TRANSIT' || status === 'DELIVERED');
 
     if (meta?.requireRealCarrier) {
+      // Nếu bản ghi đã đổi trong lúc syncShipmentFromCarrier đang gọi GHN ngoài lock, luôn từ chối 409 để tránh ghi đè mù.
+      if (
+        meta.expectedUpdatedAt &&
+        shipment.updatedAt.getTime() > meta.expectedUpdatedAt.getTime()
+      ) {
+        throw new ConflictException(
+          'Vận đơn vừa được cập nhật trong lúc đồng bộ từ GHN, vui lòng đồng bộ lại.',
+        );
+      }
       if (incomingEventAt && storedCarrierAt) {
         if (incomingEventAt.getTime() < storedCarrierAt.getTime()) {
           throw new ConflictException('Bỏ qua sự kiện GHN cũ hơn trạng thái đã ghi nhận gần nhất.');
@@ -484,20 +493,10 @@ export class ShippingService {
             'Bỏ qua sự kiện GHN không mới hơn mốc giao thất bại đã ghi nhận.',
           );
         }
-      } else {
-        if (
-          meta.expectedUpdatedAt &&
-          shipment.updatedAt.getTime() > meta.expectedUpdatedAt.getTime()
-        ) {
-          throw new ConflictException(
-            'Vận đơn vừa được cập nhật trong lúc đồng bộ từ GHN, vui lòng đồng bộ lại.',
-          );
-        }
-        if (isRedeliveryFromFailed && storedCarrierAt && !incomingEventAt) {
-          throw new ConflictException(
-            'Không thể chuyển từ trạng thái giao thất bại sang đang giao/đã giao khi sự kiện GHN thiếu mốc thời gian đối chiếu.',
-          );
-        }
+      } else if (isRedeliveryFromFailed && storedCarrierAt && !incomingEventAt) {
+        throw new ConflictException(
+          'Không thể chuyển từ trạng thái giao thất bại sang đang giao/đã giao khi sự kiện GHN thiếu mốc thời gian đối chiếu.',
+        );
       }
     }
 

@@ -145,6 +145,26 @@ describe('GhnCarrierGateway', () => {
           }),
           { status: 400 },
         ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: 400,
+            code_message: '',
+            message: 'ORDER_NOT_FOUND - không tìm thấy đơn',
+          }),
+          { status: 400 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            code: 404,
+            code_message: 'SHOP_NOT_FOUND',
+            message: 'Shop không tồn tại',
+          }),
+          { status: 404 },
+        ),
       );
     vi.stubGlobal('fetch', fetchMock);
 
@@ -174,6 +194,14 @@ describe('GhnCarrierGateway', () => {
 
     // R2-P1.2: HTTP 400 với code_message=CLIENT_NOT_OWNER_OF_SHOP KHÔNG được coi là "không tìm thấy"
     await expect(gateway.queryOrderByClientCode('FR2611198888')).rejects.toThrow(
+      ServiceUnavailableException,
+    );
+
+    // code_message rỗng nhưng message chứa ORDER_NOT_FOUND (có dấu gạch dưới) -> nhận là không tìm thấy
+    expect(await gateway.queryOrderByClientCode('FR2611197777')).toBeNull();
+
+    // 404 kèm code_message không phải nhóm ORDER_NOT_FOUND (SHOP_NOT_FOUND) -> phải ném lỗi
+    await expect(gateway.queryOrderByClientCode('FR2611196666')).rejects.toThrow(
       ServiceUnavailableException,
     );
   });
