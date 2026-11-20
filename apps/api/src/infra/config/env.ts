@@ -110,6 +110,12 @@ export const envSchema = z
      * moi cong co refund; `none`: tat het. Cong bi tat thi hoan tay bang ma chuyen khoan nhu COD.
      */
     REFUND_GATEWAYS: gatewayList,
+    /**
+     * Cong duoc goi API truy van ket qua (VNPAY QueryDR, MoMo query) tu worker doi soat va
+     * POST /orders/:id/reconcile (ADR-112, de xuat). Cung dang voi REFUND_GATEWAYS. Cong bi tat chi
+     * con chot bang return co chu ky va IPN; dung khi moi truong khong goi ra duoc API cua cong.
+     */
+    QUERY_GATEWAYS: gatewayList,
     /** Chong bom COD (ADR-038): don tren tran nay hoac khach da giao that bai du so lan thi phai tra truoc. */
     COD_MAX_AMOUNT: z.coerce.number().positive().default(2_000_000),
     COD_MAX_FAILED_DELIVERIES: z.coerce.number().int().positive().default(2),

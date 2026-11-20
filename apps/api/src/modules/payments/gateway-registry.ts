@@ -35,8 +35,15 @@ export class GatewayRegistry {
     const adapter = this.get(code);
     return !!adapter.refund && adapter.configured() && this.listed('REFUND_GATEWAYS', code);
   }
+  /**
+   * Moi truong co goi API truy van cua cong nay khong (QUERY_GATEWAYS, ADR-112). False thi worker va
+   * reconcile khong goi ra; payment chi chot bang return co chu ky hoac IPN.
+   */
+  queryEnabled(code: GatewayCode): boolean {
+    return this.listed('QUERY_GATEWAYS', code);
+  }
   /** Bien bo trong la moi cong; `none` khong trung ma nao nen tat het. */
-  private listed(key: 'REFUND_GATEWAYS', code: GatewayCode): boolean {
+  private listed(key: 'REFUND_GATEWAYS' | 'QUERY_GATEWAYS', code: GatewayCode): boolean {
     // Doc moi lan goi nhu configured() cua adapter: chuoi ngan, va test ghi de ConfigService sau khi dung module.
     const value = this.config.get<string>(key);
     return !value || value.split(',').includes(code);
