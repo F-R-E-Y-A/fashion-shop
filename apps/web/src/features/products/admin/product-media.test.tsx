@@ -849,4 +849,60 @@ describe('UC-04.2 Quản trị Ảnh Sản Phẩm (Đợt 3 Frontend, AC50 - AC5
       screen.queryByRole('button', { name: 'Dùng mô tả máy chủ cho ảnh vị trí 1' }),
     ).toBeNull();
   });
+
+  it('UC-04.2/AC50 kéo-thả trực tiếp ô ảnh trên thanh sắp xếp nhanh lên vị trí #1 và kéo-thả tệp để tải lên', async () => {
+    const api = backend();
+    api.state.products = [structuredClone(productWithImages)];
+    mountCatalog(detailPath);
+
+    await screen.findByRole('heading', { name: 'Hình ảnh (3)' });
+
+    const tile3 = screen.getByRole('button', { name: 'Chọn ảnh vị trí 3' });
+    const tile1 = screen.getByRole('button', { name: 'Chọn ảnh vị trí 1 (Ảnh đại diện)' });
+
+    const transferData: Record<string, string> = {};
+    const dt = {
+      effectAllowed: 'move',
+      dropEffect: 'move',
+      types: ['text/plain'],
+      files: [] as unknown as FileList,
+      setData: (k: string, v: string) => {
+        transferData[k] = v;
+      },
+      getData: (k: string) => transferData[k] ?? '',
+    };
+
+    fireEvent.dragStart(tile3, { dataTransfer: dt });
+    fireEvent.dragOver(tile1, { dataTransfer: dt });
+    fireEvent.drop(tile1, { dataTransfer: dt });
+    fireEvent.dragEnd(tile3, { dataTransfer: dt });
+
+    // Ảnh #3 đã lên đầu làm ảnh đại diện (#1)
+    expect(screen.getAllByRole('img')[0]).toHaveAttribute('src', 'https://cdn.test/img-3.jpg');
+
+    // Kéo-thả tệp PNG mới vào nút "+ Thêm" trên thanh sắp xếp nhanh
+    const addTile = screen.getByRole('button', { name: '+ Thêm' });
+    const droppedFile = new File(['photo'], 'drag-upload.png', { type: 'image/png' });
+    const fileDt = {
+      types: ['Files'],
+      files: [droppedFile] as unknown as FileList,
+      setData: () => {},
+      getData: () => '',
+    };
+    await act(async () => {
+      fireEvent.dragOver(addTile, { dataTransfer: fileDt });
+      fireEvent.drop(addTile, { dataTransfer: fileDt });
+    });
+
+    expect(await screen.findByRole('heading', { name: 'Hình ảnh (4)' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu bộ ảnh' }));
+    await screen.findByText(/Đã lưu bộ ảnh sản phẩm/);
+
+    const putReqs = api.requests.filter((r) => r.method === 'PUT' && r.path === imagesApiPath);
+    const body = putReqs[0]?.body as { items: { id: string; key?: string }[] };
+    expect(body.items).toHaveLength(4);
+    expect(body.items[0]?.id).toBe(productWithImages.images[2]!.id);
+    expect(body.items[3]?.key).toMatch(/^freya\/products\//);
+  });
 });

@@ -156,9 +156,17 @@
 .statusButton:hover:not(:disabled) {
   background: var(--bg);
 }
+.statusButton[data-primary='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--paper);
+}
+.statusButton[data-primary='true']:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 88%, var(--ink));
+}
 .statusButton:disabled {
   opacity: 0.6;
-  cursor: wait;
+  cursor: not-allowed;
 }
 .noticeSlot {
   overflow-wrap: anywhere;
@@ -272,8 +280,21 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
+  align-items: flex-end;
+  gap: 0.75rem 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--line);
+}
+.mediaHeader > div:first-child {
+  display: grid;
+  gap: 0.25rem;
+  flex: 1 1 320px;
+  min-width: 0;
+}
+.mediaHeader .panelTitle {
+  margin: 0;
+  padding: 0;
+  border-bottom: 0;
 }
 .mediaToolbar {
   display: flex;
@@ -292,25 +313,169 @@
   white-space: nowrap;
   border: 0;
 }
+.mediaDropEmpty {
+  display: grid;
+  justify-items: center;
+  gap: 0.75rem;
+  padding: 1.5rem 1rem;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+}
+.mediaDropEmpty[data-drop-active='true'],
+.mediaQuickBar[data-drop-active='true'] {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--paper));
+}
+.mediaQuickBar {
+  display: grid;
+  gap: 0.625rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--bg) 55%, var(--paper));
+}
+.mediaQuickHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+}
+.mediaQuickTitle {
+  font-size: var(--s-1);
+  font-weight: 600;
+  color: var(--ink);
+}
+.mediaQuickStrip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.mediaQuickTile {
+  position: relative;
+  display: block;
+  width: 60px;
+  flex: none;
+  padding: 0;
+  aspect-ratio: 3 / 4;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--stone);
+  overflow: hidden;
+  cursor: grab;
+  transition:
+    transform 120ms ease,
+    border-color 120ms ease;
+}
+.mediaQuickTile:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.mediaQuickTile:active {
+  cursor: grabbing;
+}
+.mediaQuickTile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+.mediaQuickTile[data-primary='true'] {
+  width: 68px;
+  border: 2px solid var(--accent);
+}
+.mediaQuickTile[data-dragging='true'],
+.mediaCard[data-dragging='true'] {
+  opacity: 0.45;
+}
+.mediaQuickTile[data-drop-target='true'],
+.mediaCard[data-drop-target='true'] {
+  outline: 2px dashed var(--accent);
+  outline-offset: 2px;
+}
+.mediaQuickNum {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+  padding: 1px 2px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--ink) 78%, transparent);
+  color: var(--paper);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.3;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+.mediaQuickNum[data-primary='true'] {
+  background: var(--accent);
+}
+.mediaQuickAdd {
+  display: grid;
+  place-items: center;
+  width: 60px;
+  min-height: 44px;
+  flex: none;
+  aspect-ratio: 3 / 4;
+  padding: 0.25rem;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--s-1);
+  cursor: pointer;
+}
+.mediaQuickAdd:hover {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, var(--paper));
+}
 .mediaGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.875rem;
 }
 .mediaCard {
-  display: grid;
-  gap: 0.75rem;
   margin: 0;
   padding: 0.875rem;
   border: 1px solid var(--line);
   background: var(--paper);
   border-radius: var(--radius);
   min-width: 0;
+  cursor: grab;
+  transition: border-color 120ms ease;
+}
+.mediaCard:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+.mediaCard:active {
+  cursor: grabbing;
+}
+.mediaCard[data-primary='true'] {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--accent) 3%, var(--paper));
+}
+.mediaCardLayout {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0.875rem;
+  min-width: 0;
 }
 .mediaPreviewWrap {
   position: relative;
-  width: 100%;
+  width: 88px;
   aspect-ratio: 3 / 4;
+  align-self: center;
+  border: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
   background: var(--stone);
   border-radius: var(--radius);
   overflow: hidden;
@@ -321,16 +486,109 @@
   object-fit: cover;
   display: block;
 }
+.mediaPreviewOrder {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  padding: 1px 6px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--ink) 72%, transparent);
+  color: var(--paper);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  pointer-events: none;
+}
+.mediaPreviewOrder[data-primary='true'] {
+  background: var(--accent);
+}
+.mediaCardContent {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.mediaCardTop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.375rem;
+}
+.mediaDragCue {
+  color: var(--muted);
+  font-size: var(--s-1);
+  letter-spacing: -1px;
+  user-select: none;
+}
+.mediaCardTools {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+.mediaGhostButton,
+.mediaGhostIcon,
+.mediaGhostDanger {
+  min-width: 36px;
+  min-height: 44px;
+  padding: 0 8px;
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--s-1);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.mediaGhostButton {
+  color: var(--accent);
+  font-weight: 500;
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  background: color-mix(in srgb, var(--accent) 5%, var(--paper));
+}
+.mediaGhostButton:hover:not(:disabled),
+.mediaGhostIcon:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--paper));
+  color: var(--accent);
+}
+.mediaGhostDanger {
+  color: var(--muted);
+}
+.mediaGhostDanger:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--danger) 45%, var(--line));
+  background: color-mix(in srgb, var(--danger) 10%, var(--paper));
+  color: var(--danger);
+}
+.mediaGhostButton:disabled,
+.mediaGhostIcon:disabled,
+.mediaGhostDanger:disabled {
+  opacity: 0.32;
+  cursor: not-allowed;
+}
+.mediaBody {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.mediaBody input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  cursor: text;
+}
 .mediaBadgeRow {
   display: flex;
   flex-wrap: wrap;
   gap: 0.375rem;
   align-items: center;
 }
-.mediaActions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.375rem;
+.mediaAltLabel {
+  font-size: var(--s-1);
+  color: var(--muted);
 }
 .mediaSmallButton {
   min-height: 44px;
@@ -347,13 +605,36 @@
   background: var(--bg);
   color: var(--accent);
 }
-.mediaSmallButton[data-tone='danger'] {
-  border-color: var(--danger);
-  color: var(--danger);
-}
 .mediaSmallButton:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+@media (max-width: 1040px) {
+  .mediaGrid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 720px) {
+  .mediaQuickTile {
+    width: 52px;
+  }
+  .mediaQuickTile[data-primary='true'] {
+    width: 56px;
+  }
+  .mediaQuickAdd {
+    width: 52px;
+  }
+  .mediaCard {
+    padding: 0.75rem;
+  }
+  .mediaCardLayout {
+    grid-template-columns: 68px minmax(0, 1fr);
+    gap: 0.625rem;
+  }
+  .mediaPreviewWrap {
+    width: 68px;
+    align-self: start;
+  }
 }
 .uploadErrorList {
   margin: 0;

@@ -5,7 +5,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { type ChangeEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { type ChangeEvent, type DragEvent, useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   ApiError,
@@ -482,32 +482,38 @@ export function useProductMediaAction(product: AdminCatalogDetail | undefined) {
     });
   };
 
-  const moveImageUp = (index: number) => {
-    if (busy || uncertain || index <= 0 || index >= items.length) return;
+  const reorderImage = (fromIndex: number, toIndex: number) => {
+    if (
+      busy ||
+      uncertain ||
+      fromIndex === toIndex ||
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >= items.length ||
+      toIndex >= items.length
+    ) {
+      return;
+    }
     const next = [...items];
-    const temp = next[index - 1]!;
-    next[index - 1] = next[index]!;
-    next[index] = temp;
+    const [picked] = next.splice(fromIndex, 1);
+    if (!picked) return;
+    next.splice(toIndex, 0, picked);
     updateDraftItems(next, expectedVersion, conflictError, { orderConflict: null });
+  };
+
+  const moveImageUp = (index: number) => {
+    if (index <= 0) return;
+    reorderImage(index, index - 1);
   };
 
   const moveImageDown = (index: number) => {
-    if (busy || uncertain || index < 0 || index >= items.length - 1) return;
-    const next = [...items];
-    const temp = next[index + 1]!;
-    next[index + 1] = next[index]!;
-    next[index] = temp;
-    updateDraftItems(next, expectedVersion, conflictError, { orderConflict: null });
+    if (index >= items.length - 1) return;
+    reorderImage(index, index + 1);
   };
 
   const promoteImageToFirst = (index: number) => {
-    if (busy || uncertain || index <= 0 || index >= items.length) return;
-    const next = [...items];
-    const [picked] = next.splice(index, 1);
-    if (picked) {
-      next.unshift(picked);
-      updateDraftItems(next, expectedVersion, conflictError, { orderConflict: null });
-    }
+    if (index <= 0) return;
+    reorderImage(index, 0);
   };
 
   const removeImage = (id: string) => {
@@ -528,12 +534,9 @@ export function useProductMediaAction(product: AdminCatalogDetail | undefined) {
     clearNotice();
   };
 
-  // Tải ảnh mới lên kho qua ticket product
-  const handleFilesSelected = async (event: ChangeEvent<HTMLInputElement>) => {
-    const fileList = event.target.files;
-    if (!fileList || fileList.length === 0 || !product || busy || uncertain) return;
-    const files = Array.from(fileList);
-    event.target.value = '';
+  // Tải ảnh mới lên kho qua ticket product (dùng chung cho chọn tệp và kéo-thả tệp)
+  const uploadFiles = async (files: readonly File[]) => {
+    if (files.length === 0 || !product || busy || uncertain) return;
 
     if (!uploadsEnabled) {
       showNotice({
@@ -673,6 +676,19 @@ export function useProductMediaAction(product: AdminCatalogDetail | undefined) {
         setUploadingCount(0);
       }
     }
+  };
+
+  const handleFilesSelected = async (event: ChangeEvent<HTMLInputElement>) => {
+    const fileList = event.target.files;
+    if (!fileList || fileList.length === 0) return;
+    const files = Array.from(fileList);
+    event.target.value = '';
+    await uploadFiles(files);
+  };
+
+  const handleFilesDropped = async (fileList: FileList | null | undefined) => {
+    if (!fileList || fileList.length === 0) return;
+    await uploadFiles(Array.from(fileList));
   };
 
   // Lưu bộ ảnh (PUT /admin/products/:id/images)
@@ -1353,12 +1369,14 @@ export function useProductMediaAction(product: AdminCatalogDetail | undefined) {
     resolveAltConflict,
     resolveOrderConflict,
     resolveRemovalConflict,
+    reorderImage,
     moveImageUp,
     moveImageDown,
     promoteImageToFirst,
     removeImage,
     resetDraft,
     handleFilesSelected,
+    handleFilesDropped,
     handleSaveImages,
     reloadAfterConflict,
     recheckUncertain,
@@ -1403,6 +1421,10 @@ export function ProductMediaSection({
   action: ProductMediaAction;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
+  const [fileDragOver, setFileDragOver] = useState(false);
+
   const {
     items,
     expectedVersion,
@@ -1423,18 +1445,92 @@ export function ProductMediaSection({
     resolveAltConflict,
     resolveOrderConflict,
     resolveRemovalConflict,
+    reorderImage,
     moveImageUp,
     moveImageDown,
     promoteImageToFirst,
     removeImage,
     resetDraft,
     handleFilesSelected,
+    handleFilesDropped,
     handleSaveImages,
     reloadAfterConflict,
   } = action;
 
   const controlsLocked = busy || Boolean(uncertain);
   const canAddMore = uploadsEnabled && items.length < MAX_PRODUCT_IMAGES && !controlsLocked;
+  const canReorderDrag = !controlsLocked;
+
+  const hasFilesTransfer = (e: DragEvent<HTMLElement>): boolean =>
+    Array.from(e.dataTransfer?.types ?? []).includes('Files');
+
+  const beginDrag = (e: DragEvent<HTMLElement>, index: number) => {
+    if (!canReorderDrag) {
+      e.preventDefault();
+      return;
+    }
+    setDragIndex(index);
+    setDropIndex(index);
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(index));
+    }
+  };
+
+  const hoverItemDrag = (e: DragEvent<HTMLElement>, targetIndex: number) => {
+    if (hasFilesTransfer(e)) {
+      if (canAddMore) {
+        e.preventDefault();
+        setFileDragOver(true);
+      }
+      return;
+    }
+    if (!canReorderDrag) return;
+    e.preventDefault();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'move';
+    }
+    if (dropIndex !== targetIndex) {
+      setDropIndex(targetIndex);
+    }
+  };
+
+  const dropOnItem = (e: DragEvent<HTMLElement>, targetIndex: number) => {
+    const droppedFiles = e.dataTransfer?.files;
+    if (droppedFiles && droppedFiles.length > 0) {
+      e.preventDefault();
+      setFileDragOver(false);
+      setDragIndex(null);
+      setDropIndex(null);
+      if (canAddMore) {
+        void handleFilesDropped(droppedFiles);
+      }
+      return;
+    }
+    if (!canReorderDrag) return;
+    e.preventDefault();
+    const raw = e.dataTransfer?.getData('text/plain') ?? '';
+    const sourceIndex = dragIndex ?? (raw ? Number.parseInt(raw, 10) : Number.NaN);
+    setDragIndex(null);
+    setDropIndex(null);
+    if (Number.isInteger(sourceIndex)) {
+      reorderImage(sourceIndex, targetIndex);
+    }
+  };
+
+  const endDrag = () => {
+    setDragIndex(null);
+    setDropIndex(null);
+    setFileDragOver(false);
+  };
+
+  const jumpToCard = (id: string) => {
+    const input = document.getElementById(`media-alt-${id}`) as HTMLInputElement | null;
+    if (input) {
+      input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      input.focus();
+    }
+  };
 
   return (
     <section aria-labelledby="catalog-images" className={styles.section}>
@@ -1485,6 +1581,11 @@ export function ProductMediaSection({
           <button
             type="button"
             className={styles.statusButton}
+            data-primary={
+              isDirty && !controlsLocked && !conflictError && !hasMediaConflicts
+                ? 'true'
+                : undefined
+            }
             disabled={!isDirty || controlsLocked || Boolean(conflictError) || hasMediaConflicts}
             onClick={() => void handleSaveImages()}
           >
@@ -1592,132 +1693,291 @@ export function ProductMediaSection({
       )}
 
       {items.length === 0 ? (
-        <Empty label="Chưa có ảnh." />
+        <div
+          className={styles.mediaDropEmpty}
+          data-drop-active={fileDragOver ? 'true' : undefined}
+          onDragOver={(e) => {
+            if (canAddMore && hasFilesTransfer(e)) {
+              e.preventDefault();
+              setFileDragOver(true);
+            }
+          }}
+          onDragLeave={() => setFileDragOver(false)}
+          onDrop={(e) => {
+            if (e.dataTransfer?.files?.length) {
+              e.preventDefault();
+              setFileDragOver(false);
+              if (canAddMore) void handleFilesDropped(e.dataTransfer.files);
+            }
+          }}
+        >
+          <Empty label="Chưa có ảnh." />
+          {canAddMore && (
+            <button
+              type="button"
+              className={styles.statusButton}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              Kéo thả ảnh vào đây hoặc bấm để chọn tệp
+            </button>
+          )}
+        </div>
       ) : (
-        <div className={styles.mediaGrid}>
-          {items.map((img, index) => {
-            const position = index + 1;
-            const isPrimary = index === 0;
-            const isLastRemainingOnActiveProduct = items.length === 1 && product.isActive;
-            return (
-              <figure className={styles.mediaCard} key={img.id}>
-                <div className={styles.mediaPreviewWrap}>
-                  <img
-                    className={styles.mediaPreview}
-                    src={img.url}
-                    alt={img.alt.trim() || product.name}
-                    loading="lazy"
-                  />
-                </div>
-                <figcaption className={styles.mediaBadgeRow}>
-                  <span className={styles.badge} data-tone={isPrimary ? 'accent' : 'muted'}>
-                    {isPrimary ? 'Ảnh đại diện (#1)' : `Vị trí #${position}`}
-                  </span>
-                  <span className={styles.badge} data-tone="muted">
-                    {img.color?.name ? `Màu: ${img.color.name}` : 'Ảnh chung'}
-                  </span>
-                  {img.key && (
-                    <span className={styles.badge} data-tone="accent">
-                      Mới tải lên
-                    </span>
-                  )}
-                </figcaption>
-
-                <label className={styles.field}>
-                  <span>Mô tả thay thế (alt) ảnh #{position}</span>
-                  <input
-                    type="text"
-                    value={img.alt}
-                    maxLength={200}
-                    placeholder={product.name}
-                    disabled={controlsLocked}
-                    aria-label={`Mô tả thay thế ảnh vị trí ${position}`}
-                    onChange={(e) => setImageAlt(img.id, e.target.value)}
-                  />
-                </label>
-
-                {altConflicts[img.id] && (
-                  <div role="alert" className={styles.conflictAlert}>
-                    <p>
-                      {altConflicts[img.id]?.urlChanged
-                        ? 'Máy chủ vừa thay ảnh mới tại vị trí này (mô tả hiện tại: '
-                        : 'Máy chủ vừa đổi mô tả thành: '}
-                      <strong>{altConflicts[img.id]?.serverAlt ?? '(trống)'}</strong>
-                      {altConflicts[img.id]?.urlChanged ? ')' : ''}
-                    </p>
-                    <div className={styles.actionGroup}>
-                      <button
-                        type="button"
-                        className={styles.mediaSmallButton}
-                        disabled={controlsLocked}
-                        aria-label={`Dùng mô tả máy chủ cho ảnh vị trí ${position}`}
-                        onClick={() => resolveAltConflict(img.id, 'server')}
-                      >
-                        Dùng mô tả máy chủ
-                      </button>
-                      <button
-                        type="button"
-                        className={styles.mediaSmallButton}
-                        disabled={controlsLocked}
-                        aria-label={`Giữ mô tả đang soạn cho ảnh vị trí ${position}`}
-                        onClick={() => resolveAltConflict(img.id, 'draft')}
-                      >
-                        Giữ mô tả đang soạn
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                <div className={styles.mediaActions}>
-                  {!isPrimary && (
-                    <button
-                      type="button"
-                      className={styles.mediaSmallButton}
-                      disabled={controlsLocked}
-                      aria-label={`Đưa ảnh vị trí ${position} lên đầu làm ảnh đại diện`}
-                      onClick={() => promoteImageToFirst(index)}
-                    >
-                      Đưa lên đầu
-                    </button>
-                  )}
+        <>
+          <div
+            className={styles.mediaQuickBar}
+            data-drop-active={fileDragOver ? 'true' : undefined}
+            onDragOver={(e) => {
+              if (canAddMore && hasFilesTransfer(e)) {
+                e.preventDefault();
+                setFileDragOver(true);
+              }
+            }}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                setFileDragOver(false);
+              }
+            }}
+            onDrop={(e) => {
+              if (e.dataTransfer?.files?.length) {
+                e.preventDefault();
+                setFileDragOver(false);
+                if (canAddMore) void handleFilesDropped(e.dataTransfer.files);
+              }
+            }}
+          >
+            <div className={styles.mediaQuickHead}>
+              <span className={styles.mediaQuickTitle}>Sắp xếp nhanh</span>
+              <span className={styles.hint}>
+                Kéo thả ảnh trực tiếp để đổi thứ tự hoặc đưa lên vị trí #1 · Bấm vào ô để tới phần
+                mô tả
+              </span>
+            </div>
+            <div className={styles.mediaQuickStrip}>
+              {items.map((img, index) => {
+                const position = index + 1;
+                const isPrimary = index === 0;
+                return (
                   <button
+                    key={img.id}
                     type="button"
-                    className={styles.mediaSmallButton}
-                    disabled={controlsLocked || index === 0}
-                    aria-label={`Chuyển ảnh vị trí ${position} lên`}
-                    onClick={() => moveImageUp(index)}
-                  >
-                    ↑ Lên
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.mediaSmallButton}
-                    disabled={controlsLocked || index === items.length - 1}
-                    aria-label={`Chuyển ảnh vị trí ${position} xuống`}
-                    onClick={() => moveImageDown(index)}
-                  >
-                    ↓ Xuống
-                  </button>
-                  <button
-                    type="button"
-                    className={styles.mediaSmallButton}
-                    data-tone="danger"
-                    disabled={controlsLocked || isLastRemainingOnActiveProduct}
-                    aria-label={`Gỡ ảnh vị trí ${position}`}
-                    title={
-                      isLastRemainingOnActiveProduct
-                        ? 'Không thể gỡ ảnh cuối cùng khi sản phẩm đang mở bán'
+                    className={styles.mediaQuickTile}
+                    data-primary={isPrimary ? 'true' : undefined}
+                    data-dragging={dragIndex === index ? 'true' : undefined}
+                    data-drop-target={
+                      dropIndex === index && dragIndex !== null && dragIndex !== index
+                        ? 'true'
                         : undefined
                     }
-                    onClick={() => removeImage(img.id)}
+                    draggable={canReorderDrag}
+                    aria-label={`Chọn ảnh vị trí ${position}${isPrimary ? ' (Ảnh đại diện)' : ''}`}
+                    title="Kéo để đổi vị trí hoặc bấm để sửa mô tả"
+                    onClick={() => jumpToCard(img.id)}
+                    onDragStart={(e) => beginDrag(e, index)}
+                    onDragOver={(e) => hoverItemDrag(e, index)}
+                    onDrop={(e) => dropOnItem(e, index)}
+                    onDragEnd={endDrag}
                   >
-                    Gỡ ảnh
+                    <img src={img.url} alt="" aria-hidden="true" loading="lazy" />
+                    <span
+                      className={styles.mediaQuickNum}
+                      data-primary={isPrimary ? 'true' : undefined}
+                    >
+                      {isPrimary ? '#1 Đại diện' : `#${position}`}
+                    </span>
                   </button>
-                </div>
-              </figure>
-            );
-          })}
-        </div>
+                );
+              })}
+              {canAddMore && (
+                <button
+                  type="button"
+                  className={styles.mediaQuickAdd}
+                  onClick={() => fileInputRef.current?.click()}
+                  title="Kéo thả ảnh vào đây hoặc bấm để tải ảnh lên"
+                >
+                  <span>+ Thêm</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className={styles.mediaGrid}>
+            {items.map((img, index) => {
+              const position = index + 1;
+              const isPrimary = index === 0;
+              const isLastRemainingOnActiveProduct = items.length === 1 && product.isActive;
+              return (
+                <figure
+                  id={`media-card-${img.id}`}
+                  className={styles.mediaCard}
+                  data-primary={isPrimary ? 'true' : undefined}
+                  data-dragging={dragIndex === index ? 'true' : undefined}
+                  data-drop-target={
+                    dropIndex === index && dragIndex !== null && dragIndex !== index
+                      ? 'true'
+                      : undefined
+                  }
+                  draggable={canReorderDrag}
+                  onDragStart={(e) => {
+                    if (
+                      e.target instanceof HTMLElement &&
+                      e.target.closest('input, textarea, button')
+                    ) {
+                      e.preventDefault();
+                      return;
+                    }
+                    beginDrag(e, index);
+                  }}
+                  onDragOver={(e) => hoverItemDrag(e, index)}
+                  onDrop={(e) => dropOnItem(e, index)}
+                  onDragEnd={endDrag}
+                  key={img.id}
+                >
+                  <div className={styles.mediaCardLayout}>
+                    <div className={styles.mediaPreviewWrap}>
+                      <img
+                        className={styles.mediaPreview}
+                        src={img.url}
+                        alt={img.alt.trim() || product.name}
+                        loading="lazy"
+                      />
+                      <span
+                        className={styles.mediaPreviewOrder}
+                        data-primary={isPrimary ? 'true' : undefined}
+                        aria-hidden="true"
+                      >
+                        #{position}
+                      </span>
+                    </div>
+
+                    <div className={styles.mediaCardContent}>
+                      <div className={styles.mediaCardTop}>
+                        <figcaption className={styles.mediaBadgeRow}>
+                          <span
+                            className={styles.mediaDragCue}
+                            aria-hidden="true"
+                            title="Kéo để đổi chỗ"
+                          >
+                            ⋮⋮
+                          </span>
+                          <span className={styles.badge} data-tone={isPrimary ? 'accent' : 'muted'}>
+                            {isPrimary ? 'Ảnh đại diện (#1)' : `Vị trí #${position}`}
+                          </span>
+                          <span className={styles.badge} data-tone="muted">
+                            {img.color?.name ? `Màu: ${img.color.name}` : 'Ảnh chung'}
+                          </span>
+                          {img.key && (
+                            <span className={styles.badge} data-tone="accent">
+                              Mới tải lên
+                            </span>
+                          )}
+                        </figcaption>
+
+                        <div className={styles.mediaCardTools}>
+                          {!isPrimary && (
+                            <button
+                              type="button"
+                              className={styles.mediaGhostButton}
+                              disabled={controlsLocked}
+                              aria-label={`Đưa ảnh vị trí ${position} lên đầu làm ảnh đại diện`}
+                              title="Đưa lên đầu (#1)"
+                              onClick={() => promoteImageToFirst(index)}
+                            >
+                              ↑ #1
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className={styles.mediaGhostIcon}
+                            disabled={controlsLocked || index === 0}
+                            aria-label={`Chuyển ảnh vị trí ${position} lên`}
+                            title="Di chuyển lên"
+                            onClick={() => moveImageUp(index)}
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.mediaGhostIcon}
+                            disabled={controlsLocked || index === items.length - 1}
+                            aria-label={`Chuyển ảnh vị trí ${position} xuống`}
+                            title="Di chuyển xuống"
+                            onClick={() => moveImageDown(index)}
+                          >
+                            ↓
+                          </button>
+                          <button
+                            type="button"
+                            className={styles.mediaGhostDanger}
+                            disabled={controlsLocked || isLastRemainingOnActiveProduct}
+                            aria-label={`Gỡ ảnh vị trí ${position}`}
+                            title={
+                              isLastRemainingOnActiveProduct
+                                ? 'Không thể gỡ ảnh cuối cùng khi sản phẩm đang mở bán'
+                                : 'Gỡ ảnh'
+                            }
+                            onClick={() => removeImage(img.id)}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className={styles.mediaBody}>
+                        <label className={styles.field}>
+                          <span className={styles.mediaAltLabel}>Mô tả thay thế (alt)</span>
+                          <input
+                            id={`media-alt-${img.id}`}
+                            type="text"
+                            draggable={false}
+                            value={img.alt}
+                            maxLength={200}
+                            placeholder={product.name}
+                            disabled={controlsLocked}
+                            aria-label={`Mô tả thay thế ảnh vị trí ${position}`}
+                            onChange={(e) => setImageAlt(img.id, e.target.value)}
+                          />
+                        </label>
+
+                        {altConflicts[img.id] && (
+                          <div role="alert" className={styles.conflictAlert}>
+                            <p>
+                              {altConflicts[img.id]?.urlChanged
+                                ? 'Máy chủ vừa thay ảnh mới tại vị trí này (mô tả hiện tại: '
+                                : 'Máy chủ vừa đổi mô tả thành: '}
+                              <strong>{altConflicts[img.id]?.serverAlt ?? '(trống)'}</strong>
+                              {altConflicts[img.id]?.urlChanged ? ')' : ''}
+                            </p>
+                            <div className={styles.actionGroup}>
+                              <button
+                                type="button"
+                                className={styles.mediaSmallButton}
+                                disabled={controlsLocked}
+                                aria-label={`Dùng mô tả máy chủ cho ảnh vị trí ${position}`}
+                                onClick={() => resolveAltConflict(img.id, 'server')}
+                              >
+                                Dùng mô tả máy chủ
+                              </button>
+                              <button
+                                type="button"
+                                className={styles.mediaSmallButton}
+                                disabled={controlsLocked}
+                                aria-label={`Giữ mô tả đang soạn cho ảnh vị trí ${position}`}
+                                onClick={() => resolveAltConflict(img.id, 'draft')}
+                              >
+                                Giữ mô tả đang soạn
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </figure>
+              );
+            })}
+          </div>
+        </>
       )}
     </section>
   );
