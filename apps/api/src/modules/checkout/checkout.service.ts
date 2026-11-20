@@ -415,6 +415,9 @@ export class CheckoutService {
    */
   selfRefundablePayment(order: OrderDetails) {
     if (order.status !== 'CONFIRMED') return null;
+    // Khi đơn đang giữ chỗ khởi tạo hoặc chờ đối soát vận đơn (`order.shipment` đã tồn tại),
+    // tạm khóa tự hủy/hoàn tiền để tránh đua với yêu cầu tạo vận đơn GHN đang chạy.
+    if (order.shipment) return null;
     const payment = order.payments.find((row) => row.status === 'SUCCEEDED');
     if (!payment?.gateway || payment.gateway === 'COD') return null;
     const adapter = this.payments.gateways.get(payment.gateway as GatewayCode);
@@ -516,6 +519,10 @@ export class CheckoutService {
    */
   async cancelAndRefund(id: string, ownerId: string, actor: string, reason: string) {
     const paymentId = await this.withOrder(id, ownerId, async (order, tx) => {
+      if (order.shipment)
+        throw new ConflictException(
+          'Đơn hàng đang trong quá trình khởi tạo hoặc đối soát vận đơn, tạm thời chưa thể hủy. Vui lòng kiểm tra lại sau ít phút.',
+        );
       const paid = this.selfRefundablePayment(order);
       if (!paid)
         throw new ConflictException(

@@ -352,7 +352,17 @@ describe('PH-02 Shipping GHN Sandbox, du phong mo phong va webhook (PostgreSQL)'
 
   it('R3-P1.1: tao van don GHN ghi intent va chot PROCESSING duoi khoa truoc khi goi GHN, chan dong thoi khach huy / admin cancel-refund / tao MOCK / tao trung', async () => {
     const { GhnCarrierGateway } = await import('../src/modules/shipping/ghn.carrier.js');
+    const { PaymentsService } = await import('../src/modules/payments/index.js');
     const ghnGateway = t.app.get(GhnCarrierGateway);
+    const vnpay = t.app.get(PaymentsService).gateways.get('VNPAY');
+    const origVnpConfigured = vnpay.configured.bind(vnpay);
+    const origVnpRefund = vnpay.refund?.bind(vnpay);
+    vnpay.configured = () => true;
+    vnpay.refund = async () => ({
+      requestId: randomUUID(),
+      receipt: `REFUND:VNPAY:${randomUUID()}`,
+      payload: {},
+    });
 
     // Tạo đơn trả trước CONFIRMED (khách thường có quyền tự hủy + hoàn tiền ở trạng thái CONFIRMED)
     const quote = await t.http
@@ -422,24 +432,35 @@ describe('PH-02 Shipping GHN Sandbox, du phong mo phong va webhook (PostgreSQL)'
       // Chờ đúng thời điểm Pha 1 đã commit và đang gọi GHN ngoài lock
       await ghnStarted;
 
-      // Lúc này DB đã chốt PROCESSING và có intent `creating` (isMock=false, trackingNumber=null)
+      // Lúc này đơn vẫn giữ ở CONFIRMED nhưng đã có bản ghi giữ chỗ `creating#<attemptId>` (isMock=false, trackingNumber=null)
       const midOrder = await t.prisma.order.findUniqueOrThrow({
         where: { id: orderId },
         include: { shipment: true },
       });
-      expect(midOrder.status).toBe('PROCESSING');
+      expect(midOrder.status).toBe('CONFIRMED');
       expect(midOrder.shipment?.isMock).toBe(false);
       expect(midOrder.shipment?.trackingNumber).toBeNull();
-      expect(midOrder.shipment?.carrierStatus).toBe('creating');
+      expect(midOrder.shipment?.carrierStatus).toMatch(/^creating#[0-9a-f]{8}$/);
 
-      // 1. Khách gọi tự hủy đơn -> phải bị chặn 409 (không trả kho, không hoàn tiền)
+      // 1. Khách xem chi tiết đơn thấy canCancel=false, gọi tự hủy đơn -> bị chặn 409 (không trả kho, không hoàn tiền)
+      const customerMidView = await t.http
+        .get(`/api/orders/${orderId}`)
+        .set(customerAuth())
+        .expect(200);
+      expect(customerMidView.body.canCancel).toBe(false);
+      expect(customerMidView.body.cancelRefunds).toBe(false);
       await t.http.post(`/api/orders/${orderId}/cancel`).set(customerAuth()).send({}).expect(409);
 
-      // 2. Admin gọi cancel-refund -> phải bị chặn 409
+      // 2. Admin gọi cancel-refund hoặc start-processing -> đều bị chặn 409
       await t.http
         .post(`/api/admin/orders/${orderId}/cancel-refund`)
         .set(adminAuth())
         .send({ reason: 'Thử hủy khi đang tạo GHN' })
+        .expect(409);
+      await t.http
+        .post(`/api/admin/orders/${orderId}/start-processing`)
+        .set(adminAuth())
+        .send({})
         .expect(409);
 
       // 3. Admin tab khác bấm tạo MOCK hoặc tạo AUTO trùng -> đều bị chặn 409
@@ -454,15 +475,14 @@ describe('PH-02 Shipping GHN Sandbox, du phong mo phong va webhook (PostgreSQL)'
         .send({ mode: 'AUTO' })
         .expect(409);
 
-      // 4. Webhook trung gian đến trong lúc đang tạo -> trả 200 ignored: true, không phá intent
-      const midWebhook = await t.http
+      // 4. Webhook đúng ClientOrderCode đến trong lúc đang tạo -> trả 503 để GHN tự động retry sau 5 giây (không mất sự kiện)
+      await t.http
         .post('/api/shipping/webhook/ghn')
         .set('x-carrier-token', 'test-ghn-webhook-secret')
-        .send({ OrderCode: 'L4CONCURRENT', ClientOrderCode: orderCode, Status: 'ready_to_pick' })
-        .expect(200);
-      expect(midWebhook.body).toMatchObject({ processed: false, ignored: true });
+        .send({ OrderCode: 'L4CONCURRENT', ClientOrderCode: orderCode, Status: 'picked' })
+        .expect(503);
 
-      // Giải phóng GHN trả về mã vận đơn thật -> Pha 2 lưu sạch vào PostgreSQL
+      // Giải phóng GHN trả về mã vận đơn thật -> Pha 2 lưu sạch vào PostgreSQL và chuyển đơn sang PROCESSING
       releaseGhn({
         carrierName: 'GHN',
         trackingNumber: 'L4CONCURRENT',
@@ -489,9 +509,26 @@ describe('PH-02 Shipping GHN Sandbox, du phong mo phong va webhook (PostgreSQL)'
       expect(finalOrder.status).toBe('PROCESSING');
       expect(finalOrder.shipment?.trackingNumber).toBe('L4CONCURRENT');
       expect(finalOrder.shipment?.carrierStatus).toBe('ready_to_pick');
+
+      // 5. Khi GHN retry lại đúng webhook 'picked' vừa nhận 503 trước đó -> cập nhật thành công lên IN_TRANSIT / SHIPPED
+      const retriedWebhook = await t.http
+        .post('/api/shipping/webhook/ghn')
+        .set('x-carrier-token', 'test-ghn-webhook-secret')
+        .send({ OrderCode: 'L4CONCURRENT', ClientOrderCode: orderCode, Status: 'picked' })
+        .expect(200);
+      expect(retriedWebhook.body).toMatchObject({
+        processed: true,
+        status: 'IN_TRANSIT',
+        carrierStatus: 'picked',
+      });
+      expect((await t.prisma.order.findUniqueOrThrow({ where: { id: orderId } })).status).toBe(
+        'SHIPPED',
+      );
     } finally {
       ghnGateway.configured = origConfigured;
       ghnGateway.createOrder = origCreateOrder;
+      vnpay.configured = origVnpConfigured;
+      vnpay.refund = origVnpRefund;
     }
   });
 
@@ -591,5 +628,277 @@ describe('PH-02 Shipping GHN Sandbox, du phong mo phong va webhook (PostgreSQL)'
       .send({ OrderCode: 'L4CANCEL02', ClientOrderCode: second.orderCode, Status: 'cancel' })
       .expect(200);
     expect(staleOldCancel.body).toMatchObject({ processed: false, ignored: true });
+  });
+
+  it('R4-P1.1 + R4-P2.2 + R4-P2.3: mode GHN that bai giu nguyen quyen khach tu huy CONFIRMED; luot cu (A) sau 45s khong xoa duoc ban ghi giu cho cua luot moi (B); webhook doi soat create_uncertain chuyen CONFIRMED sang PROCESSING', async () => {
+    const { GhnCarrierGateway, GhnApiRejectedError } =
+      await import('../src/modules/shipping/ghn.carrier.js');
+    const { PaymentsService } = await import('../src/modules/payments/index.js');
+    const ghnGateway = t.app.get(GhnCarrierGateway);
+    const vnpay = t.app.get(PaymentsService).gateways.get('VNPAY');
+    const origConfigured = ghnGateway.configured.bind(ghnGateway);
+    const origCreateOrder = ghnGateway.createOrder.bind(ghnGateway);
+    const origQueryByClientCode = ghnGateway.queryOrderByClientCode.bind(ghnGateway);
+    const origVnpConfigured = vnpay.configured.bind(vnpay);
+    const origVnpRefund = vnpay.refund?.bind(vnpay);
+    vnpay.configured = () => true;
+    vnpay.refund = async () => ({
+      requestId: randomUUID(),
+      receipt: `REFUND:VNPAY:${randomUUID()}`,
+      payload: {},
+    });
+
+    // Helper tạo đơn trả trước CONFIRMED (đã chốt tồn kho SALE và payment VNPAY SUCCEEDED)
+    async function createConfirmedPrepaidOrder() {
+      const quote = await t.http
+        .post('/api/checkout/preview')
+        .set(customerAuth())
+        .send({ addressId })
+        .expect(201);
+      const created = await t.http
+        .post('/api/checkout/orders')
+        .set(customerAuth())
+        .send({
+          addressId,
+          fingerprint: quote.body.fingerprint,
+          idempotencyKey: randomUUID(),
+          gateway: 'COD',
+        })
+        .expect(201);
+      const orderId = created.body.id as string;
+      const orderCode = created.body.orderCode as string;
+      // Chốt kho thông qua confirm-cod rồi đặt về CONFIRMED + VNPAY SUCCEEDED để khớp đơn online đã trả tiền
+      await t.http
+        .post(`/api/admin/orders/${orderId}/confirm-cod`)
+        .set(adminAuth())
+        .send({})
+        .expect(201);
+      await t.prisma.order.update({ where: { id: orderId }, data: { status: 'CONFIRMED' } });
+      await t.prisma.payment.updateMany({
+        where: { orderId },
+        data: { gateway: 'VNPAY', status: 'SUCCEEDED' },
+      });
+      return { orderId, orderCode };
+    }
+
+    try {
+      // === Phần 1 (R4-P2.2): mode='GHN' bị từ chối và GHN xác nhận chưa tạo đơn -> xóa intent, giữ đơn ở CONFIRMED, khách vẫn tự hủy & trả kho được ===
+      const order1 = await createConfirmedPrepaidOrder();
+      expect(
+        (await t.prisma.inventory.findUniqueOrThrow({ where: { productVariantId: variantId } }))
+          .quantityOnHand,
+      ).toBe(8);
+
+      ghnGateway.configured = () => true;
+      ghnGateway.createOrder = async () => {
+        throw new GhnApiRejectedError('Địa chỉ không hợp lệ bên GHN', 400, 400);
+      };
+      ghnGateway.queryOrderByClientCode = async () => null;
+
+      await t.http
+        .post(`/api/admin/orders/${order1.orderId}/shipment`)
+        .set(adminAuth())
+        .send({ mode: 'GHN' })
+        .expect(503);
+
+      const afterFail = await t.prisma.order.findUniqueOrThrow({
+        where: { id: order1.orderId },
+        include: { shipment: true },
+      });
+      expect(afterFail.status).toBe('CONFIRMED');
+      expect(afterFail.shipment).toBeNull();
+
+      // Khách kiểm tra đơn: canCancel vẫn là true!
+      const customerViewAfterFail = await t.http
+        .get(`/api/orders/${order1.orderId}`)
+        .set(customerAuth())
+        .expect(200);
+      expect(customerViewAfterFail.body.canCancel).toBe(true);
+
+      // Khách bấm tự hủy đơn thành công -> đơn tự hủy + hoàn tiền tự động (REFUNDED) và hàng hoàn về kho (8 -> 10)
+      const cancelRes = await t.http
+        .post(`/api/orders/${order1.orderId}/cancel`)
+        .set(customerAuth())
+        .send({})
+        .expect(201);
+      expect(['CANCELLED', 'REFUNDED']).toContain(cancelRes.body.status);
+      expect(
+        (await t.prisma.inventory.findUniqueOrThrow({ where: { productVariantId: variantId } }))
+          .quantityOnHand,
+      ).toBe(10);
+
+      // === Phần 2 (R4-P1.1): Lượt A treo quá 45s, lượt B tiếp quản; khi A thất bại KHÔNG được xóa bản ghi giữ chỗ của B ===
+      await t.http
+        .post('/api/cart/items')
+        .set(customerAuth())
+        .send({ variantId, quantity: 1 })
+        .expect(201);
+      const order2 = await createConfirmedPrepaidOrder();
+
+      let enteredA!: () => void;
+      const startedA = new Promise<void>((r) => {
+        enteredA = r;
+      });
+      let rejectA!: (err: unknown) => void;
+      const deferredA = new Promise<never>((_r, rej) => {
+        rejectA = rej;
+      });
+
+      let enteredB!: () => void;
+      const startedB = new Promise<void>((r) => {
+        enteredB = r;
+      });
+      let resolveB!: (val: {
+        carrierName: string;
+        trackingNumber: string;
+        isMock: boolean;
+        status: 'PENDING';
+        carrierStatus: string;
+        statusNote: string;
+        expectedDeliveryAt: null;
+      }) => void;
+      const deferredB = new Promise<{
+        carrierName: string;
+        trackingNumber: string;
+        isMock: boolean;
+        status: 'PENDING';
+        carrierStatus: string;
+        statusNote: string;
+        expectedDeliveryAt: null;
+      }>((r) => {
+        resolveB = r;
+      });
+
+      let ghnCallCount = 0;
+      ghnGateway.createOrder = async () => {
+        ghnCallCount += 1;
+        if (ghnCallCount === 1) {
+          enteredA();
+          return deferredA;
+        }
+        enteredB();
+        return deferredB;
+      };
+      ghnGateway.queryOrderByClientCode = async () => null;
+
+      // Lượt A bắt đầu (mode: GHN)
+      const reqA = t.http
+        .post(`/api/admin/orders/${order2.orderId}/shipment`)
+        .set(adminAuth())
+        .send({ mode: 'GHN' })
+        .then((res) => res);
+      await startedA;
+
+      const shipA = await t.prisma.shipment.findUniqueOrThrow({
+        where: { orderId: order2.orderId },
+      });
+      expect(shipA.carrierStatus).toMatch(/^creating#[0-9a-f]{8}$/);
+
+      // Tua lùi updatedAt 46 giây để mô phỏng lượt A đã quá hạn 45 giây
+      await t.prisma.$executeRaw`
+        UPDATE public.shipments
+        SET updated_at = NOW() - INTERVAL '46 seconds'
+        WHERE order_id = ${order2.orderId}::uuid
+      `;
+
+      // Lượt B tiếp quản hợp lệ
+      const reqB = t.http
+        .post(`/api/admin/orders/${order2.orderId}/shipment`)
+        .set(adminAuth())
+        .send({ mode: 'AUTO' })
+        .then((res) => res);
+      await startedB;
+
+      const shipB = await t.prisma.shipment.findUniqueOrThrow({
+        where: { orderId: order2.orderId },
+      });
+      expect(shipB.carrierStatus).toMatch(/^creating#[0-9a-f]{8}$/);
+      expect(shipB.carrierStatus).not.toBe(shipA.carrierStatus);
+
+      // Lượt A thất bại muộn -> không được xóa bản ghi giữ chỗ của lượt B!
+      rejectA(new GhnApiRejectedError('A timeout/fail late', 400, 400));
+      const resA = await reqA;
+      expect(resA.status).toBe(503);
+
+      const shipStillB = await t.prisma.shipment.findUnique({
+        where: { orderId: order2.orderId },
+      });
+      expect(shipStillB?.carrierStatus).toBe(shipB.carrierStatus);
+
+      // Trong khi B vẫn đang chờ GHN, khách bấm hủy hoặc admin tạo MOCK đều tiếp tục bị chặn 409!
+      await t.http
+        .post(`/api/orders/${order2.orderId}/cancel`)
+        .set(customerAuth())
+        .send({})
+        .expect(409);
+      await t.http
+        .post(`/api/admin/orders/${order2.orderId}/shipment`)
+        .set(adminAuth())
+        .send({ mode: 'MOCK' })
+        .expect(409);
+
+      // Lượt B hoàn tất -> ghi vận đơn thật và chuyển đơn sang PROCESSING
+      resolveB({
+        carrierName: 'GHN',
+        trackingNumber: 'L4TAKEOVER_B',
+        isMock: false,
+        status: 'PENDING',
+        carrierStatus: 'ready_to_pick',
+        statusNote: 'Lượt B thành công',
+        expectedDeliveryAt: null,
+      });
+      const resB = await reqB;
+      expect(resB.status).toBe(201);
+      expect(resB.body.trackingNumber).toBe('L4TAKEOVER_B');
+      expect(
+        (await t.prisma.order.findUniqueOrThrow({ where: { id: order2.orderId } })).status,
+      ).toBe('PROCESSING');
+
+      // === Phần 3 (R4-P2.3): Đơn CONFIRMED đang ở create_uncertain nhận webhook ready_to_pick -> điền trackingNumber và chuyển đơn sang PROCESSING ===
+      await t.http
+        .post('/api/cart/items')
+        .set(customerAuth())
+        .send({ variantId, quantity: 1 })
+        .expect(201);
+      const order3 = await createConfirmedPrepaidOrder();
+      await t.prisma.shipment.create({
+        data: {
+          orderId: order3.orderId,
+          carrierName: 'GHN',
+          trackingNumber: null,
+          status: 'PENDING',
+          isMock: false,
+          carrierStatus: 'create_uncertain',
+          statusNote: 'Chờ đối soát',
+        },
+      });
+
+      const whReconciled = await t.http
+        .post('/api/shipping/webhook/ghn')
+        .set('x-carrier-token', 'test-ghn-webhook-secret')
+        .send({
+          OrderCode: 'L4WHRECONCILE',
+          ClientOrderCode: order3.orderCode,
+          Status: 'ready_to_pick',
+        })
+        .expect(200);
+      expect(whReconciled.body).toMatchObject({
+        processed: true,
+        status: 'PENDING',
+        carrierStatus: 'ready_to_pick',
+      });
+      const order3AfterWh = await t.prisma.order.findUniqueOrThrow({
+        where: { id: order3.orderId },
+        include: { shipment: true },
+      });
+      expect(order3AfterWh.status).toBe('PROCESSING');
+      expect(order3AfterWh.shipment?.trackingNumber).toBe('L4WHRECONCILE');
+    } finally {
+      ghnGateway.configured = origConfigured;
+      ghnGateway.createOrder = origCreateOrder;
+      ghnGateway.queryOrderByClientCode = origQueryByClientCode;
+      vnpay.configured = origVnpConfigured;
+      vnpay.refund = origVnpRefund;
+    }
   });
 });

@@ -793,6 +793,7 @@ const isPendingGhnIntent = (order: AdminOrder) =>
     !order.shipment.trackingNumber &&
     (order.shipment.carrierStatus === 'creating' ||
       order.shipment.carrierStatus?.startsWith('creating:') ||
+      order.shipment.carrierStatus?.startsWith('creating#') ||
       order.shipment.carrierStatus === 'create_uncertain' ||
       order.shipment.carrierStatus?.startsWith('create_uncertain:')),
   );
@@ -807,7 +808,11 @@ const isCancelledGhnBeforePickup = (order: AdminOrder) =>
   );
 
 function formatCarrierStatusLabel(carrierStatus: string): string {
-  if (carrierStatus === 'creating' || carrierStatus.startsWith('creating:')) {
+  if (
+    carrierStatus === 'creating' ||
+    carrierStatus.startsWith('creating:') ||
+    carrierStatus.startsWith('creating#')
+  ) {
     return 'creating (đang khởi tạo trên GHN)';
   }
   if (carrierStatus === 'create_uncertain' || carrierStatus.startsWith('create_uncertain:')) {

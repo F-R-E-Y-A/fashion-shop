@@ -17,6 +17,7 @@ import {
   ApiHeader,
   ApiOkResponse,
   ApiOperation,
+  ApiServiceUnavailableResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -47,6 +48,9 @@ export class ShipmentWebhookController {
     required: true,
   })
   @ApiOkResponse({ description: 'Đã nhận và xử lý sự kiện webhook hợp lệ' })
+  @ApiServiceUnavailableResponse({
+    description: 'Vận đơn đang trong quá trình khởi tạo hoặc đối soát, hãng sẽ gửi lại webhook',
+  })
   @ApiUnauthorizedResponse({ description: 'Token xác thực nguồn gửi không hợp lệ hoặc bị thiếu' })
   async handleWebhook(
     @Headers('x-carrier-token') carrierToken: string | undefined,
@@ -65,6 +69,9 @@ export class ShipmentWebhookController {
       'Nhận payload chuẩn của GHN (OrderCode, ClientOrderCode, Status, Reason, Description) và xác thực token qua header x-carrier-token, token hoặc query ?token=.',
   })
   @ApiOkResponse({ description: 'Đã nhận và đối soát sự kiện từ GHN' })
+  @ApiServiceUnavailableResponse({
+    description: 'Vận đơn đang được khởi tạo trên GHN, trả 503 để GHN tự động gửi lại sau 5 giây',
+  })
   @ApiUnauthorizedResponse({ description: 'Token xác thực nguồn gửi không hợp lệ hoặc bị thiếu' })
   async handleGhnWebhook(
     @Headers('x-carrier-token') carrierToken: string | undefined,

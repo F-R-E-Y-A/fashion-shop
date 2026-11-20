@@ -273,19 +273,29 @@ export function OrderPage() {
                       <strong>{order.shipment.trackingNumber || 'Đang cập nhật'}</strong>
                     </span>
                   </div>
-                  {(order.shipment.statusNote || order.shipment.expectedDeliveryAt) && (
-                    <p className={styles.muted}>
-                      {order.shipment.statusNote ? <span>{order.shipment.statusNote}</span> : null}
-                      {order.shipment.statusNote && order.shipment.expectedDeliveryAt
-                        ? ' · '
-                        : null}
-                      {order.shipment.expectedDeliveryAt ? (
-                        <span>
-                          Dự kiến giao: {formatDateTime(order.shipment.expectedDeliveryAt)}
-                        </span>
-                      ) : null}
-                    </p>
-                  )}
+                  {(() => {
+                    const isCreatingOrUncertain =
+                      order.shipment.isMock === false &&
+                      !order.shipment.trackingNumber &&
+                      Boolean(
+                        order.shipment.carrierStatus?.startsWith('creating') ||
+                        order.shipment.carrierStatus?.startsWith('create_uncertain'),
+                      );
+                    const customerNote = isCreatingOrUncertain
+                      ? 'Cửa hàng đang khởi tạo vận đơn với đơn vị vận chuyển; mã vận đơn sẽ sớm được cập nhật.'
+                      : order.shipment.statusNote;
+                    return customerNote || order.shipment.expectedDeliveryAt ? (
+                      <p className={styles.muted}>
+                        {customerNote ? <span>{customerNote}</span> : null}
+                        {customerNote && order.shipment.expectedDeliveryAt ? ' · ' : null}
+                        {order.shipment.expectedDeliveryAt ? (
+                          <span>
+                            Dự kiến giao: {formatDateTime(order.shipment.expectedDeliveryAt)}
+                          </span>
+                        ) : null}
+                      </p>
+                    ) : null;
+                  })()}
                   {(() => {
                     const isReturned = order.shipment.status === 'RETURNED';
                     const isFailed = order.shipment.status === 'FAILED' || isReturned;

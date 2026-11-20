@@ -503,7 +503,7 @@ describe('UC-02.1/AC6, AC8 — bảo vệ dữ liệu admin dùng chung (#57)', 
     expect(screen.queryByRole('button', { name: /Đã giao/ })).not.toBeInTheDocument();
   });
 
-  it('R3-P1.1: vận đơn ở trạng thái chờ đối soát create_uncertain chỉ hiện nút Đối soát / tạo lại vận đơn GHN, ẩn Đồng bộ và nút mô phỏng', async () => {
+  it('R3-P1.1: vận đơn ở trạng thái chờ đối soát create_uncertain hoặc creating#<attemptId> chỉ hiện nút Đối soát / tạo lại vận đơn GHN, ẩn Đồng bộ và nút mô phỏng', async () => {
     request.mockImplementation(async (path: string) => {
       if (path === '/admin/orders/shipping/config') {
         return { ghnConfigured: true, mode: 'GHN_SANDBOX' };
@@ -511,9 +511,11 @@ describe('UC-02.1/AC6, AC8 — bảo vệ dữ liệu admin dùng chung (#57)', 
       if (path === '/admin/orders/o1') {
         return {
           ...base,
-          status: 'PROCESSING',
+          status: 'CONFIRMED',
           actions: {
             ...base.actions,
+            startProcessing: false,
+            cancelRefund: false,
             markDelivered: false,
             deliveryFailed: false,
           },
@@ -523,8 +525,8 @@ describe('UC-02.1/AC6, AC8 — bảo vệ dữ liệu admin dùng chung (#57)', 
             trackingNumber: null,
             status: 'PENDING',
             isMock: false,
-            carrierStatus: 'create_uncertain',
-            statusNote: 'Chưa xác minh được kết quả tạo vận đơn trên GHN Sandbox.',
+            carrierStatus: 'creating#a1b2c3d4',
+            statusNote: 'Đang khởi tạo vận đơn trên GHN Sandbox...',
             createdAt: '2026-11-20T01:00:00.000Z',
             updatedAt: '2026-11-20T01:01:00.000Z',
           },
@@ -537,6 +539,7 @@ describe('UC-02.1/AC6, AC8 — bảo vệ dữ liệu admin dùng chung (#57)', 
     expect(
       await screen.findByRole('button', { name: 'Đối soát / tạo lại vận đơn GHN' }),
     ).toBeInTheDocument();
+    expect(screen.getByText('creating (đang khởi tạo trên GHN)')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Đồng bộ từ GHN' })).not.toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: 'Tạo vận đơn mô phỏng (Dự phòng)' }),

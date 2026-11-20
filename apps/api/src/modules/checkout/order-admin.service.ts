@@ -50,6 +50,10 @@ export class OrderAdminService {
     return this.step(id, async (order, tx) => {
       if (order.status !== 'CONFIRMED')
         throw new ConflictException('Chỉ bắt đầu xử lý đơn đã thanh toán, chưa xử lý.');
+      if (order.shipment)
+        throw new ConflictException(
+          'Đơn hàng đang có yêu cầu tạo hoặc đối soát vận đơn, vui lòng hoàn tất đối soát trước.',
+        );
       await this.checkout.orders.transition(id, 'PROCESSING', tx, actor);
     });
   }
@@ -171,7 +175,7 @@ export class OrderAdminService {
       ledgers,
       actions: {
         confirmCod: order.status === 'PENDING_CONFIRMATION' && cod?.status === 'PENDING',
-        startProcessing: order.status === 'CONFIRMED',
+        startProcessing: order.status === 'CONFIRMED' && !order.shipment,
         cancelRefund: !!this.checkout.selfRefundablePayment(order),
         markDelivered: IN_DELIVERY.includes(order.status) && !realCarrier,
         deliveryFailed:
