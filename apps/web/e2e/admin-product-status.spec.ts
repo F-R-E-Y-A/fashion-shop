@@ -26,6 +26,11 @@ for (const viewport of [
       true,
     );
     const stop = row.getByRole('button', { name: 'Ngừng bán', exact: true });
+    const detailHeader = page
+      .getByRole('main')
+      .locator('header')
+      .filter({ has: page.getByText('Chi tiết sản phẩm', { exact: true }) });
+    const resume = detailHeader.getByRole('button', { name: 'Gỡ ngừng bán', exact: true });
 
     try {
       await stop.click();
@@ -50,7 +55,7 @@ for (const viewport of [
       ).toBeVisible();
       await expect(row.getByRole('button', { name: 'Gỡ ngừng bán', exact: true })).toBeVisible();
       await productLink.click();
-      await page.getByRole('button', { name: 'Gỡ ngừng bán', exact: true }).click();
+      await resume.click();
       await expect(dialog).toHaveAccessibleName('Gỡ ngừng bán thủ công?');
       await expect(dialog).toHaveCSS('animation-name', 'none');
       await expect(cancel).toBeFocused();
@@ -67,7 +72,9 @@ for (const viewport of [
       const feedback = page.getByRole('status').filter({ has: success });
       await expect(feedback).toBeVisible();
       await expect(feedback.getByRole('button', { name: 'Đóng thông báo' })).toBeVisible();
-      await expect(page.getByRole('button', { name: 'Ngừng bán', exact: true })).toBeFocused();
+      await expect(
+        detailHeader.getByRole('button', { name: 'Ngừng bán', exact: true }),
+      ).toBeFocused();
       await expect(success).toBeHidden({ timeout: 8000 });
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
@@ -76,17 +83,18 @@ for (const viewport of [
       // Fixture dung chung voi bai checkout: loi assertion cung phai co gang bo manual hold.
       if (detailPath) {
         await page.goto(detailPath);
-        const restore = page.getByRole('button', { name: 'Gỡ ngừng bán', exact: true });
         await expect(
-          page.getByRole('button', { name: /^(?:Gỡ ngừng bán|Ngừng bán)$/u }),
+          detailHeader.getByRole('button', { name: /^(?:Gỡ ngừng bán|Ngừng bán)$/u }),
         ).toBeVisible();
-        if (await restore.isVisible()) {
-          await restore.click();
+        if (await resume.isVisible()) {
+          await resume.click();
           await page
             .getByRole('dialog')
             .getByRole('button', { name: 'Gỡ ngừng bán', exact: true })
             .click();
-          await expect(page.getByRole('button', { name: 'Ngừng bán', exact: true })).toBeVisible();
+          await expect(
+            detailHeader.getByRole('button', { name: 'Ngừng bán', exact: true }),
+          ).toBeVisible();
         }
       }
     }
