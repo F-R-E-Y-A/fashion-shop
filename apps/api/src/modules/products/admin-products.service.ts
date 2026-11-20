@@ -1,17 +1,28 @@
+import { createHash } from 'node:crypto';
+
 import {
   BadRequestException,
   ConflictException,
   Injectable,
   NotFoundException,
   Optional,
+  ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 
 import { skipOf, toPage } from '../../common/pagination/page.response.js';
 import { Prisma } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
-import { UploadsService, type UploadTicketResponse } from '../uploads/index.js';
-import { isUniqueViolationError } from './category-visibility.js';
+import { type ResolvedMedia, UploadsService, type UploadTicketResponse } from '../uploads/index.js';
+import {
+  CategoryLockSetChangedError,
+  isUniqueViolationError,
+  lockCategoriesOrdered,
+  lockCategory,
+  runCategoryTxWithRetry,
+  slugifyCategoryName,
+} from './category-visibility.js';
+import type { AdminCreateOptionsResponse } from './dto/admin-create-options.response.js';
 import type {
   AdminProductDetail,
   AdminProductPage,
@@ -27,6 +38,8 @@ import type {
   AdminProductStatus,
   ChangeProductStatusDto,
 } from './dto/change-product-status.dto.js';
+import { CATEGORY_SLUG_REGEX } from './dto/create-category.dto.js';
+import type { CreateProductDto } from './dto/create-product.dto.js';
 import type { CreateProductVariantDto } from './dto/create-product-variant.dto.js';
 import type { ListAdminProductsQuery } from './dto/list-admin-products.query.js';
 import {
@@ -35,7 +48,7 @@ import {
   type UpdateProductImagesDto,
 } from './dto/update-product-images.dto.js';
 import type { UpdateProductVariantDto } from './dto/update-product-variant.dto.js';
-import { adminContentChange } from './product-content.js';
+import { adminContentChange, CONTENT_FIELDS } from './product-content.js';
 import { lockProductStatus, productStatusChange } from './product-status.js';
 
 const colorSelect = { code: true, name: true, hex: true } as const;
@@ -59,6 +72,8 @@ const detailSelect = {
   adminContentFields: true,
   imagesVersion: true,
   imagesManagedByAdmin: true,
+  isCustom: true,
+  createPayloadHash: true,
   description: true,
   material: true,
   careInstructions: true,
@@ -182,6 +197,369 @@ export class AdminProductsService {
       }),
     ]);
     return { colors, sizes };
+  }
+
+  async getCreateOptions(): Promise<AdminCreateOptionsResponse> {
+    const [brands, colors, sizes] = await Promise.all([
+      this.prisma.brand.findMany({
+        orderBy: [{ name: 'asc' }, { id: 'asc' }],
+        select: { id: true, name: true, slug: true },
+      }),
+      this.prisma.color.findMany({
+        orderBy: { code: 'asc' },
+        select: { id: true, code: true, name: true, hex: true },
+      }),
+      this.prisma.size.findMany({
+        orderBy: { sortOrder: 'asc' },
+        select: { id: true, code: true, sortOrder: true },
+      }),
+    ]);
+    return { brands, colors, sizes };
+  }
+
+  async createProduct(actorId: string, input: CreateProductDto): Promise<AdminProductDetail> {
+    const normalizedName = input.name.trim();
+    const normalizedSlug = input.slug ?? slugifyCategoryName(normalizedName);
+    if (
+      normalizedSlug.length < 2 ||
+      normalizedSlug.length > 120 ||
+      !CATEGORY_SLUG_REGEX.test(normalizedSlug)
+    ) {
+      throw new BadRequestException(
+        'Không thể sinh slug hợp lệ từ tên sản phẩm; vui lòng nhập slug rõ ràng.',
+      );
+    }
+
+    const normalizedBrandId = input.brandId ?? null;
+    const normalizedDescription = input.description ?? null;
+    const normalizedMaterial = input.material ?? null;
+    const normalizedCare = input.careInstructions ?? null;
+    const normalizedAudience = input.audience ?? null;
+    const normalizedFeatured = input.isFeatured ?? false;
+
+    if (!Array.isArray(input.variants) || input.variants.length === 0) {
+      throw new BadRequestException('Sản phẩm phải có ít nhất một biến thể');
+    }
+
+    const seenVariantIds = new Set<string>();
+    const seenSkus = new Set<string>();
+    const seenCombos = new Set<string>();
+    const normalizedVariants = input.variants.map((v) => {
+      if (seenVariantIds.has(v.id)) {
+        throw new BadRequestException('Danh sách biến thể chứa id trùng lặp');
+      }
+      seenVariantIds.add(v.id);
+      if (seenSkus.has(v.sku)) {
+        throw new BadRequestException(`Mã SKU "${v.sku}" bị lặp trong cùng yêu cầu`);
+      }
+      seenSkus.add(v.sku);
+      const comboKey = `${v.colorId}:${v.sizeId}`;
+      if (seenCombos.has(comboKey)) {
+        throw new BadRequestException('Danh sách biến thể chứa cặp màu và cỡ trùng lặp');
+      }
+      seenCombos.add(comboKey);
+
+      const listPrice = parseMoney(v.listPrice, 'listPrice');
+      let salePrice: Prisma.Decimal | null = null;
+      if (v.salePrice !== undefined && v.salePrice !== null) {
+        salePrice = parseMoney(v.salePrice, 'salePrice');
+        if (salePrice.equals(listPrice)) {
+          salePrice = null;
+        } else if (salePrice.gt(listPrice)) {
+          throw new BadRequestException('salePrice phải nhỏ hơn listPrice');
+        }
+      }
+      return {
+        id: v.id,
+        colorId: v.colorId,
+        sizeId: v.sizeId,
+        sku: v.sku,
+        listPrice,
+        salePrice,
+        isActive: v.isActive ?? true,
+      };
+    });
+
+    const rawImages = input.images ?? [];
+    if (rawImages.length > MAX_PRODUCT_IMAGES) {
+      throw new UnprocessableEntityException({
+        error: 'IMAGE_LIMIT_EXCEEDED',
+        message: `Chỉ được đính kèm tối đa ${MAX_PRODUCT_IMAGES} ảnh khi tạo sản phẩm`,
+      });
+    }
+    const seenImageIds = new Set<string>();
+    const seenImageKeys = new Set<string>();
+    const normalizedImages = rawImages.map((img) => {
+      if (seenImageIds.has(img.id)) {
+        throw new BadRequestException('Danh sách ảnh chứa id trùng lặp');
+      }
+      seenImageIds.add(img.id);
+      if (seenImageKeys.has(img.key)) {
+        throw new BadRequestException('Danh sách ảnh chứa khóa tải lên trùng lặp');
+      }
+      seenImageKeys.add(img.key);
+      return {
+        id: img.id,
+        key: img.key,
+        alt: img.alt ?? null,
+      };
+    });
+
+    const requestHash = createHash('sha256')
+      .update(
+        JSON.stringify({
+          id: input.id,
+          name: normalizedName,
+          slug: normalizedSlug,
+          categoryId: input.categoryId,
+          brandId: normalizedBrandId,
+          description: normalizedDescription,
+          material: normalizedMaterial,
+          careInstructions: normalizedCare,
+          audience: normalizedAudience,
+          isFeatured: normalizedFeatured,
+          variants: normalizedVariants.map((v) => ({
+            id: v.id,
+            colorId: v.colorId,
+            sizeId: v.sizeId,
+            sku: v.sku,
+            listPrice: v.listPrice.toString(),
+            salePrice: v.salePrice?.toString() ?? null,
+            isActive: v.isActive,
+          })),
+          images: normalizedImages,
+        }),
+      )
+      .digest('hex');
+
+    // Đối chiếu UUID với dấu vết bất biến TRƯỚC khi gọi UploadsService.resolveMedia
+    const prior = await this.prisma.product.findUnique({
+      where: { id: input.id },
+      select: { id: true, createPayloadHash: true },
+    });
+    if (prior) {
+      if (prior.createPayloadHash === requestHash) {
+        return this.findById(input.id);
+      }
+      throw new ConflictException({
+        error: 'IDEMPOTENCY_PAYLOAD_MISMATCH',
+        message: 'ID sản phẩm đã tồn tại với thông tin tạo ban đầu khác.',
+      });
+    }
+
+    const imageKeys = normalizedImages.map((img) => img.key);
+    let resolvedMedia: ResolvedMedia[] = [];
+    if (imageKeys.length > 0) {
+      if (!this.uploads) {
+        throw new ServiceUnavailableException('Dịch vụ lưu trữ ảnh chưa được cấu hình');
+      }
+      resolvedMedia = await this.uploads.resolveMedia(actorId, 'product', imageKeys);
+    }
+
+    try {
+      return await this.prisma.$transaction(
+        async (tx) => {
+          await tx.$executeRaw`
+            SELECT pg_advisory_xact_lock(hashtextextended(${`product-create:${input.id}`}, 0))
+          `;
+
+          const existingInTx = await tx.product.findUnique({
+            where: { id: input.id },
+            select: { id: true, createPayloadHash: true },
+          });
+          if (existingInTx) {
+            if (existingInTx.createPayloadHash === requestHash) {
+              return this.findDetailInTx(tx, input.id);
+            }
+            throw new ConflictException({
+              error: 'IDEMPOTENCY_PAYLOAD_MISMATCH',
+              message: 'ID sản phẩm đã tồn tại với thông tin tạo ban đầu khác.',
+            });
+          }
+
+          const category = await lockCategory(tx, input.categoryId);
+          if (!category) {
+            throw new NotFoundException('Không tìm thấy danh mục');
+          }
+          const childCount = await tx.category.count({ where: { parentId: input.categoryId } });
+          if (childCount > 0) {
+            throw new UnprocessableEntityException({
+              error: 'CATEGORY_NOT_LEAF',
+              message: 'Chỉ được gắn sản phẩm vào danh mục lá (danh mục không có danh mục con).',
+            });
+          }
+
+          if (normalizedBrandId) {
+            const brand = await tx.brand.findUnique({
+              where: { id: normalizedBrandId },
+              select: { id: true },
+            });
+            if (!brand) throw new NotFoundException('Không tìm thấy thương hiệu');
+          }
+
+          const uniqueColorIds = [...new Set(normalizedVariants.map((v) => v.colorId))];
+          const uniqueSizeIds = [...new Set(normalizedVariants.map((v) => v.sizeId))];
+          const [colors, sizes] = await Promise.all([
+            tx.color.findMany({ where: { id: { in: uniqueColorIds } }, select: { id: true } }),
+            tx.size.findMany({ where: { id: { in: uniqueSizeIds } }, select: { id: true } }),
+          ]);
+          if (colors.length !== uniqueColorIds.length) {
+            throw new NotFoundException('Không tìm thấy màu sắc');
+          }
+          if (sizes.length !== uniqueSizeIds.length) {
+            throw new NotFoundException('Không tìm thấy kích cỡ');
+          }
+
+          const [slugConflict, skuConflict, variantIdConflict, imageIdConflict] = await Promise.all(
+            [
+              tx.product.findUnique({ where: { slug: normalizedSlug }, select: { id: true } }),
+              tx.productVariant.findFirst({
+                where: { sku: { in: [...seenSkus] } },
+                select: { id: true, sku: true },
+              }),
+              tx.productVariant.findFirst({
+                where: { id: { in: [...seenVariantIds] } },
+                select: { id: true },
+              }),
+              seenImageIds.size > 0
+                ? tx.productImage.findFirst({
+                    where: { id: { in: [...seenImageIds] } },
+                    select: { id: true },
+                  })
+                : Promise.resolve(null),
+            ],
+          );
+          if (slugConflict) {
+            throw new ConflictException({
+              error: 'SLUG_EXISTS',
+              message: 'Slug sản phẩm đã tồn tại trên hệ thống.',
+            });
+          }
+          if (skuConflict) {
+            throw new ConflictException({
+              error: 'SKU_EXISTS',
+              message: `Mã SKU "${skuConflict.sku}" đã tồn tại trên hệ thống.`,
+            });
+          }
+          if (variantIdConflict) {
+            throw new ConflictException({
+              error: 'VARIANT_ID_EXISTS',
+              message: 'ID biến thể đã tồn tại trên hệ thống.',
+            });
+          }
+          if (imageIdConflict) {
+            throw new ConflictException({
+              error: 'IMAGE_ID_EXISTS',
+              message: 'ID ảnh đã tồn tại trên hệ thống.',
+            });
+          }
+
+          const activeVariants = normalizedVariants.filter((v) => v.isActive);
+          const priceSource = activeVariants.length > 0 ? activeVariants : normalizedVariants;
+          const priceFrom = Prisma.Decimal.min(
+            ...priceSource.map((v) => v.salePrice ?? v.listPrice),
+          );
+
+          await tx.product.create({
+            data: {
+              id: input.id,
+              categoryId: input.categoryId,
+              brandId: normalizedBrandId,
+              name: normalizedName,
+              slug: normalizedSlug,
+              description: normalizedDescription,
+              material: normalizedMaterial,
+              careInstructions: normalizedCare,
+              audience: normalizedAudience,
+              isFeatured: normalizedFeatured,
+              priceFrom,
+              isActive: false,
+              adminDisabled: true,
+              statusVersion: 0,
+              contentVersion: 0,
+              adminContentFields: [...CONTENT_FIELDS],
+              imagesVersion: resolvedMedia.length > 0 ? 1 : 0,
+              imagesManagedByAdmin: resolvedMedia.length > 0,
+              isCustom: true,
+              createPayloadHash: requestHash,
+            },
+          });
+
+          await tx.productVariant.createMany({
+            data: normalizedVariants.map((v) => ({
+              id: v.id,
+              productId: input.id,
+              colorId: v.colorId,
+              sizeId: v.sizeId,
+              sku: v.sku,
+              listPrice: v.listPrice,
+              salePrice: v.salePrice,
+              isActive: v.isActive,
+              isCustom: true,
+              adminManagedFields: ['listPrice', 'salePrice', 'isActive'],
+            })),
+          });
+
+          if (resolvedMedia.length > 0) {
+            await this.uploads!.attach(actorId, imageKeys, tx, { purpose: 'product' });
+            await tx.productImage.createMany({
+              data: normalizedImages.map((img, sortOrder) => ({
+                id: img.id,
+                productId: input.id,
+                colorId: null,
+                url: resolvedMedia[sortOrder]!.url,
+                alt: img.alt,
+                sortOrder,
+              })),
+            });
+          }
+
+          return this.findDetailInTx(tx, input.id);
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
+      );
+    } catch (error) {
+      if (isUniqueViolationError(error)) {
+        const existingById = await this.prisma.product.findUnique({
+          where: { id: input.id },
+          select: { id: true, createPayloadHash: true },
+        });
+        if (existingById) {
+          if (existingById.createPayloadHash === requestHash) {
+            return this.findById(input.id);
+          }
+          throw new ConflictException({
+            error: 'IDEMPOTENCY_PAYLOAD_MISMATCH',
+            message: 'ID sản phẩm đã tồn tại với thông tin tạo ban đầu khác.',
+          });
+        }
+        const slugConflict = await this.prisma.product.findUnique({
+          where: { slug: normalizedSlug },
+          select: { id: true },
+        });
+        if (slugConflict) {
+          throw new ConflictException({
+            error: 'SLUG_EXISTS',
+            message: 'Slug sản phẩm đã tồn tại trên hệ thống.',
+          });
+        }
+        const skuConflict = await this.prisma.productVariant.findFirst({
+          where: { sku: { in: [...seenSkus] } },
+          select: { sku: true },
+        });
+        if (skuConflict) {
+          throw new ConflictException({
+            error: 'SKU_EXISTS',
+            message: `Mã SKU "${skuConflict.sku}" đã tồn tại trên hệ thống.`,
+          });
+        }
+        throw new ConflictException({
+          error: 'CONFLICT',
+          message: 'Thông tin sản phẩm hoặc biến thể bị trùng lặp.',
+        });
+      }
+      throw error;
+    }
   }
 
   async createVariant(
@@ -506,9 +884,44 @@ export class AdminProductsService {
   }
 
   async changeStatus(id: string, input: ChangeProductStatusDto): Promise<AdminProductStatus> {
-    return this.prisma.$transaction(async (tx) => {
+    return runCategoryTxWithRetry(this.prisma, async (tx) => {
+      let lockedCategories: Awaited<ReturnType<typeof lockCategoriesOrdered>> = [];
+      let expectedCategoryId: string | null = null;
+      if (!input.adminDisabled && typeof tx.product?.findUnique === 'function') {
+        const hint = await tx.product.findUnique({
+          where: { id },
+          select: {
+            isCustom: true,
+            categoryId: true,
+            category: { select: { parentId: true } },
+          },
+        });
+        if (hint?.isCustom) {
+          expectedCategoryId = hint.categoryId;
+          lockedCategories = await lockCategoriesOrdered(tx, [
+            hint.categoryId,
+            hint.category?.parentId,
+          ]);
+        }
+      }
+
       const before = await lockProductStatus(tx, id);
       if (!before) throw new NotFoundException('Không tìm thấy sản phẩm');
+
+      if (!input.adminDisabled && before.isCustom) {
+        if (expectedCategoryId !== before.categoryId) {
+          throw new CategoryLockSetChangedError();
+        }
+        const lockedMap = new Map(lockedCategories.map((c) => [c.id, c]));
+        const leaf = lockedMap.get(before.categoryId);
+        if (!leaf) {
+          throw new CategoryLockSetChangedError();
+        }
+        if (leaf.parentId && !lockedMap.has(leaf.parentId)) {
+          throw new CategoryLockSetChangedError();
+        }
+      }
+
       if (before.statusVersion !== input.expectedVersion)
         throw new ConflictException('Trạng thái đã thay đổi. Tải lại và xác nhận lại.');
 
@@ -523,7 +936,29 @@ export class AdminProductsService {
         });
       }
 
-      const hasImages = (await tx.productImage.count({ where: { productId: id } })) > 0;
+      const imageCount = await tx.productImage.count({ where: { productId: id } });
+      const hasImages = imageCount > 0;
+
+      if (!input.adminDisabled && before.isCustom) {
+        if (!hasImages) {
+          throw new UnprocessableEntityException({
+            error: 'NO_IMAGES_FOR_ACTIVE_PRODUCT',
+            message:
+              'Không thể công bố sản phẩm tạo tay khi chưa có ảnh. Vui lòng tải lên ít nhất một ảnh trước.',
+          });
+        }
+        const lockedMap = new Map(lockedCategories.map((c) => [c.id, c]));
+        const leaf = lockedMap.get(before.categoryId);
+        const parent = leaf?.parentId ? lockedMap.get(leaf.parentId) : undefined;
+        if (!leaf?.isActive || (parent && !parent.isActive)) {
+          const hiddenName = !leaf?.isActive ? (leaf?.name ?? 'danh mục') : parent!.name;
+          throw new UnprocessableEntityException({
+            error: 'CATEGORY_HIDDEN_FOR_ACTIVE_PRODUCT',
+            message: `Không thể công bố sản phẩm vì danh mục "${hiddenName}" đang bị ẩn ngoài cửa hàng.`,
+          });
+        }
+      }
+
       const data = productStatusChange(
         before,
         input.adminDisabled,
@@ -827,15 +1262,17 @@ export class AdminProductsService {
     return toPage(rows.map(toSummary), total, query);
   }
 
-  async findById(id: string): Promise<AdminProductDetail> {
-    const row = await this.prisma.product.findUnique({ where: { id }, select: detailSelect });
-    if (!row) throw new NotFoundException('Không tìm thấy sản phẩm');
+  private toDetail(
+    row: Prisma.ProductGetPayload<{ select: typeof detailSelect }>,
+  ): AdminProductDetail {
     return {
       ...toSummary(row),
       contentVersion: row.contentVersion,
       adminContentFields: row.adminContentFields,
       imagesVersion: row.imagesVersion ?? 0,
       imagesManagedByAdmin: row.imagesManagedByAdmin ?? false,
+      isCustom: row.isCustom ?? false,
+      createPayloadHash: row.createPayloadHash ?? null,
       description: row.description,
       material: row.material,
       careInstructions: row.careInstructions,
@@ -862,5 +1299,19 @@ export class AdminProductsService {
       })),
       images: row.images,
     };
+  }
+
+  private async findDetailInTx(
+    tx: Prisma.TransactionClient,
+    id: string,
+  ): Promise<AdminProductDetail> {
+    const row = await tx.product.findUniqueOrThrow({ where: { id }, select: detailSelect });
+    return this.toDetail(row);
+  }
+
+  async findById(id: string): Promise<AdminProductDetail> {
+    const row = await this.prisma.product.findUnique({ where: { id }, select: detailSelect });
+    if (!row) throw new NotFoundException('Không tìm thấy sản phẩm');
+    return this.toDetail(row);
   }
 }

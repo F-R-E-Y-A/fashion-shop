@@ -6,6 +6,8 @@ export async function lockProductStatus(tx: Prisma.TransactionClient, id: string
   const rows = await tx.$queryRaw<
     (ProtectedContent & {
       id: string;
+      categoryId: string;
+      isCustom: boolean;
       isActive: boolean;
       adminDisabled: boolean;
       statusVersion: number;
@@ -14,7 +16,8 @@ export async function lockProductStatus(tx: Prisma.TransactionClient, id: string
       imagesManagedByAdmin: boolean;
     })[]
   >`
-    SELECT id, is_active AS "isActive", admin_disabled AS "adminDisabled",
+    SELECT id, category_id AS "categoryId", is_custom AS "isCustom",
+      is_active AS "isActive", admin_disabled AS "adminDisabled",
       status_version AS "statusVersion", name, description, material, care_instructions AS "careInstructions",
       content_version AS "contentVersion", admin_content_fields AS "adminContentFields",
       images_version AS "imagesVersion", images_managed_by_admin AS "imagesManagedByAdmin"

@@ -82,6 +82,8 @@ model Product {
   adminContentFields String[] @default([]) @map("admin_content_fields")
   imagesVersion    Int      @default(0) @map("images_version")
   imagesManagedByAdmin Boolean @default(false) @map("images_managed_by_admin")
+  isCustom         Boolean  @default(false) @map("is_custom")
+  createPayloadHash String? @map("create_payload_hash") @db.Char(64)
   isFeatured       Boolean  @default(false) @map("is_featured")
   // Diem trung binh va so danh gia DA DUYET, ghi san cho the san pham va sap xep. Chi
   // ProductsService.updateRatingSummary ghi, trong giao dich doi trang thai danh gia (ADR-054).

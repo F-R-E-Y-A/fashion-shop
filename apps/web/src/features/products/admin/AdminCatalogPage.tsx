@@ -62,7 +62,12 @@ function CatalogList() {
         <p className={styles.eyebrow}>Danh mục hàng hóa</p>
         <div className={styles.headingRow}>
           <h1 className={styles.title}>Sản phẩm</h1>
-          {data && <p className={styles.count}>{data.total} sản phẩm</p>}
+          <div className={styles.headerActions}>
+            {data && <p className={styles.count}>{data.total} sản phẩm</p>}
+            <Link className={styles.primaryLink} to="/admin/products/new">
+              + Tạo sản phẩm
+            </Link>
+          </div>
         </div>
         <p className={styles.intro}>
           Tra cứu thông tin, biến thể và hình ảnh, bao gồm sản phẩm đã ngừng bán.
