@@ -13,6 +13,13 @@ export function useInventory<T>(key: readonly unknown[], path: string) {
     queryKey: key,
     queryFn: ({ signal }) => guardQuery(() => authenticatedRequest<T>(path, { signal })),
     enabled: Boolean(user) && !forbidden,
+    placeholderData: (previous, previousQuery) =>
+      previousQuery &&
+      previousQuery.queryKey[3] === (user?.id ?? '') &&
+      previousQuery.queryKey[4] === key[4] &&
+      (key[4] !== 'detail' || previousQuery.queryKey[5] === key[5])
+        ? previous
+        : undefined,
     retry: shouldRetryAdminQuery,
     refetchInterval: (state) => (state.state.error ? false : 30000),
   });

@@ -110,7 +110,7 @@ export function ProductDetailPage() {
     else next.delete('color');
     if (!hideSize && nextSize) next.set('size', nextSize);
     else next.delete('size');
-    setSearchParams(next, { replace: true });
+    setSearchParams(next, { replace: true, state: { keepScroll: true } });
   };
   return (
     <div className={styles.container}>
@@ -222,7 +222,9 @@ export function ProductDetailPage() {
             {formatPrice(variant?.price ?? data.price)}
             {displayedListPrice && <s>{formatPrice(displayedListPrice)}</s>}
           </p>
-          {variant && <p className={styles.sku}>Mã hàng: {variant.sku}</p>}
+          <p className={styles.sku}>
+            {variant ? `Mã hàng: ${variant.sku}` : 'Chọn màu và cỡ để xem mã hàng'}
+          </p>
           {!hideColor && (
             <fieldset className={styles.choices}>
               <legend>Màu</legend>
@@ -278,20 +280,29 @@ export function ProductDetailPage() {
               ))}
             </fieldset>
           )}
-          {variant &&
-            variant.availableQuantity !== null &&
-            variant.availableQuantity !== undefined && (
-              <p role="status">
-                {variant.availableQuantity === 0
-                  ? 'Hết hàng'
-                  : `Còn ${variant.availableQuantity} sản phẩm`}
-              </p>
-            )}
+          <div className={styles.stockSlot}>
+            {variant &&
+              variant.availableQuantity !== null &&
+              variant.availableQuantity !== undefined && (
+                <p role="status">
+                  {variant.availableQuantity === 0
+                    ? 'Hết hàng'
+                    : `Còn ${variant.availableQuantity} sản phẩm`}
+                </p>
+              )}
+          </div>
           <AddToCartButton
             className={styles.cart}
             variantId={variant?.id}
             availableQuantity={variant?.availableQuantity}
           />
+          <details className={styles.policyDetails}>
+            <summary>Hướng dẫn chọn cỡ &amp; chính sách đổi trả 15 ngày</summary>
+            <p>
+              Miễn phí vận chuyển cho đơn từ 500.000 ₫. Hỗ trợ đổi/trả hàng trong vòng 15 ngày kể từ
+              khi nhận nếu sản phẩm còn nguyên tem mác.
+            </p>
+          </details>
           {data.description && <p className={styles.description}>{data.description}</p>}
           {data.material && <p>Chất liệu: {data.material}</p>}
           {data.careInstructions && <p>Bảo quản: {data.careInstructions}</p>}

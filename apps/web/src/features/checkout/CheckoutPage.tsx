@@ -342,7 +342,39 @@ export function CheckoutPage() {
               </p>
             </section>
           )}
+          {!quote && !selectionMissing && !preview.isError && addresses.data?.length === 0 && (
+            <section className={styles.section}>
+              <h2 className={styles.sectionTitle}>Phương thức thanh toán</h2>
+              <p className={styles.muted}>
+                Hỗ trợ thanh toán khi nhận hàng (COD) và thanh toán trực tuyến qua VNPAY. Lưu địa
+                chỉ giao hàng để xem lựa chọn khả dụng và tính phí vận chuyển.
+              </p>
+            </section>
+          )}
         </div>
+
+        {!quote && !selectionMissing && !preview.isError && addresses.data?.length === 0 && (
+          <aside className={styles.summary} aria-label="Tóm tắt đơn hàng">
+            <h2 className={styles.summaryTitle}>Tóm tắt đơn hàng</h2>
+            <p className={styles.row}>
+              <span>Phí vận chuyển</span>
+              <span>Tính sau khi thêm địa chỉ</span>
+            </p>
+            <p className={styles.summaryNote}>
+              Phí giao hàng nội địa 30.000đ; miễn phí từ 500.000đ tiền hàng sau giảm giá.
+            </p>
+            <p className={styles.total}>
+              <span>Tổng thanh toán</span>
+              <strong>Chờ địa chỉ</strong>
+            </p>
+            <button type="button" className={styles.cta} disabled>
+              Thêm địa chỉ để đặt hàng
+            </button>
+            <div className={styles.linkRow}>
+              <Link to="/tai-khoan/don-hang">Xem đơn hàng của tôi</Link>
+            </div>
+          </aside>
+        )}
 
         {quote && (
           <aside className={styles.summary} aria-label="Tóm tắt đơn hàng">

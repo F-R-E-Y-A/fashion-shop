@@ -52,13 +52,13 @@
 }
 .title span {
   display: block;
-  animation: rise 0.9s var(--ease) both;
+  animation: rise 0.45s var(--ease) both;
 }
 .title span + span {
-  animation-delay: 0.12s;
+  animation-delay: 0.06s;
 }
 .title em {
-  color: var(--amber-glow);
+  color: #ecc398;
   font-style: italic;
   font-weight: 400;
 }
@@ -164,9 +164,9 @@
     background: linear-gradient(
       0deg,
       rgb(20 13 8 / 0.95) 0%,
-      rgb(20 13 8 / 0.84) 46%,
-      rgb(20 13 8 / 0.3) 74%,
-      rgb(20 13 8 / 0.12) 100%
+      rgb(20 13 8 / 0.88) 54%,
+      rgb(20 13 8 / 0.36) 78%,
+      rgb(20 13 8 / 0.14) 100%
     );
   }
   .sub {

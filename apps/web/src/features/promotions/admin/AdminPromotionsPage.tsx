@@ -246,7 +246,7 @@ export function AdminPromotionsPage() {
                     <span
                       className={`${styles.badge} ${item.status === 'ACTIVE' ? styles.badgeActive : styles.badgeInactive}`}
                     >
-                      {item.status === 'ACTIVE' ? 'Đang bật' : 'Ngưng'}
+                      {item.status === 'ACTIVE' ? 'Đang hoạt động' : 'Ngưng hoạt động'}
                     </span>
                   </div>
 
@@ -254,7 +254,7 @@ export function AdminPromotionsPage() {
                     <span className={styles.cardLabel}>Mức giảm:</span>
                     <span className={styles.cardValue}>
                       {item.discountType === 'PERCENTAGE'
-                        ? `${Number(item.discountValue)}%`
+                        ? `${Number(item.discountValue)}%${item.maxDiscountAmount ? ` (Tối đa ${formatCurrencyVnd(item.maxDiscountAmount)})` : ''}`
                         : formatCurrencyVnd(item.discountValue)}
                     </span>
                   </div>

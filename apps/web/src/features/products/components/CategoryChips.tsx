@@ -11,6 +11,7 @@ export function CategoryChips({ root, activeSlug }: { root: CategoryDetail; acti
         <Link
           key={chip.slug}
           to={`/danh-muc/${chip.slug}`}
+          state={{ keepScroll: true }}
           aria-current={chip.slug === activeSlug ? 'page' : undefined}
         >
           {chip.name}

@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { Empty, ErrorNote, layout, Pager, SkeletonGrid } from '@/ui';
@@ -20,6 +20,7 @@ export function ProductListPage() {
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: productKeys.list(params),
     queryFn: () => listProducts(params),
+    placeholderData: keepPreviousData,
   });
 
   return (

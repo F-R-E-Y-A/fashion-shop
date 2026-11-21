@@ -70,7 +70,7 @@ export function SearchOverlay({ onClose }: { onClose: () => void }) {
     const { action } = option;
     if (action.type === 'query') {
       rememberSearch(action.value);
-      void navigate(searchUrl(action.value));
+      void navigate(searchUrl(action.value), { state: { scrollToTop: true } });
     } else if (action.type === 'category') {
       void navigate(`/danh-muc/${action.slug}`);
     } else {

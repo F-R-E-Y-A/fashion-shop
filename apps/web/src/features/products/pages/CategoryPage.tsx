@@ -48,6 +48,7 @@ export function CategoryPage() {
     queryKey: categoryKeys.detail(slug),
     queryFn: () => getCategory(slug),
     enabled: Boolean(slug),
+    placeholderData: keepPreviousData,
   });
   const rootSlug = category.data?.breadcrumb[0]?.slug ?? '';
   const root = useQuery({
@@ -125,7 +126,7 @@ export function CategoryPage() {
       <title>{pageTitle(category.data.name)}</title>
       <Breadcrumb items={breadcrumb} />
       <h1>{category.data.name.toUpperCase()}</h1>
-      {data && <p>{data.total} sản phẩm</p>}
+      <p>{data ? `${data.total} sản phẩm` : '\u00A0'}</p>
       {rootCategory && <CategoryChips root={rootCategory} activeSlug={slug} />}
       <FilteredResults
         panel={
