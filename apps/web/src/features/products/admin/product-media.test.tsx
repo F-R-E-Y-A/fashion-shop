@@ -880,4 +880,160 @@ describe('UC-04.2 Quản trị Ảnh Sản Phẩm (Đợt 3 Frontend, AC50 - AC5
       screen.queryByRole('button', { name: 'Dùng mô tả máy chủ cho ảnh vị trí 1' }),
     ).toBeNull();
   });
+
+  it('UC-04.2/AC50 kéo-thả trực tiếp ô ảnh trên thanh sắp xếp nhanh lên vị trí #1 và kéo-thả tệp để tải lên', async () => {
+    const api = backend();
+    api.state.products = [structuredClone(productWithImages)];
+    mountCatalog(detailPath);
+
+    await screen.findByRole('heading', { name: 'Hình ảnh (3)' });
+
+    const tile3 = screen.getByRole('button', { name: 'Chọn ảnh vị trí 3' });
+    const tile1 = screen.getByRole('button', { name: 'Chọn ảnh vị trí 1 (Ảnh đại diện)' });
+
+    const transferData: Record<string, string> = {};
+    const dt = {
+      effectAllowed: 'move',
+      dropEffect: 'move',
+      types: ['text/plain'],
+      files: [] as unknown as FileList,
+      setData: (k: string, v: string) => {
+        transferData[k] = v;
+      },
+      getData: (k: string) => transferData[k] ?? '',
+    };
+
+    fireEvent.dragStart(tile3, { dataTransfer: dt });
+    fireEvent.dragOver(tile1, { dataTransfer: dt });
+    fireEvent.drop(tile1, { dataTransfer: dt });
+    fireEvent.dragEnd(tile3, { dataTransfer: dt });
+
+    // Ảnh #3 đã lên đầu làm ảnh đại diện (#1)
+    expect(screen.getAllByRole('img')[0]).toHaveAttribute('src', 'https://cdn.test/img-3.jpg');
+
+    // Kéo-thả tệp PNG mới vào nút "+ Thêm" trên thanh sắp xếp nhanh
+    const addTile = screen.getByRole('button', { name: '+ Thêm' });
+    const droppedFile = new File(['photo'], 'drag-upload.png', { type: 'image/png' });
+    const fileDt = {
+      types: ['Files'],
+      files: [droppedFile] as unknown as FileList,
+      setData: () => {},
+      getData: () => '',
+    };
+    await act(async () => {
+      fireEvent.dragOver(addTile, { dataTransfer: fileDt });
+      fireEvent.drop(addTile, { dataTransfer: fileDt });
+    });
+
+    expect(await screen.findByRole('heading', { name: 'Hình ảnh (4)' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Lưu bộ ảnh' }));
+    await screen.findByText(/Đã lưu bộ ảnh sản phẩm/);
+
+    const putReqs = api.requests.filter((r) => r.method === 'PUT' && r.path === imagesApiPath);
+    const body = putReqs[0]?.body as { items: { id: string; key?: string }[] };
+    expect(body.items).toHaveLength(4);
+    expect(body.items[0]?.id).toBe(productWithImages.images[2]!.id);
+    expect(body.items[3]?.key).toMatch(/^freya\/products\//);
+  });
+
+  it('UC-04.2/AC50 (hồi quy P1) thả tệp trực tiếp vào .mediaQuickTile chỉ upload đúng 1 lần và không vượt quá giới hạn 8 ảnh', async () => {
+    // Khởi tạo sản phẩm có 7 ảnh; nếu bubble hoặc gọi trùng uploadFiles sẽ đẩy thành 9 ảnh
+    const sevenImagesProduct = structuredClone(productWithImages);
+    sevenImagesProduct.images = Array.from({ length: 7 }, (_, idx) => ({
+      id: `10000000-0000-4000-8000-00000000010${idx + 1}`,
+      url: `https://cdn.test/img-${idx + 1}.jpg`,
+      alt: `Ảnh ${idx + 1}`,
+      sortOrder: idx,
+      color: null,
+    }));
+
+    const api = backend();
+    api.state.products = [sevenImagesProduct];
+    mountCatalog(detailPath);
+
+    await screen.findByRole('heading', { name: 'Hình ảnh (7)' });
+
+    const tile1 = screen.getByRole('button', { name: 'Chọn ảnh vị trí 1 (Ảnh đại diện)' });
+    const addTile = screen.getByRole('button', { name: '+ Thêm' });
+    const droppedFile = new File(['photo'], 'tile-drop.png', { type: 'image/png' });
+    const fileDt = {
+      types: ['Files'],
+      files: [droppedFile] as unknown as FileList,
+      setData: () => {},
+      getData: () => '',
+    };
+
+    await act(async () => {
+      fireEvent.drop(tile1, { dataTransfer: fileDt });
+      fireEvent.drop(addTile, { dataTransfer: fileDt });
+    });
+
+    expect(await screen.findByRole('heading', { name: 'Hình ảnh (8)' })).toBeInTheDocument();
+    const ticketReqs = api.requests.filter(
+      (r) => r.method === 'POST' && r.path === '/api/admin/products/upload-tickets',
+    );
+    expect(ticketReqs).toHaveLength(1);
+  });
+
+  it('UC-04.2/AC50 (hồi quy P2) kéo tệp qua thẻ ảnh hoặc vùng trống rồi rời ra ngoài sẽ tắt trạng thái data-drop-active', async () => {
+    // Trường hợp 1: Kéo tệp qua .mediaCard rồi kéo ra ngoài
+    const inactiveProduct = structuredClone(productWithImages);
+    inactiveProduct.isActive = false;
+    const api = backend();
+    api.state.products = [inactiveProduct];
+    const view = mountCatalog(detailPath);
+
+    await screen.findByRole('heading', { name: 'Hình ảnh (3)' });
+
+    const quickBar = document.querySelector('[class*="mediaQuickBar"]') as HTMLElement;
+    const firstCard = document.getElementById(
+      `media-card-${inactiveProduct.images[0]!.id}`,
+    ) as HTMLElement;
+    const firstCardImg = firstCard.querySelector('img') as HTMLImageElement;
+    const fileDt = {
+      types: ['Files'],
+      files: [] as unknown as FileList,
+      setData: () => {},
+      getData: () => '',
+    };
+
+    fireEvent.dragOver(firstCard, { dataTransfer: fileDt });
+    expect(quickBar).toHaveAttribute('data-drop-active', 'true');
+
+    // Đi qua phần tử con bên trong thẻ vẫn giữ active (JSDOM không có DragEvent nên dùng MouseEvent để truyền relatedTarget)
+    const leaveInsideCard = new MouseEvent('dragleave', {
+      bubbles: true,
+      relatedTarget: firstCardImg,
+    });
+    fireEvent(firstCard, leaveInsideCard);
+    expect(quickBar).toHaveAttribute('data-drop-active', 'true');
+
+    // Rời khỏi thẻ / ra ngoài vùng lưới -> tắt active
+    fireEvent(firstCard, new MouseEvent('dragleave', { bubbles: true, relatedTarget: null }));
+    expect(quickBar).not.toHaveAttribute('data-drop-active');
+
+    // Trường hợp 2: Vùng trống .mediaDropEmpty di chuyển qua phần tử con vẫn giữ active, rời ra ngoài mới tắt
+    fireEvent.click(screen.getByRole('button', { name: 'Gỡ ảnh vị trí 3' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Gỡ ảnh vị trí 2' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Gỡ ảnh vị trí 1' }));
+
+    const dropEmpty = document.querySelector('[class*="mediaDropEmpty"]') as HTMLElement;
+    const emptyPickButton = screen.getByRole('button', {
+      name: 'Kéo thả ảnh vào đây hoặc bấm để chọn tệp',
+    });
+
+    fireEvent.dragOver(dropEmpty, { dataTransfer: fileDt });
+    expect(dropEmpty).toHaveAttribute('data-drop-active', 'true');
+
+    fireEvent(
+      dropEmpty,
+      new MouseEvent('dragleave', { bubbles: true, relatedTarget: emptyPickButton }),
+    );
+    expect(dropEmpty).toHaveAttribute('data-drop-active', 'true');
+
+    fireEvent(dropEmpty, new MouseEvent('dragleave', { bubbles: true, relatedTarget: null }));
+    expect(dropEmpty).not.toHaveAttribute('data-drop-active');
+    view.unmount();
+  });
 });
