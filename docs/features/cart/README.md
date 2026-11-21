@@ -1,6 +1,6 @@
 ---
 title: Giỏ hàng — bản đồ PH-02
-updated: 2026-11-14
+updated: 2026-11-16
 status: đã tích hợp, tiếp tục nghiệm thu
 owner: Duy
 ---
@@ -73,4 +73,4 @@ Các trạng thái tính tại [cart.service.ts:126](../../../apps/api/src/modul
 
 SSE cập nhật revision; trình duyệt tải lại các query đang mở. API kiểm tra thay đổi theo nhịp cấu hình cố định trong mã, không bảo đảm snapshot giá/tồn bất biến tới lúc đặt hàng ([catalog-events.service.ts:29](../../../apps/api/src/modules/products/catalog-events.service.ts#L29), [StorefrontLiveUpdates.tsx:8](../../../apps/web/src/app/StorefrontLiveUpdates.tsx#L8)). Quyết định: [ADR-031](../../LOG.md#adr-031).
 
-Ô khuyến mãi để trống, disabled; chưa gọi module của Duy. Nút checkout mở khi có dòng được chọn và đủ điều kiện; route yêu cầu đăng nhập ([CartPage.tsx:197](../../../apps/web/src/features/cart/pages/CartPage.tsx#L197)). [Checkout](../checkout/README.md) tạo hold khi xác nhận sang payment. Thành công chỉ tiêu thụ lượng đã mua; hủy/hết hạn giữ giỏ. Các tình huống giá/tồn/selection/rollback và SSE ở [cart-live.http.spec.ts](../../../apps/api/test/cart-live.http.spec.ts), payment ở [checkout-payment.http.spec.ts](../../../apps/api/test/checkout-payment.http.spec.ts), dùng database riêng.
+Ngoài mô tả lịch sử PH-11 ở trên, đợt rà soát ngày 2026-11-16 đã tích hợp hoàn chỉnh ô khuyến mãi (`PromotionField`, `BestPromotionBanner`) kèm tự động kiểm tra/gỡ mã khi đổi chọn món trên `CartPage.tsx`, và bổ sung kiểm tra tồn kho khả dụng khi tăng số lượng qua `PATCH /api/cart/items/:variantId` (`CartService.updateItem`, vẫn cho phép giảm số lượng khi tồn tụt). Nút checkout mở khi có dòng được chọn và đủ điều kiện; route yêu cầu đăng nhập ([CartPage.tsx:197](../../../apps/web/src/features/cart/pages/CartPage.tsx#L197)). [Checkout](../checkout/README.md) tạo hold khi xác nhận sang payment. Thành công chỉ tiêu thụ lượng đã mua; hủy/hết hạn giữ giỏ. Các tình huống giá/tồn/selection/rollback và SSE ở [cart-live.http.spec.ts](../../../apps/api/test/cart-live.http.spec.ts), payment ở [checkout-payment.http.spec.ts](../../../apps/api/test/checkout-payment.http.spec.ts), dùng database riêng.

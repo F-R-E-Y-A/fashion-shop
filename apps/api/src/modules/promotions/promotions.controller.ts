@@ -1,4 +1,13 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Header,
+  HttpCode,
+  HttpStatus,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser, type CurrentUserType } from '../auth/index.js';
@@ -49,6 +58,7 @@ export class PromotionsController {
   }
 
   @Get('vouchers/available')
+  @Header('Cache-Control', 'no-store')
   @ApiOperation({
     summary: 'Danh sách các mã giảm giá đang hoạt động dành cho khách hàng',
     description: 'Trả về các mã voucher hợp lệ để người dùng có thể tham khảo và áp dụng nhanh.',
@@ -59,6 +69,7 @@ export class PromotionsController {
   }
 
   @Get('active')
+  @Header('Cache-Control', 'no-store')
   @ApiOperation({
     summary: 'Danh sách các chương trình khuyến mãi tự động đang hoạt động (UC-10.1)',
     description: 'Phục vụ hiển thị banner khuyến mãi, thông báo ưu đãi trên trang chủ và danh mục.',

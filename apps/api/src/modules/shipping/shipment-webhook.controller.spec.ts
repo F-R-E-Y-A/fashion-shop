@@ -99,4 +99,26 @@ describe('ShipmentWebhookController', () => {
     });
     expect(mockShippingService.handleWebhook).toHaveBeenCalledWith(payload);
   });
+
+  it('POST /shipping/webhook/ghn chấp nhận payload GHN qua x-carrier-token, header token hoặc query ?token=', async () => {
+    const mockShippingService = {
+      handleWebhook: vi.fn(),
+      handleGhnWebhook: vi.fn().mockResolvedValue({
+        received: true,
+        processed: true,
+        orderId: 'ord-1',
+        status: 'DELIVERED',
+      }),
+    } as unknown as ShippingService;
+
+    const controller = new ShipmentWebhookController(mockShippingService);
+    const raw = { OrderCode: 'L4XYZ', Status: 'delivered' };
+
+    await controller.handleGhnWebhook(undefined, undefined, 'freya-test-carrier-secret', raw);
+    expect(mockShippingService.handleGhnWebhook).toHaveBeenCalledWith(raw);
+
+    await expect(controller.handleGhnWebhook(undefined, 'wrong', undefined, raw)).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
 });

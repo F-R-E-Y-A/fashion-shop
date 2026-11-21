@@ -123,20 +123,23 @@ export class PromotionsService {
     }
 
     if (voucher.code === 'CHAOBANMOI') {
-      if (userId) {
-        const metrics = await this.getCustomerMetrics(userId);
-        const segmentRule = new CustomerSegmentRule({ segment: CustomerSegment.NEW_CUSTOMER });
-        const result = segmentRule.isSatisfiedBy({
-          userId,
-          subtotal,
-          now,
-          customerMetrics: metrics,
-        });
-        if (!result.passed) {
-          throw new BadRequestException(
-            result.reason ?? 'Mã CHAOBANMOI chỉ áp dụng cho đơn hàng đầu tiên của khách hàng mới',
-          );
-        }
+      if (!userId) {
+        throw new BadRequestException(
+          'Vui lòng đăng nhập để kiểm tra điều kiện khách hàng mới cho mã CHAOBANMOI',
+        );
+      }
+      const metrics = await this.getCustomerMetrics(userId);
+      const segmentRule = new CustomerSegmentRule({ segment: CustomerSegment.NEW_CUSTOMER });
+      const result = segmentRule.isSatisfiedBy({
+        userId,
+        subtotal,
+        now,
+        customerMetrics: metrics,
+      });
+      if (!result.passed) {
+        throw new BadRequestException(
+          result.reason ?? 'Mã CHAOBANMOI chỉ áp dụng cho đơn hàng đầu tiên của khách hàng mới',
+        );
       }
     } else if (voucher.code === 'FREYAVIP') {
       if (!userId) {
@@ -205,11 +208,12 @@ export class PromotionsService {
         },
       },
       orderBy: { createdAt: 'desc' },
-      take: 20,
+      take: 50,
     });
 
     return vouchers
       .filter((v) => v.usageLimit === null || v._count.usages < v.usageLimit)
+      .slice(0, 20)
       .map((v) => this.mapVoucherToResponse(v, v._count.usages));
   }
 

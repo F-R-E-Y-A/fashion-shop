@@ -1,29 +1,39 @@
 ---
-title: Shipping — chính sách phí và vận chuyển
-updated: 2026-11-13
-status: đã tích hợp vận chuyển và webhook hãng
+title: Shipping — chính sách phí, GHN Sandbox và dự phòng mô phỏng
+updated: 2026-11-20
+status: đã tích hợp GHN Sandbox và dự phòng mô phỏng
 owner: Duy
 ---
 # Phí vận chuyển và vận đơn
 
-**Chức năng:** Chính sách tính phí giao hàng, tạo vận đơn hãng, webhook nhận trạng thái và theo dõi đơn hàng.
+**Chức năng:** Chính sách tính phí giao hàng, tích hợp tạo và đồng bộ vận đơn GHN Sandbox kèm dự phòng mô phỏng nội bộ.
 
 ## 1. Tính phí giao hàng (Quote)
 
-Seed tạo zone nội địa và rate 30.000đ cho xã hoạt động; chạy lại không ghi đè rate đã chỉnh. ShippingService đọc zone/rate hoạt động; miễn ship khi tiền hàng sau giảm giá đạt 500.000đ. Địa chỉ thiếu rate bị chặn rõ ràng ([shipping.seed.ts](../../../apps/api/prisma/seed/shipping.seed.ts), [shipping.service.ts](../../../apps/api/src/modules/shipping/shipping.service.ts)).
+Seed tạo zone nội địa và rate 30.000đ cho xã/phường hoạt động; chạy lại không ghi đè rate đã chỉnh. `ShippingService` đọc zone/rate hoạt động; miễn ship khi tiền hàng sau giảm giá đạt 500.000đ. Địa chỉ thiếu rate bị chặn với HTTP 422 ([shipping.seed.ts](../../../apps/api/prisma/seed/shipping.seed.ts), [shipping.service.ts](../../../apps/api/src/modules/shipping/shipping.service.ts)).
 
-## 2. Vận đơn và theo dõi giao hàng (Shipment & Tracking)
+## 2. Tạo vận đơn GHN Sandbox & Dự phòng mô phỏng (`AUTO` / `GHN` / `MOCK`)
 
-Luồng vận chuyển mô phỏng Sandbox (Duy - PH-02):
-1. **Admin tạo vận đơn**: Admin tạo vận đơn qua `POST /api/admin/orders/:id/shipment`, nhận mã vận đơn mô phỏng `GHN-SBX-...` (`isMock: true`).
-2. **Shipper giao hàng**: Shipper / hệ thống đối tác mô phỏng gửi cập nhật qua webhook.
-3. **Webhook cập nhật**: Endpoint `POST /api/shipping/webhook` yêu cầu xác thực header bí mật `x-carrier-token` cấu hình qua biến môi trường server `SHIPPING_WEBHOOK_SECRET` (từ chối 401 nếu thiếu cấu hình hoặc sai token; không dùng secret mặc định). Các nút mô phỏng trên trang Admin gọi trực tiếp endpoint `PATCH /api/admin/orders/:id/shipment/status` để bảo mật, không để lộ token xác thực ở frontend. Tách danh tính hãng khỏi `actorUserId` (chỉ ghi nhận UUID của người dùng trong hệ thống; webhook lưu `undefined` để tránh lỗi cú pháp UUID).
-4. **Bảo vệ toàn vẹn và ma trận chuyển trạng thái**: Khoá đơn bằng `OrdersService.lock` ngay đầu giao dịch (cùng khoá với thao tác admin) trước khi đọc trạng thái. Đơn đã hủy (`CANCELLED`) bị chặn chuyển sang `IN_TRANSIT`/`DELIVERED`, nhưng vẫn ghi nhận được `FAILED`/`RETURNED` mà không hoàn kho hay ghi thanh toán lần nữa. Kiểm tra bước chuyển hợp lệ `canTransitionShipment`, chặn lùi trạng thái khi nhận sự kiện cũ/đến muộn (ví dụ đơn đã `DELIVERED` không bị lùi về `IN_TRANSIT`), xử lý sự kiện trùng lặp dạng idempotent.
-5. **Đồng bộ trạng thái**:
-   - `IN_TRANSIT` -> Đơn chuyển `SHIPPED`
-   - `DELIVERED` -> Đơn chuyển `DELIVERED`, tự động chốt thanh toán COD với receipt chuẩn `COD:<orderCode>:<uuid>` (tương thích module Báo cáo tài chính Reporting #112)
-   - `FAILED` -> chỉ ghi nhận trên vận đơn (hàng còn trên xe): chưa trả kho, chưa hủy đơn.
-   - `RETURNED` (hàng về tới kho) -> với đơn COD còn `PENDING`: hoàn tồn kho một lần qua `InventoryService.restock()`, ghi `COD-FAILED:<orderCode>` và chuyển đơn `CANCELLED`. Đơn trả trước (đã có payment `SUCCEEDED`) không tự hủy: giữ trạng thái đơn để admin hoàn tiền (khớp [order-admin.service.ts](../../../apps/api/src/modules/checkout/order-admin.service.ts)).
-6. **Khách theo dõi**: Trang chi tiết đơn hàng (`/don-hang/:id`) hiển thị timeline 4 bước: Shop xác nhận -> Đơn vị vận chuyển đã lấy hàng -> Đang giao đến bạn -> Giao thành công, hiển thị nhãn Sandbox rõ ràng thay vì link sang trang hãng thật gây 404.
+Kiến trúc cổng vận chuyển tách interface `ShippingCarrierGateway` ([shipping-carrier.ts](../../../apps/api/src/modules/shipping/shipping-carrier.ts)) gồm `GhnCarrierGateway` ([ghn.carrier.ts](../../../apps/api/src/modules/shipping/ghn.carrier.ts)) và `MockCarrierGateway` ([mock.carrier.ts](../../../apps/api/src/modules/shipping/mock.carrier.ts)):
 
-[Nhật ký](LOG.md) · [ADR-032](../../LOG.md#adr-032).
+1. **Tạo vận đơn thật trên GHN Sandbox (`dev-online-gateway.ghn.vn`)**: Khi có `GHN_TOKEN` và `GHN_SHOP_ID`, `ShippingService` chạy quy trình 2 pha kèm mã định danh lượt chạy (`attemptId`) để tránh xung đột với hủy đơn/hoàn tiền hoặc tiếp quản sau khi quá hạn:
+   - **Pha 1 (dưới khóa `OrdersService.lock`)**: ghi nhận bản ghi giữ chỗ `Shipment` (`isMock: false, trackingNumber: null, carrierStatus: 'creating#<attemptId>[:clientCode]'`) trước khi gọi HTTP ra ngoài. Đơn trả trước giữ nguyên ở `CONFIRMED` nhưng bản ghi giữ chỗ chặn tạm thời luồng khách/admin hủy đơn và `startProcessing` dưới cùng khóa đơn.
+   - **Gọi GHN ngoài transaction**: `GhnCarrierGateway` giải địa chỉ 2 cấp qua Master Data v3 (`/v3/master-data/province/all` và `/ward/all-by-province-id`, cache 60 phút), gửi `POST /v2/shipping-order/create` với `is_new_to_address: true`, `cod_amount`, và danh sách sản phẩm mà không giữ kết nối/lock DB.
+   - **Pha 2 (dưới khóa `OrdersService.lock`, kiểm tra đúng `attemptId`)**: chỉ lượt sở hữu đúng `attemptId` mới được cập nhật mã vận đơn thật + chuyển đơn `CONFIRMED` → `PROCESSING` (hoặc áp dụng trạng thái khôi phục nếu khác `PENDING`), chuyển sang mô phỏng nếu GHN xác nhận chưa tạo đơn (`mode = 'AUTO'`), đánh dấu `create_uncertain` nếu chưa xác minh được (`503`), hoặc xóa/hoàn tác bản ghi giữ chỗ nếu `mode = 'GHN'` bị GHN từ chối rõ ràng (khôi phục ngay quyền tự hủy & hoàn tiền tự động cho đơn `CONFIRMED`).
+2. **Dự phòng mô phỏng (`isMock: true`) và xử lý vận đơn GHN bị hủy trước khi lấy hàng (`cancel`)**:
+   - Với `mode = 'AUTO'` (mặc định trên nút `Tạo vận đơn GHN (Sandbox)`): nếu `createOrder` gặp lỗi/timeout, hệ thống tra cứu lại qua `/v2/shipping-order/detail-by-client-code` bằng `client_order_code` để khôi phục vận đơn GHN thật nếu GHN đã kịp tạo (kể cả khi GHN đã chuyển sang `IN_TRANSIT`/`DELIVERED`/`FAILED`/`RETURNED`, áp dụng đồng bộ trạng thái đơn/COD/kho trong cùng giao dịch). Phản hồi HTTP 200 nhưng body không phải JSON hoặc thiếu `data`/`order_code`, hay trang 404 không có envelope JSON hợp lệ đều bị ném `503` (ghi `create_uncertain`, chặn `MOCK` cho đến khi đối soát lại); chỉ tự động rơi về `MockCarrierGateway` (`GHN-SBX-...`, `fallbackUsed: true`) khi GHN xác nhận rõ không tìm thấy đơn (`code_message` nhóm `ORDER_NOT_FOUND`, `ghnCode: 404`, hoặc thông báo không tìm thấy đơn — không coi mọi `HTTP 400` như `CLIENT_NOT_OWNER_OF_SHOP` là không tìm thấy).
+   - Với `mode = 'MOCK'` (nút `Tạo vận đơn mô phỏng (Dự phòng)`): tạo thẳng mã mô phỏng nội bộ mà không gọi GHN; bị chặn `409` dưới khóa đơn nếu đơn đã có vận đơn GHN thật (`isMock === false`, gồm cả đang `creating`/`create_uncertain`), trừ trường hợp GHN đã hủy vận đơn trước khi lấy hàng (`FAILED` + `carrierStatus === 'cancel'` + `order.status === 'PROCESSING'`).
+   - Với `mode = 'GHN'`: bắt buộc gọi GHN Sandbox và báo `503 ServiceUnavailableException` nếu chưa cấu hình hoặc GHN từ chối (dọn/khôi phục intent nếu GHN xác nhận chưa tạo đơn).
+   - **Khi GHN hủy vận đơn trước lúc lấy hàng (`cancel`, hàng còn tại kho, đơn đang `PROCESSING`)**: admin có thể chọn **tạo vận đơn thay thế** (GHN dùng `client_order_code` hậu tố `-Rxxxx` để không trùng mã đơn cũ trên GHN, hoặc tạo mô phỏng) hoặc **chốt hủy đơn COD & hoàn kho** qua `POST /admin/orders/:id/delivery-failed` sau khi xác nhận hàng vẫn còn ở kho.
+3. **Đồng bộ & Webhook nhận trạng thái từ GHN**:
+   - Webhook trực tiếp GHN: `POST /api/shipping/webhook/ghn` ([shipment-webhook.controller.ts](../../../apps/api/src/modules/shipping/shipment-webhook.controller.ts)), xác thực `SHIPPING_WEBHOOK_SECRET` qua `x-carrier-token`, header `token`, hoặc query `?token=`, kiểm tra `ShopID` khớp cấu hình, đối chiếu `isMock === false` và khớp `trackingNumber` trong cùng khóa giao dịch (nếu vận đơn khớp mã đơn đang trong 45 giây `creating`, trả HTTP `503` để GHN tự động gửi lại theo cơ chế retry 10 lần cách nhau 5 giây; nếu đang `create_uncertain` thì đối soát điền luôn `trackingNumber` và đồng bộ trạng thái đơn), ánh xạ 20+ mã trạng thái GHN ([ghn-status.map.ts](../../../apps/api/src/modules/shipping/ghn-status.map.ts)) sang 5 trạng thái nội bộ (`PENDING` gồm `ready_to_pick`/`picking`, `IN_TRANSIT` từ `picked` trở đi, `DELIVERED`, `FAILED` gồm `delivery_fail`/`waiting_to_return`/`scrap`/`cancel`, và chỉ `returned` mới sang `RETURNED`).
+   - Đồng bộ chủ động từ Admin: `POST /api/admin/orders/:id/shipment/sync` gọi `/v2/shipping-order/detail` để kéo trạng thái mới nhất khi webhook sandbox không tới được localhost.
+4. **Bảo vệ toàn vẹn, thứ tự sự kiện và thông báo**:
+   - Khóa `OrdersService.lock` đầu giao dịch; chặn thao tác mô phỏng (`PATCH /shipment/status`) và chặn cả hai route chốt thủ công cũ (`POST /admin/orders/:id/delivered`, `POST /admin/orders/:id/delivery-failed`) trên đơn đã có vận đơn GHN thật (`isMock === false`); lưu mốc `carrier_updated_at` (`Time`/`updated_date`) kết hợp kiểm tra đổi dòng `updatedAt` khi đồng bộ để chặn sự kiện/sync cũ ghi đè trạng thái mới hơn (đặc biệt trên cạnh giao lại `FAILED` → `IN_TRANSIT`/`DELIVERED`).
+   - Cho phép cập nhật sub-status nội bộ (`ready_to_pick` → `picking` trong `PENDING`, `picked` → `delivering` trong `IN_TRANSIT`) và giao lại `FAILED` → `IN_TRANSIT`/`DELIVERED` khi sự kiện mới hơn và đơn chưa `CANCELLED`.
+   - `IN_TRANSIT` → `Order.SHIPPED` · `DELIVERED` → `Order.DELIVERED` + chốt thu COD (`COD:<orderCode>:<uuid>`) · `FAILED` → giữ nguyên đơn, gửi `notifyShipmentFailed` (In-App + Email), không tự cộng kho · `RETURNED` → hoàn tồn kho (`InventoryService.restock`) + ghi `COD-FAILED` + trả lượt voucher + `Order.CANCELLED` (`cancelSource: 'DELIVERY_FAILED'`) cho đơn COD, hoặc giữ đơn và nhắc hoàn tiền cho đơn trả trước.
+5. **Giao diện khách hàng & quản trị**:
+   - Khách (`/don-hang/:id`, [OrderPage.tsx](../../../apps/web/src/features/checkout/OrderPage.tsx)): hiển thị rõ `(Thử nghiệm GHN)` kèm link tra cứu `https://donhang.ghn.vn/?order_code=...`, ghi chú trạng thái mới nhất và thời gian dự kiến giao khi `isMock === false`; giữ nhãn `(Mô phỏng Sandbox)` khi `isMock === true`.
+   - Admin (`/admin/orders/:id`, [AdminOrderDetailPage.tsx](../../../apps/web/src/features/checkout/admin/AdminOrderDetailPage.tsx)): hiển thị nút tạo GHN Sandbox, nút tạo dự phòng mô phỏng; vận đơn thật (`isMock === false`) chỉ hiện nút `Đồng bộ từ GHN` (ẩn toàn bộ nút mô phỏng và nút chốt giao/giao thất bại thủ công cũ), còn vận đơn mô phỏng (`isMock !== false`) hiện các nút mô phỏng fallback.
+
+[Nhật ký](LOG.md) · [ADR-032](../../LOG.md#adr-032) · [ADR-070](LOG.md#adr-070).

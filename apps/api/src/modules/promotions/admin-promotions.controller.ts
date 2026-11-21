@@ -10,7 +10,7 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { RequireRoles, RoleCode } from '../auth/index.js';
 import { ListPromotionsQuery } from './dto/list-promotions.query.js';
@@ -23,6 +23,7 @@ import {
 import { PromotionsService } from './promotions.service.js';
 
 @ApiTags('admin-promotions')
+@ApiBearerAuth()
 @Controller('admin/promotions')
 @RequireRoles(RoleCode.ADMIN)
 export class AdminPromotionsController {

@@ -21,9 +21,13 @@ export function BestPromotionBanner({
   onApplyBest,
 }: BestPromotionBannerProps) {
   const numSubtotal = parseFloat(subtotal) || 0;
+  const itemsSignature = (items ?? [])
+    .map((item) => `${item.variantId}:${item.quantity}:${item.price}`)
+    .sort()
+    .join('|');
 
   const { data } = useQuery({
-    queryKey: promotionKeys.evaluate(subtotal, itemCount),
+    queryKey: promotionKeys.evaluate(subtotal, itemCount, itemsSignature),
     queryFn: () => evaluateCart(subtotal, items),
     enabled: numSubtotal > 0 && itemCount > 0,
     staleTime: 30_000,
