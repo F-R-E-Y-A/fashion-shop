@@ -630,4 +630,41 @@ describe('Admin product create', () => {
       expect(screen.getByRole('heading', { name: /Không đủ quyền truy cập/i })).toBeTruthy();
     });
   });
+
+  it('nhóm màu chuẩn tách khỏi màu mở rộng yody-* và sắp xếp theo tên tiếng Việt', async () => {
+    const api = backend();
+    api.state.uploadsEnabled = false;
+    api.state.override = (r) => {
+      if (r.path === '/api/admin/products/create-options' && r.method === 'GET') {
+        return reply({
+          brands: [{ id: 'brand-1', name: 'Freya Basic', slug: 'freya-basic' }],
+          colors: [
+            { id: 'c-yody-be', code: 'yody-be', name: 'Be.', hex: '#d8c8b0' },
+            { id: 'c-mac-dinh', code: 'mac-dinh', name: 'Mặc định', hex: null },
+            { id: 'c-trang', code: 'trang', name: 'Trắng', hex: '#ffffff' },
+            { id: 'c-den', code: 'den', name: 'Đen', hex: '#111111' },
+          ],
+          sizes: [{ id: 'sz-1', code: 'M', sortOrder: 30 }],
+        });
+      }
+      return undefined;
+    };
+    mountCatalog('/admin/products/new');
+
+    const colorSelect = (await screen.findByLabelText(/Màu sắc/i)) as HTMLSelectElement;
+    await waitFor(() => {
+      expect(colorSelect.querySelector('option[value="c-den"]')).not.toBeNull();
+    });
+
+    const groups = Array.from(colorSelect.querySelectorAll('optgroup'));
+    expect(groups.map((g) => g.label)).toEqual(['Màu chuẩn', 'Màu mở rộng (nguồn nhập)']);
+    expect(Array.from(groups[0]!.querySelectorAll('option')).map((o) => o.textContent)).toEqual([
+      'Đen (den)',
+      'Trắng (trang)',
+      'Mặc định (mac-dinh)',
+    ]);
+    expect(Array.from(groups[1]!.querySelectorAll('option')).map((o) => o.textContent)).toEqual([
+      'Be (yody-be)',
+    ]);
+  });
 });

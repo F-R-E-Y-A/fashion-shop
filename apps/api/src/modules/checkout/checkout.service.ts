@@ -29,6 +29,7 @@ import { PromotionsService } from '../promotions/index.js';
 import { ShippingService } from '../shipping/index.js';
 import { CheckoutAddressService } from '../users/index.js';
 import {
+  humanizeGatewayError,
   REFUND_IN_FLIGHT_MS,
   REFUND_INTENT,
   refundedAmountOf,
@@ -678,7 +679,7 @@ export class CheckoutService {
       });
     } catch (error) {
       // Timeout, phan hoi sai chu ky hay ma loi deu khong chung minh cong chua hoan: giu intent.
-      const message = error instanceof Error ? error.message : 'Cổng không phản hồi.';
+      const message = humanizeGatewayError(error);
       await this.prisma.paymentTransaction.update({
         where: intentKey(payment.gateway!, intentId),
         data: { payload: { ...payload, lastError: message } },

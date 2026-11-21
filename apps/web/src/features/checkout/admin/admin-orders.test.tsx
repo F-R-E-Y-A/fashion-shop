@@ -546,4 +546,34 @@ describe('UC-02.1/AC6, AC8 — bảo vệ dữ liệu admin dùng chung (#57)', 
     ).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Mô phỏng:/ })).not.toBeInTheDocument();
   });
+
+  it('UC-12/UX-12 dịch pendingRefund.lastError tiếng Anh kỹ thuật sang tiếng Việt dễ hiểu', async () => {
+    const timedOutRefund = {
+      ...base,
+      status: 'PAID',
+      ledgers: [
+        {
+          ...base.ledgers[0]!,
+          gateway: 'VNPAY',
+          paymentStatus: 'SUCCEEDED',
+          pendingRefund: {
+            id: 'tx-ref-1',
+            amount: '230000.00',
+            createdAt: '2026-10-31T03:00:00.000Z',
+            lastError: 'The operation was aborted due to timeout',
+            resolvable: true,
+          },
+        },
+      ],
+    };
+    request.mockImplementation(async (path: string) => {
+      if (path === '/admin/orders/o1') return timedOutRefund;
+      return {};
+    });
+
+    show('/admin/orders/o1');
+    const notice = await screen.findByText(/Hết thời gian chờ phản hồi từ cổng thanh toán/i);
+    expect(notice).toBeInTheDocument();
+    expect(notice.textContent).not.toContain('aborted due to timeout');
+  });
 });

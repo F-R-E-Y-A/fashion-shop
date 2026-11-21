@@ -24,6 +24,7 @@ import {
   variantMutationErrorText,
 } from './admin-catalog.api.js';
 import styles from './AdminCatalog.module.css';
+import { ColorSelectOptions } from './color-options.js';
 import { PRODUCT_ACTION_TIMEOUT_MS } from './product-status-action.js';
 
 const variantLocks = new WeakMap<object, Set<string>>();
@@ -1278,11 +1279,7 @@ export function ProductVariantFeedback({ action }: { action: ProductVariantActio
                 onChange={(e) => setCreateDraft({ ...createDraft, colorId: e.target.value })}
               >
                 <option value="">-- Chọn màu sắc --</option>
-                {options.colors.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} ({c.code})
-                  </option>
-                ))}
+                <ColorSelectOptions colors={options.colors} />
               </select>
               {createErrors.colorId && (
                 <span role="alert" className={styles.fieldError}>
