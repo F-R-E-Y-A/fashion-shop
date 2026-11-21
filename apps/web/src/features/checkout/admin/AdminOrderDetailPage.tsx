@@ -66,6 +66,7 @@ function AdminOrderDetail() {
   });
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [amount, setAmount] = useState('');
+  const [reference, setReference] = useState('');
   const [text, setText] = useState('');
   const [outcome, setOutcome] = useState<'SUCCEEDED' | 'FAILED'>('FAILED');
   const [notice, setNotice] = useState('');
@@ -140,6 +141,9 @@ function AdminOrderDetail() {
             return await post(`/admin/payments/${current.ledger.paymentId}/refund`, {
               ...(amount.trim() ? { amount: amount.trim() } : {}),
               ...(text.trim() ? { reason: text.trim() } : {}),
+              ...(current.ledger.refundMode === 'MANUAL'
+                ? { transferReference: reference.trim() }
+                : {}),
             });
           case 'resolve':
             return await post(`/admin/payments/${current.ledger.paymentId}/refund/resolve`, {
@@ -156,7 +160,11 @@ function AdminOrderDetail() {
       await refresh(variables);
       if (!stillCurrent(variables)) return;
       setNeedsRecheck(client.getQueryState(key)?.status !== 'success');
-      setNotice(DONE[variables.current.kind]);
+      setNotice(
+        variables.current.kind === 'refund' && variables.current.ledger.refundMode === 'MANUAL'
+          ? 'Đã ghi hoàn tay theo mã chuyển khoản.'
+          : DONE[variables.current.kind],
+      );
       setDialog(null);
     },
     onError: async (error, variables) => {
@@ -186,6 +194,7 @@ function AdminOrderDetail() {
     setNotice('');
     setText('');
     setOutcome('FAILED');
+    setReference('');
     setAmount(next.kind === 'refund' ? (next.ledger.refundableAmount ?? '') : '');
     setDialog(next);
   };
@@ -195,7 +204,9 @@ function AdminOrderDetail() {
     dialog?.kind === 'resolve' ||
     dialog?.kind === 'cancelRefund'
       ? !text.trim()
-      : false;
+      : dialog?.kind === 'refund' && dialog.ledger.refundMode === 'MANUAL'
+        ? !TRANSFER_REFERENCE.test(reference.trim())
+        : false;
 
   if (forbidden) return <AdminForbidden />;
 
@@ -592,6 +603,17 @@ function AdminOrderDetail() {
                   />
                 </label>
               )}
+              {dialog.kind === 'refund' && dialog.ledger.refundMode === 'MANUAL' && (
+                <label className={styles.field}>
+                  <span>Mã giao dịch chuyển khoản cho khách (bắt buộc)</span>
+                  <input
+                    value={reference}
+                    maxLength={64}
+                    placeholder="VD FT26112001"
+                    onChange={(event) => setReference(event.target.value)}
+                  />
+                </label>
+              )}
               {dialog.kind === 'resolve' && (
                 <fieldset className={styles.choices}>
                   <legend>Kết quả trên cổng</legend>
@@ -657,6 +679,8 @@ const hasAction = (order: AdminOrder) =>
   Boolean(order.shipment) ||
   order.ledgers.some((ledger) => ledger.refundableAmount || ledger.pendingRefund?.resolvable);
 
+/** Cung dang voi RefundDto.transferReference phia API. */
+const TRANSFER_REFERENCE = /^[A-Za-z0-9._-]{4,64}$/u;
 const TITLE: Record<Dialog['kind'], string> = {
   confirmCod: 'Xác nhận và giao COD',
   startProcessing: 'Bắt đầu xử lý',
@@ -757,6 +781,11 @@ function impacts(dialog: Dialog, order: AdminOrder): string[] {
         'Đơn hủy và tính một lần giao thất bại cho tài khoản (đủ 2 lần thì khách mất quyền COD).',
       ];
     case 'refund':
+      if (dialog.ledger.refundMode === 'MANUAL')
+        return [
+          `Cổng ${gatewayLabel(dialog.ledger.gateway)} không hoàn tự động trên môi trường này: chuyển khoản cho khách trước, rồi nhập mã giao dịch.`,
+          'Chỉ ghi sổ hoàn, không gọi cổng; mỗi mã chỉ dùng một lần, không hoàn tác được.',
+        ];
       return [
         `Gọi cổng ${gatewayLabel(dialog.ledger.gateway)} hoàn tiền; không hoàn tác được.`,
         'Không tự trả kho — hàng đã giao trả lại nhập kho qua luồng đổi trả.',

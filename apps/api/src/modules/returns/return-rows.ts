@@ -44,8 +44,16 @@ export function snapshotOf(value: unknown) {
   };
 }
 
-export function refundMethodOf(payments: { gateway: string | null }[]): RefundMethod {
-  return payments[0]?.gateway === 'COD' ? 'BANK_TRANSFER' : 'GATEWAY';
+/** Cong co hoan qua API tren moi truong nay khong (CheckoutService.autoRefund, ADR-111). */
+export type AutoRefund = (gateway: string | null) => boolean;
+
+/** COD va cong tat hoan tu dong: shop chuyen khoan roi nhap ma giao dich (ADR-111). */
+export function refundMethodOf(
+  payments: { gateway: string | null }[],
+  autoRefund: AutoRefund,
+): RefundMethod {
+  const gateway = payments[0]?.gateway ?? null;
+  return gateway === 'COD' || !autoRefund(gateway) ? 'BANK_TRANSFER' : 'GATEWAY';
 }
 
 const iso = (value: Date | null): string | null => value?.toISOString() ?? null;
@@ -58,7 +66,7 @@ export function refundOf(row: ReturnRow) {
   );
 }
 
-export function toReturnResponse(row: ReturnRow): ReturnResponse {
+export function toReturnResponse(row: ReturnRow, autoRefund: AutoRefund): ReturnResponse {
   const breakdown = refundOf(row);
   const items: ReturnLineResponse[] = row.items.map((item) => {
     const orderItem = row.order.items.find((line) => line.id === item.orderItemId)!;
@@ -85,7 +93,7 @@ export function toReturnResponse(row: ReturnRow): ReturnResponse {
     media: row.media.map((media) => ({ url: media.url })),
     refundAmount: breakdown.total.toFixed(2),
     refundShipping: breakdown.shipping.toFixed(2),
-    refundMethod: refundMethodOf(row.order.payments),
+    refundMethod: refundMethodOf(row.order.payments, autoRefund),
     shopPaysReturnShipping: isShopFault(reasonCode),
     hasRefundAccount: row.refundAccountNumber !== null,
     canCancel: row.status === 'REQUESTED',
@@ -96,10 +104,10 @@ export function toReturnResponse(row: ReturnRow): ReturnResponse {
   };
 }
 
-export function toAdminReturnResponse(row: ReturnRow): AdminReturnResponse {
+export function toAdminReturnResponse(row: ReturnRow, autoRefund: AutoRefund): AdminReturnResponse {
   const refund = row.refunds[0];
   return {
-    ...toReturnResponse(row),
+    ...toReturnResponse(row, autoRefund),
     canCancel: false,
     customerEmail: row.order.customerEmail,
     refundAccount:

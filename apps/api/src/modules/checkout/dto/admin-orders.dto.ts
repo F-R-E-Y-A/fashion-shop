@@ -116,6 +116,13 @@ export class PaymentLedgerResponse {
     description: 'null: khong hoan tay duoc luc nay (CONFIRMED dung cancel-refund)',
   })
   refundableAmount!: string | null;
+  @ApiProperty({
+    enum: ['GATEWAY', 'MANUAL'],
+    nullable: true,
+    description:
+      'GATEWAY: gọi API cổng; MANUAL: cổng tắt hoàn tự động, gửi transferReference (ADR-111)',
+  })
+  refundMode!: 'GATEWAY' | 'MANUAL' | null;
   @ApiProperty({ type: [RefundEntryResponse] }) refunds!: RefundEntryResponse[];
   @ApiProperty({ type: PendingRefundResponse, nullable: true })
   pendingRefund!: PendingRefundResponse | null;

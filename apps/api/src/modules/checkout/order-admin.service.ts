@@ -6,7 +6,6 @@ import { Decimal } from 'decimal.js';
 import { toPage } from '../../common/pagination/page.response.js';
 import type { OrderStatus, Prisma } from '../../generated/prisma/client.js';
 import type { AdminOrderQuery, OrderDetails } from '../orders/index.js';
-import type { GatewayCode } from '../payments/index.js';
 import { CheckoutService, REFUNDABLE } from './checkout.service.js';
 import { refundSummary } from './refund-ledger.js';
 
@@ -120,18 +119,15 @@ export class OrderAdminService {
   private present(order: OrderDetails) {
     const ledgers = order.payments.map((payment) => {
       const ledger = refundSummary(payment.transactions);
-      const adapter =
-        payment.gateway && payment.gateway !== 'COD'
-          ? this.checkout.payments.gateways.get(payment.gateway as GatewayCode)
-          : null;
       const remaining = new Decimal(payment.amount).minus(ledger.refunded);
       // CONFIRMED: hang chua roi kho, dung cancelRefund (tra kho + hoan toan bo) thay vi hoan tay.
+      // Don tra truoc luon hoan duoc: qua cong neu cong bat hoan tu dong, khong thi hoan tay (ADR-111).
       const refundable =
         payment.status === 'SUCCEEDED' &&
+        !!payment.gateway &&
+        payment.gateway !== 'COD' &&
         order.status !== 'CONFIRMED' &&
         REFUNDABLE.includes(order.status) &&
-        !!adapter?.refund &&
-        adapter.configured() &&
         remaining.gt(0) &&
         !ledger.pending;
       return {
@@ -141,6 +137,11 @@ export class OrderAdminService {
         amount: new Decimal(payment.amount).toFixed(2),
         refundedAmount: ledger.refunded.toFixed(2),
         refundableAmount: refundable ? remaining.toFixed(2) : null,
+        refundMode: refundable
+          ? this.checkout.autoRefund(payment.gateway)
+            ? ('GATEWAY' as const)
+            : ('MANUAL' as const)
+          : null,
         refunds: ledger.refunds,
         pendingRefund: ledger.pending,
       };

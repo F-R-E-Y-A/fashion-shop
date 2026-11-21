@@ -120,6 +120,35 @@ describe('PH-11 quản trị đơn hàng (ADR-038)', () => {
     expect(await screen.findByText('Cổng đã xác nhận hoàn tiền.')).toBeInTheDocument();
   });
 
+  it('ADR-111 cổng tắt hoàn tự động: hộp hoàn bắt nhập mã chuyển khoản hợp lệ rồi mới gửi', async () => {
+    const manual = {
+      ...base,
+      ledgers: base.ledgers.map((ledger) => ({ ...ledger, refundMode: 'MANUAL' as const })),
+    };
+    request.mockImplementation(async (path: string) => (path.endsWith('/refund') ? {} : manual));
+    show('/admin/orders/o1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Hoàn tiền VNPAY' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/chuyển khoản cho khách trước/)).toBeInTheDocument();
+    const reference = within(dialog).getByRole('textbox', { name: /Mã giao dịch/ });
+    fireEvent.change(reference, { target: { value: 'x y' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Hoàn tiền' }));
+    expect(within(dialog).getByText('Nhập nội dung trước khi xác nhận.')).toBeInTheDocument();
+    expect(request).not.toHaveBeenCalledWith('/admin/payments/p1/refund', expect.anything());
+    fireEvent.change(reference, { target: { value: 'FT26112001' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Hoàn tiền' }));
+    await waitFor(() =>
+      expect(request).toHaveBeenCalledWith(
+        '/admin/payments/p1/refund',
+        expect.objectContaining({
+          method: 'POST',
+          body: { amount: '230000.00', transferReference: 'FT26112001' },
+        }),
+      ),
+    );
+    expect(await screen.findByText('Đã ghi hoàn tay theo mã chuyển khoản.')).toBeInTheDocument();
+  });
+
   it('UC-12.2/AC3 COD đang giao: giao thất bại bắt buộc lý do; chốt lệnh hoàn chỉ hiện khi chốt được', async () => {
     request.mockResolvedValue({
       ...base,
@@ -134,6 +163,7 @@ describe('PH-11 quản trị đơn hàng (ADR-038)', () => {
           gateway: 'COD',
           status: 'PENDING',
           refundableAmount: null,
+          refundMode: null,
         },
       ],
       actions: {

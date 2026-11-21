@@ -189,7 +189,10 @@ export class AdminPaymentsController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() input: RefundDto,
   ) {
-    return this.checkout.refundPayment(id, user.id, input);
+    const { transferReference, ...rest } = input;
+    return transferReference
+      ? this.checkout.refundManually(id, user.id, { ...rest, transferReference })
+      : this.checkout.refundPayment(id, user.id, rest);
   }
   @ApiCreatedResponse({ type: OrderResponse })
   @Post(':id/refund/resolve')
