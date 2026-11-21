@@ -48,11 +48,16 @@ for (const viewport of [
       contentType: 'image/png',
     });
 
-    // 3. Thực hiện tương tác form tạo biến thể
+    // 3. Thực hiện tương tác form tạo biến thể (chọn màu chưa có trên fixture để tránh trùng (den, trang))
     const colorSelect = createDialog.getByLabel('Màu sắc');
     await expect(colorSelect).toBeVisible();
-    const colorIdx = viewport.width === 1280 ? 3 : 4;
-    await colorSelect.selectOption({ index: colorIdx });
+    const colorCode = viewport.width === 1280 ? 'xam' : 'xanh-navy';
+    const colorValue = await colorSelect.evaluate((el: HTMLSelectElement, code: string) => {
+      const match = Array.from(el.options).find((o) => o.text.includes(`(${code})`));
+      return match?.value ?? '';
+    }, colorCode);
+    expect(colorValue).toBeTruthy();
+    await colorSelect.selectOption(colorValue);
 
     const sizeSelect = createDialog.getByLabel('Kích cỡ');
     await expect(sizeSelect).toBeVisible();
