@@ -227,4 +227,25 @@ describe('AdminReportsPage (Issue #108 Web UI)', () => {
       await screen.findByRole('heading', { name: /Không đủ quyền truy cập/i }),
     ).toBeInTheDocument();
   });
+
+  it('hien thi bieu do doanh thu, bieu do trang thai, link top san pham va nut moc nhanh', async () => {
+    setup();
+
+    expect(await screen.findByTestId('daily-revenue-chart')).toBeInTheDocument();
+    expect(screen.getByTestId('orders-status-chart')).toBeInTheDocument();
+
+    // Hover/focus cot ngay thu hai cap nhat thanh tom tat
+    const dayTwoBtn = screen.getByRole('button', { name: /2026-11-11/ });
+    fireEvent.focus(dayTwoBtn);
+    expect(screen.getByText('2026-11-11:')).toBeInTheDocument();
+
+    // Link Top san pham tro ve chi tiet san pham admin
+    const productLink = screen.getByRole('link', { name: 'Áo sơ mi oxford trắng' });
+    expect(productLink).toHaveAttribute('href', '/admin/products/p-1');
+
+    // Bam moc nhanh 7 ngay qua cap nhat o Tu ngay / Den ngay
+    const preset7d = screen.getByRole('button', { name: '7 ngày qua' });
+    fireEvent.click(preset7d);
+    expect(preset7d).toHaveAttribute('aria-pressed', 'true');
+  });
 });

@@ -26,16 +26,16 @@ export function AdminNavigation({ onNavigate }: { onNavigate?: () => void }) {
       {(
         [
           { path: '/admin', label: 'Tổng quan', icon: 'overview' },
-          { path: '/admin/reports', label: 'Báo cáo', icon: 'orders' },
-          { path: '/admin/inventory', label: 'Tồn kho', icon: 'orders' },
-          { path: '/admin/categories', label: 'Danh mục', icon: 'orders' },
-          { path: '/admin/products', label: 'Sản phẩm', icon: 'orders' },
-          { path: '/admin/promotions', label: 'Khuyến mãi', icon: 'orders' },
-          { path: '/admin/vouchers', label: 'Mã giảm giá', icon: 'orders' },
+          { path: '/admin/reports', label: 'Báo cáo', icon: 'reports' },
+          { path: '/admin/inventory', label: 'Tồn kho', icon: 'inventory' },
+          { path: '/admin/categories', label: 'Danh mục', icon: 'categories' },
+          { path: '/admin/products', label: 'Sản phẩm', icon: 'products' },
+          { path: '/admin/promotions', label: 'Khuyến mãi', icon: 'promotions' },
+          { path: '/admin/vouchers', label: 'Mã giảm giá', icon: 'vouchers' },
           { path: '/admin/users', label: 'Người dùng', icon: 'users' },
           { path: '/admin/orders', label: 'Đơn hàng', icon: 'orders' },
-          { path: '/admin/reviews', label: 'Đánh giá', icon: 'orders' },
-          { path: '/admin/returns', label: 'Trả hàng', icon: 'orders' },
+          { path: '/admin/reviews', label: 'Đánh giá', icon: 'reviews' },
+          { path: '/admin/returns', label: 'Trả hàng', icon: 'returns' },
         ] as const
       ).map((item) => (
         <NavLink

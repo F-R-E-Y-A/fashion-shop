@@ -39,6 +39,21 @@ function AdminOverview() {
         </div>
       </header>
 
+      <nav className={styles.quickNav} aria-label="Thao tác nhanh">
+        <Link to="/admin/reports" className={styles.quickPrimaryLink}>
+          Xem báo cáo doanh thu
+        </Link>
+        <Link to="/admin/products/new" className={styles.quickLink}>
+          + Tạo sản phẩm mới
+        </Link>
+        <Link to="/admin/reviews" className={styles.quickLink}>
+          Duyệt đánh giá
+        </Link>
+        <Link to="/admin/returns" className={styles.quickLink}>
+          Xử lý trả hàng
+        </Link>
+      </nav>
+
       <section className={styles.kpiGrid} aria-label="Chỉ số hoạt động chính">
         <KpiCard
           label="Người dùng"
@@ -90,6 +105,23 @@ function AdminOverview() {
                 <span className={styles.badge}>{formatCount(attention.data.total)}</span>
               )}
             </div>
+            {attention.data !== undefined && orders.data !== undefined && orders.data.total > 0 && (
+              <div className={styles.ratioMeta}>
+                <span>
+                  Tỷ lệ cần xử lý: {formatCount(attention.data.total)} /{' '}
+                  {formatCount(orders.data.total)} đơn (
+                  {Math.min(100, Math.round((attention.data.total / orders.data.total) * 100))}%)
+                </span>
+                <div className={styles.ratioTrack} aria-hidden="true">
+                  <div
+                    className={styles.ratioFill}
+                    style={{
+                      width: `${Math.min(100, Math.round((attention.data.total / orders.data.total) * 100))}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
