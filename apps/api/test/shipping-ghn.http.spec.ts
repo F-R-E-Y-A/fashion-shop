@@ -893,6 +893,148 @@ describe('PH-02 Shipping GHN Sandbox, du phong mo phong va webhook (PostgreSQL)'
       });
       expect(order3AfterWh.status).toBe('PROCESSING');
       expect(order3AfterWh.shipment?.trackingNumber).toBe('L4WHRECONCILE');
+
+      // === Phần 4 (R5-P1 & R5-P2): Chặn hai chiều giữa POST /admin/payments/:id/refund và tạo vận đơn GHN; không ghi lùi carrierStatus khi lượt cũ về muộn trùng mã ===
+      await t.http
+        .post('/api/cart/items')
+        .set(customerAuth())
+        .send({ variantId, quantity: 1 })
+        .expect(201);
+      const order4 = await createConfirmedPrepaidOrder();
+      const payment4 = await t.prisma.payment.findFirstOrThrow({
+        where: { orderId: order4.orderId, status: 'SUCCEEDED' },
+      });
+
+      let vnpayRefundCalls = 0;
+      vnpay.refund = async () => {
+        vnpayRefundCalls += 1;
+        return {
+          requestId: 'VNP_R5_REFUND',
+          receipt: 'VNP_R5_RECEIPT',
+          payload: { vnp_ResponseCode: '00' },
+        };
+      };
+
+      let resolveGhn4A!: (res: Awaited<ReturnType<typeof origCreateOrder>>) => void;
+      const startedGhn4A = new Promise<void>((resolve) => {
+        ghnGateway.createOrder = () => {
+          resolve();
+          return new Promise<Awaited<ReturnType<typeof origCreateOrder>>>((res) => {
+            resolveGhn4A = res;
+          });
+        };
+      });
+
+      // 4a. Trong lúc GHN đang tạo vận đơn (creating#...), POST /admin/payments/:id/refund phải bị chặn 409 và không gọi cổng thanh toán
+      const reqShip4A = t.http
+        .post(`/api/admin/orders/${order4.orderId}/shipment`)
+        .set(adminAuth())
+        .send({ mode: 'GHN' })
+        .then((res) => res);
+      await startedGhn4A;
+
+      await t.http
+        .post(`/api/admin/payments/${payment4.id}/refund`)
+        .set(adminAuth())
+        .send({ reason: 'Hoàn tiền trực tiếp khi đang tạo GHN' })
+        .expect(409);
+      expect(vnpayRefundCalls).toBe(0);
+
+      // 4b. Tua lùi 46 giây để lượt 4B tiếp quản và đối soát thấy vận đơn đã ở trạng thái picking (mốc 10:05)
+      await t.prisma.$executeRaw`
+        UPDATE public.shipments
+        SET updated_at = NOW() - INTERVAL '46 seconds'
+        WHERE order_id = ${order4.orderId}::uuid
+      `;
+      ghnGateway.queryOrderByClientCode = async () => ({
+        carrierName: 'GHN',
+        trackingNumber: 'L4R5_SAME_TRACK',
+        isMock: false,
+        status: 'PENDING',
+        carrierStatus: 'picking',
+        statusNote: 'Tài xế GHN đang đến lấy hàng',
+        expectedDeliveryAt: null,
+        occurredAt: '2026-11-20T10:05:00.000Z',
+      });
+
+      const resShip4B = await t.http
+        .post(`/api/admin/orders/${order4.orderId}/shipment`)
+        .set(adminAuth())
+        .send({ mode: 'AUTO' })
+        .expect(201);
+      expect(resShip4B.body).toMatchObject({
+        trackingNumber: 'L4R5_SAME_TRACK',
+        status: 'PENDING',
+        carrierStatus: 'picking',
+      });
+
+      // Lượt 4A trả về muộn cùng mã L4R5_SAME_TRACK nhưng carrierStatus = ready_to_pick (không có occurredAt)
+      resolveGhn4A({
+        carrierName: 'GHN',
+        trackingNumber: 'L4R5_SAME_TRACK',
+        isMock: false,
+        status: 'PENDING',
+        carrierStatus: 'ready_to_pick',
+        statusNote: 'Đã tạo vận đơn trên GHN',
+        expectedDeliveryAt: null,
+      });
+      const resShip4A = await reqShip4A;
+      expect(resShip4A.status).toBe(201);
+      // Không được ghi lùi carrierStatus từ picking về ready_to_pick!
+      expect(resShip4A.body.carrierStatus).toBe('picking');
+      const ship4InDb = await t.prisma.shipment.findUniqueOrThrow({
+        where: { orderId: order4.orderId },
+      });
+      expect(ship4InDb.carrierStatus).toBe('picking');
+      expect(ship4InDb.carrierUpdatedAt?.toISOString()).toBe('2026-11-20T10:05:00.000Z');
+
+      // 4c. Chiều ngược lại: Đơn đang có lệnh hoàn tiền chờ kết quả (REFUND-INTENT RECEIVED) thì từ chối tạo vận đơn (cả GHN và MOCK)
+      await t.http
+        .post('/api/cart/items')
+        .set(customerAuth())
+        .send({ variantId, quantity: 1 })
+        .expect(201);
+      const order5 = await createConfirmedPrepaidOrder();
+      const payment5 = await t.prisma.payment.findFirstOrThrow({
+        where: { orderId: order5.orderId, status: 'SUCCEEDED' },
+      });
+
+      let ghnCallsForOrder5 = 0;
+      ghnGateway.createOrder = async () => {
+        ghnCallsForOrder5 += 1;
+        return {
+          carrierName: 'GHN',
+          trackingNumber: 'L4R5_SHOULD_NOT_CREATE',
+          isMock: false,
+          status: 'PENDING',
+          carrierStatus: 'ready_to_pick',
+          statusNote: 'Không được gọi',
+          expectedDeliveryAt: null,
+        };
+      };
+
+      // Giả lập cổng VNPAY timeout khi admin gọi hoàn tiền -> để lại REFUND-INTENT ở trạng thái RECEIVED (503)
+      vnpay.refund = async () => {
+        throw new Error('VNPAY refund timeout');
+      };
+      await t.http
+        .post(`/api/admin/payments/${payment5.id}/refund`)
+        .set(adminAuth())
+        .send({ reason: 'Hoàn tiền bị treo chờ đối soát' })
+        .expect(503);
+
+      // Khi REFUND-INTENT đang RECEIVED, mọi yêu cầu tạo vận đơn (GHN, AUTO, MOCK) đều bị chặn 409 dưới khóa đơn
+      await t.http
+        .post(`/api/admin/orders/${order5.orderId}/shipment`)
+        .set(adminAuth())
+        .send({ mode: 'GHN' })
+        .expect(409);
+      await t.http
+        .post(`/api/admin/orders/${order5.orderId}/shipment`)
+        .set(adminAuth())
+        .send({ mode: 'MOCK' })
+        .expect(409);
+      expect(ghnCallsForOrder5).toBe(0);
     } finally {
       ghnGateway.configured = origConfigured;
       ghnGateway.createOrder = origCreateOrder;

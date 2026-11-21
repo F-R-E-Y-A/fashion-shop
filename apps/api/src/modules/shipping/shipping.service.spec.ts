@@ -2564,5 +2564,236 @@ describe('ShippingService', () => {
         }),
       ).rejects.toThrow(ServiceUnavailableException);
     });
+
+    it('R5-P1: từ chối tạo vận đơn (cả Pha 1 GHN, Pha 2 GHN và MOCK) khi đơn đang có lệnh hoàn tiền chờ kết quả (REFUND-INTENT RECEIVED) hoặc đã hoàn tiền', async () => {
+      const now = new Date();
+      let refundTransactions: Array<{ externalTransactionId: string; status: string }> = [
+        {
+          externalTransactionId: 'REFUND-INTENT:00000000-0000-0000-0000-000000000001',
+          status: 'RECEIVED',
+        },
+      ];
+      let storedShipment: Record<string, unknown> | null = null;
+      const mockPrisma = {
+        $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) =>
+          fn({
+            order: {
+              findUnique: vi.fn().mockImplementation(async () => ({
+                ...sampleOrderSnapshot(),
+                status: 'CONFIRMED',
+                shipment: storedShipment,
+                payments: [
+                  {
+                    id: 'pay-vnpay-1',
+                    gateway: 'VNPAY',
+                    status: 'SUCCEEDED',
+                    transactions: refundTransactions,
+                  },
+                ],
+              })),
+            },
+            shipment: {
+              upsert: vi.fn().mockImplementation(async ({ create, update }) => {
+                storedShipment = storedShipment
+                  ? { ...storedShipment, ...update, updatedAt: now }
+                  : { id: 'ship-r5-1', ...create, createdAt: now, updatedAt: now };
+                return storedShipment;
+              }),
+            },
+          }),
+        ),
+      } as unknown as PrismaService;
+
+      const mockGhn = {
+        configured: vi.fn().mockReturnValue(true),
+        createOrder: vi.fn(),
+        queryOrderByClientCode: vi.fn(),
+      } as unknown as GhnCarrierGateway;
+
+      const service = new ShippingService(
+        mockPrisma,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        mockGhn,
+      );
+
+      // 1. Khi đang có REFUND-INTENT RECEIVED: cả GHN/AUTO lẫn MOCK đều bị từ chối 409 trước khi gọi GHN
+      await expect(service.createShipment('ord-ghn-1', { mode: 'GHN' }, 'admin-1')).rejects.toThrow(
+        ConflictException,
+      );
+      await expect(
+        service.createShipment('ord-ghn-1', { mode: 'MOCK' }, 'admin-1'),
+      ).rejects.toThrow(ConflictException);
+      expect(mockGhn.createOrder).not.toHaveBeenCalled();
+      expect(storedShipment).toBeNull();
+
+      // 2. Nếu trong lúc GHN đang chạy ngoài lock mà đơn phát sinh REFUND-INTENT RECEIVED (hoặc REFUND:), Pha 2 cũng từ chối lưu vận đơn
+      refundTransactions = [];
+      let resolveGhn!: (val: unknown) => void;
+      mockGhn.createOrder = vi.fn().mockImplementation(
+        () =>
+          new Promise((res) => {
+            resolveGhn = res;
+          }),
+      );
+      const pendingCreate = service.createShipment('ord-ghn-1', { mode: 'GHN' }, 'admin-1');
+      await vi.waitFor(() => expect(mockGhn.createOrder).toHaveBeenCalledTimes(1));
+
+      refundTransactions = [
+        {
+          externalTransactionId: 'REFUND-INTENT:00000000-0000-0000-0000-000000000002',
+          status: 'RECEIVED',
+        },
+      ];
+      resolveGhn({
+        carrierName: 'GHN',
+        trackingNumber: 'L4R5REFUND',
+        isMock: false,
+        status: 'PENDING',
+        carrierStatus: 'ready_to_pick',
+        statusNote: 'GHN đã tạo',
+        expectedDeliveryAt: null,
+      });
+
+      await expect(pendingCreate).rejects.toThrow(ConflictException);
+    });
+
+    it('R5-P2: phản hồi tạo GHN cũ trả về cùng trackingNumber nhưng thiếu occurredAt (hoặc cũ hơn) không được ghi lùi carrierStatus từ picking về ready_to_pick', async () => {
+      vi.useFakeTimers();
+      try {
+        let currentNow = new Date('2026-11-20T10:00:00.000Z');
+        vi.setSystemTime(currentNow);
+        let storedShipment = null as Record<string, unknown> | null;
+        let currentOrderStatus = 'CONFIRMED';
+
+        const mockPrisma = {
+          $transaction: vi.fn().mockImplementation((fn: (tx: unknown) => unknown) =>
+            fn({
+              order: {
+                findUnique: vi.fn().mockImplementation(async () => ({
+                  ...sampleOrderSnapshot(),
+                  status: currentOrderStatus,
+                  shipment: storedShipment ? { ...storedShipment } : null,
+                })),
+              },
+              shipment: {
+                upsert: vi
+                  .fn()
+                  .mockImplementation(
+                    async ({
+                      create,
+                      update,
+                    }: {
+                      create: Record<string, unknown>;
+                      update: Record<string, unknown>;
+                    }) => {
+                      storedShipment = storedShipment
+                        ? {
+                            ...storedShipment,
+                            ...update,
+                            createdAt: storedShipment.createdAt,
+                            updatedAt: currentNow,
+                          }
+                        : {
+                            id: 'ship-r5-p2',
+                            ...create,
+                            createdAt: currentNow,
+                            updatedAt: currentNow,
+                          };
+                      return { ...storedShipment };
+                    },
+                  ),
+                update: vi
+                  .fn()
+                  .mockImplementation(async ({ data }: { data: Record<string, unknown> }) => {
+                    storedShipment = {
+                      ...(storedShipment ?? {}),
+                      ...data,
+                      updatedAt: currentNow,
+                    };
+                    return { ...storedShipment };
+                  }),
+              },
+            }),
+          ),
+        } as unknown as PrismaService;
+
+        const mockOrders = {
+          lock: vi.fn().mockResolvedValue(undefined),
+          transition: vi.fn().mockImplementation(async (_id: string, nextStatus: string) => {
+            currentOrderStatus = nextStatus;
+          }),
+        } as unknown as OrdersService;
+
+        let resolveCreateA!: (val: unknown) => void;
+        const mockGhn = {
+          configured: vi.fn().mockReturnValue(true),
+          createOrder: vi.fn().mockImplementation(
+            () =>
+              new Promise((res) => {
+                resolveCreateA = res;
+              }),
+          ),
+          queryOrderByClientCode: vi.fn().mockResolvedValue({
+            carrierName: 'GHN',
+            trackingNumber: 'L4SAME_CODE',
+            isMock: false,
+            status: 'PENDING',
+            carrierStatus: 'picking',
+            statusNote: 'Tài xế GHN đang đến lấy hàng',
+            expectedDeliveryAt: null,
+            occurredAt: '2026-11-20T10:05:00.000Z',
+          }),
+        } as unknown as GhnCarrierGateway;
+
+        const service = new ShippingService(
+          mockPrisma,
+          mockOrders,
+          undefined,
+          undefined,
+          undefined,
+          mockGhn,
+        );
+
+        // 1. Lượt A bắt đầu gọi createOrder và bị treo > 45 giây
+        const promiseA = service.createShipment('ord-ghn-1', { mode: 'GHN' }, 'admin-1');
+        await vi.waitFor(() => expect(mockGhn.createOrder).toHaveBeenCalledTimes(1));
+
+        // 2. Sau 46 giây, lượt B tiếp quản và đối soát thấy vận đơn đã ở trạng thái picking (mốc 10:05)
+        currentNow = new Date('2026-11-20T10:00:46.000Z');
+        vi.setSystemTime(currentNow);
+        const resB = await service.createShipment('ord-ghn-1', { mode: 'AUTO' }, 'admin-2');
+        expect(resB.trackingNumber).toBe('L4SAME_CODE');
+        expect(resB.carrierStatus).toBe('picking');
+        expect(storedShipment?.carrierStatus).toBe('picking');
+        expect((storedShipment?.carrierUpdatedAt as Date | undefined)?.toISOString()).toBe(
+          '2026-11-20T10:05:00.000Z',
+        );
+
+        // 3. Lượt A trả về muộn cùng mã L4SAME_CODE nhưng ở trạng thái tạo ban đầu ready_to_pick (không có occurredAt)
+        resolveCreateA({
+          carrierName: 'GHN',
+          trackingNumber: 'L4SAME_CODE',
+          isMock: false,
+          status: 'PENDING',
+          carrierStatus: 'ready_to_pick',
+          statusNote: 'Đã tạo vận đơn trên GHN',
+          expectedDeliveryAt: null,
+        });
+        const resA = await promiseA;
+
+        // Lượt A phải trả về bản ghi hiện tại (picking), tuyệt đối không ghi lùi carrierStatus về ready_to_pick!
+        expect(resA.trackingNumber).toBe('L4SAME_CODE');
+        expect(resA.carrierStatus).toBe('picking');
+        expect(storedShipment?.carrierStatus).toBe('picking');
+        expect((storedShipment?.carrierUpdatedAt as Date | undefined)?.toISOString()).toBe(
+          '2026-11-20T10:05:00.000Z',
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 });

@@ -7,7 +7,11 @@ import { toPage } from '../../common/pagination/page.response.js';
 import type { OrderStatus, Prisma } from '../../generated/prisma/client.js';
 import type { AdminOrderQuery, OrderDetails } from '../orders/index.js';
 import type { GatewayCode } from '../payments/index.js';
-import { CheckoutService, REFUNDABLE } from './checkout.service.js';
+import {
+  CheckoutService,
+  isShipmentCreatingOrReconciling,
+  REFUNDABLE,
+} from './checkout.service.js';
 import { refundSummary } from './refund-ledger.js';
 
 const IN_DELIVERY: OrderStatus[] = ['PROCESSING', 'SHIPPED'];
@@ -53,6 +57,10 @@ export class OrderAdminService {
       if (order.shipment)
         throw new ConflictException(
           'Đơn hàng đang có yêu cầu tạo hoặc đối soát vận đơn, vui lòng hoàn tất đối soát trước.',
+        );
+      if (hasPendingOrProcessedRefund(order))
+        throw new ConflictException(
+          'Đơn hàng đang có lệnh hoàn tiền chờ kết quả hoặc đã hoàn tiền, không thể bắt đầu xử lý.',
         );
       await this.checkout.orders.transition(id, 'PROCESSING', tx, actor);
     });
@@ -144,6 +152,7 @@ export class OrderAdminService {
       const refundable =
         payment.status === 'SUCCEEDED' &&
         order.status !== 'CONFIRMED' &&
+        !isShipmentCreatingOrReconciling(order.shipment) &&
         REFUNDABLE.includes(order.status) &&
         !!adapter?.refund &&
         adapter.configured() &&
@@ -175,7 +184,8 @@ export class OrderAdminService {
       ledgers,
       actions: {
         confirmCod: order.status === 'PENDING_CONFIRMATION' && cod?.status === 'PENDING',
-        startProcessing: order.status === 'CONFIRMED' && !order.shipment,
+        startProcessing:
+          order.status === 'CONFIRMED' && !order.shipment && !hasPendingOrProcessedRefund(order),
         cancelRefund: !!this.checkout.selfRefundablePayment(order),
         markDelivered: IN_DELIVERY.includes(order.status) && !realCarrier,
         deliveryFailed:
@@ -186,6 +196,12 @@ export class OrderAdminService {
     };
   }
 }
+
+const hasPendingOrProcessedRefund = (order: OrderDetails) =>
+  order.payments.some((payment) => {
+    const ledger = refundSummary(payment.transactions);
+    return Boolean(ledger.pending) || !ledger.refunded.isZero();
+  });
 
 const codPayment = (order: OrderDetails) =>
   order.payments.find((payment) => payment.gateway === 'COD');

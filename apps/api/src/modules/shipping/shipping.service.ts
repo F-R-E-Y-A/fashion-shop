@@ -196,8 +196,40 @@ type LockedOrderWithShipment = {
   status: string;
   shipment: ShipmentRow | null;
   items?: Array<{ productVariantId: string; quantity: number }>;
-  payments?: Array<{ id: string; gateway: string | null; status: string }>;
+  payments?: Array<{
+    id: string;
+    gateway: string | null;
+    status: string;
+    transactions?: Array<{
+      externalTransactionId?: string | null;
+      status?: string | null;
+    }>;
+  }>;
 };
+
+function hasOrderRefundActivity(order: {
+  payments?: Array<{
+    status?: string;
+    transactions?: Array<{
+      externalTransactionId?: string | null;
+      status?: string | null;
+    }>;
+  }>;
+}): 'PENDING_REFUND' | 'REFUNDED' | null {
+  for (const payment of order.payments ?? []) {
+    if (payment.status === 'REFUNDED') return 'REFUNDED';
+    for (const txRow of payment.transactions ?? []) {
+      const extId = txRow.externalTransactionId ?? '';
+      if (extId.startsWith('REFUND-INTENT:') && txRow.status === 'RECEIVED') {
+        return 'PENDING_REFUND';
+      }
+      if (extId.startsWith('REFUND:') && txRow.status === 'PROCESSED') {
+        return 'REFUNDED';
+      }
+    }
+  }
+  return null;
+}
 
 function parseEventTime(raw?: string): Date | null {
   if (!raw) return null;
@@ -295,10 +327,22 @@ export class ShippingService {
 
         const order = await tx.order.findUnique({
           where: { id: orderId },
-          include: { shipment: true, items: true, payments: true },
+          include: {
+            shipment: true,
+            items: true,
+            payments: { include: { transactions: true } },
+          },
         });
         if (!order) throw new NotFoundException('Không tìm thấy đơn hàng.');
         this.assertOrderReadyForShipment(order, true);
+        const phase1RefundActivity = await this.findOrderRefundActivity(tx, order);
+        if (phase1RefundActivity) {
+          throw new ConflictException(
+            phase1RefundActivity === 'PENDING_REFUND'
+              ? 'Đơn hàng đang có lệnh hoàn tiền chờ kết quả, không thể tạo vận đơn.'
+              : 'Đơn hàng đã hoàn tiền, không thể tạo vận đơn.',
+          );
+        }
 
         const existingShipment = order.shipment as ShipmentRow | null;
         const retryingIntent = Boolean(existingShipment && isReconcilableIntent(existingShipment));
@@ -542,24 +586,32 @@ export class ShippingService {
 
       const order = await tx.order.findUnique({
         where: { id: orderId },
-        include: { shipment: true, items: true, payments: true },
+        include: {
+          shipment: true,
+          items: true,
+          payments: { include: { transactions: true } },
+        },
       });
       if (!order) throw new NotFoundException('Không tìm thấy đơn hàng.');
+      const refundActivity = await this.findOrderRefundActivity(tx, order);
 
       if (phase1ClientOrderCode && phase1AttemptId) {
         // Pha 2 hoàn tất intent GHN (hoặc fallback mock sau khi đã xác nhận không có đơn trên GHN)
         if (
           ['CANCELLED', 'DELIVERED', 'REFUNDED', 'PARTIALLY_REFUNDED', 'PAYMENT_REVIEW'].includes(
             order.status,
-          )
+          ) ||
+          refundActivity !== null
         ) {
           if (externalResult?.isMock === false) {
             this.logger.error(
-              `Lượt tạo GHN ${phase1AttemptId} hoàn tất với mã ${externalResult.trackingNumber} nhưng đơn ${order.orderCode} đã ở trạng thái ${order.status}.`,
+              `Lượt tạo GHN ${phase1AttemptId} hoàn tất với mã ${externalResult.trackingNumber} nhưng đơn ${order.orderCode} đã ở trạng thái ${order.status} (refund=${refundActivity ?? 'none'}).`,
             );
           }
           throw new ConflictException(
-            `Đơn hàng đã chuyển sang trạng thái ${order.status}, không thể lưu vận đơn.`,
+            refundActivity === 'PENDING_REFUND'
+              ? 'Đơn hàng đang có lệnh hoàn tiền chờ kết quả, không thể lưu vận đơn.'
+              : `Đơn hàng đã chuyển sang trạng thái ${order.status}, không thể lưu vận đơn.`,
           );
         }
         if (
@@ -572,10 +624,25 @@ export class ShippingService {
             externalResult.isMock === false &&
             order.shipment.trackingNumber === externalResult.trackingNumber
           ) {
+            const incomingAt = parseEventTime(externalResult.occurredAt);
+            const storedAt = order.shipment.carrierUpdatedAt ?? null;
+            const targetStatus: ShipmentStatus = externalResult.status ?? 'PENDING';
+            const currentStatus = order.shipment.status as ShipmentStatus;
+            const hasNewerTimestamp =
+              incomingAt !== null && (!storedAt || incomingAt.getTime() > storedAt.getTime());
+            const isRegressingToReadyToPick =
+              externalResult.carrierStatus === 'ready_to_pick' &&
+              Boolean(order.shipment.carrierStatus) &&
+              order.shipment.carrierStatus !== 'ready_to_pick';
+            const canAdvance =
+              currentStatus === targetStatus || canTransitionShipment(currentStatus, targetStatus);
+            if (!hasNewerTimestamp || isRegressingToReadyToPick || !canAdvance) {
+              return this.toResponse(order.shipment);
+            }
             return this.applyShipmentStatusInTx(
               tx,
               order,
-              externalResult.status ?? 'PENDING',
+              targetStatus,
               actorUserId,
               externalResult.statusNote,
               {
@@ -604,6 +671,13 @@ export class ShippingService {
         }
       } else {
         this.assertOrderReadyForShipment(order, false);
+        if (refundActivity) {
+          throw new ConflictException(
+            refundActivity === 'PENDING_REFUND'
+              ? 'Đơn hàng đang có lệnh hoàn tiền chờ kết quả, không thể tạo vận đơn.'
+              : 'Đơn hàng đã hoàn tiền, không thể tạo vận đơn.',
+          );
+        }
       }
 
       const carrierResult =
@@ -915,6 +989,14 @@ export class ShippingService {
         throw new ConflictException(
           'Không thể chuyển từ trạng thái giao thất bại sang đang giao/đã giao khi sự kiện GHN thiếu mốc thời gian đối chiếu.',
         );
+      }
+      if (
+        meta.carrierStatus === 'ready_to_pick' &&
+        shipment.carrierStatus &&
+        shipment.carrierStatus !== 'ready_to_pick' &&
+        !isCreateIntentStatus(shipment.carrierStatus)
+      ) {
+        throw new ConflictException('Bỏ qua sự kiện GHN lùi về trạng thái ready_to_pick.');
       }
     }
 
@@ -1236,9 +1318,54 @@ export class ShippingService {
     return this.mockCarrier ?? new MockCarrierGateway();
   }
 
+  private async findOrderRefundActivity(
+    tx: Prisma.TransactionClient,
+    order: {
+      id: string;
+      payments?: Array<{
+        id?: string;
+        status?: string;
+        transactions?: Array<{
+          externalTransactionId?: string | null;
+          status?: string | null;
+        }>;
+      }>;
+    },
+  ): Promise<'PENDING_REFUND' | 'REFUNDED' | null> {
+    const fromIncluded = hasOrderRefundActivity(order);
+    if (fromIncluded) return fromIncluded;
+
+    const hasTransactionsArray = (order.payments ?? []).some((p) => Array.isArray(p.transactions));
+    if (!hasTransactionsArray && typeof tx.paymentTransaction?.findFirst === 'function') {
+      const row = await tx.paymentTransaction.findFirst({
+        where: {
+          payment: { orderId: order.id },
+          OR: [
+            { externalTransactionId: { startsWith: 'REFUND-INTENT:' }, status: 'RECEIVED' },
+            { externalTransactionId: { startsWith: 'REFUND:' }, status: 'PROCESSED' },
+          ],
+        },
+        select: { externalTransactionId: true, status: true },
+      });
+      if (row) {
+        return row.externalTransactionId.startsWith('REFUND-INTENT:')
+          ? 'PENDING_REFUND'
+          : 'REFUNDED';
+      }
+    }
+    return null;
+  }
+
   private assertOrderReadyForShipment(
     order: {
       status: string;
+      payments?: Array<{
+        status?: string;
+        transactions?: Array<{
+          externalTransactionId?: string | null;
+          status?: string | null;
+        }>;
+      }>;
       shipment: {
         status: string;
         isMock?: boolean;
@@ -1259,6 +1386,14 @@ export class ShippingService {
     if (['PENDING_PAYMENT', 'PENDING_CONFIRMATION'].includes(order.status)) {
       throw new ConflictException(
         'Đơn hàng chưa sẵn sàng để tạo vận đơn. Vui lòng xác nhận hoặc thanh toán trước.',
+      );
+    }
+    const refundActivity = hasOrderRefundActivity(order);
+    if (refundActivity) {
+      throw new ConflictException(
+        refundActivity === 'PENDING_REFUND'
+          ? 'Đơn hàng đang có lệnh hoàn tiền chờ kết quả, không thể tạo vận đơn.'
+          : 'Đơn hàng đã hoàn tiền, không thể tạo vận đơn.',
       );
     }
     if (!order.shipment) return;

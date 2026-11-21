@@ -49,6 +49,28 @@ export const REFUNDABLE: OrderStatus[] = [
   'PARTIALLY_REFUNDED',
   'CANCELLED',
 ];
+
+/**
+ * Kiểm tra vận đơn đang giữ chỗ khởi tạo (`creating#...`) hoặc chờ đối soát (`create_uncertain...`)
+ * hoặc chưa có mã vận đơn thật. Dùng để chặn hoàn tiền trực tiếp đua với luồng tạo vận đơn GHN.
+ */
+export function isShipmentCreatingOrReconciling(
+  shipment:
+    | {
+        isMock?: boolean;
+        trackingNumber?: string | null;
+        carrierStatus?: string | null;
+      }
+    | null
+    | undefined,
+): boolean {
+  if (!shipment) return false;
+  if (!shipment.trackingNumber) return true;
+  const cs = shipment.carrierStatus ?? '';
+  return (
+    cs.startsWith('creating') || cs.startsWith('create_uncertain') || cs.startsWith('uncertain_ghn')
+  );
+}
 const CUSTOMER_CANCEL_REASON = 'Khách hủy đơn trước khi shop xử lý.';
 
 /** Lenh hoan qua cong da chot thanh cong; phan he goi (returns) nghe de dong viec cua minh. */
@@ -603,6 +625,13 @@ export class CheckoutService {
         throw new ConflictException('Chỉ hoàn tiền cho thanh toán đã thành công.');
       if (!REFUNDABLE.includes(current.status))
         throw new ConflictException('Đơn không ở trạng thái cho phép hoàn tiền.');
+      if (
+        isShipmentCreatingOrReconciling(current.shipment) ||
+        (current.status === 'CONFIRMED' && current.shipment)
+      )
+        throw new ConflictException(
+          'Đơn hàng đang trong quá trình khởi tạo hoặc đối soát vận đơn, không thể hoàn tiền lúc này.',
+        );
       const ledger = await this.refundLedger(paymentId, tx);
       if (ledger.pending) throw pendingRefund();
       const remaining = payment.amount.minus(ledger.refunded);
@@ -835,9 +864,19 @@ export class CheckoutService {
     const payment = await tx.payment.findUniqueOrThrow({ where: { id: paymentId } });
     if (payment.status !== 'SUCCEEDED')
       throw new ConflictException('Chỉ hoàn tiền cho thanh toán đã thành công.');
-    const order = await tx.order.findUniqueOrThrow({ where: { id: payment.orderId } });
+    const order = await tx.order.findUniqueOrThrow({
+      where: { id: payment.orderId },
+      include: { shipment: true },
+    });
     if (!REFUNDABLE.includes(order.status))
       throw new ConflictException('Đơn không ở trạng thái cho phép hoàn tiền.');
+    if (
+      isShipmentCreatingOrReconciling(order.shipment) ||
+      (order.status === 'CONFIRMED' && order.shipment)
+    )
+      throw new ConflictException(
+        'Đơn hàng đang trong quá trình khởi tạo hoặc đối soát vận đơn, không thể hoàn tiền lúc này.',
+      );
     const ledger = await this.refundLedger(paymentId, tx);
     if (ledger.pending) throw pendingRefund();
     const amount = new Decimal(input.amount);
