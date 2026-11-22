@@ -1001,3 +1001,33 @@ Thực tế: 2026-11-06 trước khi gắn mã, tại `18e1e8b` · `node tools/e
 
 ### Điều kiện xem lại
 Nhóm đổi danh mục use case khác bộ số PR #26; rubric đổi cách tính tỉ lệ tự động; tên bài dài tới mức khó đọc báo cáo Vitest.
+
+<a id="adr-124"></a>
+## 2026-11-22 · ADR-124 — Nhận diện xung đột transaction theo SQLSTATE gốc; còn sót thì trả 409 `CONCURRENT_UPDATE`, không 500
+
+**Loại:** quyết định · **Phạm vi:** cả nhóm: `AllExceptionsFilter`, `infra/prisma`, wrapper retry của cart và products; PH-11 Pha 2 (Issue #166) · **Trạng thái:** đề xuất · **Người quyết:** Bảo đề xuất; Tài review (chạm products/inventory) · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- Issue #166 Pha 2 giả định các transaction `RepeatableRead` có thể trả 500. Đọc mã: mọi chỗ RR gọi qua HTTP đều **chỉ đọc** ([admin-inventory.service.ts:64](../apps/api/src/modules/inventory/admin-inventory.service.ts#L64), [promotions.service.ts:354](../apps/api/src/modules/promotions/promotions.service.ts#L354), [admin-products.service.ts:1249](../apps/api/src/modules/products/admin-products.service.ts#L1249), [admin-categories.service.ts:128](../apps/api/src/modules/products/admin-categories.service.ts#L128), [reporting.service.ts:214](../apps/api/src/modules/reporting/reporting.service.ts#L214)). PostgreSQL không ném 40001 cho transaction chỉ đọc nên các chỗ này không phải nguồn 500. Chỗ RR có ghi duy nhất là worker tổng hợp báo cáo, có `pg_try_advisory_xact_lock` và tự bắt lỗi ([reporting-aggregator.service.ts:41](../apps/api/src/modules/reporting/reporting-aggregator.service.ts#L41)).
+- Hình dạng lỗi đo thật trên PostgreSQL với Prisma 7.10 ([test/db-conflict.http.spec.ts](../apps/api/test/db-conflict.http.spec.ts)): deadlock ở lệnh ORM ra `P2034`; ghi trùng dưới RR ra `P2034` kèm `40001`; deadlock ở `$queryRaw`/`$executeRaw` ra **`P2010`**, SQLSTATE `40P01` nằm ở `meta.driverAdapterError.cause.originalCode`.
+- Lệnh lấy khoá của cart (advisory), danh mục (`FOR UPDATE`) và tồn kho (advisory) đều là raw. Trước khi sửa, `cartTransaction` chỉ retry `P2002`/`P2034`, còn `isRetryableTxError` chỉ đọc `code`/`sqlState`, nên deadlock đúng ở câu lấy khoá không được retry và rơi về 500.
+- Admin kiểm kê đã lấy cùng khoá tồn kho với checkout ([admin-inventory.service.ts:188](../apps/api/src/modules/inventory/admin-inventory.service.ts#L188)) và chặn tồn mới nhỏ hơn lượng đang giữ ([:304](../apps/api/src/modules/inventory/admin-inventory.service.ts#L304)); chưa có test chạy đồng thời.
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Bọc retry toàn cục ở `PrismaService.$transaction` | Một chỗ | Chạy lại cả thân có gọi cổng thanh toán, GHN, mail; che lỗi thứ tự khoá | Được nhưng khó lần |
+| **B. Một helper nhận diện theo SQLSTATE gốc ở `infra/prisma`; hai wrapper hiện có dùng lại; filter đổi phần còn sót thành 409 `CONCURRENT_UPDATE` (chọn)** | Sửa đúng lỗ đã đo; không đổi vòng retry riêng (P2002, `CategoryLockSetChangedError`, câu báo riêng); không còn 500 cho xung đột | Chỗ chưa có retry trả 409 thay vì tự thành công | Được: bỏ nhánh filter |
+| C. Thêm retry từng chỗ cho mọi transaction ghi | Khách ít thấy 409 | Kiểm kê 2026-11-22 không thấy vòng khoá ngược nào (thứ tự cart → `order:<id>` → voucher → tồn kho, bảng đủ ở [shared/lock-order.md](shared/lock-order.md); chỗ huỷ đơn nhả kho trước khi xoá lượt voucher là suy luận, chưa đo riêng); thêm mã không có bằng chứng cần | Được |
+
+**Chọn B.** Mã: [db-errors.ts:24](../apps/api/src/infra/prisma/db-errors.ts#L24) đọc thêm `originalCode`, [:35](../apps/api/src/infra/prisma/db-errors.ts#L35) `isTransactionConflict`; [cart-transaction.ts:45](../apps/api/src/modules/cart/cart-transaction.ts#L45); [category-visibility.ts:43](../apps/api/src/modules/products/category-visibility.ts#L43); [all-exceptions.filter.ts:75](../apps/api/src/common/filters/all-exceptions.filter.ts#L75). Trade-off chấp nhận: xung đột ở chỗ chưa có retry thì khách thấy 409 và tự thử lại. Lỗi unique `P2002` chưa được service tự xử lý vẫn ra 500, nằm ngoài quyết định này.
+
+### Phản biện
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| AI gợi ý | Advisor (Claude): đo hình dạng lỗi thật trước khi viết test, đừng tự chế; không bọc retry toàn cục; dời phần nhận diện sang `infra/` vì `common/` không được nhập từ `modules/` | giữ cả ba |
+| AI sai | Kế hoạch Pha 2 ban đầu (Claude) liệt kê 9 chỗ RR là nguồn 500 chỉ dựa trên grep; đọc mã thì đều là transaction chỉ đọc | Claude tự bắt khi đọc mã trước khi sửa |
+| Người phản biện | [TBD — hỏi Tài] | |
+
+**Kết luận:** Lỗ thật nằm ở deadlock trong lệnh raw, không nằm ở các chỗ RR. Đã vá ở helper nhận diện; phần còn sót trả 409.
+**Bằng chứng:** `test/db-conflict.http.spec.ts` gồm 4 bài trên PostgreSQL thật: ba hình dạng lỗi, và hai wrapper retry deadlock raw thành công ở lần thứ hai. Kiểm ngược: bỏ `originalCode` khỏi helper → 3 đỏ (`deadlock raw…`, `cartTransaction…`, `runCategoryTxWithRetry…`), 1 xanh. Bài `UC-07.1/AC17 admin kiểm kê về 0 đúng lúc khách đặt món cuối` trong `checkout-stock-race.http.spec.ts` chạy 3 lần đều xanh. Unit: `db-errors.spec.ts` và một ca trong `all-exceptions.filter.spec.ts`.

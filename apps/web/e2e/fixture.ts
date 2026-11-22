@@ -18,7 +18,7 @@ export function fixture(): E2eFixture {
 export async function login(page: Page, account: { email: string; password: string }) {
   await page.goto('/login');
   await page.getByLabel('Email').fill(account.email);
-  await page.getByLabel('Mật khẩu').fill(account.password);
+  await page.getByLabel('Mật khẩu', { exact: true }).fill(account.password);
   await page.getByRole('button', { name: 'Đăng nhập' }).click();
   await expect(page).not.toHaveURL(/\/login/u);
 }

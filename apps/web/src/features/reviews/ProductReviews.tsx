@@ -309,6 +309,7 @@ export function ProductReviews({ slug }: { slug: string }) {
                   totalPages={list.data.totalPages}
                   total={list.data.total}
                   unit="đánh giá"
+                  scrollToTop={false}
                   onChange={setPage}
                 />
               )}

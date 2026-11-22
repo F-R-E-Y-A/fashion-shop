@@ -158,3 +158,23 @@ export function adminOrderErrorText(error: unknown, target: RequestTarget): stri
         : 'Không tải được đơn hàng. Kiểm tra kết nối rồi thử lại.';
   }
 }
+
+/** Chuan hoa loi ky thuat tieng Anh trong pendingRefund.lastError (ke ca ban ghi cu) sang tieng Viet. */
+export function formatPendingRefundError(rawError: string | null | undefined): string | null {
+  const raw = rawError?.trim();
+  if (!raw) return null;
+  if (
+    /aborted due to timeout|timed?\s*out|ETIMEDOUT|UND_ERR_CONNECT_TIMEOUT|UND_ERR_HEADERS_TIMEOUT/iu.test(
+      raw,
+    )
+  ) {
+    return 'Hết thời gian chờ phản hồi từ cổng thanh toán.';
+  }
+  if (/operation was aborted|this operation was aborted/iu.test(raw)) {
+    return 'Kết nối tới cổng thanh toán bị ngắt trước khi nhận phản hồi.';
+  }
+  if (/^fetch failed$|ECONNREFUSED|ECONNRESET|ENOTFOUND|EAI_AGAIN|socket hang up/iu.test(raw)) {
+    return 'Không thể kết nối tới cổng thanh toán.';
+  }
+  return raw;
+}

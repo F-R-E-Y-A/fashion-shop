@@ -20,6 +20,7 @@ import {
   adminOrderKeys,
   adminShippingConfigKey,
   type CarrierConfig,
+  formatPendingRefundError,
   gatewayLabel,
   orderTones,
   paymentLabels,
@@ -401,19 +402,23 @@ function AdminOrderDetail() {
                       ))}
                     </ul>
                   )}
-                  {ledger.pendingRefund && (
-                    <p className={styles.notice} data-tone="warning" role="status">
-                      Lệnh hoàn{' '}
-                      {ledger.pendingRefund.amount ? formatPrice(ledger.pendingRefund.amount) : ''}{' '}
-                      gửi lúc {formatDateTime(ledger.pendingRefund.createdAt)} chưa có kết quả
-                      {ledger.pendingRefund.lastError
-                        ? `: ${ledger.pendingRefund.lastError}`
-                        : '.'}{' '}
-                      {ledger.pendingRefund.resolvable
-                        ? 'Đối chiếu trên trang quản trị của cổng rồi chốt kết quả.'
-                        : 'Cổng có thể vẫn đang xử lý; chờ ít phút trước khi chốt tay.'}
-                    </p>
-                  )}
+                  {ledger.pendingRefund &&
+                    (() => {
+                      const lastError = formatPendingRefundError(ledger.pendingRefund.lastError);
+                      return (
+                        <p className={styles.notice} data-tone="warning" role="status">
+                          Lệnh hoàn{' '}
+                          {ledger.pendingRefund.amount
+                            ? formatPrice(ledger.pendingRefund.amount)
+                            : ''}{' '}
+                          gửi lúc {formatDateTime(ledger.pendingRefund.createdAt)} chưa có kết quả
+                          {lastError ? `: ${lastError}` : '.'}{' '}
+                          {ledger.pendingRefund.resolvable
+                            ? 'Đối chiếu trên trang quản trị của cổng rồi chốt kết quả.'
+                            : 'Cổng có thể vẫn đang xử lý; chờ ít phút trước khi chốt tay.'}
+                        </p>
+                      );
+                    })()}
                 </section>
               ))}
 

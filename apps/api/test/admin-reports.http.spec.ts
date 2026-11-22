@@ -345,6 +345,65 @@ describe('Admin Reports HTTP API (Issue #108 - Reporting Read Model)', () => {
       expect(res.body.topDeliveredProducts[0].deliveredQuantity).toBe(2);
       expect(res.body.topDeliveredProducts[0].deliveredRevenueAmount).toBe('420000.00'); // 2 * 210,000
     });
+
+    it('UC-108.1/AC9 top san pham lay ten trong ban chup don, lan giao gan nhat trong ky; doi ten hien tai khong doi bao cao', async () => {
+      const deliveredOrder = (name: string, deliveredAt: string) =>
+        t.prisma.order.create({
+          data: {
+            userId: customerId,
+            customerEmail: 'customer.report@example.test',
+            shippingAddressSnapshot: { recipientName: 'Khách test' },
+            orderCode: `ORD-NAME-${randomBytes(4).toString('hex')}`,
+            status: 'DELIVERED',
+            totalAmount: '100000.00',
+            subtotalAmount: '100000.00',
+            shippingFeeAmount: '0.00',
+            discountAmount: '0.00',
+            checkoutFingerprint: randomUUID(),
+            items: {
+              create: [
+                {
+                  productVariantId: variantId,
+                  quantity: 1,
+                  unitPrice: '100000.00',
+                  productSnapshot: { name },
+                },
+              ],
+            },
+            statusHistory: {
+              create: [{ status: 'DELIVERED', createdAt: new Date(deliveredAt) }],
+            },
+          },
+        });
+      // Hai don cung ngay VN 10/11 mang hai ten khac nhau: tong hop khong duoc tach thanh hai dong
+      // trung khoa (report_date, product_id).
+      await deliveredOrder('Tên lúc bán 1', '2026-11-10T02:00:00Z');
+      await deliveredOrder('Tên lúc bán 2', '2026-11-10T04:00:00Z');
+      await deliveredOrder('Tên lúc bán 3', '2026-11-12T03:00:00Z');
+      await t.prisma.product.update({ where: { id: productId }, data: { name: 'Tên hiện tại' } });
+
+      const refresh = await t.app.get(ReportingAggregatorService).refreshSnapshot();
+      expect(refresh.success).toBe(true);
+
+      const top = async (from: string, to: string) => {
+        const res = await t.http
+          .get(`/api/admin/reports/summary?from=${from}&to=${to}`)
+          .set(asAdmin());
+        expect(res.status).toBe(200);
+        return res.body.topDeliveredProducts as {
+          productId: string;
+          productName: string;
+          deliveredQuantity: number;
+        }[];
+      };
+
+      expect(await top('2026-11-10', '2026-11-10')).toEqual([
+        expect.objectContaining({ productId, productName: 'Tên lúc bán 2', deliveredQuantity: 2 }),
+      ]);
+      expect(await top('2026-11-10', '2026-11-12')).toEqual([
+        expect.objectContaining({ productId, productName: 'Tên lúc bán 3', deliveredQuantity: 3 }),
+      ]);
+    });
   });
 
   describe('5. Advisory Lock va Tinh Nguyen tu cua Snapshot', () => {

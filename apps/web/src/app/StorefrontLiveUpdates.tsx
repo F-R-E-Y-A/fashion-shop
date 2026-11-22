@@ -6,6 +6,8 @@ import { cartKeys } from '@/features/cart';
 import { checkoutKeys } from '@/features/checkout';
 import { categoryKeys, productKeys } from '@/features/products';
 
+import styles from './StorefrontLiveUpdates.module.css';
+
 export function StorefrontLiveUpdates() {
   const client = useQueryClient();
   const [unavailable, setUnavailable] = useState(false);
@@ -52,7 +54,7 @@ export function StorefrontLiveUpdates() {
     };
   }, [client]);
   return unavailable ? (
-    <p role="status">
+    <p className={styles.banner} role="status">
       Đang kết nối lại cập nhật giá và tồn kho. Dữ liệu hiển thị có thể chưa mới nhất.
     </p>
   ) : null;

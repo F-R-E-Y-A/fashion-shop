@@ -30,6 +30,7 @@ import {
   slugifyCategoryName,
 } from './admin-categories.api.js';
 import styles from './AdminCatalog.module.css';
+import { ColorSelectOptions } from './color-options.js';
 import { PRODUCT_ACTION_TIMEOUT_MS } from './product-status-action.js';
 
 const MAX_INITIAL_IMAGES = 8;
@@ -971,11 +972,7 @@ function AdminProductNewScope() {
                         }
                       >
                         <option value="">-- Chọn màu --</option>
-                        {optionsQuery.data.colors.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name} ({c.code})
-                          </option>
-                        ))}
+                        <ColorSelectOptions colors={optionsQuery.data.colors} />
                       </select>
                     </label>
 

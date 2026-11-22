@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -94,5 +94,36 @@ describe('ProductListPage (PH-03 Kham pha san pham)', () => {
     renderPage();
 
     expect(await screen.findByRole('alert')).toHaveTextContent('May chu dang gap su co');
+  });
+
+  it('khi tim kiem sau khi da co du lieu bi loi thi an luoi cu va hien ErrorNote', async () => {
+    vi.mocked(fetch)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => page([product]),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        json: async () => ({
+          statusCode: 500,
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Loi tai trang moi',
+          path: '/products',
+          timestamp: new Date().toISOString(),
+        }),
+      } as Response);
+
+    renderPage();
+    expect(await screen.findByText('Ao thun co tron basic')).toBeInTheDocument();
+
+    fireEvent.change(screen.getByPlaceholderText('Tìm theo tên sản phẩm'), {
+      target: { value: 'quan' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Tìm' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Loi tai trang moi');
+    expect(screen.queryByText('Ao thun co tron basic')).not.toBeInTheDocument();
   });
 });

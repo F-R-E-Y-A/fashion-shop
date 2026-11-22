@@ -22,9 +22,10 @@
   gap: 4px;
 }
 .tab {
-  min-height: 40px;
-  padding: 6px 14px;
+  min-height: 44px;
+  padding: 8px 14px;
   border: 1px solid var(--line);
+  border-radius: var(--radius);
   background: var(--paper);
   color: var(--ink);
   font: inherit;
@@ -33,37 +34,44 @@
 .tab[aria-selected='true'] {
   border-color: var(--accent);
   color: var(--accent);
+  font-weight: 500;
 }
 .check {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-height: 40px;
+  min-height: 44px;
 }
 .search {
   display: flex;
-  gap: 6px;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.search label {
+  flex: 1 1 240px;
+  min-width: 0;
 }
 .search input {
-  min-width: min(280px, 60vw);
-  min-height: 40px;
-  padding: 6px 10px;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 12px;
   border: 1px solid var(--line);
-  font: inherit;
-}
-.search button,
-.actions button {
-  min-height: 40px;
-  padding: 6px 14px;
-  border: 1px solid var(--line);
+  border-radius: var(--radius);
   background: var(--paper);
-  color: var(--ink);
   font: inherit;
-  cursor: pointer;
 }
-.search button:hover,
-.actions button:hover {
-  border-color: var(--accent);
+.searchButton,
+.clearFilterBtn,
+.secondaryAction {
+  composes: secondary from '../../ui/AdminKit.module.css';
+}
+.primaryAction {
+  composes: primaryButton from '../../ui/AdminKit.module.css';
+}
+.dangerAction {
+  composes: dangerButton from '../../ui/AdminKit.module.css';
 }
 .notice {
   margin: 0;
@@ -106,6 +114,11 @@
 }
 .product {
   color: var(--accent);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.productOff {
+  color: var(--muted);
   font-weight: 600;
   overflow-wrap: anywhere;
 }

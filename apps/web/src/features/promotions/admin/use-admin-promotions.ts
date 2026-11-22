@@ -26,6 +26,10 @@ export function useAdminPromotions(page = 1, pageSize = 12) {
         ),
       ),
     enabled: Boolean(actorId) && !forbidden,
+    placeholderData: (previous, previousQuery) =>
+      previousQuery && previousQuery.queryKey[3] === actorId && previousQuery.queryKey[4] === 'list'
+        ? previous
+        : undefined,
     retry: shouldRetryAdminQuery,
   });
 

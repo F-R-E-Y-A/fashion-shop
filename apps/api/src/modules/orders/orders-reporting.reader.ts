@@ -70,9 +70,13 @@ export class OrdersReportingReader {
       SELECT
         (fd.delivered_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date AS "reportDate",
         pv.product_id AS "productId",
+        -- Ten trong ban chup cua lan giao muon nhat trong ngay (ADR-108-05); khong lay ten hien tai
+        -- de doi ten sau nay khong viet lai bao cao. Gom bang ham, khong GROUP BY ten: hai ten khac
+        -- nhau cung ngay se thanh hai dong trung khoa (report_date, product_id).
         COALESCE(
-          p.name,
-          oi.product_snapshot->>'name',
+          (ARRAY_AGG(oi.product_snapshot->>'name' ORDER BY fd.delivered_at DESC, oi.id DESC)
+            FILTER (WHERE COALESCE(BTRIM(oi.product_snapshot->>'name'), '') <> ''))[1],
+          MAX(p.name),
           'Sản phẩm'
         ) AS "productName",
         SUM(oi.quantity)::int AS "quantitySold",
@@ -83,8 +87,7 @@ export class OrdersReportingReader {
       LEFT JOIN public.products p ON p.id = pv.product_id
       GROUP BY
         (fd.delivered_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date,
-        pv.product_id,
-        COALESCE(p.name, oi.product_snapshot->>'name', 'Sản phẩm')
+        pv.product_id
       ORDER BY "reportDate" ASC, "quantitySold" DESC, pv.product_id ASC
     `;
 

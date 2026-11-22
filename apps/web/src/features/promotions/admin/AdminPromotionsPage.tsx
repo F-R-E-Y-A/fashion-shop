@@ -35,6 +35,7 @@ export function AdminPromotionsPage() {
     const next = new URLSearchParams(searchParams);
     next.set('page', String(nextPage));
     setSearchParams(next);
+    window.scrollTo?.({ left: 0, top: 0, behavior: 'instant' });
   };
 
   // Chuẩn hóa URL nếu có tham số không hợp lệ mà không gọi setState trong render
@@ -246,7 +247,7 @@ export function AdminPromotionsPage() {
                     <span
                       className={`${styles.badge} ${item.status === 'ACTIVE' ? styles.badgeActive : styles.badgeInactive}`}
                     >
-                      {item.status === 'ACTIVE' ? 'Đang bật' : 'Ngưng'}
+                      {item.status === 'ACTIVE' ? 'Đang hoạt động' : 'Ngưng hoạt động'}
                     </span>
                   </div>
 
@@ -254,7 +255,7 @@ export function AdminPromotionsPage() {
                     <span className={styles.cardLabel}>Mức giảm:</span>
                     <span className={styles.cardValue}>
                       {item.discountType === 'PERCENTAGE'
-                        ? `${Number(item.discountValue)}%`
+                        ? `${Number(item.discountValue)}%${item.maxDiscountAmount ? ` (Tối đa ${formatCurrencyVnd(item.maxDiscountAmount)})` : ''}`
                         : formatCurrencyVnd(item.discountValue)}
                     </span>
                   </div>

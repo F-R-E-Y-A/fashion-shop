@@ -221,7 +221,7 @@ describe('UC-02.1 Issue #48 — tìm, lọc, sắp xếp trên URL', () => {
       sort: 'email_asc',
     });
     expect(searchBox()).toHaveValue('example');
-    expect(screen.getByRole('combobox', { name: 'Vai' })).toHaveValue('CUSTOMER');
+    expect(screen.getByRole('combobox', { name: 'Vai trò' })).toHaveValue('CUSTOMER');
     expect(screen.getByRole('combobox', { name: 'Xác thực email' })).toHaveValue('true');
     expect(screen.getByRole('combobox', { name: 'Sắp xếp' })).toHaveValue('email_asc');
     expect(screen.getByRole('combobox', { name: 'Số dòng' })).toHaveValue('50');

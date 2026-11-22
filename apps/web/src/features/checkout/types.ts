@@ -98,6 +98,8 @@ export interface OrderView {
     quantity: number;
     price: string;
     snapshot: { name: string; variantLabel: string; imageUrl: string | null; productSlug: string };
+    /** false: san pham da ngung ban, trang san pham 404 nen khong gan link (ADR-121). */
+    productAvailable?: boolean;
   }[];
   payments: {
     id: string;

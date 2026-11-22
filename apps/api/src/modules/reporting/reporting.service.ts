@@ -146,7 +146,8 @@ export class ReportingService {
           };
         });
 
-        // 5. Doc TopSellingProduct trong ky
+        // 5. Doc TopSellingProduct trong ky. Ngay moi nhat truoc: ten giu lai khi gop nhieu ngay la ten
+        // cua lan giao gan nhat trong ky (UC-108.1/AC9).
         const topRecords = await tx.topSellingProduct.findMany({
           where: {
             reportDate: {
@@ -154,6 +155,7 @@ export class ReportingService {
               lte: toDate,
             },
           },
+          orderBy: [{ reportDate: 'desc' }, { productId: 'asc' }],
         });
 
         const productMap = new Map<

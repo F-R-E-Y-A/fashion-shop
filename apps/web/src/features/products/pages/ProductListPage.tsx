@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { Empty, ErrorNote, layout, Pager, SkeletonGrid } from '@/ui';
@@ -20,7 +20,10 @@ export function ProductListPage() {
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: productKeys.list(params),
     queryFn: () => listProducts(params),
+    placeholderData: keepPreviousData,
   });
+
+  const visibleData = isError ? undefined : data;
 
   return (
     <div className={`${layout.container} ${layout.section}`}>
@@ -46,16 +49,18 @@ export function ProductListPage() {
 
       {isPending && <SkeletonGrid count={12} />}
       {isError && <ErrorNote error={error} onRetry={() => void refetch()} />}
-      {data && data.items.length === 0 && <Empty label="Không có sản phẩm nào khớp." />}
+      {visibleData && visibleData.items.length === 0 && (
+        <Empty label="Không có sản phẩm nào khớp." />
+      )}
 
-      {data && data.items.length > 0 && (
+      {visibleData && visibleData.items.length > 0 && (
         <>
-          <ProductGrid products={data.items} showBrand />
+          <ProductGrid products={visibleData.items} showBrand />
 
           <Pager
-            page={data.page}
-            totalPages={data.totalPages}
-            total={data.total}
+            page={visibleData.page}
+            totalPages={visibleData.totalPages}
+            total={visibleData.total}
             onChange={setPage}
             unit="sản phẩm"
           />

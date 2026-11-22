@@ -6,6 +6,32 @@ export const REFUND_INTENT = 'REFUND-INTENT:';
 /** Lon hon timeout goi Refund API (8 giay) de lenh treo do sap process van chot duoc. */
 export const REFUND_IN_FLIGHT_MS = 60_000;
 
+/** Chuan hoa loi ky thuat tu fetch/AbortSignal cua cong thanh toan sang tieng Viet cho admin. */
+export function humanizeGatewayError(error: unknown): string {
+  const errorName = error instanceof Error ? error.name : '';
+  const raw =
+    typeof error === 'string' ? error.trim() : error instanceof Error ? error.message.trim() : '';
+
+  if (
+    errorName === 'TimeoutError' ||
+    /aborted due to timeout|timed?\s*out|ETIMEDOUT|UND_ERR_CONNECT_TIMEOUT|UND_ERR_HEADERS_TIMEOUT/iu.test(
+      raw,
+    )
+  ) {
+    return 'Hết thời gian chờ phản hồi từ cổng thanh toán.';
+  }
+  if (
+    errorName === 'AbortError' ||
+    /operation was aborted|this operation was aborted/iu.test(raw)
+  ) {
+    return 'Kết nối tới cổng thanh toán bị ngắt trước khi nhận phản hồi.';
+  }
+  if (/^fetch failed$|ECONNREFUSED|ECONNRESET|ENOTFOUND|EAI_AGAIN|socket hang up/iu.test(raw)) {
+    return 'Không thể kết nối tới cổng thanh toán.';
+  }
+  return raw || 'Cổng không phản hồi.';
+}
+
 type LedgerRow = {
   id: string;
   externalTransactionId: string;
@@ -47,7 +73,7 @@ export function refundSummary(transactions: readonly LedgerRow[], now = Date.now
           id: intent.id,
           amount: claim?.amount ?? null,
           createdAt: intent.createdAt.toISOString(),
-          lastError: claim?.lastError ?? null,
+          lastError: claim?.lastError ? humanizeGatewayError(claim.lastError) : null,
           resolvable: !!claim?.lastError || intent.createdAt.getTime() < now - REFUND_IN_FLIGHT_MS,
           // Chi intent co ma lenh ben cong (ghi truoc khi goi, ADR-119) moi tra duoc tren cong.
           checkable: !!claim?.gatewayRefundId,

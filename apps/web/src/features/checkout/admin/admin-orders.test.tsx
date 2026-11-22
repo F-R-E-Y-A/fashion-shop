@@ -5,7 +5,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '@/core';
 
-import { adminOrderKeys } from './admin-orders.api.js';
+import { adminOrderKeys, formatPendingRefundError } from './admin-orders.api.js';
 import { AdminOrderDetailPage } from './AdminOrderDetailPage.js';
 import { AdminOrdersPage } from './AdminOrdersPage.js';
 import { base } from './test-support/order-fixture.js';
@@ -676,5 +676,50 @@ describe('UC-02.1/AC6, AC8 — bảo vệ dữ liệu admin dùng chung (#57)', 
       screen.queryByRole('button', { name: 'Tạo vận đơn mô phỏng (Dự phòng)' }),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Mô phỏng:/ })).not.toBeInTheDocument();
+  });
+
+  it('UC-12/UX-12 dịch pendingRefund.lastError tiếng Anh kỹ thuật sang tiếng Việt dễ hiểu', async () => {
+    const timedOutRefund = {
+      ...base,
+      status: 'PAID',
+      ledgers: [
+        {
+          ...base.ledgers[0]!,
+          gateway: 'VNPAY',
+          paymentStatus: 'SUCCEEDED',
+          pendingRefund: {
+            id: 'tx-ref-1',
+            amount: '230000.00',
+            createdAt: '2026-10-31T03:00:00.000Z',
+            lastError: 'The operation was aborted due to timeout',
+            resolvable: true,
+          },
+        },
+      ],
+    };
+    request.mockImplementation(async (path: string) => {
+      if (path === '/admin/orders/o1') return timedOutRefund;
+      return {};
+    });
+
+    show('/admin/orders/o1');
+    const notice = await screen.findByText(/Hết thời gian chờ phản hồi từ cổng thanh toán/i);
+    expect(notice).toBeInTheDocument();
+    expect(notice.textContent).not.toContain('aborted due to timeout');
+  });
+
+  it('formatPendingRefundError dong bo cac ma loi Node fetch (UND_ERR_*, EAI_AGAIN, socket hang up)', () => {
+    expect(formatPendingRefundError('UND_ERR_CONNECT_TIMEOUT')).toBe(
+      'Hết thời gian chờ phản hồi từ cổng thanh toán.',
+    );
+    expect(formatPendingRefundError('UND_ERR_HEADERS_TIMEOUT')).toBe(
+      'Hết thời gian chờ phản hồi từ cổng thanh toán.',
+    );
+    expect(formatPendingRefundError('getaddrinfo EAI_AGAIN sandbox.vnpayment.vn')).toBe(
+      'Không thể kết nối tới cổng thanh toán.',
+    );
+    expect(formatPendingRefundError('socket hang up')).toBe(
+      'Không thể kết nối tới cổng thanh toán.',
+    );
   });
 });

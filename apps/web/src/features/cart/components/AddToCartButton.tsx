@@ -23,14 +23,22 @@ export function AddToCartButton({
       >
         {availableQuantity === 0 ? 'Hết hàng' : mutation.isPending ? 'Đang thêm…' : 'Thêm vào giỏ'}
       </button>
-      {!variantId && <small>Chọn phân loại để thêm vào giỏ.</small>}
-      {variantId && (availableQuantity === null || availableQuantity === undefined) && (
-        <small>Chưa cập nhật tồn kho. Thêm vào giỏ chưa giữ hàng.</small>
-      )}
-      {mutation.isSuccess && mutation.variables === variantId && (
-        <p role="status">Đã thêm vào giỏ.</p>
-      )}
-      {mutation.error && <p role="alert">{mutation.error.message}</p>}
+      <div style={{ minHeight: '2.4em' }}>
+        {!variantId && <small>Chọn phân loại để thêm vào giỏ.</small>}
+        {variantId && (availableQuantity === null || availableQuantity === undefined) && (
+          <small>Chưa cập nhật tồn kho. Thêm vào giỏ chưa giữ hàng.</small>
+        )}
+        {mutation.isSuccess && mutation.variables === variantId && (
+          <p role="status" style={{ margin: '4px 0 0' }}>
+            Đã thêm vào giỏ.
+          </p>
+        )}
+        {mutation.error && (
+          <p role="alert" style={{ margin: '4px 0 0' }}>
+            {mutation.error.message}
+          </p>
+        )}
+      </div>
     </>
   );
 }

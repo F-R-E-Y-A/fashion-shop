@@ -436,4 +436,42 @@ describe('UC-11.1 viet va sua danh gia san pham (PostgreSQL)', () => {
     }
     await t.http.post('/api/reviews').send({ orderItemId, rating: 5 }).expect(401);
   });
+
+  it('UC-11.1/AC14 san pham da ngung ban: khong moi danh gia, gui thi 422; mo ban lai trong han thi viet duoc', async () => {
+    const { orderItemId } = await w.deliveredItem();
+    const setDisabled = async (adminDisabled: boolean) => {
+      const { statusVersion } = await t.prisma.product.findUniqueOrThrow({
+        where: { id: w.productId },
+        select: { statusVersion: true },
+      });
+      await t.http
+        .patch(`/api/admin/products/${w.productId}/status`)
+        .set(w.admin.auth)
+        .send({ adminDisabled, expectedVersion: statusVersion })
+        .expect(200);
+    };
+
+    await setDisabled(true);
+    await t.http.get(`/api/products/${w.productSlug}`).expect(404);
+    expect(await eligible(w.buyer)).toEqual([]);
+    const hidden = await post(w.buyer, { orderItemId, rating: 5 }).expect(422);
+    expect(hidden.body.code).toBe('REVIEW_PRODUCT_UNAVAILABLE');
+    expect(await t.prisma.review.count()).toBe(0);
+
+    await setDisabled(false);
+    expect((await eligible(w.buyer)).map((item) => item.orderItemId)).toEqual([orderItemId]);
+    const created = await post(w.buyer, { orderItemId, rating: 5 }).expect(201);
+    expect(created.body.product.available).toBe(true);
+
+    // Bai da viet giu nguyen; trang cua khach va hang cho quan tri bo link toi trang da 404.
+    await setDisabled(true);
+    const mine = await t.http.get('/api/reviews/mine').set(w.buyer.auth).expect(200);
+    const queue = await t.http.get('/api/admin/reviews').set(w.admin.auth).expect(200);
+    for (const page of [mine, queue]) {
+      expect(
+        page.body.items.map((row: { product: { available: boolean } }) => row.product),
+      ).toEqual([expect.objectContaining({ slug: w.productSlug, available: false })]);
+    }
+    await setDisabled(false);
+  });
 });

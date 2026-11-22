@@ -1,6 +1,6 @@
 ---
 title: Fashion-shop trong 15 phút
-updated: 2026-11-12
+updated: 2026-11-22
 status: đang dùng
 owner: Bảo
 ---
@@ -148,6 +148,7 @@ Chạy cả cụm trên máy như môi trường thật: `npm run prod:up`, mở
 | Vì sao làm vậy | [LOG.md](LOG.md) (toàn hệ thống) và `features/<module>/LOG.md` |
 | Đường dẫn API nhận gì, trả gì | Swagger `/api/docs`; quy ước ở [shared/api.md](shared/api.md) |
 | Viết mã, kiểm thử, giao diện theo quy ước nào | [shared/code.md](shared/code.md) · [shared/testing.md](shared/testing.md) · [shared/test-strategy.md](shared/test-strategy.md) · [shared/design.md](shared/design.md) |
+| Giao dịch nào khoá gì, theo thứ tự nào | [shared/lock-order.md](shared/lock-order.md) |
 | Bảng nào của ai, sơ đồ ở đâu | [CONTRIBUTING.md](CONTRIBUTING.md) · [shared/data-model.md](shared/data-model.md) · [shared/diagrams/](shared/diagrams/uc-tong-quan.md) |
 | Dataset HT-03 lấy từ đâu, chất lượng thế nào | [shared/data-sources/ht-03-yody.md](shared/data-sources/ht-03-yody.md) |
 | Còn nợ gì | [TECH_DEBT.md](TECH_DEBT.md) |

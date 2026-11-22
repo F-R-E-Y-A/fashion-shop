@@ -449,7 +449,7 @@ describe('PH-02 Shipping GHN Sandbox, du phong mo phong va webhook (PostgreSQL)'
         .expect(200);
       expect(customerMidView.body.canCancel).toBe(false);
       expect(customerMidView.body.cancelRefunds).toBe(false);
-      // UC-07.3/AC9 (ADR-122): khach khong thay ma giu cho creating#... hay ghi chu noi bo.
+      // UC-07.3/AC8 (ADR-122): khach khong thay ma giu cho creating#... hay ghi chu noi bo.
       expect(customerMidView.body.shipment.carrierStatus).toBeNull();
       expect(customerMidView.body.shipment.statusNote).toBe(
         'Shop đang tạo vận đơn với đơn vị vận chuyển; mã vận đơn sẽ sớm được cập nhật.',

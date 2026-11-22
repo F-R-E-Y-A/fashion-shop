@@ -86,6 +86,10 @@ export class ReviewProductResponse {
   @ApiProperty() name!: string;
   @ApiProperty() slug!: string;
   @ApiProperty({ type: String, nullable: true }) imageUrl!: string | null;
+  @ApiProperty({
+    description: 'San pham con mo tren cua hang; false thi web khong gan link toi trang da 404',
+  })
+  available!: boolean;
 }
 
 /** Dong don cho danh gia (tab "Cho danh gia"). */

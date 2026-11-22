@@ -37,6 +37,13 @@ export const reviewWindowClosed = (): UnprocessableEntityException =>
     message: 'Đã quá hạn 30 ngày kể từ khi nhận hàng để đánh giá.',
   });
 
+/** San pham da ngung ban hay khong con mo tren cua hang (ADR-123): khong nhan danh gia moi. */
+export const reviewProductUnavailable = (): UnprocessableEntityException =>
+  new UnprocessableEntityException({
+    error: 'REVIEW_PRODUCT_UNAVAILABLE',
+    message: 'Sản phẩm này đã ngừng bán nên chưa nhận đánh giá mới.',
+  });
+
 export const reviewNotEditable = (): UnprocessableEntityException =>
   new UnprocessableEntityException({
     error: 'REVIEW_NOT_EDITABLE',

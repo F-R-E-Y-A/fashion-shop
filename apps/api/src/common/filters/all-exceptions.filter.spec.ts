@@ -1,6 +1,7 @@
 import type { ArgumentsHost } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
+import { Prisma } from '../../generated/prisma/client.js';
 import { AllExceptionsFilter } from './all-exceptions.filter.js';
 
 function run(exception: unknown) {
@@ -37,6 +38,24 @@ describe('AllExceptionsFilter: het ket noi DB la qua tai tam thoi', () => {
   it('loi khac van la 500 va khong lo thong diep noi bo', () => {
     const { status, body } = run(new Error('private detail'));
     expect(status).toBe(500);
+    expect(body).toMatchObject({ message: 'Lỗi không xác định phía máy chủ' });
     expect(JSON.stringify(body)).not.toContain('private detail');
+  });
+
+  it('deadlock/serialization service khong tu xu ly tra 409 CONCURRENT_UPDATE, khong lo SQL', () => {
+    for (const [code, originalCode] of [
+      ['P2034', '40001'],
+      ['P2010', '40P01'],
+    ]) {
+      const error = new Prisma.PrismaClientKnownRequestError('Raw query failed. private sql', {
+        code: code!,
+        clientVersion: '7.10.0',
+        meta: { driverAdapterError: { cause: { originalCode, kind: 'TransactionWriteConflict' } } },
+      });
+      const { status, body } = run(error);
+      expect(status).toBe(409);
+      expect(body).toMatchObject({ statusCode: 409, code: 'CONCURRENT_UPDATE' });
+      expect(JSON.stringify(body)).not.toContain('private sql');
+    }
   });
 });

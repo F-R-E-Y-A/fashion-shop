@@ -1,6 +1,6 @@
 ---
 title: UC-11 Đánh giá sản phẩm — đặc tả use case
-updated: 2026-11-12
+updated: 2026-11-22
 status: đề xuất, chờ Bảo duyệt; UC-11.3 là mã mới
 owner: Bảo
 ---
@@ -14,7 +14,7 @@ owner: Bảo
 | **Người sở hữu mã** | Bảo, module `reviews` (đọc `orders`, ghi điểm qua `products`, ảnh qua `uploads`) |
 | **Tác nhân** | Khách vãng lai, Khách hàng (đã đăng nhập), Quản trị viên (`ADMIN`) |
 | **Dữ liệu** | `reviews`, `review_media`, `review_helpful_votes`, `review_reports`; hai cột điểm trên `products` |
-| **Quyết định** | [ADR-054](LOG.md#adr-054) luật đánh giá, [ADR-055](../uploads/LOG.md#adr-055) kho ảnh, [ADR-059](LOG.md#adr-059) khách xoá đánh giá |
+| **Quyết định** | [ADR-054](LOG.md#adr-054) luật đánh giá, [ADR-055](../uploads/LOG.md#adr-055) kho ảnh, [ADR-059](LOG.md#adr-059) khách xoá đánh giá, [ADR-123](LOG.md#adr-123) sản phẩm đã ngừng bán (đề xuất) |
 
 Cách đọc: mỗi AC mang loại `thuận`, `âm` hoặc `biên` ([LOG#adr-047](../../LOG.md#adr-047)). AC có chữ "web" kiểm ở `apps/web/src/features/reviews/*.test.tsx`, còn lại kiểm ở `apps/api/test/*reviews*.http.spec.ts`. Ma trận bài nào kiểm AC nào: `npm run evidence:trace -- --uc UC-11`.
 
@@ -38,6 +38,7 @@ Là một **khách hàng đã nhận hàng**, tôi muốn **chấm sao, nhận x
 - **E3** Đã đánh giá dòng này: 409 `REVIEW_ALREADY_EXISTS`.
 - **E4** Ảnh không thuộc thư mục của mình, chưa tải xong, sai định dạng hay quá 5 MB, gửi trùng: 422 `INVALID_MEDIA`. Kho ảnh lỗi: 503 `UPLOADS_UNAVAILABLE`. Máy chủ chưa bật kho ảnh: web ẩn ô chọn ảnh.
 - **E5** Xoá đánh giá của người khác hoặc đã xoá: 404 `REVIEW_NOT_FOUND`. Web coi 404 khi xoá là đã xong (xoá ở tab khác) và tải lại danh sách.
+- **E6** Sản phẩm đã ngừng bán hay không còn mở trên cửa hàng: dòng đơn rời danh sách chờ, gửi đánh giá thì 422 `REVIEW_PRODUCT_UNAVAILABLE`. Mở bán lại trong hạn thì dòng hiện lại và viết được (đề xuất, [ADR-123](LOG.md#adr-123)).
 
 ### Quy tắc nghiệp vụ
 | Mã | Quy tắc |
@@ -51,6 +52,7 @@ Là một **khách hàng đã nhận hàng**, tôi muốn **chấm sao, nhận x
 | BR7 | Ẩn tên: hiện chữ cái đầu và cuối, ví dụ `N*****h`. Trang công khai không bao giờ có email hay mã người dùng |
 | BR8 | Ảnh tải lên mà 24 giờ chưa gắn vào đánh giá thì bị xoá khỏi kho; gửi đánh giá kèm ảnh đang bị dọn thì 422, khách tải lại ảnh ([ADR-056](../uploads/LOG.md#adr-056)) |
 | BR9 | Khách xoá đánh giá của mình lúc nào cũng được, kể cả bài chờ duyệt hay đã bị ẩn. Xoá mềm: dòng đơn giữ chỗ nên không viết lại được (409); ảnh vào hàng xoá; bài đang hiện thì điểm tính lại trong cùng giao dịch ([ADR-059](LOG.md#adr-059)) |
+| BR10 | Chỉ nhận đánh giá mới cho sản phẩm đang mở trên cửa hàng, cùng luật trang chi tiết: đang bán, còn biến thể bán, có ảnh, danh mục hiện ([storefront.ts:53](../../../apps/api/src/modules/products/storefront.ts#L53)). Hạn 30 ngày vẫn tính từ lúc giao, không cộng thời gian ngừng bán. Sửa bài đã viết chưa xét luật này ([ADR-123](LOG.md#adr-123), đề xuất) |
 
 ### Tiêu chí chấp nhận
 - **AC1** (thuận) Chỉ dòng đơn đã giao mới đánh giá được; đơn hoàn một phần vẫn viết được, hoàn toàn bộ hoặc đang xét thanh toán (`PAYMENT_REVIEW`) thì 422; danh sách chờ kèm hạn 30 ngày; web: trang đơn mời đánh giá đúng số dòng còn chờ của đơn đó, đơn không còn dòng chờ thì không mời
@@ -66,6 +68,7 @@ Là một **khách hàng đã nhận hàng**, tôi muốn **chấm sao, nhận x
 - **AC11** (biên) Ảnh tải lên quá 24 giờ chưa gắn bị xoá khỏi kho theo lô tối đa 100 ảnh mỗi lệnh; ảnh mới 23 giờ 59 phút và ảnh đã gắn giữ nguyên; hai lượt dọn chồng nhau không xoá trùng; kho lỗi thì thử lại sau hạn thuê; ảnh đang bị dọn không gắn được (422)
 - **AC12** (thuận) Khách xoá đánh giá của mình, kể cả bài chờ duyệt hay đã bị ẩn: gỡ khỏi trang công khai, trang của mình và hàng chờ quản trị; điểm tính lại; ảnh vào hàng xoá; dòng đơn không viết lại được (409), không sửa được (404); xoá đúng lúc quản trị duyệt thì điểm cuối cùng không tính bài đã xoá; web: hỏi lại kèm hậu quả, lỗi mạng thì báo trong hộp và giữ bài, bài đã xoá ở nơi khác (404) thì coi như xong
 - **AC13** (âm) Xoá bài của người khác hoặc bài đã xoá: 404 `REVIEW_NOT_FOUND`, không lộ bài có tồn tại; chưa đăng nhập 401; mã sai 400
+- **AC14** (âm) Sản phẩm đã ngừng bán: dòng đơn không còn trong danh sách chờ, gửi đánh giá thì 422 `REVIEW_PRODUCT_UNAVAILABLE` và không tạo bài; mở bán lại trong hạn thì dòng hiện lại và viết được. Bài đã viết giữ nguyên; trang của khách và hàng chờ quản trị hiện tên kèm "Đã ngừng bán", không gắn link tới trang 404 (đề xuất, [ADR-123](LOG.md#adr-123))
 
 ---
 

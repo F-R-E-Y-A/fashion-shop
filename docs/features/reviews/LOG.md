@@ -1,6 +1,6 @@
 ---
 title: Đánh giá sản phẩm — nhật ký
-updated: 2026-11-12
+updated: 2026-11-22
 status: đang dùng
 owner: Bảo
 ---
@@ -129,3 +129,44 @@ Thực tế: (điền sau khi gộp và chạy thử trên staging).
 
 ### Điều kiện xem lại
 Khách phàn nàn xoá nhầm nhiều lần; có tranh chấp cần khôi phục bài đã xoá; có đổi trả (`returns`) chạy thật.
+
+<a id="adr-123"></a>
+## 2026-11-22 · ADR-123 — Không nhận đánh giá mới cho sản phẩm đã ngừng bán; mở bán lại trong hạn thì viết được
+
+**Loại:** quyết định · **Phạm vi:** `reviews` tạo đánh giá và danh sách chờ; thêm hàm đọc `visibleProductIds` ở `products` · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- Trước thay đổi, `create` chỉ xét dòng đơn đã giao, còn hạn 30 ngày, chưa có bài; không xét sản phẩm còn bán. Khách vẫn viết được bài cho sản phẩm admin đã ngừng bán, điểm sao cộng vào sản phẩm không ai xem được.
+- Không xoá cứng sản phẩm, chỉ ngừng bán ([ADR-121](../products/LOG.md#adr-121), đề xuất); trang chi tiết trả 404 khi sản phẩm không qua `storefrontProductWhere` ([storefront.ts:53](../../../apps/api/src/modules/products/storefront.ts#L53)).
+- Bảo yêu cầu ngày 22/11: "không cho đánh giá khi sản phẩm đã ẩn".
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Chỉ xét `isActive` | Một cột, dễ hiểu | Lệch trang chi tiết: sản phẩm hết biến thể bán, hết ảnh hay danh mục ẩn vẫn nhận bài | Dễ |
+| **B. Cùng luật trang chi tiết `storefrontProductWhere` (chọn)** | Khách thấy được sản phẩm thì mới viết được; một luật cho cả hai chỗ | Admin xoá ảnh cuối hay ẩn danh mục cũng chặn đánh giá | Dễ: bỏ hai dòng kiểm |
+| C. Chặn vĩnh viễn từ lúc ngừng bán | Không phải nghĩ tới mở bán lại | Admin ngừng bán nhầm vài phút thì khách mất quyền đánh giá | Khó với dữ liệu đã chặn |
+| Không làm gì | Không tốn công | Bài và điểm sao dồn vào sản phẩm không ai xem | — |
+
+**Chọn B** vì "đã ẩn" với khách là "không mở được trang", đúng luật trang chi tiết. Trade-off chấp nhận: hạn 30 ngày vẫn tính từ lúc giao, không cộng thời gian ngừng bán.
+
+Các luật đi kèm:
+- `GET /api/reviews/eligible` bỏ dòng của sản phẩm đang ẩn ([reviews.service.ts:179](../../../apps/api/src/modules/reviews/reviews.service.ts#L179)); `POST /api/reviews` trả 422 `REVIEW_PRODUCT_UNAVAILABLE` ([reviews.service.ts:234](../../../apps/api/src/modules/reviews/reviews.service.ts#L234)). Web hiện thông điệp của máy chủ trong hộp viết đánh giá, không cần sửa.
+- `products` công bố `visibleProductIds(ids)`: một truy vấn cho cả lô ([products.service.ts:585](../../../apps/api/src/modules/products/products.service.ts#L585)).
+- Bài đã viết trước khi ngừng bán giữ nguyên, quản trị vẫn duyệt hay ẩn được. **Sửa bài chưa xét luật này** — câu hỏi treo cho Bảo.
+
+### Phản biện
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| Câu hỏi phản biện | Claude Code tự hỏi: khách đang mở hộp viết thì admin ngừng bán? | Gửi thì 422 kèm thông điệp tiếng Việt; không tạo bài, không giữ ảnh |
+| AI gợi ý | Claude Opus 5.5: chặn cả sửa bài | sửa: để Bảo quyết, chưa làm |
+
+**Kết luận:** Chọn B, chờ Bảo chốt.
+**Bằng chứng:** `npx vitest run --project http test/reviews.http.spec.ts test/reviews-public.http.spec.ts test/admin-reviews.http.spec.ts` (apps/api) → 3 tệp, 35 bài qua, gồm `UC-11.1/AC14`.
+
+### Kết quả mong đợi → thực tế
+Mong đợi: trên staging, ngừng bán một sản phẩm thì dòng đơn rời danh sách chờ đánh giá; gỡ ngừng bán thì hiện lại.
+Thực tế: (điền sau khi gộp và chạy thử trên staging).
+
+### Điều kiện xem lại
+Bảo quyết chặn cả sửa bài; khách phàn nàn mất hạn đánh giá vì sản phẩm ngừng bán lâu.

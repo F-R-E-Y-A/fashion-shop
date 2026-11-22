@@ -354,9 +354,16 @@ export function OrderPage() {
                       )}
                       <div>
                         <p className={styles.itemName}>
-                          <Link to={`/san-pham/${item.snapshot.productSlug}`}>
-                            {item.snapshot.name}
-                          </Link>
+                          {item.productAvailable === false ? (
+                            <>
+                              {item.snapshot.name}
+                              <span className={styles.itemMeta}> · Đã ngừng bán</span>
+                            </>
+                          ) : (
+                            <Link to={`/san-pham/${item.snapshot.productSlug}`}>
+                              {item.snapshot.name}
+                            </Link>
+                          )}
                         </p>
                         <p className={styles.itemMeta}>
                           {item.snapshot.variantLabel} · {formatPrice(item.price)} × {item.quantity}

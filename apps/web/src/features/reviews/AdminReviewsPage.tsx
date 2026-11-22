@@ -69,6 +69,11 @@ export function AdminReviewsPage() {
   const [params, setParams] = useSearchParams();
   const filters = readFilters(params);
   const [search, setSearch] = useState(filters.q);
+  const [prevQ, setPrevQ] = useState(filters.q);
+  if (filters.q !== prevQ) {
+    setPrevQ(filters.q);
+    setSearch(filters.q);
+  }
   const [action, setAction] = useState<Action | null>(null);
   const [text, setText] = useState('');
   const [message, setMessage] = useState<{ text: string; warning: boolean } | null>(null);
@@ -204,7 +209,21 @@ export function AdminReviewsPage() {
               onChange={(event) => setSearch(event.target.value)}
             />
           </label>
-          <button type="submit">Tìm</button>
+          <button type="submit" className={styles.searchButton}>
+            Tìm
+          </button>
+          {(filters.q || filters.status !== 'PENDING' || filters.reported) && (
+            <button
+              type="button"
+              className={styles.clearFilterBtn}
+              onClick={() => {
+                setSearch('');
+                update({ status: 'PENDING', reported: false, q: '' });
+              }}
+            >
+              Xóa lọc
+            </button>
+          )}
         </form>
       </div>
       {message && (
@@ -311,9 +330,13 @@ function AdminReviewRow({
   return (
     <li className={styles.row}>
       <div className={styles.rowHead}>
-        <Link to={`/san-pham/${review.product.slug}`} className={styles.product}>
-          {review.product.name}
-        </Link>
+        {review.product.available ? (
+          <Link to={`/san-pham/${review.product.slug}`} className={styles.product}>
+            {review.product.name}
+          </Link>
+        ) : (
+          <span className={styles.productOff}>{review.product.name} · Đã ngừng bán</span>
+        )}
         <span className={styles.status} data-tone={STATUS_TONES[status]}>
           {STATUS_LABELS[status]}
         </span>
@@ -348,25 +371,45 @@ function AdminReviewRow({
       )}
       <div className={styles.actions}>
         {status !== 'APPROVED' && (
-          <button type="button" onClick={() => onAction({ kind: 'approve', review })}>
+          <button
+            type="button"
+            className={styles.primaryAction}
+            onClick={() => onAction({ kind: 'approve', review })}
+          >
             Duyệt
           </button>
         )}
         {status !== 'REJECTED' && (
-          <button type="button" onClick={() => onAction({ kind: 'reject', review })}>
+          <button
+            type="button"
+            className={styles.dangerAction}
+            onClick={() => onAction({ kind: 'reject', review })}
+          >
             Ẩn
           </button>
         )}
-        <button type="button" onClick={() => onAction({ kind: 'reply', review })}>
+        <button
+          type="button"
+          className={styles.secondaryAction}
+          onClick={() => onAction({ kind: 'reply', review })}
+        >
           {review.reply ? 'Sửa phản hồi' : 'Phản hồi'}
         </button>
         {review.reply && (
-          <button type="button" onClick={() => onAction({ kind: 'remove-reply', review })}>
+          <button
+            type="button"
+            className={styles.dangerAction}
+            onClick={() => onAction({ kind: 'remove-reply', review })}
+          >
             Gỡ phản hồi
           </button>
         )}
         {review.reportCount > 0 && (
-          <button type="button" onClick={() => onAction({ kind: 'clear-reports', review })}>
+          <button
+            type="button"
+            className={styles.secondaryAction}
+            onClick={() => onAction({ kind: 'clear-reports', review })}
+          >
             Bỏ báo cáo
           </button>
         )}

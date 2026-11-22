@@ -125,7 +125,7 @@ function AdminUserDetail() {
               </dd>
             </div>
             <div>
-              <dt>Vai</dt>
+              <dt>Vai trò</dt>
               <dd>
                 <RoleList roles={user.roles} />
               </dd>

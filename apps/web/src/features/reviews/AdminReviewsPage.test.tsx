@@ -39,7 +39,7 @@ function adminReview(overrides: Partial<AdminReview> = {}): AdminReview {
   return {
     id: 'r1',
     reviewer: { id: 'u1', email: 'khach@example.test', displayName: 'Minh Anh' },
-    product: { name: 'Áo thun cổ tròn', slug: 'ao-thun', imageUrl: null },
+    product: { name: 'Áo thun cổ tròn', slug: 'ao-thun', imageUrl: null, available: true },
     orderCode: 'FR-O1',
     variantLabel: 'Đen / M',
     rating: 2,
@@ -269,5 +269,36 @@ describe('UC-11.2 quản trị duyệt và phản hồi đánh giá', () => {
       await screen.findByRole('heading', { name: 'Không đủ quyền truy cập' }),
     ).toBeInTheDocument();
     expect(screen.queryByText('Áo thun cổ tròn')).not.toBeInTheDocument();
+  });
+
+  it('UC-11.1/AC14 sản phẩm đã ngừng bán: hàng chờ quản trị hiện tên kèm nhãn, không gắn link tới trang 404', async () => {
+    request.mockImplementation(async (path: string) => {
+      if (path.startsWith('/admin/reviews?')) {
+        return page([
+          adminReview({
+            product: { name: 'Áo ngừng bán', slug: 'ao-ngung', imageUrl: null, available: false },
+          }),
+        ]);
+      }
+      throw new Error(`Không mong đợi ${path}`);
+    });
+    show();
+    expect(await screen.findByText('Áo ngừng bán · Đã ngừng bán')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Áo ngừng bán/ })).not.toBeInTheDocument();
+  });
+
+  it('nut Xoa loc dua bo loc va tu khoa tim kiem ve mac dinh', async () => {
+    request.mockResolvedValue(page([adminReview()]));
+    show('/admin/reviews?status=APPROVED&q=ao');
+    await screen.findByText('Áo thun cổ tròn');
+
+    const clearBtn = screen.getByRole('button', { name: 'Xóa lọc' });
+    fireEvent.click(clearBtn);
+    await waitFor(() =>
+      expect(request.mock.calls.at(-1)![0]).toBe(
+        '/admin/reviews?page=1&pageSize=20&status=PENDING',
+      ),
+    );
+    expect(screen.getByRole('tab', { name: 'Chờ duyệt' })).toHaveAttribute('aria-selected', 'true');
   });
 });

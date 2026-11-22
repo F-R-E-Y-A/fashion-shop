@@ -1,6 +1,6 @@
 ---
 title: Môi trường thử — dựng và vận hành
-updated: 2026-11-20
+updated: 2026-11-22
 status: đang dùng
 owner: Bảo
 ---
@@ -42,7 +42,7 @@ Làm vậy để lịch sử triển khai và thời gian từ commit tới khi 
 
 1. Đăng nhập Vercel bằng GitHub, **Add New → Project**, chọn kho `fashion-shop`.
 2. **Root Directory** đặt là `apps/web`. Vercel đọc `apps/web/vercel.json` cho lệnh cài và lệnh dựng, vì hai lệnh đó phải chạy từ gốc kho mã do dùng npm workspaces.
-3. **Environment Variables**: thêm `VITE_API_URL` bằng `<địa chỉ Render>/api`. Biến `VITE_*` được nhúng vào mã **lúc dựng**, nên đổi địa chỉ máy chủ thì phải dựng lại, không sửa biến rồi khởi động lại là xong.
+3. **Environment Variables**: đặt `VITE_API_URL=/api` để mọi lời gọi `/api/*` đi qua rewrite đồng nguồn trong `apps/web/vercel.json` tới máy chủ Render, giúp cookie `refresh_token` (`SameSite=Lax`) được gửi lại bình thường khi tải lại trang (F5) và tránh gọi cross-origin trực tiếp. Lưu ý `apps/web/vercel.json` đang gắn cứng đích `https://fashion-shop-api-rivi.onrender.com/api/:path*`, nên khi đổi URL API (hoặc chuyển sang Azure ở S3) phải cập nhật lại `apps/web/vercel.json` chứ không chỉ giữ nguyên `VITE_API_URL=/api`. Biến `VITE_*` được nhúng vào mã **lúc dựng**, nên đổi địa chỉ máy chủ thì phải dựng lại, không sửa biến rồi khởi động lại là xong.
 4. **Settings → Environments → Production → Branch Tracking**, đặt nhánh sản xuất là `develop`. Đây là thiết lập trong Vercel dashboard, `vercel.json` không đặt được nhánh này.
 5. Quay lại Render sửa `CORS_ORIGINS` thành địa chỉ Vercel vừa có. Quên bước này thì trang tải được nhưng không gọi được API, và lỗi hiện trong bảng điều khiển trình duyệt chứ không hiện trên trang.
 
@@ -155,7 +155,7 @@ Diễn tập ngày 12/11 trên máy, không chạm Render. Nguồn là DB dev `f
 
 **VNPAY sandbox chỉ nhận kết nối từ IP Việt Nam, nên staging không gọi ra được API của nó.** Ngày 20/11, `POST /api/orders/:id/reconcile` từ staging mất 8,14 s và 8,12 s rồi vào nhánh lùi lịch (`last_checked_at` lùi 280 s), tức `querydr` không có phản hồi trong 8 s; cùng phút, `curl` từ máy local tới cùng endpoint trả 200 trong 0,13–0,16 s, 3/3 lần. Dò TCP cổng 443 của `sandbox.vnpayment.vn` từ 40 node của check-host.net cùng ngày: chỉ node Việt Nam nối được (0,055 s), 38 node nước khác timeout, gồm Singapore, Hong Kong, Nhật; `pay.vnpay.vn` thì 40/40 nối được (lệnh và số đo ở [ADR-111](../payments/LOG.md#adr-111)). Đây là lọc phía VNPAY, không phải Render chặn chiều ra và không phải lỗi mã; đổi sang cloud nước ngoài khác không chữa được. Riêng việc dải IP ra của Render bị bỏ gói là suy luận, vì gói Free không có Shell để đo từ trong máy chủ. Khách trả tiền vẫn được: trình duyệt của khách tự mở trang VNPAY và return có chữ ký chốt đơn. IPN từ VNPAY về staging **chưa có bằng chứng** (Render Free tắt Request logs). Vì vậy `render.yaml` đặt hai biến: `REFUND_GATEWAYS=MOMO,MOMO_ATM` để đơn VNPAY hoàn tay bằng mã chuyển khoản ([ADR-111](../payments/LOG.md#adr-111), đề xuất), và `QUERY_GATEWAYS=MOMO,MOMO_ATM` để worker và nút đối soát thôi gọi QueryDR treo 8 s mỗi phút ([ADR-112](../payments/LOG.md#adr-112), đề xuất). Hệ quả: khách trả VNPAY xong mà đóng tab trước khi về trang kết quả thì đơn chỉ còn trông vào IPN. Có đường ra bằng IP Việt Nam thì bỏ hai biến.
 
-**Đổi địa chỉ máy chủ phải dựng lại giao diện.** Xem bước 2.3.
+**Đổi địa chỉ máy chủ phải cập nhật `apps/web/vercel.json` và dựng lại giao diện.** Xem bước 2.3 (giữ `VITE_API_URL=/api` và trỏ lại URL đích trong rewrite của Vercel khi đổi máy chủ Render hoặc chuyển sang Azure).
 
 **Quên sửa `CORS_ORIGINS`.** Triệu chứng: trang hiện nhưng không có dữ liệu, bảng điều khiển trình duyệt báo lỗi CORS. Sửa trong Render rồi khởi động lại dịch vụ.
 
