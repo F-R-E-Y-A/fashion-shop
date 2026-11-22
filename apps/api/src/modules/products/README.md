@@ -34,6 +34,7 @@ Phân hệ khác lấy dữ liệu sản phẩm bằng cách tiêm `ProductsServ
 | `importProducts(rows)` | Tài, nạp dữ liệu thật (HT-03, PH-03) | **Đã cài** ở [b2c8de0](https://github.com/F-R-E-Y-A/fashion-shop/commit/b2c8de0), kiểm dữ liệu bổ sung ở [eb8cc61](https://github.com/F-R-E-Y-A/fashion-shop/commit/eb8cc61) |
 | `storefrontProductId(slug)` | Bảo, đánh giá (`reviews`) | Cài trên nhánh `feature/ph-01-reviews`, chưa commit. Sản phẩm ẩn hoặc không có thì 404 như trang chi tiết |
 | `updateRatingSummary(productId, tx, compute)` | Bảo, đánh giá (`reviews`) | Cài trên nhánh `feature/ph-01-reviews`, chưa commit. Khoá dòng sản phẩm rồi mới gọi `compute`, ghi `rating_average`, `rating_count` bằng SQL thô nên `updated_at` không đổi; trigger vẫn tăng `catalog_revision` ([products.service.ts:429](products.service.ts#L429), [ADR-054](../../../../../docs/features/reviews/LOG.md#adr-054)) |
+| `visibleProductIds(ids)` | Bảo, đánh giá (`reviews`) | Đề xuất trên nhánh `task/ph-03-product-no-hard-delete` ([ADR-123](../../../../../docs/features/reviews/LOG.md#adr-123)). Một truy vấn; trả tập id đang mở trên cửa hàng theo `storefrontProductWhere`, id ẩn hay không có thì vắng |
 
 ```ts
 /** Du lieu mot bien the de hien trong gio. Hinh dang hen trong Issue #6 va #7, cong them productSlug. */

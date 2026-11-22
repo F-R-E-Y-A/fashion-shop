@@ -30,6 +30,7 @@ import {
   reviewNotAllowed,
   reviewNotEditable,
   reviewNotFound,
+  reviewProductUnavailable,
   reviewWindowClosed,
 } from './review-errors.js';
 import {
@@ -174,8 +175,10 @@ export class ReviewsService {
       since,
       reviewed.map((row) => row.orderItemId),
     );
+    // San pham dang an thi khong moi viet (ADR-123); mo ban lai trong han thi dong don hien lai.
+    const open = await this.products.visibleProductIds(items.map((item) => item.productId));
     return items.flatMap((item) => {
-      if (item.deliveredAt === null) return [];
+      if (item.deliveredAt === null || !open.has(item.productId)) return [];
       const deadline = reviewDeadline(item.deliveredAt);
       if (deadline.getTime() < now.getTime()) return [];
       return [
@@ -228,6 +231,8 @@ export class ReviewsService {
     const item = await this.orders.purchasedItem(input.orderItemId, userId);
     if (!item) throw orderItemNotFound();
     assertReviewable(item, now);
+    const open = await this.products.visibleProductIds([item.productId]);
+    if (!open.has(item.productId)) throw reviewProductUnavailable();
     const existing = await this.prisma.review.findUnique({
       where: { orderItemId: item.orderItemId },
       select: { id: true },
