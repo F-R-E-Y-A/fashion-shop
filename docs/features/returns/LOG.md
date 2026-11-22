@@ -98,3 +98,42 @@ Thực tế: (điền khi gộp).
 
 ### Điều kiện xem lại
 Thêm module thứ hai cần nghe lệnh hoàn; đổi sổ hoàn sang bảng `refunds`; bật kho ảnh trên staging.
+
+<a id="adr-114"></a>
+## 2026-11-21 · ADR-114 — Lệnh hoàn qua cổng ghi sổ cùng transaction với dòng `refunds`; mã chuyển khoản khoá theo mã; màn trả hàng chặn hoàn khi còn lệnh chờ
+
+**Loại:** quyết định · **Phạm vi:** module `returns`, cửa `CheckoutService` của checkout, màn `/admin/returns/:id` · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+Ba phát hiện của người review PR #158 ngày 20/11, dựng lại bằng test ép thứ tự trên `e5eef49`:
+- **Hoàn hai lần trên một yêu cầu.** Dòng `refunds` `PROCESSING` ghi ở transaction thứ nhất ([admin-returns.service.ts:201](https://github.com/F-R-E-Y-A/fashion-shop/blob/e5eef49/apps/api/src/modules/returns/admin-returns.service.ts#L201)), còn lệnh `REFUND-INTENT` chỉ vào sổ cổng trong transaction riêng của `refundPayment`, gọi sau đó ([:227](https://github.com/F-R-E-Y-A/fashion-shop/blob/e5eef49/apps/api/src/modules/returns/admin-returns.service.ts#L227)). Thao tác hoàn khác chen vào giữa không thấy lệnh chờ. Hoàn qua cổng và nhập mã chuyển khoản cùng lúc: cả hai trả 200. Hai lần bấm qua cổng cùng lúc rồi bấm nữa: cổng nhận 2 lệnh, sổ hoàn 2 dòng `200000.00`.
+- **Một mã chuyển khoản cho hai lần hoàn.** `recordManualRefund` tra trùng theo khoá `(gateway, externalTransactionId)` ([checkout.service.ts:884](https://github.com/F-R-E-Y-A/fashion-shop/blob/e5eef49/apps/api/src/modules/checkout/checkout.service.ts#L884)), nên mã đã ghi cho đơn COD ghi lại được cho đơn VNPAY: 200 thay vì 409; nhập song song cho hai đơn: `[200, 200]`.
+- **Màn hình mời chuyển khoản khi cổng còn có thể trả tiền.** Cách hoàn chỉ tính từ cấu hình cổng ([return-rows.ts:56](https://github.com/F-R-E-Y-A/fashion-shop/blob/e5eef49/apps/api/src/modules/returns/return-rows.ts#L56)). Lệnh đã gửi mà `REFUND_GATEWAYS` tắt cổng sau đó thì màn hiện "Chuyển khoản thủ công" ([AdminReturnDetailPage.tsx:425](https://github.com/F-R-E-Y-A/fashion-shop/blob/e5eef49/apps/web/src/features/returns/AdminReturnDetailPage.tsx#L425)) và nút Hoàn tiền ([:526](https://github.com/F-R-E-Y-A/fashion-shop/blob/e5eef49/apps/web/src/features/returns/AdminReturnDetailPage.tsx#L526)). Máy chủ vẫn trả 409 `REFUND_PENDING` khi nhập mã, nhưng lúc đó `ADMIN` có thể đã chuyển tiền.
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Giữ hai transaction; `recordManualRefund` tự đọc dòng `refunds` của returns | Sửa ít | Checkout phải biết bảng của returns; hai lần bấm qua cổng vẫn hở | Được |
+| **B. Tách `refundPayment` thành `claimRefund` (trong `withOrder` của caller) và `sendRefund` (sau commit); returns ghi `refunds` và lệnh cổng cùng transaction (chọn)** | Hết khoảng hở: thao tác vào sau khoá đơn luôn thấy lệnh chờ. `refundPayment` giữ nguyên hành vi cho trang đơn | Cửa checkout thêm hai hàm; caller phải gọi `sendRefund` sau commit | Được |
+| C1. Mã chuyển khoản: unique index bộ phận trên `external_transaction_id` có tiền tố `REFUND:MANUAL:` | Cơ sở dữ liệu tự ép, không cần khoá | Thêm migration; phải dịch lỗi unique thành 409 | Được, bỏ index |
+| **C2. Mã chuyển khoản: khoá advisory theo mã, rồi tra trùng không theo cổng (chọn)** | Không migration; khoá lấy sau khoá giỏ và khoá đơn nên không tạo vòng chờ | Tra theo `external_transaction_id` không có index riêng, quét bảng; nơi ghi sổ khác trong tương lai phải tự lấy khoá này | Được |
+| **D. API quản trị trả `refundPending`; màn chi tiết ẩn nút hoàn, bỏ hướng dẫn chuyển khoản, dẫn sang đơn (chọn)** | `ADMIN` biết phải đối soát trước khi chuyển tiền; cùng điều kiện với chốt chặn của máy chủ | Mỗi lần đọc yêu cầu thêm một truy vấn con trên `payment_transactions` | Được |
+| Không làm gì | Không tốn công | Một yêu cầu có thể ra tiền hai lần; một lần chuyển khoản chứng minh cho hai lần hoàn | — |
+
+**Chọn B, C2 và D.** Trade-off chấp nhận: C2 không được cơ sở dữ liệu ép; đổi sang C1 khi có migration kế tiếp chạm `payment_transactions`.
+
+### Phản biện
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| Người phản biện | Người review PR #158 (20/11): ba phát hiện trên, đề nghị giữ merge tới khi xử lý nguy cơ hoàn hai lần | sửa cả ba |
+| AI gợi ý | Claude Code (Fable 5.2, 21/11): chỉ cần tra trùng không theo cổng cho mã chuyển khoản | sửa: test song song vẫn `[200, 200]`, phải thêm khoá theo mã |
+
+**Kết luận:** Mỗi yêu cầu trả hàng chỉ có một lần tiền ra, mỗi mã chuyển khoản chỉ chứng minh một lần hoàn, và màn hình không mời chuyển khoản khi sổ cổng còn lệnh chờ.
+**Bằng chứng:** trên bản làm việc gốc `e5eef49`, chưa commit. `vitest run --project http test/returns.http.spec.ts` trước khi sửa: `Tests 2 failed | 14 passed (16)` (AC9, AC10), rồi `2 failed | 16 passed (18)` (hai bài AC11), rồi AC12 đỏ vì thiếu `refundPending`; sau khi sửa: `Tests 19 passed (19)`. Web, trước khi sửa màn, `vitest run src/features/returns/AdminReturns.test.tsx`: `3 failed | 19 passed (22)`; sau khi sửa, cả thư mục `vitest run src/features/returns` (3 tệp, thêm một bài cho lệnh đã đối soát): `Tests 40 passed (40)`.
+
+### Kết quả mong đợi → thực tế
+Mong đợi: người review gỡ đề nghị giữ merge PR #158; trên staging, yêu cầu trả hàng còn lệnh chờ cổng hiện cảnh báo đối soát thay vì hướng dẫn chuyển khoản.
+Thực tế: (điền khi gộp).
+
+### Điều kiện xem lại
+Có migration chạm `payment_transactions` (đổi sang C1); sổ hoàn chuyển sang bảng `refunds`; cần so mã chuyển khoản không phân biệt hoa thường (hiện so đúng từng ký tự).
