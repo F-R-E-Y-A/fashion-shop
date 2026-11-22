@@ -604,3 +604,41 @@ test riêng của Issue77; chưa rollout DB phát triển. Kế hoạch, log và
 
 **Đánh đổi:** Thêm 2 cột trên `products`; `slug` giữ bất biến sau tạo ở đợt này và CRUD thương hiệu/màu/cỡ tiếp tục dùng dữ liệu seed sẵn. Phạm vi `catalog.prisma`, import, Uploads chờ Bảo review và hợp đồng tồn kho `UNKNOWN` chờ Duy xác nhận.
 
+---
+
+<a id="adr-121"></a>
+## 2026-11-22 · ADR-121 — Sản phẩm và biến thể không xoá cứng; gỡ khỏi cửa hàng là ngừng bán, khoá ngoại `RESTRICT` là chốt chặn cuối
+
+**Loại:** quyết định · **Phạm vi:** products (quản trị), checkout, returns, reviews, inventory · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- Không có route hay đường chạy nào của ứng dụng xoá sản phẩm, biến thể: `grep -rn "@Delete(" apps/api/src/modules` chỉ ra cart, promotions, reviews, addresses; `apps/api/src` không gọi `product.delete` hay `productVariant.delete`. Ngoại lệ duy nhất là script dọn seed [cleanup-ph01-seed-products.mjs:188](../../../tools/db/cleanup-ph01-seed-products.mjs#L188), mặc định chạy thử, chỉ ghi khi có `--apply --confirm-db fashion_shop` (CSDL cục bộ).
+- Gỡ khỏi cửa hàng đã có: ngừng bán đặt `adminDisabled` và tắt `isActive` ([admin-products.service.ts:962](../../../apps/api/src/modules/products/admin-products.service.ts#L962)), theo [UC-04.2/AC12, AC14](use-cases-admin-status.md).
+- Đơn giữ đơn giá và bản chụp lúc mua; tiền hoàn tính từ đơn giá dòng đơn ([return-policy.ts:73](../../../apps/api/src/modules/returns/return-policy.ts#L73)), không đọc giá hiện tại.
+- Khoá ngoại tới `products`/`product_variants` (đọc `pg_constraint` trên CSDL test đã migrate): `CASCADE` chỉ ở `wishlists` và `recently_viewed` ([catalog.prisma:210](../../../apps/api/prisma/schema/catalog.prisma#L210), [:224](../../../apps/api/prisma/schema/catalog.prisma#L224)); còn lại `RESTRICT`: biến thể, ảnh, đánh giá, `return_items.replacement_variant_id`, kho, `stock_movements`, giữ chỗ, giỏ, `order_items`.
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Thêm API xoá cứng, chặn khi còn tham chiếu | Xoá được sản phẩm nhập nhầm chưa ai mua | Phải kiểm đủ chín bảng tham chiếu và nhớ kiểm bảng mới; mất lịch sử kho, đánh giá | Không, dữ liệu mất |
+| B. Xoá mềm bằng cột `deletedAt` | Ẩn hẳn khỏi danh sách quản trị | Trạng thái thứ ba cạnh ngừng bán; mọi truy vấn phải lọc thêm | Được |
+| **C. Chỉ ngừng bán, không có API xoá (chọn)** | Dùng lại AC12, AC14 đã có test; đơn, trả hàng, đánh giá, báo cáo luôn còn sản phẩm để trỏ tới | Sản phẩm nhập nhầm nằm lại trong quản trị, lọc theo trạng thái | Được, thêm API sau nếu cần |
+| Không làm gì | Như C | Không có test khoá: thêm route `DELETE` hay đổi `onDelete` sang `CASCADE` không ai bắt | Được |
+
+**Chọn C** vì đơn và trả hàng đã là bản chụp, chỉ cần sản phẩm còn tồn tại để kho, đánh giá và báo cáo trỏ tới; ngừng bán đã chặn bán mới. Trade-off chấp nhận: không dọn được sản phẩm nhập nhầm trong MVP.
+
+### Phản biện
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| Người phản biện | Bảo, 22/11, khi xem góp ý "chặn xoá sản phẩm đã có trong đơn": chốt "chỉ ẩn như Tài hiện tại" | Chọn C |
+| AI sai | Claude (Opus 5.5) từng nói chỉ `wishlists` xoá theo, và gán quyết định "chỉ ẩn" cho [ADR-044](#adr-044); `pg_constraint` cho thấy `recently_viewed` cũng `CASCADE`, ADR-044 là API đọc catalog quản trị | Claude tự bắt khi viết test AC63 |
+
+**Kết luận:** gỡ sản phẩm là ngừng bán; CSDL chặn xoá thẳng khi đã có lịch sử.
+**Bằng chứng:** `UC-04.2/AC63` ở [admin-product-status.http.spec.ts](../../../apps/api/test/admin-product-status.http.spec.ts), `UC-14.2/AC9` ở [returns.http.spec.ts](../../../apps/api/test/returns.http.spec.ts); link theo mã commit điền khi đẩy.
+
+### Kết quả mong đợi → thực tế
+Mong đợi: hai spec trên xanh ở mọi pull request chạm products hay returns; AC63 đỏ nếu có route `DELETE` sản phẩm hoặc bảng lịch sử đổi sang `CASCADE`.
+Thực tế: 22/11, nhánh `task/ph-03-product-no-hard-delete` từ develop `a1ce291`, `npx vitest run --project http test/admin-product-status.http.spec.ts test/returns.http.spec.ts` → 36/36 passed.
+
+### Điều kiện xem lại
+Cần dọn sản phẩm nhập nhầm chưa từng vào đơn hay kho; hoặc thêm bảng mới tham chiếu sản phẩm (phải chọn `RESTRICT` hay `CASCADE`, AC63 sẽ báo).
