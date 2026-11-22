@@ -1,6 +1,6 @@
 ---
 title: Khám phá sản phẩm — nhật ký quyết định và thay đổi
-updated: 2026-11-19
+updated: 2026-11-22
 status: đang dùng
 owner: Bảo
 ---
@@ -604,3 +604,162 @@ test riêng của Issue77; chưa rollout DB phát triển. Kế hoạch, log và
 
 **Đánh đổi:** Thêm 2 cột trên `products`; `slug` giữ bất biến sau tạo ở đợt này và CRUD thương hiệu/màu/cỡ tiếp tục dùng dữ liệu seed sẵn. Phạm vi `catalog.prisma`, import, Uploads chờ Bảo review và hợp đồng tồn kho `UNKNOWN` chờ Duy xác nhận.
 
+---
+
+<a id="adr-126"></a>
+## 2026-11-22 · ADR-126 — Thư viện ảnh trang chi tiết dùng khung lớn cộng dải ảnh cong kéo được, thay hàng thumbnail
+
+**Loại:** quyết định · **Phạm vi:** web, `apps/web/src/features/products/detail/` (mới) và `pages/ProductDetailPage.*`; không đổi API, không đổi luật chọn ảnh theo màu · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+
+- Ngày 21/11 Bảo bỏ mẫu "thử đồ" cho trang chủ và yêu cầu áp nó vào phần xem ảnh biến thể ở cột trái `/san-pham/:slug`.
+- Gallery cũ ở nền `363148c` gồm khung ảnh và hàng thumbnail. Ở 1366×768, khung cao 553px nên hàng thumbnail rơi xuống dưới mép màn hình đầu. Số đo lấy bằng `getBoundingClientRect` trong Chrome DevTools.
+- Bản thử nằm ở worktree `wt/fs-home-tryon`, nhánh `task/ph-01-home-tryon`, chưa commit. Engine `useArcGallery` ghi `transform` qua ref trong vòng `requestAnimationFrame`. Dải ảnh là đường cong tuyến tính, không khép thành vòng. Cột dưới 420px chỉ hiện hai ảnh mỗi bên (`apps/web/src/features/products/detail/useArcGallery.ts:164`).
+
+### Phương án
+
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Giữ hàng thumbnail, chỉ thu khung cho vừa màn hình | Ít mã, ít rủi ro | Không đạt yêu cầu của Bảo | Có |
+| **B. Khung lớn cộng dải ảnh cong (chọn)** | Kéo, vuốt, lăn ngang và phím mũi tên đều đổi ảnh. Đổi màu thì về ảnh đầu, có hiệu ứng mở. Khung và dải ảnh cùng nằm trong màn hình đầu | Thêm khoảng 1.500 dòng (engine 391 dòng). jsdom không đo được chuyển động nên phải kiểm bằng trình duyệt | Có: gỡ thư mục `detail/` và khôi phục khối gallery cũ trong `ProductDetailPage` |
+| Không làm gì | Không tốn công | Như A | Có |
+
+**Chọn B** vì đây là yêu cầu trực tiếp của Bảo và đo được lợi ích bố cục: khung 553 → 468px, dải ảnh nằm trọn trong 768px chiều cao. Trade-off chấp nhận:
+
+- Dải ảnh tuyến tính nên khi đang xem ảnh đầu thì nửa trái trống.
+- Chuyển động chỉ kiểm bằng tay trên trình duyệt.
+
+### Phản biện
+
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| Người phản biện | Bảo: mẫu không hợp trang chủ, chuyển sang cột ảnh trang chi tiết và tối ưu theo không gian cột | giữ |
+| AI gợi ý | Claude Opus 5.5 đề xuất dải tuyến tính thay vòng tròn của mẫu gốc: sản phẩm có 2–8 ảnh, nếu khép vòng thì ảnh cuối lật sang cạnh ảnh đầu, gây rối | giữ |
+| AI gợi ý | Claude Opus 5.5 đề xuất chặn chiều cao khung ở tỉ lệ 3:4 theo bề rộng cột (`133.34cqi`). Không chặn thì ở 768×1024 cột 326px cho khung cao 724px | giữ |
+
+**Kết luận:** bản thử chạy được trên dữ liệu thật ở bốn cỡ màn hình và `npm run check` xanh; chờ Bảo duyệt giao diện.
+**Bằng chứng:** commit chưa đẩy nên chưa có link theo mã; điền khi đẩy. Chỗ chính trong mã:
+
+- chiều cao khung ở `apps/web/src/features/products/detail/ArcGallery.module.css:30`;
+- bỏ lớp ảnh cũ khi hiệu ứng xong ở `apps/web/src/features/products/detail/GalleryShot.tsx:78`;
+- kéo xong không mở nhầm Lightbox ở `apps/web/src/features/products/detail/useArcGallery.ts:298`.
+
+`npm run check` ngày 22/11 thoát mã 0: web 66 tệp và 837 test đạt, API 78 tệp và 757 test đạt.
+
+| Chỉ số (DevTools, `getBoundingClientRect`) | Trước | Sau |
+|---|---|---|
+| Khung ảnh ở 1366×768 | cao 553px | cao 468px, đỉnh ở y 141 |
+| Dải ảnh ở 1366×768 | dưới mép màn hình đầu | y 621–749 |
+| Khung ở 768×1024 (cột 326px) | — | 326×435 (trước khi chặn 3:4 là 326×724) |
+| Khung ở 360×740 (cảm ứng) | — | 328×429; ẩn ảnh thứ ba mỗi bên |
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: Bảo xem trên local và quyết giữ hay bỏ trước khi gộp vào `feature/ph-01-product-catalog`.
+
+Thực tế, kiểm ngày 22/11 qua proxy chỉ đọc tới API staging:
+
+- kéo chậm 192px đổi ảnh 01 → 03 và không mở Lightbox;
+- vuốt nhanh 70px quay về 01;
+- lăn dọc vẫn cuộn trang, lăn ngang đổi một ảnh;
+- bấm khung mở Lightbox đúng ảnh đang xem.
+
+Ba lỗi lộ ra khi kiểm và đã sửa:
+
+- **Vệt sẫm ở mép dưới khung sau khi đổi màu.** Lớp ảnh cũ nằm dưới ảnh mới, và khung đặt ở toạ độ lẻ nên mép ảnh mới bị khử răng cưa, để lộ một hàng điểm ảnh của ảnh cũ. Đã sửa bằng cách bỏ lớp ảnh cũ khi hiệu ứng mở xong.
+- **Thẻ ảnh nổi lên trên header dính khi cuộn.** Engine đặt `z-index` thẻ tới 100, còn header chỉ có 40. Đã sửa bằng `isolation: isolate` trên gallery.
+- **Đổi màu vẫn chạy hiệu ứng quét khi người dùng chọn giảm chuyển động.** Luật `.reveal[data-move='swap']` nặng hơn `.reveal` trong khối `prefers-reduced-motion`. Đã sửa bằng `.reveal[data-move] { animation: none }`. Kiểm bằng cách ép khối đó qua CSSOM, vì DevTools MCP không giả lập được media này.
+
+### Điều kiện xem lại
+
+Mở lại quyết định khi gặp một trong ba trường hợp:
+
+- Bảo không duyệt giao diện;
+- có sản phẩm hơn 8 ảnh một màu (bộ ảnh legacy theo [ADR-109](#adr-109)) mà dải ảnh khó dùng;
+- đo trên điện thoại thật thấy rơi khung khi kéo.
+
+---
+
+<a id="adr-127"></a>
+## 2026-11-22 · ADR-127 — Trang chi tiết vừa một màn hình: dải ảnh dọc khép vòng cạnh khung, cột mua gọn có chọn số lượng
+
+**Loại:** quyết định · **Phạm vi:** web, `features/products/detail/`, `pages/ProductDetailPage.*`, thêm prop `quantity` cho `features/cart/components/AddToCartButton.tsx`; không đổi API, giá, tồn kho, giỏ hàng, checkout · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+
+- Ngày 22/11 Bảo hỏi dải ảnh khép vòng được không, vì đang xem ảnh đầu thì nửa trái trống (trade-off đã nhận ở [ADR-126](#adr-126)). Bảo nêu thêm điều muốn đổi từ lâu: một màn hình không xem trọn được ảnh và phần mua, phải cuộn lên xuống. Đặc tả kèm theo: desktop hai cột, gallery cao vừa viewport, thumbnail dọc 56–72px, màn hình đầu thấy trọn ảnh, giá, màu, cỡ và nút mua; mobile một cột; không scroll snap, không hai vùng cuộn, không dùng `overflow: hidden` hay `transform: scale` để giấu tràn.
+- Bản đang chạy trên Vercel (`fashion-shop-phi-three.vercel.app`), cùng sản phẩm `quan-tay-nu-lung-cao-baggy-thoi-trang-7a6bbd`, ở 1280×585: ảnh chính 517×689 từ y 141 tới 830, hụt 245px dưới mép; hàng thumbnail ở y 575–675, nằm ngoài màn hình đầu. Đo bằng `getBoundingClientRect` trong DevTools.
+- Bản ADR-126 đặt dải ảnh ngang dưới khung và tính chiều cao khung từ `100dvh` trừ một hằng số đoán.
+
+### Phương án
+
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Giữ dải ngang dưới khung, chỉ thu khung | Ít đổi | Dải ảnh ăn chiều cao nên khung ở 1280×585 còn khoảng 300px (suy luận) | Có |
+| **B. Desktop: dải dọc 72px trái khung, khung cao bằng phần màn hình còn lại đo thật; khép vòng từ 3 ảnh; cột mua gọn (chọn)** | Ảnh, điều khiển, giá, màu, cỡ và nút mua cùng nằm trong màn hình đầu từ 1280×585; dải không trống hai đầu | Engine thêm trục dọc và vòng; jsdom không đo được bố cục nên phải kiểm trên trình duyệt | Có: bỏ khối `@media (min-width: 900px)` trong `ArcGallery.module.css` là về dải ngang |
+| C. Cột mua dính (sticky) cạnh gallery cao | Kiểu nhiều shop dùng | Cột mua thấp hơn cột ảnh nên dính không có tác dụng; gần với hai vùng cuộn mà đặc tả cấm | Có |
+
+**Chọn B** vì đáp đúng đặc tả và đo được ở bảy cỡ màn hình, gồm cỡ tương đương zoom 200%. Trade-off chấp nhận:
+
+- Sản phẩm 3–4 ảnh chỉ hiện 1–2 thẻ mỗi bên: thẻ mờ hẳn trước đường nối ở lệch `count/2`, để không thấy thẻ nhảy từ mép này sang mép kia.
+- Sản phẩm 2 ảnh vẫn tuyến tính, vì khép vòng thì một thẻ nằm ở cả hai bên.
+- Bộ chọn số lượng nhớ số đã chọn. Đổi sang biến thể tồn ít thì hiện và gửi số đã hạ; đổi lại biến thể tồn nhiều thì hiện lại số cũ.
+- Bảng cỡ và dòng giao hàng ngắn trong đặc tả chưa có trong mã nên chưa thêm.
+- Mô tả, chất liệu, bảo quản chuyển xuống mục "Chi tiết sản phẩm" dưới vùng mua.
+- Trong thành phần gallery vẫn có cắt cục bộ: `.track` dùng `overflow: clip` làm cửa sổ của dải ảnh; `.frame` và thẻ ảnh dùng `overflow: hidden` để giữ góc bo và hiệu ứng phóng nhẹ khi rê chuột; thẻ dùng `scale()` để tạo chiều sâu. Không chỗ nào dùng để giấu nội dung trang bị tràn, và trang không có tràn ngang ở cả bảy cỡ.
+- Phím mũi tên trên gallery là ←/→ ở cả dải dọc; ↑/↓ để nguyên cho cuộn trang.
+
+### Phản biện
+
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| Người phản biện | Bảo: muốn khép vòng và muốn một màn hình xem trọn ảnh cùng phần mua, áp dụng dần cho các trang khác | giữ; các trang khác chờ Bảo quyết phạm vi |
+| AI gợi ý | Claude Opus 5.5: đo chiều cao breadcrumb bằng `ResizeObserver` (`--crumb-h`) thay hằng số, vì tên dài làm breadcrumb xuống dòng | giữ |
+| AI gợi ý | Claude Opus 5.5: dải dọc cao thì giãn bước thẻ tới 1,5 lần cạnh thẻ (`railStep`). Ở 1440×900, dải 729px trước khi giãn trống hai đầu | giữ |
+| AI gợi ý | Claude Opus 5.5: không làm cột mua dính (phương án C) | giữ |
+| AI gợi ý | Claude Opus 5.5: nút tăng, giảm số lượng dùng `aria-disabled` thay `disabled`, vì bấm Enter tới mức tồn thì nút `disabled` làm focus rơi về `body` | giữ |
+
+**Kết luận:** bố cục đạt các số đo trong đặc tả trên dữ liệu thật; chờ Bảo duyệt giao diện.
+**Bằng chứng:** chưa commit nên chưa có link theo mã; chỗ chính trong mã:
+
+- vòng: `apps/web/src/features/products/detail/arc-math.ts:26` (`LOOP_MIN`), `:35` (`wrapOffset`), `:52` (`loopReach`); chọn ảnh theo đường ngắn nhất ở `useArcGallery.ts:431`;
+- trục dọc nhận từ hình dạng dải ở `useArcGallery.ts:258`; bước thẻ ở `arc-math.ts:76`;
+- chiều cao khung `--fit-h` ở `pages/ProductDetailPage.module.css:5`, đo breadcrumb ở `ProductDetailPage.tsx:32`, khung desktop ở `detail/ArcGallery.module.css:348`;
+- số lượng ở `ProductDetailPage.tsx:125` và `:249`, gửi đi ở `cart/components/AddToCartButton.tsx:16`.
+
+`npm run check` ngày 22/11 sau khi đặt lên `develop` (`a50358e`) thoát mã 0: lint 0 lỗi (9 cảnh báo `no-console` có sẵn ở `apps/api/scripts`), Prettier đạt, API 81 tệp và 803 test đạt, web 66 tệp và 873 test đạt.
+
+| Chỉ số (DevTools, `getBoundingClientRect`) | Trước (bản Vercel) | Sau |
+|---|---|---|
+| 1280×585: ảnh chính | 517×689, đáy y 830 | 330×440, y 121–561 |
+| 1280×585: ảnh nhỏ | hàng ngang y 575–675 | dải dọc x 140–212, y 121–561 |
+| 1280×585: nút Thêm vào giỏ | y 535–570 | y 463–512 |
+| 1280×640 · 1366×768 · 1440×900: khung | — | 371×495 · 467×623 · 547×729, đều trong màn hình |
+| 390×844 · 360×740 (một cột, cảm ứng) | — | khung 358×477 · 328×429, dải ngang dưới khung |
+| 683×384 (tương đương zoom 200%) | — | một cột, khung 613×223 |
+| Tràn ngang (`scrollWidth` so với `clientWidth`) ở cả bảy cỡ | — | bằng nhau |
+
+### Kết quả mong đợi → thực tế
+
+Mong đợi: Bảo xem trên local rồi quyết giữ hay bỏ, cùng lúc với ADR-126.
+
+Thực tế, kiểm ngày 22/11 qua proxy chỉ đọc tới API staging (`STAGING_API_URL`, [staging.md](../platform/staging.md)):
+
+- sản phẩm 6 ảnh: bấm "tiếp" từ 01 tới 06 rồi về 01, "trước" từ 01 về 06; sản phẩm 8 ảnh: 13 lần bấm đi qua đủ 8 ảnh;
+- đổi sang màu Ghi thì ảnh về 01 và URL thành `?color=yody-ghi`; chọn M thì URL thêm `size=M`, mã hàng `YODY-QAN4801-GHI-M`, hiện "Còn 6 sản phẩm";
+- Lightbox: Enter trên nút phóng to thì mở, mũi tên phải sang 2/6, Esc đóng và focus về nút phóng to, gallery đứng ở 02/06;
+- tên dài nhất (53 ký tự) xuống 2 dòng ở 32px; sản phẩm 1 ảnh ẩn dải và nút chuyển;
+- bàn phím ở 1280×585: thứ tự Tab theo thứ tự đọc (breadcrumb, gallery, phóng to, trước, tiếp, màu, cỡ, số lượng, nút giỏ); focus gallery rồi ← từ 01 sang 06, → về 01; Enter 7 lần trên nút tăng dừng ở 6 ("Còn 6 sản phẩm") và focus ở lại nút. Ảnh `v2-focus-gallery.png`, `v2-focus-quantity.png` trong thư mục review;
+- đổi sang màu không có cỡ đang chọn thì bỏ chọn cỡ, không tự nhảy cỡ: test mới trong `ProductDetailPage.test.tsx`; cho logic tự chọn cỡ đầu thì test đỏ, khôi phục thì xanh.
+
+Chưa kiểm:
+
+- thêm vào giỏ trên trình duyệt, vì proxy chặn POST; chỉ có test `ProductDetailPage.test.tsx` kiểm body `{ variantId: 'v1', quantity: 2 }`;
+- điện thoại thật và trình đọc màn hình.
+
+### Điều kiện xem lại
+
+- Bảo không duyệt giao diện;
+- thêm bảng cỡ hoặc dòng giao hàng làm nút mua rơi khỏi màn hình đầu ở 1280×585;
+- người dùng laptop cảm ứng thấy dải dọc khó kéo.
