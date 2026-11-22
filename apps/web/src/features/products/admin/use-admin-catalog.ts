@@ -2,6 +2,20 @@ import { useQuery } from '@tanstack/react-query';
 
 import { shouldRetryAdminQuery, useAdminForbidden, useAuth } from '@/features/account';
 
+function sameAdminCatalogScope(
+  previousQuery: { queryKey: readonly unknown[] } | undefined,
+  key: readonly unknown[],
+): boolean {
+  if (!previousQuery) return false;
+  const prev = previousQuery.queryKey;
+  return (
+    prev[2] === key[2] &&
+    prev[3] === key[3] &&
+    prev[4] === key[4] &&
+    (key[4] !== 'detail' || prev[5] === key[5])
+  );
+}
+
 /** Request chung của lát chỉ đọc; 403 được chốt trong promise trước khi cache nhận response. */
 export function useAdminCatalog<T>(key: readonly unknown[], path: string, enabled = true) {
   const { user, authenticatedRequest: request, getSessionEpoch } = useAuth();
@@ -11,6 +25,8 @@ export function useAdminCatalog<T>(key: readonly unknown[], path: string, enable
     queryKey: key,
     queryFn: ({ signal }) => guardQuery(() => request<T>(path, { signal })),
     enabled: Boolean(actorId) && !forbidden && enabled,
+    placeholderData: (previous, previousQuery) =>
+      sameAdminCatalogScope(previousQuery, key) ? previous : undefined,
     retry: shouldRetryAdminQuery,
   });
   return { result, forbidden, data: result.isError || forbidden ? undefined : result.data };

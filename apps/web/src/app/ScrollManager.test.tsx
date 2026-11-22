@@ -6,7 +6,15 @@ import { ScrollManager } from './ScrollManager.js';
 
 function CatalogPage() {
   const navigate = useNavigate();
-  return <button onClick={() => navigate('/product')}>Mở sản phẩm</button>;
+  return (
+    <>
+      <button onClick={() => navigate('/catalog?color=den', { replace: true })}>Chọn màu</button>
+      <button onClick={() => navigate('/catalog?q=ao', { state: { scrollToTop: true } })}>
+        Tìm mới
+      </button>
+      <button onClick={() => navigate('/product')}>Mở sản phẩm</button>
+    </>
+  );
 }
 
 function ProductPage() {
@@ -48,5 +56,35 @@ describe('ScrollManager', () => {
     fireEvent.scroll(window);
     fireEvent.click(screen.getByRole('button', { name: 'Quay lại' }));
     expect(scrollTo).toHaveBeenLastCalledWith({ left: 0, top: 270, behavior: 'instant' });
+  });
+
+  it('keeps scroll when only search params change on the same pathname unless scrollToTop is set', () => {
+    let scrollY = 0;
+    Object.defineProperty(window, 'scrollY', {
+      configurable: true,
+      get: () => scrollY,
+    });
+    const scrollTo = vi.fn((options: ScrollToOptions) => {
+      scrollY = options.top ?? scrollY;
+    });
+    vi.stubGlobal('scrollTo', scrollTo);
+
+    render(
+      <MemoryRouter initialEntries={['/catalog']}>
+        <ScrollManager />
+        <Routes>
+          <Route path="/catalog" element={<CatalogPage />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    scrollTo.mockClear();
+    scrollY = 420;
+    fireEvent.scroll(window);
+    fireEvent.click(screen.getByRole('button', { name: 'Chọn màu' }));
+    expect(scrollTo).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Tìm mới' }));
+    expect(scrollTo).toHaveBeenLastCalledWith({ left: 0, top: 0, behavior: 'instant' });
   });
 });

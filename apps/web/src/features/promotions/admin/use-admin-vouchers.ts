@@ -22,10 +22,15 @@ export function useAdminVouchersList(query: ListAdminVouchersQuery, enabled = tr
 
   const path = `/admin/vouchers${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
 
+  const key = adminVouchersKeys.list(actorId, query);
   const result = useQuery({
-    queryKey: adminVouchersKeys.list(actorId, query),
+    queryKey: key,
     queryFn: ({ signal }) => guardQuery(() => request<AdminVoucherListResponse>(path, { signal })),
     enabled: Boolean(actorId) && !forbidden && enabled,
+    placeholderData: (previous, previousQuery) =>
+      previousQuery && previousQuery.queryKey[3] === actorId && previousQuery.queryKey[4] === 'list'
+        ? previous
+        : undefined,
     retry: shouldRetryAdminQuery,
   });
 

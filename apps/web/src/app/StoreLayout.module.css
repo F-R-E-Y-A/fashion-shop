@@ -345,6 +345,12 @@
   .header {
     gap: 12px;
   }
+  .cart {
+    margin-right: 6px;
+  }
+  .cartCount {
+    right: -7px;
+  }
   .wordmark {
     display: none;
   }

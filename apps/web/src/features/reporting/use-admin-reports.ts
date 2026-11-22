@@ -22,6 +22,8 @@ export function useAdminReports(params: ReportQueryParams) {
     queryFn: ({ signal }) =>
       guardQuery(() => authenticatedRequest<AdminReportSummaryResponse>(path, { signal })),
     enabled: Boolean(user) && !forbidden,
+    placeholderData: (previous, previousQuery) =>
+      previousQuery && previousQuery.queryKey[3] === (user?.id ?? '') ? previous : undefined,
     retry: shouldRetryAdminQuery,
     refetchInterval: (state) => (state.state.error ? false : 60000),
   });
