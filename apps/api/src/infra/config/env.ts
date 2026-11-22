@@ -6,6 +6,16 @@ import { z } from 'zod';
  * ConfigModule.forRoot({ validate: validateEnv }) goi ham nay; them bien moi thi them o day
  * va o .env.example trong cung pull request.
  */
+/** Danh sach cong goi API ra ngoai, phay ngan cach. Bo trong: moi cong; `none`: tat het. */
+const gatewayList = z
+  .union([
+    z.literal(''),
+    z
+      .string()
+      .regex(/^(none|(VNPAY|MOMO|MOMO_ATM)(,(VNPAY|MOMO|MOMO_ATM))*)$/u, 'vd VNPAY,MOMO hoac none'),
+  ])
+  .optional();
+
 // looseObject chu khong phai object: z.object() CAT BO moi khoa khong khai bao, nen
 // ConfigService.get('<bien chua khai>') se tra ve undefined du .env co bien do.
 // Kiem chung: z.object({A}).parse({A,B}) -> {A}. Dung looseObject de bien la van di qua,
@@ -95,6 +105,17 @@ export const envSchema = z
     MOMO_API_URL: z.url().default('https://test-payment.momo.vn/v2/gateway/api'),
     MOMO_RETURN_URL: z.url().default('http://localhost:5174/thanh-toan/ket-qua'),
     MOMO_IPN_URL: z.union([z.literal(''), z.url()]).default(''),
+    /**
+     * Cong duoc goi API hoan tu dong (ADR-111, de xuat), phay ngan cach, vd `MOMO,MOMO_ATM`. Bo trong:
+     * moi cong co refund; `none`: tat het. Cong bi tat thi hoan tay bang ma chuyen khoan nhu COD.
+     */
+    REFUND_GATEWAYS: gatewayList,
+    /**
+     * Cong duoc goi API truy van ket qua (VNPAY QueryDR, MoMo query) tu worker doi soat va
+     * POST /orders/:id/reconcile (ADR-112, de xuat). Cung dang voi REFUND_GATEWAYS. Cong bi tat chi
+     * con chot bang return co chu ky va IPN; dung khi moi truong khong goi ra duoc API cua cong.
+     */
+    QUERY_GATEWAYS: gatewayList,
     /** Chong bom COD (ADR-038): don tren tran nay hoac khach da giao that bai du so lan thi phai tra truoc. */
     COD_MAX_AMOUNT: z.coerce.number().positive().default(2_000_000),
     COD_MAX_FAILED_DELIVERIES: z.coerce.number().int().positive().default(2),

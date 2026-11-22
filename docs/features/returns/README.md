@@ -1,6 +1,6 @@
 ---
 title: Trả hàng
-updated: 2026-11-15
+updated: 2026-11-21
 status: API, web, E2E-09 có trên `feature/ph-11-payment`, chưa vào develop; đã thử trình duyệt 15/11
 owner: Bảo
 ---
@@ -32,7 +32,7 @@ Chỉ **trả hàng và hoàn tiền** (mọi `return_items.resolution` = `REFUN
 | `COMPLETED` | `ADMIN` | Từ `RECEIVED`; hoàn tiền xong, đơn sang `PARTIALLY_REFUNDED` hoặc `REFUNDED` |
 
 Hoàn tiền:
-- Đơn trả online: gọi `refundPayment` có sẵn. Sổ của cổng vẫn là `payment_transactions` ([ADR-036](../payments/LOG.md#adr-036)); bảng `refunds` nối yêu cầu trả với lần hoàn.
+- Đơn trả online: ghi lệnh hoàn vào sổ cổng (`claimRefund`) cùng transaction với dòng `refunds`, commit xong mới gọi cổng (`sendRefund`) ([ADR-114](LOG.md#adr-114)). Còn lệnh chờ cổng thì màn quản trị chặn hoàn và dẫn sang đơn để đối soát (UC-14.2/AC12). Sổ của cổng vẫn là `payment_transactions` ([ADR-036](../payments/LOG.md#adr-036)); bảng `refunds` nối yêu cầu trả với lần hoàn.
 - Đơn COD: khách nhập tài khoản nhận tiền khi gửi yêu cầu; `ADMIN` chuyển khoản tay rồi nhập mã giao dịch. Ba trường tài khoản bị xoá khi yêu cầu sang `COMPLETED`.
 
 ## API

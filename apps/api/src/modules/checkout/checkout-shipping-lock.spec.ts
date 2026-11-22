@@ -118,6 +118,8 @@ describe('CheckoutService & OrderAdminService — khóa hai chiều giữa hoàn
 
     const txMock = {
       payment: {
+        // claimRefund (refundPayment) doc bang findUnique, recordManualRefund bang findUniqueOrThrow.
+        findUnique: vi.fn().mockResolvedValue(currentOrder.payments[0]),
         findUniqueOrThrow: vi.fn().mockResolvedValue(currentOrder.payments[0]),
       },
       order: {
@@ -149,6 +151,8 @@ describe('CheckoutService & OrderAdminService — khóa hai chiều giữa hoàn
           configured: () => true,
           refund: adapterRefund,
         }),
+        // REFUND_GATEWAYS bat VNPAY (ADR-111): claimRefund moi toi duoc chot chan van don.
+        autoRefund: vi.fn().mockReturnValue(true),
       },
     };
 

@@ -124,3 +124,14 @@ export class IpnResponse {
   @ApiProperty() RspCode!: string;
   @ApiProperty() Message!: string;
 }
+export class RefundCheckResponse {
+  @ApiProperty({ description: 'true: cổng xác nhận đã hoàn, lệnh đã ghi sổ (ADR-119)' })
+  settled!: boolean;
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Lý do chưa ghi sổ; admin đối chiếu rồi chốt tay',
+  })
+  detail!: string | null;
+  @ApiProperty({ type: OrderResponse }) order!: OrderResponse;
+}

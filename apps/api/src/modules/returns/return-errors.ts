@@ -24,6 +24,13 @@ export const returnExists = (): ConflictException =>
     message: 'Đơn này đã có yêu cầu trả hàng. Theo dõi yêu cầu đó trong mục Trả hàng.',
   });
 
+export const returnOpenOnOrder = (): ConflictException =>
+  new ConflictException({
+    error: 'RETURN_OPEN',
+    message:
+      'Đơn có yêu cầu trả hàng chưa đóng. Hoàn tiền ở trang Trả hàng để yêu cầu đó được đóng cùng lúc.',
+  });
+
 export const invalidReturnItems = (message: string): BadRequestException =>
   new BadRequestException({ error: 'INVALID_RETURN_ITEMS', message });
 
