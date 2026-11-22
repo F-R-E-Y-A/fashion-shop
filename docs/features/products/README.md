@@ -1,6 +1,6 @@
 ---
 title: Khám phá sản phẩm — bản đồ và kế hoạch PH-01
-updated: 2026-11-19
+updated: 2026-11-22
 status: đang làm
 owner: Bảo
 ---
@@ -107,7 +107,7 @@ Chữ ký thật và trạng thái ở [README của module](../../../apps/api/s
 | `/` | `HomePage` (Giờ Hổ Phách): hero có ô tìm kiếm câu nói, dải chữ, ba lối vào danh mục, hàng mới về, dịp mặc, Nàng/Chàng, câu chuyện chất liệu, nổi bật | `products?sort=newest&pageSize=10`, `categories`, `products?search=&pageSize=3&log=false` (dịp mặc, chất liệu), `products?audience=&facets=true&pageSize=1`, `products?featured=true&pageSize=8` | Phải có |
 | `/tim-kiem` | `SearchPage`: ô nhập lớn, chip "Đã hiểu" bỏ được, bộ lọc có số đếm, sắp xếp, phân trang; trạng thái nằm trên URL (`q`, `audience`, `categories`, `colors`, `sizes`, `minPrice`, `maxPrice`, `sort`, `page`) | `products?search=&facets=true&…` | Phải có |
 | `/danh-muc/:slug` | `CategoryPage`: đường dẫn phân cấp, bộ lọc dùng chung, sắp xếp, lưới, phân trang | `categories/:slug`, `products?categorySlug=&facets=true&…` | Phải có |
-| `/san-pham/:slug` | `ProductDetailPage`: thư viện ảnh, chọn màu rồi cỡ, giá, mô tả, liên quan | `products/:slug`, `products/:slug/related` | Có thể trượt |
+| `/san-pham/:slug` | `ProductDetailPage`: thư viện ảnh (khung lớn cộng dải ảnh cong kéo được, khép vòng từ 3 ảnh; desktop dải dọc cạnh khung cao vừa màn hình; [ADR-126](LOG.md#adr-126), [ADR-127](LOG.md#adr-127) đề xuất), chọn màu rồi cỡ, số lượng, giá; mô tả, chất liệu, bảo quản ở mục "Chi tiết sản phẩm" bên dưới; liên quan | `products/:slug`, `products/:slug/related` | Có thể trượt |
 | `/san-pham` | `ProductListPage` hiện có, trang mẫu cho nhóm chép | `products?search=` | Giữ |
 | `*` | Trang không tìm thấy | — | Phải có |
 
@@ -121,13 +121,13 @@ Ba ô danh mục gốc trên trang chủ (`home/CategoryBento`) dùng ảnh chi�
 Trang chủ                               Chi tiết sản phẩm
 ┌──────────────────────────────────┐    ┌──────────────────────────────────────┐
 │ Logo   Áo  Quần  Phụ kiện   Giỏ  │    │ Trang chủ / Áo / Áo thun / <tên>     │
-│ Hàng mới về            Xem hết → │    │ ┌──────────┐  <thương hiệu>          │
-│ [ảnh][ảnh][ảnh][ảnh]              │    │ │ ảnh 3:4  │  <tên sản phẩm>         │
-│ Mua theo danh mục                │    │ │          │  199.000 ₫  (249.000 ₫ gạch) │
-│ [ Áo ] [ Quần ] [ Phụ kiện ]     │    │ └──────────┘  Màu: Đen   ● ● ○       │
-│ Nổi bật                          │    │ [▫][▫][▫][▫]  Cỡ: [S] [M] [L] [XL]   │
-│ [ảnh][ảnh][ảnh][ảnh]              │    │               [ Thêm vào giỏ ] ← PH-02 │
-└──────────────────────────────────┘    │ Mô tả … · Sản phẩm liên quan …       │
+│ Hàng mới về            Xem hết → │    │ ▫ ┌────────┐ <tên sản phẩm>          │
+│ [ảnh][ảnh][ảnh][ảnh]              │    │ ▫ │ảnh 3:4 │ 199.000 ₫ (249.000 ₫)   │
+│ Mua theo danh mục                │    │ ■ │contain │ Màu: [Đen] [Ghi]        │
+│ [ Áo ] [ Quần ] [ Phụ kiện ]     │    │ ▫ │cao vừa │ Cỡ: [S] [M] [L] [XL]    │
+│ Nổi bật                          │    │ ▫ │màn hình│ [− 1 +] [Thêm vào giỏ]  │
+│ [ảnh][ảnh][ảnh][ảnh]              │    │ ▫ └────────┘ Còn 6 sản phẩm          │
+└──────────────────────────────────┘    │ ↓ Chi tiết · Đánh giá · Liên quan    │
                                          └──────────────────────────────────────┘
 ```
 
