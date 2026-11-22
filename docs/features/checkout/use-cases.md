@@ -102,7 +102,7 @@ Là một **khách hàng**, tôi muốn **xem các đơn của mình và trạng
 - **AC5** (âm) Tiền đến muộn (`PAYMENT_REVIEW`): trang hiện hướng xử lý, không cho thanh toán lại
 - **AC6** (thuận) Đơn COD sau khi shop ghi đã giao: khách tải lại thấy "Đã giao hàng"
 - **AC7** (thuận) Trang đơn luôn hiện tiến trình trạng thái kèm thời điểm, lấy từ lịch sử trạng thái; mốc chưa tới hiện mờ, không giờ; hủy, hoàn tiền, đối soát là mốc kết thúc, không dự báo bước giao ([ADR-122](LOG.md#adr-122))
-- **AC8** (âm) API đơn của khách không trả mã trạng thái của hãng vận chuyển hay ghi chú nội bộ của vận đơn; khối vận chuyển chỉ hiện trạng thái vận chuyển và ghi chú máy chủ suy ra từ mã hãng ([ADR-122](LOG.md#adr-122))
+- **AC9** (âm) API đơn của khách không trả mã trạng thái của hãng vận chuyển hay ghi chú nội bộ của vận đơn; khối vận chuyển chỉ hiện trạng thái vận chuyển và ghi chú máy chủ suy ra từ mã hãng ([ADR-122](LOG.md#adr-122))
 
 ---
 

@@ -82,7 +82,7 @@ describe('UC-07.3 trang đơn của khách: mốc trạng thái và vận đơn 
     expect(JSON.stringify(view)).not.toContain('actorUserId');
   });
 
-  it('UC-07.3/AC8 ghi chú admin gõ tay trên vận đơn đã có mã không tới khách; admin vẫn thấy nguyên văn', async () => {
+  it('UC-07.3/AC9 ghi chú admin gõ tay trên vận đơn đã có mã không tới khách; admin vẫn thấy nguyên văn', async () => {
     const adminNote = 'Admin: gọi lại khách, GHN báo sai số nhà — đừng hoàn kho';
     const order = makeOrder({
       shipment: shipment({ status: 'FAILED', carrierStatus: 'delivering', statusNote: adminNote }),
@@ -103,7 +103,7 @@ describe('UC-07.3 trang đơn của khách: mốc trạng thái và vận đơn 
     );
   });
 
-  it('UC-07.3/AC8 ghi chú khách suy ra từ mã GHN; mã cần shop đối soát thay bằng câu trung tính', () => {
+  it('UC-07.3/AC9 ghi chú khách suy ra từ mã GHN; mã cần shop đối soát thay bằng câu trung tính', () => {
     expect(customerShipmentNote(shipment())).toBe('Shipper GHN đang giao hàng đến người nhận.');
     for (const code of ['cancel', 'exception', 'scrap']) {
       const note = customerShipmentNote(
@@ -122,7 +122,7 @@ describe('UC-07.3 trang đơn của khách: mốc trạng thái và vận đơn 
     ).toBeNull();
   });
 
-  it('UC-07.3/AC8 vận đơn đang tạo hoặc chờ đối soát chỉ báo đang tạo, không lộ mã giữ chỗ hay hướng dẫn nút admin', () => {
+  it('UC-07.3/AC9 vận đơn đang tạo hoặc chờ đối soát chỉ báo đang tạo, không lộ mã giữ chỗ hay hướng dẫn nút admin', () => {
     for (const carrierStatus of ['creating#a1b2c3d4', 'create_uncertain:FRX1', 'uncertain_ghn']) {
       const order = makeOrder({
         status: 'CONFIRMED',

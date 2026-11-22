@@ -718,7 +718,7 @@ describe('PH-11 checkout UI', () => {
     expect(within(list).queryByText('Giao hàng thành công')).not.toBeInTheDocument();
   });
 
-  it('UC-07.3/AC8 khối vận chuyển bỏ thanh 4 bước, hiện trạng thái vận chuyển và ghi chú máy chủ gửi', async () => {
+  it('UC-07.3/AC9 khối vận chuyển bỏ thanh 4 bước, hiện trạng thái vận chuyển và ghi chú máy chủ gửi', async () => {
     request.mockResolvedValue({
       ...order('CONFIRMED'),
       canCancel: false,

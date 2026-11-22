@@ -169,7 +169,7 @@ Trade-off chấp nhận: ghi chú admin muốn gửi khách phải đi qua thôn
 | Người phản biện | [TBD — hỏi Duy] câu ghi chú cho mã GHN và việc bỏ thanh 4 bước | |
 
 **Kết luận:** chờ Bảo chốt; Duy xem phần shipping.
-**Bằng chứng:** chưa đẩy commit nên chưa có link. `apps/api/src/modules/checkout/order-view.spec.ts` (4 bài), 3 bài `UC-07.3/AC7`–`AC8` trong `apps/web/src/features/checkout/checkout.test.tsx`, assertion `UC-07.3/AC8` trong `apps/api/test/shipping-ghn.http.spec.ts`. Chạy 22/11: `npm run test:http` → 46 tệp, 719 passed; `npm run check` → API 802, web 834 passed.
+**Bằng chứng:** commit [`4a406f6`](https://github.com/F-R-E-Y-A/fashion-shop/commit/4a406f6). `apps/api/src/modules/checkout/order-view.spec.ts` (4 bài), 3 bài `UC-07.3/AC7`, `UC-07.3/AC9` trong `apps/web/src/features/checkout/checkout.test.tsx`, assertion `UC-07.3/AC9` trong `apps/api/test/shipping-ghn.http.spec.ts`. `AC8` của UC-07.3 do PR #167 giữ cho sản phẩm ngừng bán. Chạy 22/11 trên `a1ce291`: `npm run test:http` → 46 tệp, 719 passed; `npm run check` → API 802, web 834 passed. Sau khi rebase lên `2678d8f`: `npm run check` → API 804, web 842 passed; `test:http` chưa chạy lại (lệnh bị dừng vì máy thiếu bộ nhớ).
 
 ### Kết quả mong đợi → thực tế
 Mong đợi: staging `/don-hang/:id` hiện tiến trình có giờ cho cả đơn COD lẫn đơn trả trước; response khách không có `carrierStatus` khác `null`.
