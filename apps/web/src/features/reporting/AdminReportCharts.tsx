@@ -44,7 +44,7 @@ export function DailyRevenueChart({ items }: { items: readonly AdminReportDailyM
   );
   const activePoint =
     selectedIndex !== null && points[selectedIndex] ? points[selectedIndex]! : points[peakIndex]!;
-  const isViewingPeak = selectedIndex === null;
+  const isViewingPeak = selectedIndex === null || !points[selectedIndex];
 
   const W = 720;
   const H = 216;
@@ -169,10 +169,14 @@ const STATUS_BAR_COLORS: Record<string, string> = {
   DELIVERED: 'var(--success)',
   CONFIRMED: 'var(--accent)',
   PROCESSING: 'var(--accent-bright)',
+  SHIPPED: 'color-mix(in srgb, var(--accent) 65%, var(--paper))',
   SHIPPING: 'color-mix(in srgb, var(--accent) 65%, var(--paper))',
   PENDING_PAYMENT: 'var(--amber-glow)',
+  PAYMENT_REVIEW: 'color-mix(in srgb, var(--amber-glow) 85%, var(--accent))',
   PENDING_CONFIRMATION: 'color-mix(in srgb, var(--amber-glow) 75%, var(--paper))',
   CANCELLED: 'var(--danger)',
+  PARTIALLY_REFUNDED: 'color-mix(in srgb, var(--danger) 55%, var(--amber-glow))',
+  REFUNDED: 'color-mix(in srgb, var(--danger) 45%, var(--muted))',
   RETURNED: 'var(--muted)',
 };
 
