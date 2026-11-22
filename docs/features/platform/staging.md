@@ -42,7 +42,7 @@ Làm vậy để lịch sử triển khai và thời gian từ commit tới khi 
 
 1. Đăng nhập Vercel bằng GitHub, **Add New → Project**, chọn kho `fashion-shop`.
 2. **Root Directory** đặt là `apps/web`. Vercel đọc `apps/web/vercel.json` cho lệnh cài và lệnh dựng, vì hai lệnh đó phải chạy từ gốc kho mã do dùng npm workspaces.
-3. **Environment Variables**: thêm `VITE_API_URL` bằng `<địa chỉ Render>/api`. Biến `VITE_*` được nhúng vào mã **lúc dựng**, nên đổi địa chỉ máy chủ thì phải dựng lại, không sửa biến rồi khởi động lại là xong.
+3. **Environment Variables**: đặt `VITE_API_URL=/api` để mọi lời gọi `/api/*` đi qua rewrite đồng nguồn trong `apps/web/vercel.json` tới máy chủ Render, giúp cookie `refresh_token` (`SameSite=Lax`) được gửi lại bình thường khi tải lại trang (F5) và tránh gọi cross-origin trực tiếp. Biến `VITE_*` được nhúng vào mã **lúc dựng**, nên đổi địa chỉ máy chủ thì phải dựng lại, không sửa biến rồi khởi động lại là xong.
 4. **Settings → Environments → Production → Branch Tracking**, đặt nhánh sản xuất là `develop`. Đây là thiết lập trong Vercel dashboard, `vercel.json` không đặt được nhánh này.
 5. Quay lại Render sửa `CORS_ORIGINS` thành địa chỉ Vercel vừa có. Quên bước này thì trang tải được nhưng không gọi được API, và lỗi hiện trong bảng điều khiển trình duyệt chứ không hiện trên trang.
 
