@@ -213,6 +213,42 @@ describe('PH-11 quản trị đơn hàng (ADR-038)', () => {
     );
   });
 
+  it('UC-14.2/AC13 đơn còn yêu cầu trả hàng chưa đóng (409 RETURN_OPEN): giữ câu của máy chủ và dẫn sang trang Trả hàng', async () => {
+    request.mockImplementation(async (path: string) => {
+      if (!path.endsWith('/refund')) return base;
+      throw new ApiError({
+        statusCode: 409,
+        code: 'RETURN_OPEN',
+        message: 'Đơn có yêu cầu trả hàng chưa đóng.',
+        path: '/x',
+        timestamp: '',
+      });
+    });
+    show('/admin/orders/o1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Hoàn tiền VNPAY' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Hoàn tiền' }));
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent('Đơn có yêu cầu trả hàng chưa đóng.');
+    expect(within(alert).getByRole('link', { name: 'Mở trang Trả hàng' })).toHaveAttribute(
+      'href',
+      '/admin/returns',
+    );
+  });
+
+  it('UC-12.1/AC10 409 khác: không hiện link trang Trả hàng', async () => {
+    request.mockImplementation(async (path: string) => {
+      if (!path.endsWith('/refund')) return base;
+      throw apiError(409, 'Đang có lệnh hoàn chờ kết quả.');
+    });
+    show('/admin/orders/o1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Hoàn tiền VNPAY' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Hoàn tiền' }));
+    await within(dialog).findByRole('alert');
+    expect(within(dialog).queryByRole('link', { name: 'Mở trang Trả hàng' })).toBeNull();
+  });
+
   it('UC-12.1/AC10 409 từ máy chủ: giữ câu nghiệp vụ của máy chủ và báo đã tải lại', async () => {
     request.mockImplementation(async (path: string) => {
       if (!path.endsWith('/refund')) return base;
@@ -392,5 +428,188 @@ describe('UC-02.1/AC6, AC8 — bảo vệ dữ liệu admin dùng chung (#57)', 
         note: 'Hàng đã hoàn về kho (Mô phỏng Sandbox)',
       });
     });
+  });
+
+  it('UC-PH02 khi GHN Sandbox đã cấu hình, hiện nút tạo GHN + dự phòng mô phỏng và nút Đồng bộ từ GHN cho vận đơn thật', async () => {
+    request.mockImplementation(async (path: string) => {
+      if (path === '/admin/orders/shipping/config') {
+        return { ghnConfigured: true, mode: 'GHN_SANDBOX' };
+      }
+      if (path === '/admin/orders/o1') {
+        return { ...base, status: 'PROCESSING', shipment: null };
+      }
+      if (path === '/admin/orders/o1/shipment') {
+        return {
+          id: 's1',
+          orderId: 'o1',
+          carrierName: 'GHN',
+          trackingNumber: 'GHN-SBX-FALLBACK',
+          status: 'PENDING',
+          isMock: true,
+          fallbackUsed: true,
+          fallbackReason: 'GHN timeout',
+        };
+      }
+      return {};
+    });
+
+    show('/admin/orders/o1');
+    const ghnBtn = await screen.findByRole('button', { name: 'Tạo vận đơn GHN (Sandbox)' });
+    expect(
+      screen.getByRole('button', { name: 'Tạo vận đơn mô phỏng (Dự phòng)' }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(ghnBtn);
+    const confirmBtn = within(
+      screen.getByRole('dialog', { name: 'Tạo vận đơn GHN (Sandbox)' }),
+    ).getByRole('button', { name: 'Tạo vận đơn GHN (Sandbox)' });
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      const postCall = request.mock.calls.find(
+        ([path, opts]) => path === '/admin/orders/o1/shipment' && opts?.method === 'POST',
+      );
+      expect(postCall?.[1]?.body).toEqual({ carrierName: 'GHN', mode: 'AUTO' });
+    });
+    expect(await screen.findByText(/tự động dự phòng sang vận đơn mô phỏng/)).toBeInTheDocument();
+  });
+
+  it('UC-PH02 vận đơn GHN thật (isMock=false) hiện nút Đồng bộ từ GHN', async () => {
+    request.mockImplementation(async (path: string) => {
+      if (path === '/admin/orders/shipping/config') {
+        return { ghnConfigured: true, mode: 'GHN_SANDBOX' };
+      }
+      if (path === '/admin/orders/o1') {
+        return {
+          ...base,
+          status: 'SHIPPED',
+          actions: {
+            ...base.actions,
+            markDelivered: true,
+            deliveryFailed: true,
+          },
+          shipment: {
+            id: 's-real',
+            carrierName: 'GHN',
+            trackingNumber: 'L4GHN999',
+            status: 'IN_TRANSIT',
+            isMock: false,
+            carrierStatus: 'delivering',
+            statusNote: 'Shipper đang giao',
+            createdAt: '2026-11-16T03:00:00.000Z',
+            updatedAt: '2026-11-16T03:10:00.000Z',
+          },
+        };
+      }
+      if (path === '/admin/orders/o1/shipment/sync') {
+        return { status: 'DELIVERED', carrierStatus: 'delivered' };
+      }
+      return {};
+    });
+
+    show('/admin/orders/o1');
+    const syncButton = await screen.findByRole('button', { name: 'Đồng bộ từ GHN' });
+    // Vận đơn GHN thật (isMock=false) tuyệt đối không hiển thị các nút mô phỏng hay chốt tay cũ.
+    expect(screen.queryByRole('button', { name: /Mô phỏng:/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Đã giao/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Giao thất bại' })).not.toBeInTheDocument();
+    fireEvent.click(syncButton);
+    const title = 'Đồng bộ trạng thái từ GHN Sandbox';
+    fireEvent.click(
+      within(screen.getByRole('dialog', { name: title })).getByRole('button', { name: title }),
+    );
+
+    await waitFor(() => {
+      const syncCall = request.mock.calls.find(
+        ([path, opts]) => path === '/admin/orders/o1/shipment/sync' && opts?.method === 'POST',
+      );
+      expect(syncCall).toBeDefined();
+    });
+  });
+
+  it('R3-P2.3: vận đơn GHN bị hủy trước lúc lấy hàng (cancel) hiện nút tạo vận đơn thay thế và Giao thất bại, ẩn Đồng bộ từ GHN và Đã giao', async () => {
+    request.mockImplementation(async (path: string) => {
+      if (path === '/admin/orders/shipping/config') {
+        return { ghnConfigured: true, mode: 'GHN_SANDBOX' };
+      }
+      if (path === '/admin/orders/o1') {
+        return {
+          ...base,
+          status: 'PROCESSING',
+          actions: {
+            ...base.actions,
+            markDelivered: false,
+            deliveryFailed: true,
+          },
+          shipment: {
+            id: 's-cancel',
+            carrierName: 'GHN',
+            trackingNumber: 'L4CANCEL',
+            status: 'FAILED',
+            isMock: false,
+            carrierStatus: 'cancel',
+            statusNote: 'Vận đơn đã bị hủy trên GHN',
+            createdAt: '2026-11-20T01:00:00.000Z',
+            updatedAt: '2026-11-20T01:05:00.000Z',
+          },
+        };
+      }
+      return {};
+    });
+
+    show('/admin/orders/o1');
+    expect(
+      await screen.findByRole('button', { name: 'Tạo vận đơn GHN thay thế' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Tạo vận đơn mô phỏng (Dự phòng)' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Giao thất bại' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Đồng bộ từ GHN' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Đã giao/ })).not.toBeInTheDocument();
+  });
+
+  it('R3-P1.1: vận đơn ở trạng thái chờ đối soát create_uncertain hoặc creating#<attemptId> chỉ hiện nút Đối soát / tạo lại vận đơn GHN, ẩn Đồng bộ và nút mô phỏng', async () => {
+    request.mockImplementation(async (path: string) => {
+      if (path === '/admin/orders/shipping/config') {
+        return { ghnConfigured: true, mode: 'GHN_SANDBOX' };
+      }
+      if (path === '/admin/orders/o1') {
+        return {
+          ...base,
+          status: 'CONFIRMED',
+          actions: {
+            ...base.actions,
+            startProcessing: false,
+            cancelRefund: false,
+            markDelivered: false,
+            deliveryFailed: false,
+          },
+          shipment: {
+            id: 's-uncertain',
+            carrierName: 'GHN',
+            trackingNumber: null,
+            status: 'PENDING',
+            isMock: false,
+            carrierStatus: 'creating#a1b2c3d4',
+            statusNote: 'Đang khởi tạo vận đơn trên GHN Sandbox...',
+            createdAt: '2026-11-20T01:00:00.000Z',
+            updatedAt: '2026-11-20T01:01:00.000Z',
+          },
+        };
+      }
+      return {};
+    });
+
+    show('/admin/orders/o1');
+    expect(
+      await screen.findByRole('button', { name: 'Đối soát / tạo lại vận đơn GHN' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('creating (đang khởi tạo trên GHN)')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Đồng bộ từ GHN' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Tạo vận đơn mô phỏng (Dự phòng)' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Mô phỏng:/ })).not.toBeInTheDocument();
   });
 });

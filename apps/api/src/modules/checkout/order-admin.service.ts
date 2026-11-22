@@ -6,7 +6,11 @@ import { Decimal } from 'decimal.js';
 import { toPage } from '../../common/pagination/page.response.js';
 import type { OrderStatus, Prisma } from '../../generated/prisma/client.js';
 import type { AdminOrderQuery, OrderDetails } from '../orders/index.js';
-import { CheckoutService, REFUNDABLE } from './checkout.service.js';
+import {
+  CheckoutService,
+  isShipmentCreatingOrReconciling,
+  REFUNDABLE,
+} from './checkout.service.js';
 import { refundSummary } from './refund-ledger.js';
 
 const IN_DELIVERY: OrderStatus[] = ['PROCESSING', 'SHIPPED'];
@@ -49,6 +53,14 @@ export class OrderAdminService {
     return this.step(id, async (order, tx) => {
       if (order.status !== 'CONFIRMED')
         throw new ConflictException('Chỉ bắt đầu xử lý đơn đã thanh toán, chưa xử lý.');
+      if (order.shipment)
+        throw new ConflictException(
+          'Đơn hàng đang có yêu cầu tạo hoặc đối soát vận đơn, vui lòng hoàn tất đối soát trước.',
+        );
+      if (hasPendingOrProcessedRefund(order))
+        throw new ConflictException(
+          'Đơn hàng đang có lệnh hoàn tiền chờ kết quả hoặc đã hoàn tiền, không thể bắt đầu xử lý.',
+        );
       await this.checkout.orders.transition(id, 'PROCESSING', tx, actor);
     });
   }
@@ -70,6 +82,10 @@ export class OrderAdminService {
     return this.step(id, async (order, tx) => {
       if (!IN_DELIVERY.includes(order.status))
         throw new ConflictException('Chỉ đánh dấu đã giao cho đơn đang giao.');
+      if (hasRealCarrierShipment(order))
+        throw new ConflictException(
+          'Đơn hàng đang giao qua vận đơn GHN thật, chỉ chốt giao thành công qua đồng bộ GHN hoặc webhook.',
+        );
       const cod = codPayment(order);
       if (cod?.status === 'PENDING')
         await this.checkout.payments.record(
@@ -92,6 +108,10 @@ export class OrderAdminService {
       const cod = codPayment(order);
       if (!IN_DELIVERY.includes(order.status) || cod?.status !== 'PENDING')
         throw new ConflictException('Chỉ ghi giao thất bại cho đơn COD đang giao, chưa thu tiền.');
+      if (hasRealCarrierShipment(order) && !isCancelledRealCarrierBeforePickup(order))
+        throw new ConflictException(
+          'Đơn hàng đang giao qua vận đơn GHN thật, không thể tự chốt giao thất bại hoặc hoàn kho khi GHN chưa xác nhận.',
+        );
       await this.checkout.inventory.restock(id, this.checkout.stockItems(order), tx);
       await this.checkout.payments.record(
         cod.id,
@@ -101,7 +121,10 @@ export class OrderAdminService {
         tx,
       );
       await this.checkout.promotions.releaseVoucherUsage(id, tx);
-      await this.checkout.orders.transition(id, 'CANCELLED', tx, actor);
+      await this.checkout.orders.transition(id, 'CANCELLED', tx, actor, {
+        cancelSource: 'DELIVERY_FAILED',
+        reason,
+      });
     });
   }
 
@@ -127,6 +150,7 @@ export class OrderAdminService {
         !!payment.gateway &&
         payment.gateway !== 'COD' &&
         order.status !== 'CONFIRMED' &&
+        !isShipmentCreatingOrReconciling(order.shipment) &&
         REFUNDABLE.includes(order.status) &&
         remaining.gt(0) &&
         !ledger.pending;
@@ -147,6 +171,8 @@ export class OrderAdminService {
       };
     });
     const cod = codPayment(order);
+    const realCarrier = hasRealCarrierShipment(order);
+    const cancelledBeforePickup = isCancelledRealCarrierBeforePickup(order);
     return {
       ...this.checkout.view(order),
       userId: order.userId,
@@ -159,17 +185,44 @@ export class OrderAdminService {
       ledgers,
       actions: {
         confirmCod: order.status === 'PENDING_CONFIRMATION' && cod?.status === 'PENDING',
-        startProcessing: order.status === 'CONFIRMED',
+        startProcessing:
+          order.status === 'CONFIRMED' && !order.shipment && !hasPendingOrProcessedRefund(order),
         cancelRefund: !!this.checkout.selfRefundablePayment(order),
-        markDelivered: IN_DELIVERY.includes(order.status),
-        deliveryFailed: IN_DELIVERY.includes(order.status) && cod?.status === 'PENDING',
+        markDelivered: IN_DELIVERY.includes(order.status) && !realCarrier,
+        deliveryFailed:
+          IN_DELIVERY.includes(order.status) &&
+          cod?.status === 'PENDING' &&
+          (!realCarrier || cancelledBeforePickup),
       },
     };
   }
 }
 
+const hasPendingOrProcessedRefund = (order: OrderDetails) =>
+  order.payments.some((payment) => {
+    const ledger = refundSummary(payment.transactions);
+    return Boolean(ledger.pending) || !ledger.refunded.isZero();
+  });
+
 const codPayment = (order: OrderDetails) =>
   order.payments.find((payment) => payment.gateway === 'COD');
+
+const hasRealCarrierShipment = (order: OrderDetails) =>
+  Boolean(order.shipment && order.shipment.isMock === false);
+
+/**
+ * GHN chỉ cho hủy vận đơn (`cancel`) trước khi shipper lấy hàng (`order.status === 'PROCESSING'`).
+ * Khi đó `cancel` là trạng thái cuối bên GHN và hàng vẫn còn trong kho, nên admin được phép
+ * chốt hủy đơn COD & hoàn kho (hoặc tạo vận đơn thay thế) sau khi xác nhận hàng tại kho.
+ */
+const isCancelledRealCarrierBeforePickup = (order: OrderDetails) =>
+  Boolean(
+    order.shipment &&
+    order.shipment.isMock === false &&
+    order.shipment.status === 'FAILED' &&
+    order.shipment.carrierStatus === 'cancel' &&
+    order.status === 'PROCESSING',
+  );
 
 function summary(order: OrderDetails) {
   const latest = order.payments[0];

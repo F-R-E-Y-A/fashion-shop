@@ -70,6 +70,14 @@ export const ORDER_TABS = [
 ] as const;
 export type OrderTab = (typeof ORDER_TABS)[number]['key'];
 
+export interface CarrierConfig {
+  ghnConfigured: boolean;
+  mode: 'GHN_SANDBOX' | 'MOCK_ONLY';
+}
+
+export const adminShippingConfigKey = (actorId: string) =>
+  [...sessionQueryKeys.adminResource('shipping-config'), actorId] as const;
+
 export const adminOrderKeys = {
   all: (actorId: string) => [...sessionQueryKeys.adminResource('orders'), actorId] as const,
   list: (actorId: string, tab: string, q: string, page: number) =>

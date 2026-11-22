@@ -83,6 +83,9 @@ export class ShipmentResponse {
   status!: string;
   @ApiPropertyOptional({ type: Boolean, description: 'Đánh dấu vận đơn mô phỏng (Sandbox)' })
   isMock?: boolean;
+  @ApiPropertyOptional({ type: String, nullable: true }) carrierStatus?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) statusNote?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) expectedDeliveryAt?: string | null;
   @ApiProperty() createdAt!: string;
   @ApiProperty() updatedAt!: string;
 }

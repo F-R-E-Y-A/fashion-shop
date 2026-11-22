@@ -354,4 +354,29 @@ describe('NotificationBell', () => {
       expect(onForbidden).toHaveBeenCalledTimes(1);
     });
   });
+
+  it('hiển thị trạng thái đang tải và báo lỗi kèm nút Thử lại khi API gặp sự cố', async () => {
+    const user = userEvent.setup();
+    let rejectFetch!: (reason?: unknown) => void;
+    mockApiGet.mockImplementationOnce(
+      () =>
+        new Promise((_, reject) => {
+          rejectFetch = reject;
+        }),
+    );
+
+    renderWithClient(<NotificationBell />);
+    const bellBtn = screen.getByRole('button', { name: /Thông báo \(0 chưa đọc\)/ });
+    await user.click(bellBtn);
+    expect(screen.getByText('Đang tải thông báo…')).toBeInTheDocument();
+
+    mockApiGet.mockResolvedValueOnce({ items: [], unreadCount: 0 });
+    rejectFetch({ statusCode: 500, message: 'Server error' });
+
+    const retryBtn = await screen.findByRole('button', { name: 'Thử lại' });
+    expect(screen.getByText('Không tải được thông báo.')).toBeInTheDocument();
+
+    await user.click(retryBtn);
+    expect(await screen.findByText('Bạn chưa có thông báo nào')).toBeInTheDocument();
+  });
 });

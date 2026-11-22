@@ -54,6 +54,28 @@ export const REFUNDABLE: OrderStatus[] = [
   'PARTIALLY_REFUNDED',
   'CANCELLED',
 ];
+
+/**
+ * Kiểm tra vận đơn đang giữ chỗ khởi tạo (`creating#...`) hoặc chờ đối soát (`create_uncertain...`)
+ * hoặc chưa có mã vận đơn thật. Dùng để chặn hoàn tiền trực tiếp đua với luồng tạo vận đơn GHN.
+ */
+export function isShipmentCreatingOrReconciling(
+  shipment:
+    | {
+        isMock?: boolean;
+        trackingNumber?: string | null;
+        carrierStatus?: string | null;
+      }
+    | null
+    | undefined,
+): boolean {
+  if (!shipment) return false;
+  if (!shipment.trackingNumber) return true;
+  const cs = shipment.carrierStatus ?? '';
+  return (
+    cs.startsWith('creating') || cs.startsWith('create_uncertain') || cs.startsWith('uncertain_ghn')
+  );
+}
 const CUSTOMER_CANCEL_REASON = 'Khách hủy đơn trước khi shop xử lý.';
 
 /** Lenh hoan qua cong da chot thanh cong; phan he goi (returns) nghe de dong viec cua minh. */
@@ -67,6 +89,11 @@ export type RefundSettledListener = (
   event: RefundSettled,
   tx: Prisma.TransactionClient,
 ) => Promise<void>;
+/**
+ * Chay duoi khoa don truoc khi trang don hoan tien (qua cong hoac hoan tay). Nem loi thi khong hoan;
+ * phan he tra hang dung de buoc hoan qua yeu cau tra con mo, tranh don het tien ma yeu cau van ket.
+ */
+export type OrderRefundGuard = (orderId: string, tx: Prisma.TransactionClient) => Promise<void>;
 /** Trang thai mot lenh hoan theo so cong; MISSING: lenh chua tung duoc ghi. */
 export type RefundIntentState = 'MISSING' | 'RECEIVED' | 'PROCESSED' | 'FAILED';
 /** Lenh hoan da ghi RECEIVED duoi khoa don (claimRefund), cho gui ra cong (sendRefund). */
@@ -109,6 +136,7 @@ const pendingRefund = () =>
 export class CheckoutService {
   private readonly logger = new Logger(CheckoutService.name);
   private readonly refundListeners: RefundSettledListener[] = [];
+  private readonly refundGuards: OrderRefundGuard[] = [];
   constructor(
     private readonly prisma: PrismaService,
     readonly cart: CartService,
@@ -431,6 +459,9 @@ export class CheckoutService {
    */
   selfRefundablePayment(order: OrderDetails) {
     if (order.status !== 'CONFIRMED') return null;
+    // Khi đơn đang giữ chỗ khởi tạo hoặc chờ đối soát vận đơn (`order.shipment` đã tồn tại),
+    // tạm khóa tự hủy/hoàn tiền để tránh đua với yêu cầu tạo vận đơn GHN đang chạy.
+    if (order.shipment) return null;
     const payment = order.payments.find((row) => row.status === 'SUCCEEDED');
     if (!payment?.gateway || !this.autoRefund(payment.gateway)) return null;
     const ledger = refundSummary(payment.transactions);
@@ -497,7 +528,10 @@ export class CheckoutService {
             carrierName: order.shipment.carrierName,
             trackingNumber: order.shipment.trackingNumber,
             status: order.shipment.status,
-            isMock: true,
+            isMock: order.shipment.isMock,
+            carrierStatus: order.shipment.carrierStatus ?? null,
+            statusNote: order.shipment.statusNote ?? null,
+            expectedDeliveryAt: order.shipment.expectedDeliveryAt?.toISOString() ?? null,
             createdAt: order.shipment.createdAt.toISOString(),
             updatedAt: order.shipment.updatedAt.toISOString(),
           }
@@ -538,6 +572,10 @@ export class CheckoutService {
    */
   async cancelAndRefund(id: string, ownerId: string, actor: string, reason: string) {
     const paymentId = await this.withOrder(id, ownerId, async (order, tx) => {
+      if (order.shipment)
+        throw new ConflictException(
+          'Đơn hàng đang trong quá trình khởi tạo hoặc đối soát vận đơn, tạm thời chưa thể hủy. Vui lòng kiểm tra lại sau ít phút.',
+        );
       const paid = this.selfRefundablePayment(order);
       if (!paid)
         throw new ConflictException(
@@ -545,7 +583,10 @@ export class CheckoutService {
         );
       await this.inventory.restock(id, this.stockItems(order), tx);
       await this.promotions.releaseVoucherUsage(id, tx);
-      await this.orders.transition(id, 'CANCELLED', tx, actor);
+      await this.orders.transition(id, 'CANCELLED', tx, actor, {
+        cancelSource: actor === ownerId ? 'CUSTOMER' : 'ADMIN',
+        reason,
+      });
       return paid.id;
     });
     try {
@@ -582,7 +623,9 @@ export class CheckoutService {
       );
       await this.payments.expire(id, expired ? 'EXPIRED' : 'CANCELLED', tx);
       await this.promotions.releaseVoucherUsage(id, tx);
-      await this.orders.transition(id, 'CANCELLED', tx, expired ? undefined : userId);
+      await this.orders.transition(id, 'CANCELLED', tx, expired ? undefined : userId, {
+        cancelSource: expired ? 'EXPIRED' : 'CUSTOMER',
+      });
     });
     return this.view(await this.orders.get(id, userId));
   }
@@ -603,9 +646,10 @@ export class CheckoutService {
     input: { amount?: string; reason?: string; intentId?: string },
   ) {
     const { order, userId } = await this.refundTarget(paymentId);
-    const claim = await this.withOrder(order.id, userId, (_current, tx) =>
-      this.claimRefund(paymentId, actor, input, tx),
-    );
+    const claim = await this.withOrder(order.id, userId, async (_current, tx) => {
+      for (const guard of this.refundGuards) await guard(order.id, tx);
+      return this.claimRefund(paymentId, actor, input, tx);
+    });
     await this.sendRefund(claim);
     return this.view(await this.orders.get(order.id, userId));
   }
@@ -633,10 +677,20 @@ export class CheckoutService {
       );
     if (payment.status !== 'SUCCEEDED')
       throw new ConflictException('Chỉ hoàn tiền cho thanh toán đã thành công.');
-    const order = await tx.order.findUniqueOrThrow({ where: { id: payment.orderId } });
+    const order = await tx.order.findUniqueOrThrow({
+      where: { id: payment.orderId },
+      include: { shipment: true },
+    });
     if (!order.userId) throw new ConflictException('Đơn không có chủ sở hữu.');
     if (!REFUNDABLE.includes(order.status))
       throw new ConflictException('Đơn không ở trạng thái cho phép hoàn tiền.');
+    if (
+      isShipmentCreatingOrReconciling(order.shipment) ||
+      (order.status === 'CONFIRMED' && order.shipment)
+    )
+      throw new ConflictException(
+        'Đơn hàng đang trong quá trình khởi tạo hoặc đối soát vận đơn, không thể hoàn tiền lúc này.',
+      );
     const ledger = await this.refundLedger(paymentId, tx);
     if (ledger.pending) throw pendingRefund();
     const remaining = payment.amount.minus(ledger.refunded);
@@ -734,6 +788,7 @@ export class CheckoutService {
         throw new ConflictException(
           'Đơn chưa rời kho: dùng Hủy và hoàn tiền thay vì hoàn tay từng phần.',
         );
+      for (const guard of this.refundGuards) await guard(order.id, tx);
       const payment = await tx.payment.findUniqueOrThrow({ where: { id: paymentId } });
       const ledger = await this.refundLedger(paymentId, tx);
       const remaining = payment.amount.minus(ledger.refunded);
@@ -872,6 +927,10 @@ export class CheckoutService {
         refunded.gte(payment.amount) ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
         tx,
         actor,
+        {
+          refundedAmount: claim.amount,
+          ...(claim.reason ? { reason: claim.reason } : {}),
+        },
       );
       const event = {
         intentId,
@@ -890,6 +949,14 @@ export class CheckoutService {
    */
   onRefundSettled(listener: RefundSettledListener) {
     this.refundListeners.push(listener);
+  }
+
+  /**
+   * Phan he khac chan hoan tien tu trang don (refundPayment, refundManually). Khong ap cho
+   * claimRefund/recordManualRefund ma phan he goi truc tiep.
+   */
+  onOrderRefund(guard: OrderRefundGuard) {
+    this.refundGuards.push(guard);
   }
 
   /**
@@ -925,9 +992,19 @@ export class CheckoutService {
     const payment = await tx.payment.findUniqueOrThrow({ where: { id: paymentId } });
     if (payment.status !== 'SUCCEEDED')
       throw new ConflictException('Chỉ hoàn tiền cho thanh toán đã thành công.');
-    const order = await tx.order.findUniqueOrThrow({ where: { id: payment.orderId } });
+    const order = await tx.order.findUniqueOrThrow({
+      where: { id: payment.orderId },
+      include: { shipment: true },
+    });
     if (!REFUNDABLE.includes(order.status))
       throw new ConflictException('Đơn không ở trạng thái cho phép hoàn tiền.');
+    if (
+      isShipmentCreatingOrReconciling(order.shipment) ||
+      (order.status === 'CONFIRMED' && order.shipment)
+    )
+      throw new ConflictException(
+        'Đơn hàng đang trong quá trình khởi tạo hoặc đối soát vận đơn, không thể hoàn tiền lúc này.',
+      );
     const ledger = await this.refundLedger(paymentId, tx);
     if (ledger.pending) throw pendingRefund();
     const amount = new Decimal(input.amount);

@@ -16,6 +16,7 @@ import type {
 import {
   refundAwaitingGateway,
   returnNotFound,
+  returnOpenOnOrder,
   transferReferenceRequired,
   wrongReturnState,
 } from './return-errors.js';
@@ -46,9 +47,19 @@ export class AdminReturnsService implements OnModuleInit {
   ) {}
   private readonly autoRefund: AutoRefund = (gateway) => this.checkout.autoRefund(gateway);
 
-  /** Lenh hoan qua cong chot muon (resolveRefund o trang don) van dong duoc yeu cau tra. */
+  /**
+   * Lenh hoan qua cong chot muon (resolveRefund o trang don) van dong duoc yeu cau tra. Don con yeu
+   * cau tra chua dong thi trang don khong duoc hoan: hoan o day moi dong yeu cau (review PR #158).
+   */
   onModuleInit() {
     this.checkout.onRefundSettled((event, tx) => this.completeFromGateway(event, tx));
+    this.checkout.onOrderRefund(async (orderId, tx) => {
+      const open = await tx.return.findFirst({
+        where: { orderId, status: { in: ['REQUESTED', 'APPROVED', 'RECEIVED'] } },
+        select: { id: true },
+      });
+      if (open) throw returnOpenOnOrder();
+    });
   }
 
   async list(query: ListAdminReturnsQuery): Promise<Page<AdminReturnResponse>> {

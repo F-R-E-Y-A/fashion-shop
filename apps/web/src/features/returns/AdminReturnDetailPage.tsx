@@ -270,10 +270,15 @@ function AdminReturnDetail() {
       title: 'Hoàn tiền cho khách',
       impacts: data
         ? bank
-          ? [
-              `Chuyển khoản ${formatPrice(data.refundAmount)} vào tài khoản khách đã nhập, rồi điền mã giao dịch.`,
-              'Số tài khoản của khách bị xoá khi yêu cầu hoàn tất.',
-            ]
+          ? data.refundAccount
+            ? [
+                `Chuyển khoản ${formatPrice(data.refundAmount)} vào tài khoản khách đã nhập, rồi điền mã giao dịch.`,
+                'Số tài khoản của khách bị xoá khi yêu cầu hoàn tất.',
+              ]
+            : [
+                // Yeu cau tao luc cong con hoan tu dong nen khach chua nhap tai khoan (review PR #158).
+                `Khách chưa nhập tài khoản nhận hoàn: liên hệ khách lấy số tài khoản, chuyển khoản ${formatPrice(data.refundAmount)}, rồi điền mã giao dịch.`,
+              ]
           : [
               `Hoàn ${formatPrice(data.refundAmount)} về ${GATEWAY_NAMES[data.paymentGateway ?? ''] ?? 'cổng đã thanh toán'}; thời gian tiền về tuỳ ngân hàng hoặc ví.`,
               'Không hoàn tác được.',

@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiRequest } from '@/core';
+import { apiGet, apiRequest } from '@/core';
 
 export interface Voucher {
   id: string;
@@ -12,7 +12,7 @@ export interface Voucher {
   perUserLimit: number | null;
   usageCount: number;
   startsAt: string | null;
-  expiresAt: string | null;
+  endsAt: string | null;
 }
 
 export interface VoucherApplyResult {
@@ -46,8 +46,8 @@ export interface EvaluatePromotionsResponse {
 export const promotionKeys = {
   all: ['promotions'] as const,
   availableVouchers: () => [...promotionKeys.all, 'vouchers', 'available'] as const,
-  evaluate: (subtotal: string, count: number) =>
-    [...promotionKeys.all, 'evaluate', subtotal, count] as const,
+  evaluate: (subtotal: string, count: number, itemsSignature = '') =>
+    [...promotionKeys.all, 'evaluate', subtotal, count, itemsSignature] as const,
   activePromotions: () => [...promotionKeys.all, 'active'] as const,
 };
 
@@ -55,8 +55,16 @@ export const getAvailableVouchers = ({ signal }: { signal?: AbortSignal } = {}):
   Voucher[]
 > => apiGet<Voucher[]>('/promotions/vouchers/available', undefined, { signal });
 
-export const applyVoucher = (code: string, subtotal: string): Promise<VoucherApplyResult> =>
-  apiPost<VoucherApplyResult>('/promotions/vouchers/apply', { code, subtotal });
+export const applyVoucher = (
+  code: string,
+  subtotal: string,
+  signal?: AbortSignal,
+): Promise<VoucherApplyResult> =>
+  apiRequest<VoucherApplyResult>('/promotions/vouchers/apply', {
+    method: 'POST',
+    body: { code, subtotal },
+    signal,
+  });
 
 export const evaluateCart = (
   subtotal: string,

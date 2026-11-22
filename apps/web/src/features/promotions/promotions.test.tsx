@@ -39,7 +39,7 @@ const sampleVouchers = [
     perUserLimit: 1,
     usageCount: 5,
     startsAt: null,
-    expiresAt: null,
+    endsAt: null,
   },
   {
     id: 'v-2',
@@ -53,7 +53,7 @@ const sampleVouchers = [
     perUserLimit: 1,
     usageCount: 2,
     startsAt: null,
-    expiresAt: null,
+    endsAt: null,
   },
 ];
 
@@ -265,5 +265,30 @@ describe('PH-10 Khuyến mãi & Voucher UI (UC-07.2, UC-10.1)', () => {
 
     expect(input).toHaveValue('');
     expect(sessionStorage.getItem('freya_applied_promotion')).toBeNull();
+  });
+
+  it('VoucherModal hiển thị hạn sử dụng endsAt khi voucher có ngày hết hạn', async () => {
+    const withExpiry = [
+      {
+        ...sampleVouchers[0]!,
+        endsAt: '2026-12-31T23:59:59.000Z',
+      },
+    ];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url.includes('/promotions/vouchers/available')) {
+          return { ok: true, status: 200, json: async () => withExpiry } as Response;
+        }
+        return { ok: true, status: 200, json: async () => ({}) } as Response;
+      }),
+    );
+
+    render(
+      <VoucherModal open={true} onClose={vi.fn()} subtotal="500000" onSelectVoucher={vi.fn()} />,
+      { wrapper: wrapper() },
+    );
+
+    expect(await screen.findByText(/HSD/)).toBeInTheDocument();
   });
 });

@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 
-import { classifyRequestError, formatDateTime, formatPrice } from '@/core';
+import { ApiError, classifyRequestError, formatDateTime, formatPrice } from '@/core';
 import {
   adminAccessGeneration,
   AdminForbidden,
@@ -18,6 +18,8 @@ import {
   type AdminOrder,
   adminOrderErrorText,
   adminOrderKeys,
+  adminShippingConfigKey,
+  type CarrierConfig,
   gatewayLabel,
   orderTones,
   paymentLabels,
@@ -35,6 +37,8 @@ type Dialog =
         | 'markDelivered'
         | 'deliveryFailed'
         | 'createShipment'
+        | 'createMockShipment'
+        | 'syncShipment'
         | 'shipmentInTransit'
         | 'shipmentDelivered'
         | 'shipmentFailed'
@@ -64,6 +68,15 @@ function AdminOrderDetail() {
     enabled: Boolean(actorId) && !forbidden,
     retry: shouldRetryAdminQuery,
   });
+  const shippingConfig = useQuery({
+    queryKey: adminShippingConfigKey(actorId),
+    queryFn: ({ signal }) =>
+      guardQuery(() => request<CarrierConfig>('/admin/orders/shipping/config', { signal })),
+    enabled: Boolean(actorId) && !forbidden,
+    staleTime: 5 * 60_000,
+    retry: shouldRetryAdminQuery,
+  });
+  const ghnConfigured = Boolean(shippingConfig.data?.ghnConfigured);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [amount, setAmount] = useState('');
   const [reference, setReference] = useState('');
@@ -87,9 +100,11 @@ function AdminOrderDetail() {
       if (!stillCurrent(variables)) throw new SessionChangedError();
       const { current } = variables;
       const controller = new AbortController();
+      const timeoutMs =
+        current.kind === 'createShipment' || current.kind === 'syncShipment' ? 35_000 : 15_000;
       const timer = setTimeout(
         () => controller.abort(new DOMException('Hết giờ chờ phản hồi', 'TimeoutError')),
-        15_000,
+        timeoutMs,
       );
       const post = (path: string, body?: object) =>
         request<unknown>(path, {
@@ -110,7 +125,17 @@ function AdminOrderDetail() {
           case 'startProcessing':
             return await post(`/admin/orders/${id}/start-processing`);
           case 'createShipment':
-            return await post(`/admin/orders/${id}/shipment`, { carrierName: 'GHN' });
+            return await post(`/admin/orders/${id}/shipment`, {
+              carrierName: 'GHN',
+              mode: 'AUTO',
+            });
+          case 'createMockShipment':
+            return await post(`/admin/orders/${id}/shipment`, {
+              carrierName: 'GHN',
+              mode: 'MOCK',
+            });
+          case 'syncShipment':
+            return await post(`/admin/orders/${id}/shipment/sync`);
           case 'shipmentInTransit':
             return await patch(`/admin/orders/${id}/shipment/status`, {
               status: 'IN_TRANSIT',
@@ -156,15 +181,35 @@ function AdminOrderDetail() {
       }
     },
     retry: 0,
-    onSuccess: async (_data, variables) => {
+    onSuccess: async (data, variables) => {
       await refresh(variables);
       if (!stillCurrent(variables)) return;
       setNeedsRecheck(client.getQueryState(key)?.status !== 'success');
-      setNotice(
-        variables.current.kind === 'refund' && variables.current.ledger.refundMode === 'MANUAL'
-          ? 'Đã ghi hoàn tay theo mã chuyển khoản.'
-          : DONE[variables.current.kind],
-      );
+      const shipRes = data as
+        | {
+            fallbackUsed?: boolean;
+            fallbackReason?: string | null;
+            isMock?: boolean;
+            trackingNumber?: string | null;
+            carrierStatus?: string | null;
+          }
+        | undefined;
+      if (variables.current.kind === 'createShipment' && shipRes?.fallbackUsed) {
+        setNotice(
+          `GHN Sandbox không tạo được (${shipRes.fallbackReason ?? 'lỗi kết nối'}), hệ thống đã tự động dự phòng sang vận đơn mô phỏng ${shipRes.trackingNumber ?? ''}.`,
+        );
+      } else if (variables.current.kind === 'createShipment' && shipRes?.isMock === false) {
+        setNotice(`Đã tạo vận đơn thật trên GHN Sandbox: ${shipRes.trackingNumber ?? ''}.`);
+      } else if (variables.current.kind === 'syncShipment' && shipRes?.carrierStatus) {
+        setNotice(`Đã đồng bộ trạng thái từ GHN Sandbox (${shipRes.carrierStatus}).`);
+      } else if (
+        variables.current.kind === 'refund' &&
+        variables.current.ledger.refundMode === 'MANUAL'
+      ) {
+        setNotice('Đã ghi hoàn tay theo mã chuyển khoản.');
+      } else {
+        setNotice(DONE[variables.current.kind]);
+      }
       setDialog(null);
     },
     onError: async (error, variables) => {
@@ -410,7 +455,12 @@ function AdminOrderDetail() {
                     <>
                       <div>
                         <dt>Đơn vị vận chuyển</dt>
-                        <dd>{order.shipment.carrierName || 'GHN'} (Mô phỏng Sandbox)</dd>
+                        <dd>
+                          {order.shipment.carrierName || 'GHN'}{' '}
+                          {order.shipment.isMock === false
+                            ? '(GHN Thử nghiệm Sandbox)'
+                            : '(Mô phỏng Sandbox)'}
+                        </dd>
                       </div>
                       <div>
                         <dt>Mã vận đơn</dt>
@@ -427,9 +477,31 @@ function AdminOrderDetail() {
                               ? 'Đang giao'
                               : order.shipment.status === 'DELIVERED'
                                 ? 'Đã giao'
-                                : 'Giao thất bại'}
+                                : order.shipment.status === 'RETURNED'
+                                  ? 'Đã hoàn về kho'
+                                  : 'Giao thất bại'}
                         </dd>
                       </div>
+                      {order.shipment.carrierStatus && (
+                        <div>
+                          <dt>Mã trạng thái GHN</dt>
+                          <dd>
+                            <code>{formatCarrierStatusLabel(order.shipment.carrierStatus)}</code>
+                          </dd>
+                        </div>
+                      )}
+                      {order.shipment.statusNote && (
+                        <div>
+                          <dt>Ghi chú vận chuyển</dt>
+                          <dd>{order.shipment.statusNote}</dd>
+                        </div>
+                      )}
+                      {order.shipment.expectedDeliveryAt && (
+                        <div>
+                          <dt>Dự kiến giao</dt>
+                          <dd>{formatDateTime(order.shipment.expectedDeliveryAt)}</dd>
+                        </div>
+                      )}
                     </>
                   )}
                 </dl>
@@ -439,6 +511,20 @@ function AdminOrderDetail() {
                 <h2 id="ops" className={styles.panelTitle}>
                   Thao tác
                 </h2>
+                {isPendingGhnIntent(order) && (
+                  <p className={styles.notice} data-tone="warning" role="status">
+                    {order.shipment?.carrierStatus?.startsWith('create_uncertain')
+                      ? 'Chưa xác minh được kết quả tạo vận đơn trên GHN Sandbox. Bấm "Đối soát / tạo lại vận đơn GHN" để kiểm tra theo mã đơn trước khi tạo mới.'
+                      : 'Đơn hàng đang khởi tạo vận đơn trên GHN Sandbox. Nếu quá lâu không nhận được mã vận đơn, bấm "Đối soát / tạo lại vận đơn GHN" để kiểm tra lại.'}
+                  </p>
+                )}
+                {isCancelledGhnBeforePickup(order) && (
+                  <p className={styles.notice} data-tone="warning" role="status">
+                    Vận đơn GHN đã bị hủy trước khi lấy hàng (hàng vẫn còn tại kho). Sau khi kiểm
+                    tra kho, bạn có thể tạo vận đơn thay thế hoặc ghi giao thất bại để hủy đơn COD
+                    và hoàn kho.
+                  </p>
+                )}
                 <div className={styles.actions}>
                   {order.actions.confirmCod && (
                     <button
@@ -450,56 +536,105 @@ function AdminOrderDetail() {
                       Xác nhận và giao COD
                     </button>
                   )}
-                  {['CONFIRMED', 'PROCESSING'].includes(order.status) && !order.shipment && (
+                  {isPendingGhnIntent(order) && (
                     <button
                       type="button"
                       className={styles.primaryButton}
                       disabled={action.isPending || needsRecheck}
                       onClick={() => open({ kind: 'createShipment' })}
                     >
-                      Tạo vận đơn GHN (Sandbox)
+                      Đối soát / tạo lại vận đơn GHN
                     </button>
                   )}
-                  {order.shipment && order.shipment.status === 'PENDING' && (
-                    <button
-                      type="button"
-                      className={styles.primaryButton}
-                      disabled={action.isPending || needsRecheck}
-                      onClick={() => open({ kind: 'shipmentInTransit' })}
-                    >
-                      Mô phỏng: Shipper lấy hàng
-                    </button>
-                  )}
-                  {order.shipment && order.shipment.status === 'IN_TRANSIT' && (
+                  {((['CONFIRMED', 'PROCESSING'].includes(order.status) && !order.shipment) ||
+                    isCancelledGhnBeforePickup(order)) && (
                     <>
                       <button
                         type="button"
                         className={styles.primaryButton}
                         disabled={action.isPending || needsRecheck}
-                        onClick={() => open({ kind: 'shipmentDelivered' })}
+                        onClick={() => open({ kind: 'createShipment' })}
                       >
-                        Mô phỏng: Giao thành công
+                        {isCancelledGhnBeforePickup(order)
+                          ? ghnConfigured
+                            ? 'Tạo vận đơn GHN thay thế'
+                            : 'Tạo vận đơn thay thế (Dự phòng mô phỏng)'
+                          : ghnConfigured
+                            ? 'Tạo vận đơn GHN (Sandbox)'
+                            : 'Tạo vận đơn GHN (Dự phòng mô phỏng)'}
                       </button>
-                      <button
-                        type="button"
-                        className={styles.dangerButton}
-                        disabled={action.isPending || needsRecheck}
-                        onClick={() => open({ kind: 'shipmentFailed' })}
-                      >
-                        Mô phỏng: Giao thất bại
-                      </button>
+                      {ghnConfigured && (
+                        <button
+                          type="button"
+                          className={styles.primaryButton}
+                          disabled={action.isPending || needsRecheck}
+                          onClick={() => open({ kind: 'createMockShipment' })}
+                        >
+                          Tạo vận đơn mô phỏng (Dự phòng)
+                        </button>
+                      )}
                     </>
                   )}
-                  {order.shipment && order.shipment.status === 'FAILED' && (
-                    <button
-                      type="button"
-                      className={styles.primaryButton}
-                      disabled={action.isPending || needsRecheck}
-                      onClick={() => open({ kind: 'shipmentReturned' })}
-                    >
-                      Mô phỏng: Hàng hoàn về kho
-                    </button>
-                  )}
+                  {order.shipment &&
+                    order.shipment.isMock === false &&
+                    Boolean(order.shipment.trackingNumber) &&
+                    !['DELIVERED', 'RETURNED'].includes(order.shipment.status) &&
+                    !isCancelledGhnBeforePickup(order) && (
+                      <button
+                        type="button"
+                        className={styles.primaryButton}
+                        disabled={action.isPending || needsRecheck}
+                        onClick={() => open({ kind: 'syncShipment' })}
+                      >
+                        Đồng bộ từ GHN
+                      </button>
+                    )}
+                  {order.shipment &&
+                    order.shipment.isMock !== false &&
+                    order.shipment.status === 'PENDING' && (
+                      <button
+                        type="button"
+                        className={styles.primaryButton}
+                        disabled={action.isPending || needsRecheck}
+                        onClick={() => open({ kind: 'shipmentInTransit' })}
+                      >
+                        Mô phỏng: Shipper lấy hàng
+                      </button>
+                    )}
+                  {order.shipment &&
+                    order.shipment.isMock !== false &&
+                    order.shipment.status === 'IN_TRANSIT' && (
+                      <>
+                        <button
+                          type="button"
+                          className={styles.primaryButton}
+                          disabled={action.isPending || needsRecheck}
+                          onClick={() => open({ kind: 'shipmentDelivered' })}
+                        >
+                          Mô phỏng: Giao thành công
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.dangerButton}
+                          disabled={action.isPending || needsRecheck}
+                          onClick={() => open({ kind: 'shipmentFailed' })}
+                        >
+                          Mô phỏng: Giao thất bại
+                        </button>
+                      </>
+                    )}
+                  {order.shipment &&
+                    order.shipment.isMock !== false &&
+                    order.shipment.status === 'FAILED' && (
+                      <button
+                        type="button"
+                        className={styles.primaryButton}
+                        disabled={action.isPending || needsRecheck}
+                        onClick={() => open({ kind: 'shipmentReturned' })}
+                      >
+                        Mô phỏng: Hàng hoàn về kho
+                      </button>
+                    )}
                   {order.actions.startProcessing && (
                     <button
                       type="button"
@@ -520,7 +655,7 @@ function AdminOrderDetail() {
                       Hủy và hoàn tiền
                     </button>
                   )}
-                  {order.actions.markDelivered && (
+                  {order.actions.markDelivered && order.shipment?.isMock !== false && (
                     <button
                       type="button"
                       className={styles.primaryButton}
@@ -530,16 +665,17 @@ function AdminOrderDetail() {
                       {titleOf({ kind: 'markDelivered' }, order)}
                     </button>
                   )}
-                  {order.actions.deliveryFailed && (
-                    <button
-                      type="button"
-                      className={styles.dangerButton}
-                      disabled={action.isPending || needsRecheck}
-                      onClick={() => open({ kind: 'deliveryFailed' })}
-                    >
-                      Giao thất bại
-                    </button>
-                  )}
+                  {order.actions.deliveryFailed &&
+                    (order.shipment?.isMock !== false || isCancelledGhnBeforePickup(order)) && (
+                      <button
+                        type="button"
+                        className={styles.dangerButton}
+                        disabled={action.isPending || needsRecheck}
+                        onClick={() => open({ kind: 'deliveryFailed' })}
+                      >
+                        Giao thất bại
+                      </button>
+                    )}
                   {order.ledgers.map((ledger) => (
                     <span key={ledger.paymentId} className={styles.actions}>
                       {ledger.refundableAmount && (
@@ -663,6 +799,12 @@ function AdminOrderDetail() {
               {action.error && (
                 <p className={styles.notice} data-tone="error" role="alert">
                   {adminOrderErrorText(action.error, 'mutation')}
+                  {action.error instanceof ApiError && action.error.body.code === 'RETURN_OPEN' && (
+                    <>
+                      {' '}
+                      <Link to="/admin/returns">Mở trang Trả hàng</Link>
+                    </>
+                  )}
                 </p>
               )}
             </ConfirmDialog>
@@ -673,10 +815,56 @@ function AdminOrderDetail() {
   );
 }
 
+const isPendingGhnIntent = (order: AdminOrder) =>
+  Boolean(
+    order.shipment &&
+    order.shipment.isMock === false &&
+    !order.shipment.trackingNumber &&
+    (order.shipment.carrierStatus === 'creating' ||
+      order.shipment.carrierStatus?.startsWith('creating:') ||
+      order.shipment.carrierStatus?.startsWith('creating#') ||
+      order.shipment.carrierStatus === 'create_uncertain' ||
+      order.shipment.carrierStatus?.startsWith('create_uncertain:')),
+  );
+
+const isCancelledGhnBeforePickup = (order: AdminOrder) =>
+  Boolean(
+    order.shipment &&
+    order.shipment.isMock === false &&
+    order.shipment.status === 'FAILED' &&
+    order.shipment.carrierStatus === 'cancel' &&
+    order.status === 'PROCESSING',
+  );
+
+function formatCarrierStatusLabel(carrierStatus: string): string {
+  if (
+    carrierStatus === 'creating' ||
+    carrierStatus.startsWith('creating:') ||
+    carrierStatus.startsWith('creating#')
+  ) {
+    return 'creating (đang khởi tạo trên GHN)';
+  }
+  if (carrierStatus === 'create_uncertain' || carrierStatus.startsWith('create_uncertain:')) {
+    return 'create_uncertain (chờ đối soát GHN)';
+  }
+  return carrierStatus;
+}
+
 const hasAction = (order: AdminOrder) =>
-  Object.values(order.actions).some(Boolean) ||
-  ['CONFIRMED', 'PROCESSING'].includes(order.status) ||
-  Boolean(order.shipment) ||
+  order.actions.confirmCod ||
+  order.actions.startProcessing ||
+  order.actions.cancelRefund ||
+  (order.actions.markDelivered && order.shipment?.isMock !== false) ||
+  (order.actions.deliveryFailed &&
+    (order.shipment?.isMock !== false || isCancelledGhnBeforePickup(order))) ||
+  isPendingGhnIntent(order) ||
+  isCancelledGhnBeforePickup(order) ||
+  (['CONFIRMED', 'PROCESSING'].includes(order.status) && !order.shipment) ||
+  Boolean(
+    order.shipment &&
+    !['DELIVERED', 'RETURNED'].includes(order.shipment.status) &&
+    (order.shipment.isMock !== false || Boolean(order.shipment.trackingNumber)),
+  ) ||
   order.ledgers.some((ledger) => ledger.refundableAmount || ledger.pendingRefund?.resolvable);
 
 /** Cung dang voi RefundDto.transferReference phia API. */
@@ -684,7 +872,9 @@ const TRANSFER_REFERENCE = /^[A-Za-z0-9._-]{4,64}$/u;
 const TITLE: Record<Dialog['kind'], string> = {
   confirmCod: 'Xác nhận và giao COD',
   startProcessing: 'Bắt đầu xử lý',
-  createShipment: 'Tạo vận đơn GHN (Mô phỏng Sandbox)',
+  createShipment: 'Tạo vận đơn GHN (Sandbox)',
+  createMockShipment: 'Tạo vận đơn mô phỏng (Dự phòng)',
+  syncShipment: 'Đồng bộ trạng thái từ GHN Sandbox',
   shipmentInTransit: 'Cập nhật vận chuyển: Shipper lấy hàng (IN_TRANSIT)',
   shipmentDelivered: 'Cập nhật vận chuyển: Giao thành công (DELIVERED)',
   shipmentFailed: 'Cập nhật vận chuyển: Giao thất bại (FAILED)',
@@ -699,6 +889,8 @@ const TONE: Record<Dialog['kind'], 'danger' | 'primary'> = {
   confirmCod: 'primary',
   startProcessing: 'primary',
   createShipment: 'primary',
+  createMockShipment: 'primary',
+  syncShipment: 'primary',
   shipmentInTransit: 'primary',
   shipmentDelivered: 'primary',
   shipmentFailed: 'danger',
@@ -712,7 +904,9 @@ const TONE: Record<Dialog['kind'], 'danger' | 'primary'> = {
 const DONE: Record<Dialog['kind'], string> = {
   confirmCod: 'Đã xác nhận đơn COD và chốt kho.',
   startProcessing: 'Đơn chuyển sang đang xử lý.',
-  createShipment: 'Đã tạo vận đơn vận chuyển GHN (Mô phỏng Sandbox).',
+  createShipment: 'Đã tạo vận đơn GHN (Mô phỏng Sandbox).',
+  createMockShipment: 'Đã tạo vận đơn mô phỏng dự phòng (GHN-SBX).',
+  syncShipment: 'Đã đồng bộ trạng thái vận đơn từ GHN Sandbox.',
   shipmentInTransit: 'Hãng đã lấy hàng, đơn chuyển sang Đang giao.',
   shipmentDelivered: 'Giao hàng thành công, đơn chuyển sang Đã giao.',
   shipmentFailed: 'Đã ghi vận đơn giao thất bại. Chờ hàng hoàn về kho để trả kho và hủy đơn COD.',
@@ -741,8 +935,18 @@ function impacts(dialog: Dialog, order: AdminOrder): string[] {
       ];
     case 'createShipment':
       return [
-        'Tạo mã vận đơn mô phỏng GHN-SBX-... cho đơn hàng.',
+        'Ưu tiên tạo vận đơn trên GHN Sandbox nếu đã cấu hình token/ShopID; tự động dự phòng mô phỏng GHN-SBX-... khi GHN lỗi.',
         'Đơn chuyển sang Đang xử lý nếu đang ở Đã thanh toán.',
+      ];
+    case 'createMockShipment':
+      return [
+        'Tạo trực tiếp vận đơn mô phỏng nội bộ (GHN-SBX-...) không gọi cổng GHN.',
+        'Dùng để kiểm thử nhanh hoặc dự phòng khi mất kết nối GHN.',
+      ];
+    case 'syncShipment':
+      return [
+        'Truy vấn trực tiếp trạng thái mới nhất của mã vận đơn từ GHN Sandbox.',
+        'Đồng bộ trạng thái đơn hàng và gửi thông báo khách hàng nếu có thay đổi.',
       ];
     case 'shipmentInTransit':
       return [
