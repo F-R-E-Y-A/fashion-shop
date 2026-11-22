@@ -31,6 +31,7 @@ import {
   withinReturnWindow,
 } from './return-policy.js';
 import {
+  type AutoRefund,
   refundMethodOf,
   returnInclude,
   snapshotOf,
@@ -55,6 +56,7 @@ export class ReturnsService {
     private readonly checkout: CheckoutService,
     private readonly uploads: UploadsService,
   ) {}
+  private readonly autoRefund: AutoRefund = (gateway) => this.checkout.autoRefund(gateway);
 
   async eligibility(orderId: string, userId: string): Promise<ReturnEligibilityResponse> {
     const order = await this.checkout.orders.get(orderId, userId);
@@ -76,7 +78,7 @@ export class ReturnsService {
       blocker,
       deadline: deliveredAt ? returnDeadline(deliveredAt).toISOString() : null,
       existingReturnId: active?.id ?? null,
-      refundMethod: refundMethodOf(paid),
+      refundMethod: refundMethodOf(paid, this.autoRefund),
       uploadsEnabled: this.uploads.enabled,
       windowDays: RETURN_WINDOW_DAYS,
       mediaMax: RETURN_MEDIA_MAX,
@@ -126,7 +128,7 @@ export class ReturnsService {
         if (line.quantity > item.quantity)
           throw invalidReturnItems(`Chỉ trả được tối đa ${item.quantity} sản phẩm của món này.`);
       }
-      const cod = refundMethodOf(paid) === 'BANK_TRANSFER';
+      const cod = refundMethodOf(paid, this.autoRefund) === 'BANK_TRANSFER';
       if (cod && !input.refundAccount) throw refundAccountRequired();
 
       await this.uploads.attach(userId, keys, tx);
@@ -171,7 +173,11 @@ export class ReturnsService {
       }),
       this.prisma.return.count({ where }),
     ]);
-    return toPage(rows.map(toReturnResponse), total, query);
+    return toPage(
+      rows.map((row) => toReturnResponse(row, this.autoRefund)),
+      total,
+      query,
+    );
   }
 
   async get(id: string, userId: string): Promise<ReturnResponse> {
@@ -180,7 +186,7 @@ export class ReturnsService {
       include: returnInclude,
     });
     if (!row) throw returnNotFound();
-    return toReturnResponse(row);
+    return toReturnResponse(row, this.autoRefund);
   }
 
   /** Chi huy khi shop chua duyet (UC-14.1/AC8); tai khoan nhan tien xoa cung luc. */

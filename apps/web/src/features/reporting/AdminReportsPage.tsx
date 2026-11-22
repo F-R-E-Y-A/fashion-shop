@@ -1,14 +1,19 @@
 import { type FormEvent, useState, useTransition } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 import { AdminForbidden, formatAdminDateTime } from '@/features/account';
 
 import {
   buildReportSearchParams,
+  detectActivePreset,
   getDaysDifference,
+  getPresetDateRange,
   isValidCalendarDate,
   parseReportQueryParams,
+  type ReportPresetId,
 } from './admin-reporting-query';
+import { DailyRevenueChart, OrdersStatusChart } from './AdminReportCharts';
+import chartStyles from './AdminReportCharts.module.css';
 import styles from './AdminReports.module.css';
 import { reportError, useAdminReports } from './use-admin-reports';
 
@@ -32,18 +37,35 @@ const ORDER_STATUS_LABELS: Record<
   RETURNED: { label: 'Đã trả hàng', tone: 'muted' },
 };
 
+const REPORT_PRESETS: { id: ReportPresetId; label: string }[] = [
+  { id: '7d', label: '7 ngày qua' },
+  { id: '30d', label: '30 ngày qua' },
+  { id: 'this_month', label: 'Tháng này' },
+  { id: 'last_month', label: 'Tháng trước' },
+];
+
 export function AdminReportsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [, startTransition] = useTransition();
 
   const queryParams = parseReportQueryParams(searchParams);
 
-  // Form input local state
+  // Form input local state synced when URL changes via Back/Forward
   const [draftFrom, setDraftFrom] = useState(queryParams.from);
   const [draftTo, setDraftTo] = useState(queryParams.to);
   const [draftTop, setDraftTop] = useState<5 | 10 | 20>(queryParams.top);
+  const [prevQueryKey, setPrevQueryKey] = useState(
+    `${queryParams.from}:${queryParams.to}:${queryParams.top}`,
+  );
+  const currentQueryKey = `${queryParams.from}:${queryParams.to}:${queryParams.top}`;
+  if (currentQueryKey !== prevQueryKey) {
+    setPrevQueryKey(currentQueryKey);
+    setDraftFrom(queryParams.from);
+    setDraftTo(queryParams.to);
+    setDraftTop(queryParams.top);
+  }
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [now] = useState(() => Date.now());
+  const [checkedAt, setCheckedAt] = useState(() => Date.now());
 
   // Synced with URL
   const { query, forbidden, data } = useAdminReports(queryParams);
@@ -84,12 +106,31 @@ export function AdminReportsPage() {
   };
 
   const handleRefresh = () => {
+    setCheckedAt(Date.now());
     void query.refetch();
   };
 
+  const applyPreset = (presetId: ReportPresetId) => {
+    const nextRange = getPresetDateRange(presetId);
+    setValidationError(null);
+    setDraftFrom(nextRange.from);
+    setDraftTo(nextRange.to);
+    startTransition(() => {
+      setSearchParams(
+        buildReportSearchParams({
+          from: nextRange.from,
+          to: nextRange.to,
+          top: draftTop,
+        }),
+      );
+    });
+  };
+
+  const activePreset = detectActivePreset(queryParams.from, queryParams.to);
+
   const isStale =
     data?.metadata?.lastCompletedAt &&
-    now - new Date(data.metadata.lastCompletedAt).getTime() > 10 * 60 * 1000;
+    checkedAt - new Date(data.metadata.lastCompletedAt).getTime() > 10 * 60 * 1000;
 
   const isNetNegative =
     data?.summary?.netRevenueAmount && Number(data.summary.netRevenueAmount) < 0;
@@ -97,6 +138,10 @@ export function AdminReportsPage() {
   const dailyMoneyList = data?.dailyMoney ?? [];
   const ordersByStatusList = data?.ordersByStatus ?? [];
   const topProductsList = data?.topDeliveredProducts ?? [];
+  const maxTopRevenue = Math.max(
+    ...topProductsList.map((p) => Math.max(0, Number(p.deliveredRevenueAmount) || 0)),
+    0,
+  );
 
   return (
     <div className={styles.page}>
@@ -176,6 +221,21 @@ export function AdminReportsPage() {
           </button>
         </div>
       </form>
+
+      <div className={chartStyles.presetBar} role="group" aria-label="Chọn nhanh khoảng thời gian">
+        <span className={chartStyles.presetLabel}>Mốc nhanh:</span>
+        {REPORT_PRESETS.map((preset) => (
+          <button
+            key={preset.id}
+            type="button"
+            className={chartStyles.presetButton}
+            aria-pressed={activePreset === preset.id}
+            onClick={() => applyPreset(preset.id)}
+          >
+            {preset.label}
+          </button>
+        ))}
+      </div>
 
       {validationError && (
         <div className={styles.errorBanner} role="alert">
@@ -280,43 +340,46 @@ export function AdminReportsPage() {
                   Không có phát sinh doanh thu trong khoảng ngày này.
                 </div>
               ) : (
-                <div className={styles.tableWrap}>
-                  <table className={`${styles.table} ${styles.responsiveTable}`}>
-                    <thead>
-                      <tr>
-                        <th scope="col">Ngày</th>
-                        <th scope="col" className={styles.numCell}>
-                          Tiền đã thu
-                        </th>
-                        <th scope="col" className={styles.numCell}>
-                          Tiền đã hoàn
-                        </th>
-                        <th scope="col" className={styles.numCell}>
-                          Thu ròng
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dailyMoneyList.map((row) => (
-                        <tr key={row.date}>
-                          <td data-label="Ngày">{row.date}</td>
-                          <td data-label="Tiền đã thu" className={styles.numCell}>
-                            {formatVnd(row.collectedAmount)}
-                          </td>
-                          <td data-label="Tiền đã hoàn" className={styles.numCell}>
-                            {formatVnd(row.refundedAmount)}
-                          </td>
-                          <td
-                            data-label="Thu ròng"
-                            className={`${styles.numCell} ${Number(row.netAmount) < 0 ? styles.kpiValueNegative : ''}`}
-                          >
-                            {formatVnd(row.netAmount)}
-                          </td>
+                <>
+                  <DailyRevenueChart items={dailyMoneyList} />
+                  <div className={styles.tableWrap}>
+                    <table className={`${styles.table} ${styles.responsiveTable}`}>
+                      <thead>
+                        <tr>
+                          <th scope="col">Ngày</th>
+                          <th scope="col" className={styles.numCell}>
+                            Tiền đã thu
+                          </th>
+                          <th scope="col" className={styles.numCell}>
+                            Tiền đã hoàn
+                          </th>
+                          <th scope="col" className={styles.numCell}>
+                            Thu ròng
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {dailyMoneyList.map((row) => (
+                          <tr key={row.date}>
+                            <td data-label="Ngày">{row.date}</td>
+                            <td data-label="Tiền đã thu" className={styles.numCell}>
+                              {formatVnd(row.collectedAmount)}
+                            </td>
+                            <td data-label="Tiền đã hoàn" className={styles.numCell}>
+                              {formatVnd(row.refundedAmount)}
+                            </td>
+                            <td
+                              data-label="Thu ròng"
+                              className={`${styles.numCell} ${Number(row.netAmount) < 0 ? styles.kpiValueNegative : ''}`}
+                            >
+                              {formatVnd(row.netAmount)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </section>
 
@@ -339,54 +402,60 @@ export function AdminReportsPage() {
                   Chưa có đơn hàng nào được tạo trong khoảng ngày này.
                 </div>
               ) : (
-                <div className={styles.tableWrap}>
-                  <table className={`${styles.table} ${styles.responsiveTable}`}>
-                    <thead>
-                      <tr>
-                        <th scope="col">Trạng thái</th>
-                        <th scope="col" className={styles.numCell}>
-                          Số lượng đơn
-                        </th>
-                        <th scope="col" className={styles.numCell}>
-                          Tỷ lệ
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {ordersByStatusList.map((row) => {
-                        const statusConfig = ORDER_STATUS_LABELS[row.status] ?? {
-                          label: row.status,
-                          tone: 'muted' as const,
-                        };
-                        const displayLabel = row.label || statusConfig.label;
-                        const displayCount = row.count ?? row.orderCount ?? 0;
-                        return (
-                          <tr key={row.status}>
-                            <td data-label="Trạng thái">
-                              <span className={styles.badge} data-tone={statusConfig.tone}>
-                                {displayLabel}
-                              </span>
-                            </td>
-                            <td data-label="Số lượng đơn" className={styles.numCell}>
-                              {displayCount.toLocaleString('vi-VN')}
-                            </td>
-                            <td data-label="Tỷ lệ" className={styles.numCell}>
-                              <span>{row.percentage}%</span>
-                              <div className={styles.progressBarTrack}>
-                                <div
-                                  className={styles.progressBarFill}
-                                  style={{
-                                    width: `${Math.min(100, Math.max(0, row.percentage))}%`,
-                                  }}
-                                />
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                <>
+                  <OrdersStatusChart
+                    items={ordersByStatusList}
+                    statusLabels={ORDER_STATUS_LABELS}
+                  />
+                  <div className={styles.tableWrap}>
+                    <table className={`${styles.table} ${styles.responsiveTable}`}>
+                      <thead>
+                        <tr>
+                          <th scope="col">Trạng thái</th>
+                          <th scope="col" className={styles.numCell}>
+                            Số lượng đơn
+                          </th>
+                          <th scope="col" className={styles.numCell}>
+                            Tỷ lệ
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ordersByStatusList.map((row) => {
+                          const statusConfig = ORDER_STATUS_LABELS[row.status] ?? {
+                            label: row.status,
+                            tone: 'muted' as const,
+                          };
+                          const displayLabel = row.label || statusConfig.label;
+                          const displayCount = row.count ?? row.orderCount ?? 0;
+                          return (
+                            <tr key={row.status}>
+                              <td data-label="Trạng thái">
+                                <span className={styles.badge} data-tone={statusConfig.tone}>
+                                  {displayLabel}
+                                </span>
+                              </td>
+                              <td data-label="Số lượng đơn" className={styles.numCell}>
+                                {displayCount.toLocaleString('vi-VN')}
+                              </td>
+                              <td data-label="Tỷ lệ" className={styles.numCell}>
+                                <span>{row.percentage}%</span>
+                                <div className={styles.progressBarTrack}>
+                                  <div
+                                    className={styles.progressBarFill}
+                                    style={{
+                                      width: `${Math.min(100, Math.max(0, row.percentage))}%`,
+                                    }}
+                                  />
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
             </section>
 
@@ -425,18 +494,40 @@ export function AdminReportsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {topProductsList.map((p, index) => (
-                        <tr key={p.productId}>
-                          <td data-label="Hạng">#{index + 1}</td>
-                          <td data-label="Tên sản phẩm">{p.productName}</td>
-                          <td data-label="Số lượng đã giao" className={styles.numCell}>
-                            {p.deliveredQuantity.toLocaleString('vi-VN')}
-                          </td>
-                          <td data-label="Doanh thu giao" className={styles.numCell}>
-                            {formatVnd(p.deliveredRevenueAmount)}
-                          </td>
-                        </tr>
-                      ))}
+                      {topProductsList.map((p, index) => {
+                        const rev = Math.max(0, Number(p.deliveredRevenueAmount) || 0);
+                        const sharePct =
+                          maxTopRevenue > 0 ? Math.min(100, (rev / maxTopRevenue) * 100) : 0;
+                        return (
+                          <tr key={p.productId}>
+                            <td data-label="Hạng">#{index + 1}</td>
+                            <td data-label="Tên sản phẩm">
+                              <Link
+                                to={`/admin/products/${encodeURIComponent(p.productId)}`}
+                                className={chartStyles.productLink}
+                              >
+                                {p.productName}
+                              </Link>
+                            </td>
+                            <td data-label="Số lượng đã giao" className={styles.numCell}>
+                              {p.deliveredQuantity.toLocaleString('vi-VN')}
+                            </td>
+                            <td data-label="Doanh thu giao" className={styles.numCell}>
+                              <div className={chartStyles.revenueCell}>
+                                <span className={chartStyles.revenueValue}>
+                                  {formatVnd(p.deliveredRevenueAmount)}
+                                </span>
+                                <div className={chartStyles.shareBarTrack} aria-hidden="true">
+                                  <div
+                                    className={chartStyles.shareBarFill}
+                                    style={{ width: `${sharePct}%` }}
+                                  />
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

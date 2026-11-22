@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { ConfigService } from '@nestjs/config';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Env } from '../src/infra/config/env.js';
+import { CheckoutService } from '../src/modules/checkout/index.js';
 import {
   hmac,
   pipeString,
@@ -30,6 +32,8 @@ describe('UC-14.1, UC-14.2 tra hang va hoan tien (PostgreSQL + cong VNPAY gia)',
   let server: Server;
   let gateway: 'ok' | 'drop' = 'ok';
   let receiptNo = 15123456;
+  /** So lan cong gia nhan lenh hoan: bang chung tien ra khoi cong may lan. */
+  let refundCalls = 0;
 
   const submit = (actor: Actor, orderId: string, body: Record<string, unknown>) =>
     t.http.post(`/api/orders/${orderId}/returns`).set(actor.auth).send(body);
@@ -68,6 +72,81 @@ describe('UC-14.1, UC-14.2 tra hang va hoan tien (PostgreSQL + cong VNPAY gia)',
     await admin(`${created.body.id}/approve`, { note: 'Gửi hàng về kho Q1.' }).expect(200);
     return { ...placed, returnId: created.body.id as string };
   };
+
+  /** Yeu cau tra 1 mon cua don VNPAY, da duyet va da nhan hang: san sang hoan tien. */
+  const receivedVnpayReturn = async () => {
+    await w.deliveredItem();
+    const order = await deliveredVnpayOrder();
+    const created = await submit(w.buyer, order.orderId, {
+      items: [{ orderItemId: order.orderItemId, quantity: 1 }],
+      reasonCode: 'SIZE_MISMATCH',
+    }).expect(201);
+    await admin(`${created.body.id}/approve`).expect(200);
+    await admin(`${created.body.id}/receive`).expect(200);
+    return { ...order, returnId: created.body.id as string };
+  };
+  /**
+   * Giu khoa don bang chinh withOrder cua app cho toi khi goi ham tra ve. Request gui trong luc do
+   * xep hang sau khoa theo thu tu den, nen test chon duoc thao tac nao chay truoc, thao tac nao chen
+   * vao giua hai transaction cua thao tac kia (Promise.all tran khong ep duoc thu tu nay).
+   */
+  const holdOrder = async (orderId: string) => {
+    let release!: () => void;
+    let held!: () => void;
+    const gate = new Promise<void>((done) => (release = done));
+    const locked = new Promise<void>((done) => (held = done));
+    const closed = t.app.get(CheckoutService).withOrder(orderId, w.buyer.id, async () => {
+      held();
+      await gate;
+    });
+    await locked;
+    return async () => {
+      release();
+      await closed;
+    };
+  };
+  /** Cho toi khi du `count` ket noi dang cho khoa trong DB test: request da thuc su xep hang. */
+  const queued = async (count: number) => {
+    for (let attempt = 0; attempt < 200; attempt += 1) {
+      const [row] = await t.prisma.$queryRaw<{ waiting: bigint }[]>`
+        SELECT count(*) AS waiting FROM pg_locks
+        WHERE NOT granted
+          AND database = (SELECT oid FROM pg_database WHERE datname = current_database())`;
+      if (Number(row!.waiting) >= count) return;
+      await new Promise((done) => setTimeout(done, 25));
+    }
+    throw new Error(`Khong du ${count} request cho khoa don.`);
+  };
+  /**
+   * Chan moi lenh GHI vao so cong (payment_transactions) cho toi khi goi ham tra ve; lenh DOC van
+   * chay. Hai request song song vi vay cung qua buoc kiem tra trung roi moi cung ghi: dung thu tu
+   * xau nhat cua hai transaction READ COMMITTED.
+   */
+  const holdLedgerWrites = async () => {
+    let release!: () => void;
+    let held!: () => void;
+    const gate = new Promise<void>((done) => (release = done));
+    const locked = new Promise<void>((done) => (held = done));
+    const closed = t.prisma.$transaction(
+      async (tx) => {
+        await tx.$executeRaw`LOCK TABLE payment_transactions IN SHARE MODE`;
+        held();
+        await gate;
+      },
+      { timeout: 15_000 },
+    );
+    await locked;
+    return async () => {
+      release();
+      await closed;
+    };
+  };
+  const refundedAmounts = async (paymentId: string) =>
+    (
+      await t.prisma.paymentTransaction.findMany({
+        where: { paymentId, externalTransactionId: { startsWith: 'REFUND:' } },
+      })
+    ).map((row) => (row.payload as { refundedAmount: string }).refundedAmount);
 
   /** Don VNPAY that qua API, danh dau da thu tien roi giao xong qua duong ADMIN. */
   const deliveredVnpayOrder = async () => {
@@ -122,6 +201,7 @@ describe('UC-14.1, UC-14.2 tra hang va hoan tien (PostgreSQL + cong VNPAY gia)',
         req.socket.destroy();
         return;
       }
+      refundCalls += 1;
       const reply: VnpParams = {
         vnp_ResponseId: randomUUID().replaceAll('-', ''),
         vnp_Command: 'refund',
@@ -154,6 +234,7 @@ describe('UC-14.1, UC-14.2 tra hang va hoan tien (PostgreSQL + cong VNPAY gia)',
   });
   beforeEach(async () => {
     gateway = 'ok';
+    refundCalls = 0;
     storage.reset();
     w = await setupReviewWorld(t);
   });
@@ -567,5 +648,243 @@ describe('UC-14.1, UC-14.2 tra hang va hoan tien (PostgreSQL + cong VNPAY gia)',
     const refund = await t.prisma.refund.findFirstOrThrow({ where: { returnId: created.body.id } });
     expect(refund.status).toBe('SUCCEEDED');
     expect(refund.externalRefundId).toMatch(/^REFUND:MANUAL:/);
+  });
+
+  it('UC-14.2/E3 ADR-111 cong treo: chot FAILED roi nhap ma chuyen khoan, yeu cau COMPLETED, mot dong refunds', async () => {
+    await w.deliveredItem();
+    const { orderId, orderItemId, paymentId } = await deliveredVnpayOrder();
+    const created = await submit(w.buyer, orderId, {
+      items: [{ orderItemId, quantity: 1 }],
+      reasonCode: 'NOT_AS_EXPECTED',
+      mediaKeys: [await photo(w.buyer)],
+    }).expect(201);
+    await admin(`${created.body.id}/approve`).expect(200);
+    await admin(`${created.body.id}/receive`).expect(200);
+    gateway = 'drop';
+    await admin(`${created.body.id}/refund`).expect(503);
+    await admin(`${created.body.id}/refund`, { transferReference: 'FT26112003' }).expect(409);
+    await t.http
+      .post(`/api/admin/payments/${paymentId}/refund/resolve`)
+      .set(w.admin.auth)
+      .send({ outcome: 'FAILED', note: 'Merchant portal không có giao dịch hoàn.' })
+      .expect(201);
+    const done = await admin(`${created.body.id}/refund`, {
+      transferReference: 'FT26112003',
+    }).expect(200);
+    expect(done.body).toMatchObject({ status: 'COMPLETED', refund: { status: 'SUCCEEDED' } });
+    const rows = await t.prisma.refund.findMany({ where: { returnId: created.body.id } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.externalRefundId).toBe('REFUND:MANUAL:FT26112003');
+  });
+
+  it('UC-14.2/AC9 hoan qua cong va nhap ma chuyen khoan cung luc tren mot yeu cau: tien ra dung mot lan', async () => {
+    const { orderId, paymentId, returnId } = await receivedVnpayReturn();
+
+    const release = await holdOrder(orderId);
+    const viaGateway = admin(`${returnId}/refund`).then((response) => response);
+    await queued(1);
+    const viaTransfer = admin(`${returnId}/refund`, { transferReference: 'FT26112101' }).then(
+      (response) => response,
+    );
+    await queued(2);
+    await release();
+    const [gatewayReply, transferReply] = await Promise.all([viaGateway, viaTransfer]);
+
+    expect({
+      gateway: gatewayReply.status,
+      transfer: transferReply.status,
+      transferCode: transferReply.body.code,
+      gatewayCalls: refundCalls,
+      refunded: await refundedAmounts(paymentId),
+    }).toEqual({
+      gateway: 200,
+      transfer: 409,
+      transferCode: 'REFUND_PENDING',
+      gatewayCalls: 1,
+      refunded: ['200000.00'],
+    });
+    expect(gatewayReply.body).toMatchObject({
+      status: 'COMPLETED',
+      refund: { status: 'SUCCEEDED', amount: '200000.00' },
+    });
+    expect(await t.prisma.refund.count({ where: { returnId } })).toBe(1);
+  });
+
+  it('UC-14.2/AC10 hai lan bam hoan qua cong cung luc: cong nhan mot lenh, yeu cau COMPLETED, bam nua khong hoan them', async () => {
+    const { orderId, paymentId, returnId } = await receivedVnpayReturn();
+
+    const release = await holdOrder(orderId);
+    const first = admin(`${returnId}/refund`).then((response) => response);
+    await queued(1);
+    const second = admin(`${returnId}/refund`).then((response) => response);
+    await queued(2);
+    await release();
+    const [firstReply, secondReply] = await Promise.all([first, second]);
+    const again = await admin(`${returnId}/refund`);
+
+    expect({
+      first: firstReply.status,
+      second: secondReply.status,
+      secondCode: secondReply.body.code,
+      again: again.status,
+      gatewayCalls: refundCalls,
+      refunded: await refundedAmounts(paymentId),
+      returnStatus: (await t.prisma.return.findUniqueOrThrow({ where: { id: returnId } })).status,
+    }).toEqual({
+      first: 200,
+      second: 409,
+      secondCode: 'REFUND_PENDING',
+      again: 409,
+      gatewayCalls: 1,
+      refunded: ['200000.00'],
+      returnStatus: 'COMPLETED',
+    });
+  });
+
+  it('UC-14.2/AC11 ma chuyen khoan da ghi cho don COD khong ghi lai duoc cho don VNPAY', async () => {
+    const cod = await approvedCodReturn();
+    await admin(`${cod.returnId}/receive`).expect(200);
+    await admin(`${cod.returnId}/refund`, { transferReference: 'FT26112201' }).expect(200);
+    const vnpay = await receivedVnpayReturn();
+
+    const reused = await admin(`${vnpay.returnId}/refund`, { transferReference: 'FT26112201' });
+    expect({
+      status: reused.status,
+      message: reused.body.message,
+      refunded: await refundedAmounts(vnpay.paymentId),
+      returnStatus: (await t.prisma.return.findUniqueOrThrow({ where: { id: vnpay.returnId } }))
+        .status,
+    }).toEqual({
+      status: 409,
+      message: 'Mã giao dịch này đã được ghi cho một lần hoàn khác.',
+      refunded: [],
+      returnStatus: 'RECEIVED',
+    });
+
+    const fresh = await admin(`${vnpay.returnId}/refund`, {
+      transferReference: 'FT26112202',
+    }).expect(200);
+    expect(fresh.body).toMatchObject({
+      status: 'COMPLETED',
+      refund: { status: 'SUCCEEDED', reference: 'REFUND:MANUAL:FT26112202' },
+    });
+  });
+
+  it('UC-14.2/AC11 hai ADMIN nhap cung mot ma chuyen khoan cho hai don khac cong cung luc: chi mot lan duoc ghi', async () => {
+    const cod = await approvedCodReturn();
+    await admin(`${cod.returnId}/receive`).expect(200);
+    const vnpay = await receivedVnpayReturn();
+    // Hai don cung chu da xep hang san sau khoa gio cua chu (withOrder). Doi chu don VNPAY de hai lan
+    // hoan chay song song that, nhu don cua hai khach khac nhau.
+    await t.prisma.order.update({ where: { id: vnpay.orderId }, data: { userId: w.other.id } });
+
+    const release = await holdLedgerWrites();
+    const first = admin(`${cod.returnId}/refund`, { transferReference: 'FT26112203' }).then(
+      (response) => response,
+    );
+    const second = admin(`${vnpay.returnId}/refund`, { transferReference: 'FT26112203' }).then(
+      (response) => response,
+    );
+    await queued(2);
+    await release();
+    const replies = await Promise.all([first, second]);
+
+    expect({
+      statuses: replies.map((reply) => reply.status).sort(),
+      ledgerRows: await t.prisma.paymentTransaction.count({
+        where: { externalTransactionId: 'REFUND:MANUAL:FT26112203' },
+      }),
+      completed: await t.prisma.return.count({
+        where: { id: { in: [cod.returnId, vnpay.returnId] }, status: 'COMPLETED' },
+      }),
+    }).toEqual({ statuses: [200, 409], ledgerRows: 1, completed: 1 });
+  });
+
+  it('UC-14.2/AC12 con lenh hoan cho cong: chi tiet va danh sach bao refundPending du moi truong da chuyen sang hoan tay; chot FAILED thi het', async () => {
+    const { paymentId, returnId } = await receivedVnpayReturn();
+    const detail = async () =>
+      (await t.http.get(`/api/admin/returns/${returnId}`).set(w.admin.auth).expect(200)).body;
+    expect(await detail()).toMatchObject({ refundMethod: 'GATEWAY', refundPending: false });
+
+    gateway = 'drop';
+    await admin(`${returnId}/refund`).expect(503);
+    // Moi truong tat hoan VNPAY qua cong SAU khi lenh da gui (staging doi REFUND_GATEWAYS luc con lenh
+    // treo): man hinh chuyen sang "chuyen khoan" trong khi cong van co the tra tien.
+    const config = t.app.get(ConfigService);
+    const original = config.get.bind(config) as (key: string, ...rest: unknown[]) => unknown;
+    const manualOnly = vi
+      .spyOn(config, 'get')
+      .mockImplementation(((key: string, ...rest: unknown[]) =>
+        key === 'REFUND_GATEWAYS' ? 'none' : original(key, ...rest)) as typeof config.get);
+    try {
+      expect(await detail()).toMatchObject({
+        status: 'RECEIVED',
+        refundMethod: 'BANK_TRANSFER',
+        refundPending: true,
+        refund: { status: 'PROCESSING' },
+      });
+      const listed = await t.http
+        .get('/api/admin/returns?status=RECEIVED')
+        .set(w.admin.auth)
+        .expect(200);
+      expect(
+        (listed.body.items as { id: string; refundPending: boolean }[]).find(
+          (row) => row.id === returnId,
+        ),
+      ).toMatchObject({ refundPending: true });
+      expect(
+        (await admin(`${returnId}/refund`, { transferReference: 'FT26112204' }).expect(409)).body
+          .code,
+      ).toBe('REFUND_PENDING');
+
+      await t.http
+        .post(`/api/admin/payments/${paymentId}/refund/resolve`)
+        .set(w.admin.auth)
+        .send({ outcome: 'FAILED', note: 'Merchant portal không có giao dịch hoàn.' })
+        .expect(201);
+      expect(await detail()).toMatchObject({ refundMethod: 'BANK_TRANSFER', refundPending: false });
+      const done = await admin(`${returnId}/refund`, {
+        transferReference: 'FT26112204',
+      }).expect(200);
+      expect(done.body).toMatchObject({
+        status: 'COMPLETED',
+        refundPending: false,
+        refund: { status: 'SUCCEEDED', reference: 'REFUND:MANUAL:FT26112204' },
+      });
+    } finally {
+      manualOnly.mockRestore();
+    }
+  });
+
+  it('UC-14.2/AC13 don con yeu cau tra chua dong: trang don khong hoan (qua cong hay chuyen khoan) 409 RETURN_OPEN; hoan o trang tra hang van dong yeu cau', async () => {
+    const { paymentId, returnId } = await receivedVnpayReturn();
+    const orderPageRefund = (body: Record<string, unknown> = {}) =>
+      t.http.post(`/api/admin/payments/${paymentId}/refund`).set(w.admin.auth).send(body);
+    const calls = refundCalls;
+    expect((await orderPageRefund().expect(409)).body.code).toBe('RETURN_OPEN');
+    expect(refundCalls).toBe(calls);
+
+    const config = t.app.get(ConfigService);
+    const original = config.get.bind(config) as (key: string, ...rest: unknown[]) => unknown;
+    const manualOnly = vi
+      .spyOn(config, 'get')
+      .mockImplementation(((key: string, ...rest: unknown[]) =>
+        key === 'REFUND_GATEWAYS' ? 'none' : original(key, ...rest)) as typeof config.get);
+    try {
+      // Review PR #158: hoan tay o trang don lam don REFUNDED ma yeu cau tra ket o RECEIVED.
+      expect(
+        (await orderPageRefund({ transferReference: 'FT26112205' }).expect(409)).body.code,
+      ).toBe('RETURN_OPEN');
+      expect(await refundedAmounts(paymentId)).toEqual([]);
+      const done = await admin(`${returnId}/refund`, {
+        transferReference: 'FT26112205',
+      }).expect(200);
+      expect(done.body).toMatchObject({
+        status: 'COMPLETED',
+        refund: { status: 'SUCCEEDED', reference: 'REFUND:MANUAL:FT26112205' },
+      });
+    } finally {
+      manualOnly.mockRestore();
+    }
   });
 });

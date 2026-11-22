@@ -286,4 +286,19 @@ describe('UC-11.2 quản trị duyệt và phản hồi đánh giá', () => {
     expect(await screen.findByText('Áo ngừng bán · Đã ngừng bán')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /Áo ngừng bán/ })).not.toBeInTheDocument();
   });
+
+  it('nut Xoa loc dua bo loc va tu khoa tim kiem ve mac dinh', async () => {
+    request.mockResolvedValue(page([adminReview()]));
+    show('/admin/reviews?status=APPROVED&q=ao');
+    await screen.findByText('Áo thun cổ tròn');
+
+    const clearBtn = screen.getByRole('button', { name: 'Xóa lọc' });
+    fireEvent.click(clearBtn);
+    await waitFor(() =>
+      expect(request.mock.calls.at(-1)![0]).toBe(
+        '/admin/reviews?page=1&pageSize=20&status=PENDING',
+      ),
+    );
+    expect(screen.getByRole('tab', { name: 'Chờ duyệt' })).toHaveAttribute('aria-selected', 'true');
+  });
 });

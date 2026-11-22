@@ -120,6 +120,35 @@ describe('PH-11 quản trị đơn hàng (ADR-038)', () => {
     expect(await screen.findByText('Cổng đã xác nhận hoàn tiền.')).toBeInTheDocument();
   });
 
+  it('ADR-111 cổng tắt hoàn tự động: hộp hoàn bắt nhập mã chuyển khoản hợp lệ rồi mới gửi', async () => {
+    const manual = {
+      ...base,
+      ledgers: base.ledgers.map((ledger) => ({ ...ledger, refundMode: 'MANUAL' as const })),
+    };
+    request.mockImplementation(async (path: string) => (path.endsWith('/refund') ? {} : manual));
+    show('/admin/orders/o1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Hoàn tiền VNPAY' }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/chuyển khoản cho khách trước/)).toBeInTheDocument();
+    const reference = within(dialog).getByRole('textbox', { name: /Mã giao dịch/ });
+    fireEvent.change(reference, { target: { value: 'x y' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Hoàn tiền' }));
+    expect(within(dialog).getByText('Nhập nội dung trước khi xác nhận.')).toBeInTheDocument();
+    expect(request).not.toHaveBeenCalledWith('/admin/payments/p1/refund', expect.anything());
+    fireEvent.change(reference, { target: { value: 'FT26112001' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Hoàn tiền' }));
+    await waitFor(() =>
+      expect(request).toHaveBeenCalledWith(
+        '/admin/payments/p1/refund',
+        expect.objectContaining({
+          method: 'POST',
+          body: { amount: '230000.00', transferReference: 'FT26112001' },
+        }),
+      ),
+    );
+    expect(await screen.findByText('Đã ghi hoàn tay theo mã chuyển khoản.')).toBeInTheDocument();
+  });
+
   it('UC-12.2/AC3 COD đang giao: giao thất bại bắt buộc lý do; chốt lệnh hoàn chỉ hiện khi chốt được', async () => {
     request.mockResolvedValue({
       ...base,
@@ -134,6 +163,7 @@ describe('PH-11 quản trị đơn hàng (ADR-038)', () => {
           gateway: 'COD',
           status: 'PENDING',
           refundableAmount: null,
+          refundMode: null,
         },
       ],
       actions: {
@@ -181,6 +211,107 @@ describe('PH-11 quản trị đơn hàng (ADR-038)', () => {
     await waitFor(() =>
       expect(request.mock.calls.filter(([path]) => path === '/admin/orders/o1')).toHaveLength(2),
     );
+  });
+
+  it('ADR-119 lệnh hoàn MoMo đang chờ: nút Kiểm tra trên cổng gọi refund/check và báo lý do khi cổng chưa xác nhận; lệnh cũ không có mã thì ẩn nút', async () => {
+    const pending = (checkable: boolean) => ({
+      ...base,
+      status: 'CANCELLED',
+      ledgers: [
+        {
+          ...base.ledgers[0]!,
+          gateway: 'MOMO',
+          refundableAmount: null,
+          refundMode: null,
+          pendingRefund: {
+            id: 'i1',
+            amount: '230000.00',
+            createdAt: '2026-11-22T03:00:00.000Z',
+            lastError: 'MoMo chưa phản hồi kết quả.',
+            resolvable: true,
+            checkable,
+          },
+        },
+      ],
+    });
+    request.mockImplementation(async (path: string) =>
+      path.endsWith('/refund/check')
+        ? { settled: false, detail: 'MoMo chưa ghi nhận lệnh hoàn này (mã 1080).', order: base }
+        : pending(true),
+    );
+    show('/admin/orders/o1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Kiểm tra trên cổng' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Kiểm tra trên cổng' }));
+    expect(
+      await screen.findByText('Chưa ghi sổ hoàn: MoMo chưa ghi nhận lệnh hoàn này (mã 1080).'),
+    ).toBeInTheDocument();
+    expect(request).toHaveBeenCalledWith(
+      '/admin/payments/p1/refund/check',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('ADR-119 lệnh hoàn chờ không có mã lệnh bên cổng: chỉ còn Chốt lệnh hoàn', async () => {
+    request.mockResolvedValue({
+      ...base,
+      status: 'CANCELLED',
+      ledgers: [
+        {
+          ...base.ledgers[0]!,
+          gateway: 'MOMO',
+          refundableAmount: null,
+          refundMode: null,
+          pendingRefund: {
+            id: 'i1',
+            amount: '230000.00',
+            createdAt: '2026-11-22T03:00:00.000Z',
+            lastError: 'Cổng từ chối hoàn tiền (mã 1080).',
+            resolvable: true,
+            checkable: false,
+          },
+        },
+      ],
+    });
+    show('/admin/orders/o1');
+    expect(await screen.findByRole('button', { name: 'Chốt lệnh hoàn' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Kiểm tra trên cổng' })).not.toBeInTheDocument();
+  });
+
+  it('UC-14.2/AC13 đơn còn yêu cầu trả hàng chưa đóng (409 RETURN_OPEN): giữ câu của máy chủ và dẫn sang trang Trả hàng', async () => {
+    request.mockImplementation(async (path: string) => {
+      if (!path.endsWith('/refund')) return base;
+      throw new ApiError({
+        statusCode: 409,
+        code: 'RETURN_OPEN',
+        message: 'Đơn có yêu cầu trả hàng chưa đóng.',
+        path: '/x',
+        timestamp: '',
+      });
+    });
+    show('/admin/orders/o1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Hoàn tiền VNPAY' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Hoàn tiền' }));
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent('Đơn có yêu cầu trả hàng chưa đóng.');
+    expect(within(alert).getByRole('link', { name: 'Mở trang Trả hàng' })).toHaveAttribute(
+      'href',
+      '/admin/returns',
+    );
+  });
+
+  it('UC-12.1/AC10 409 khác: không hiện link trang Trả hàng', async () => {
+    request.mockImplementation(async (path: string) => {
+      if (!path.endsWith('/refund')) return base;
+      throw apiError(409, 'Đang có lệnh hoàn chờ kết quả.');
+    });
+    show('/admin/orders/o1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Hoàn tiền VNPAY' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Hoàn tiền' }));
+    await within(dialog).findByRole('alert');
+    expect(within(dialog).queryByRole('link', { name: 'Mở trang Trả hàng' })).toBeNull();
   });
 
   it('UC-12.1/AC10 409 từ máy chủ: giữ câu nghiệp vụ của máy chủ và báo đã tải lại', async () => {
@@ -545,5 +676,35 @@ describe('UC-02.1/AC6, AC8 — bảo vệ dữ liệu admin dùng chung (#57)', 
       screen.queryByRole('button', { name: 'Tạo vận đơn mô phỏng (Dự phòng)' }),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Mô phỏng:/ })).not.toBeInTheDocument();
+  });
+
+  it('UC-12/UX-12 dịch pendingRefund.lastError tiếng Anh kỹ thuật sang tiếng Việt dễ hiểu', async () => {
+    const timedOutRefund = {
+      ...base,
+      status: 'PAID',
+      ledgers: [
+        {
+          ...base.ledgers[0]!,
+          gateway: 'VNPAY',
+          paymentStatus: 'SUCCEEDED',
+          pendingRefund: {
+            id: 'tx-ref-1',
+            amount: '230000.00',
+            createdAt: '2026-10-31T03:00:00.000Z',
+            lastError: 'The operation was aborted due to timeout',
+            resolvable: true,
+          },
+        },
+      ],
+    };
+    request.mockImplementation(async (path: string) => {
+      if (path === '/admin/orders/o1') return timedOutRefund;
+      return {};
+    });
+
+    show('/admin/orders/o1');
+    const notice = await screen.findByText(/Hết thời gian chờ phản hồi từ cổng thanh toán/i);
+    expect(notice).toBeInTheDocument();
+    expect(notice.textContent).not.toContain('aborted due to timeout');
   });
 });

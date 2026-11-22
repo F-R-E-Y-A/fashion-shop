@@ -37,6 +37,7 @@ describe('AllExceptionsFilter: het ket noi DB la qua tai tam thoi', () => {
   it('loi khac van la 500 va khong lo thong diep noi bo', () => {
     const { status, body } = run(new Error('private detail'));
     expect(status).toBe(500);
+    expect(body).toMatchObject({ message: 'Lỗi không xác định phía máy chủ' });
     expect(JSON.stringify(body)).not.toContain('private detail');
   });
 });

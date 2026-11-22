@@ -96,6 +96,7 @@ describe('PH-11 MoMo contract', () => {
     actor: 'admin',
     full: true,
     transactionNo: '4088878653',
+    refundId: '6f1c2d3e-0000-4000-8000-000000000001',
   };
   const echo = (override: Record<string, unknown> = {}) => {
     const fetch = vi.fn(async (_url: string, init: { body: string }) => {
@@ -115,7 +116,7 @@ describe('PH-11 MoMo contract', () => {
     vi.stubGlobal('fetch', fetch);
     return fetch;
   };
-  it('UC-14.3/AC8 refund: ký đúng các trường tài liệu, orderId mới khác đơn gốc, hoàn theo transId lúc thu', async () => {
+  it('UC-14.3/AC8 refund: ký đúng các trường tài liệu, orderId = refundId đã ghi trước (khác đơn gốc), hoàn theo transId lúc thu', async () => {
     const fetch = echo();
     const result = await adapter().refund(refundInput);
     const [url, init] = fetch.mock.calls[0]!;
@@ -127,7 +128,10 @@ describe('PH-11 MoMo contract', () => {
       partnerCode: 'TESTMERCHANT',
     });
     expect(body.orderId).not.toBe('PTEST');
-    expect(body.requestId).toBe(result.requestId);
+    // ADR-119: ma lenh on dinh tu intent, de tra lai bang refund/query khi timeout.
+    expect(body.orderId).toBe(refundInput.refundId);
+    expect(body.requestId).toBe(refundInput.refundId);
+    expect(result.requestId).toBe(refundInput.refundId);
     const raw = `accessKey=test-access&amount=230000&description=Hoan tien PTEST&orderId=${body.orderId}&partnerCode=TESTMERCHANT&requestId=${body.requestId}&transId=4088878653`;
     expect(body.signature).toBe(
       createHmac('sha256', settings.MOMO_SECRET_KEY).update(raw).digest('hex'),
@@ -137,6 +141,11 @@ describe('PH-11 MoMo contract', () => {
   it('UC-14.3/AC8 refund: mã khác 0, phản hồi lệch lệnh hoặc thiếu transId đều ném lỗi để lệnh giữ chờ đối soát', async () => {
     echo({ resultCode: 1080 });
     await expect(adapter().refund(refundInput)).rejects.toThrow('mã 1080');
+    // Ma dang xu ly khong duoc noi la "tu choi": admin tra lai tren cong roi moi chot.
+    echo({ resultCode: 1000, message: 'Đang xử lý' });
+    await expect(adapter().refund(refundInput)).rejects.toThrow(
+      /chưa xác nhận hoàn tiền \(mã 1000: Đang xử lý\).*Kiểm tra trên cổng/u,
+    );
     echo({ requestId: 'other-request' });
     await expect(adapter().refund(refundInput)).rejects.toThrow('không hợp lệ');
     echo({ amount: 1000 });
@@ -148,7 +157,66 @@ describe('PH-11 MoMo contract', () => {
     await expect(adapter().refund({ ...refundInput, amount: '1000.50' })).rejects.toThrow(
       'số tiền nguyên',
     );
+    await expect(adapter().refund({ ...refundInput, refundId: undefined })).rejects.toThrow(
+      'mã lệnh hoàn',
+    );
     expect(fetch).not.toHaveBeenCalled();
+  });
+  const refundQuery = (top: Record<string, unknown> = {}, items?: Record<string, unknown>[]) => {
+    const fetch = vi.fn(async (_url: string, init: { body: string }) => {
+      const body = JSON.parse(init.body) as Record<string, unknown>;
+      return Response.json({
+        partnerCode: 'TESTMERCHANT',
+        orderId: body.orderId,
+        requestId: body.requestId,
+        resultCode: 0,
+        message: 'Thành công.',
+        refundTrans: items ?? [
+          { orderId: 'other-refund', amount: 1000, resultCode: 0, transId: 1 },
+          { orderId: refundInput.refundId, amount: 230000, resultCode: 0, transId: 4088879000 },
+        ],
+        ...top,
+      });
+    });
+    vi.stubGlobal('fetch', fetch);
+    return fetch;
+  };
+  it('ADR-119 refundStatus: gọi refund/query ký accessKey/orderId/partnerCode/requestId, SUCCEEDED khi dòng đúng lệnh mã 0 đúng số tiền', async () => {
+    const fetch = refundQuery();
+    const status = await adapter().refundStatus({
+      refundId: refundInput.refundId,
+      amount: '230000.00',
+    });
+    const [url, init] = fetch.mock.calls[0]!;
+    const body = JSON.parse(init.body) as Record<string, string>;
+    expect(url).toBe('http://127.0.0.1:3102/refund/query');
+    expect(body.orderId).toBe(refundInput.refundId);
+    const raw = `accessKey=test-access&orderId=${refundInput.refundId}&partnerCode=TESTMERCHANT&requestId=${body.requestId}`;
+    expect(body.signature).toBe(
+      createHmac('sha256', settings.MOMO_SECRET_KEY).update(raw).digest('hex'),
+    );
+    expect(status).toEqual({
+      state: 'SUCCEEDED',
+      payload: expect.objectContaining({ orderId: refundInput.refundId, transId: '4088879000' }),
+    });
+  });
+  it('ADR-119 refundStatus: không thấy lệnh, mã khác 0, lệch số tiền hay phản hồi lệch request đều UNCONFIRMED, không bao giờ coi là chưa hoàn', async () => {
+    const check = () =>
+      adapter().refundStatus({ refundId: refundInput.refundId, amount: '230000.00' });
+    refundQuery({}, []);
+    expect(await check()).toMatchObject({ state: 'UNCONFIRMED', detail: /chưa ghi nhận/u });
+    refundQuery({}, [
+      { orderId: refundInput.refundId, amount: 230000, resultCode: 1000, transId: 0 },
+    ]);
+    expect(await check()).toMatchObject({ state: 'UNCONFIRMED', detail: /mã 1000/u });
+    refundQuery({}, [{ orderId: refundInput.refundId, amount: 1000, resultCode: 0, transId: 9 }]);
+    expect(await check()).toMatchObject({ state: 'UNCONFIRMED', detail: /số tiền không khớp/u });
+    refundQuery({ resultCode: 99 });
+    expect(await check()).toMatchObject({ state: 'UNCONFIRMED' });
+    refundQuery({ requestId: 'other-request' });
+    expect(await check()).toMatchObject({ state: 'UNCONFIRMED', detail: /không hợp lệ/u });
+    refundQuery({ partnerCode: 'OTHER' });
+    expect(await check()).toMatchObject({ state: 'UNCONFIRMED', detail: /không hợp lệ/u });
   });
   it('MOMO_ATM dùng chung Refund API với ví MoMo', () => {
     expect(new MomoAtmAdapter(new ConfigService({ ...settings })).refund).toBeTypeOf('function');

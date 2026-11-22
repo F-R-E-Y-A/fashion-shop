@@ -18,6 +18,7 @@ import type {
   PaymentGateway,
   PaymentInput,
   RefundRequest,
+  RefundStatus,
 } from './payment-gateway.js';
 
 const finalFailures = new Set([
@@ -90,7 +91,11 @@ export class MomoAdapter implements PaymentGateway {
       throw new ServiceUnavailableException('Cần cấu hình IPN HTTPS cho MoMo.');
     return null;
   }
-  private async post(action: 'create' | 'query' | 'refund', body: Record<string, unknown>) {
+  /** JSON tho cua MoMo; refund/query can mang refundTrans nen khong qua momoParams. */
+  private async send(
+    action: 'create' | 'query' | 'refund' | 'refund/query',
+    body: Record<string, unknown>,
+  ): Promise<Record<string, unknown> | null> {
     const base =
       this.config.get<string>('MOMO_API_URL') || 'https://test-payment.momo.vn/v2/gateway/api';
     const response = await fetch(this.trustedUrl(`${base.replace(/\/$/u, '')}/${action}`), {
@@ -105,7 +110,11 @@ export class MomoAdapter implements PaymentGateway {
       );
     const raw: unknown = await response.json();
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
-    return momoParams(raw as Record<string, unknown>);
+    return raw as Record<string, unknown>;
+  }
+  private async post(action: 'create' | 'query' | 'refund', body: Record<string, unknown>) {
+    const raw = await this.send(action, body);
+    return raw ? momoParams(raw) : null;
   }
   request(input: PaymentInput): GatewayRequest {
     this.prepare(input);
@@ -212,9 +221,10 @@ export class MomoAdapter implements PaymentGateway {
   }
   /**
    * Refund API v2 (/v2/gateway/api/refund): hoan theo transId cua giao dich thu tien, orderId
-   * moi cho moi lenh hoan; cho hoan mot phan nhieu lan nen khong dung `full`. Chi ghi nhan khi
-   * resultCode 0 va phan hoi khop lenh; ma khac hay khong toi duoc thi nem loi de lenh giu
-   * RECEIVED cho admin doi soat (cung che do fail-closed voi VNPAY).
+   * moi cho moi lenh hoan; cho hoan mot phan nhieu lan nen khong dung `full`. orderId = refundId
+   * da ghi trong intent truoc khi goi, nhu vay timeout hay ma chua ro van tra lai duoc bang
+   * refundStatus. Chi ghi nhan khi resultCode 0 va phan hoi khop lenh; con lai nem loi de lenh
+   * giu RECEIVED cho admin doi soat (cung che do fail-closed voi VNPAY).
    */
   async refund(input: RefundRequest) {
     const { partner, access, secret } = this.credentials();
@@ -223,7 +233,9 @@ export class MomoAdapter implements PaymentGateway {
       throw new ServiceUnavailableException('MoMo chỉ hoàn số tiền nguyên từ 1.000đ.');
     if (!/^\d+$/u.test(input.transactionNo ?? ''))
       throw new ServiceUnavailableException('Chưa có mã giao dịch MoMo (transId) để hoàn tiền.');
-    const requestId = randomUUID();
+    if (!/^[0-9a-zA-Z-]{1,50}$/u.test(input.refundId ?? ''))
+      throw new ServiceUnavailableException('Thiếu mã lệnh hoàn MoMo.');
+    const requestId = input.refundId!;
     const data = {
       amount: amount.toFixed(0),
       description: `Hoan tien ${input.reference}`,
@@ -260,11 +272,58 @@ export class MomoAdapter implements PaymentGateway {
       !new Decimal(result.amount!).eq(amount)
     )
       throw new ServiceUnavailableException('Phản hồi hoàn tiền MoMo không hợp lệ.');
+    // Bang ma phia hoan chua kiem duoc tren tai lieu goc (1000/9000 co the la dang xu ly), nen
+    // khong noi "tu choi": moi ma khac 0 deu la chua xac nhan, admin tra lai roi moi chot.
     if (result.resultCode !== '0')
       throw new ServiceUnavailableException(
-        `Cổng từ chối hoàn tiền (mã ${result.resultCode ?? 'n/a'}).`,
+        `MoMo chưa xác nhận hoàn tiền (mã ${result.resultCode ?? 'n/a'}${result.message ? `: ${result.message.slice(0, 200)}` : ''}). Bấm "Kiểm tra trên cổng" sau ít phút.`,
       );
     return { requestId, payload: result };
+  }
+  /**
+   * /v2/gateway/api/refund/query theo orderId cua lenh hoan. Hop dong lay tu ma nguon cong khai
+   * (chua kiem tren sandbox, ADR-119): ky accessKey, orderId, partnerCode, requestId; refundTrans[]
+   * co orderId, amount, resultCode, transId. Chi SUCCEEDED khi ma tong 0 va dong cua dung lenh co ma
+   * 0, dung so tien, transId > 0. Khong thay lenh khong co nghia la chua hoan: khong tu dong FAILED.
+   */
+  async refundStatus(input: { refundId: string; amount: string }): Promise<RefundStatus> {
+    const { partner, access, secret } = this.credentials();
+    const data = { orderId: input.refundId, partnerCode: partner, requestId: randomUUID() };
+    const signature = momoHash(
+      secret,
+      momoData(access, data, ['orderId', 'partnerCode', 'requestId']),
+    );
+    const raw = await this.send('refund/query', { ...data, signature, lang: 'vi' });
+    const top = raw && momoParams(raw);
+    if (!raw || !top || top.partnerCode !== partner || top.requestId !== data.requestId)
+      return { state: 'UNCONFIRMED', detail: 'Phản hồi tra lệnh hoàn MoMo không hợp lệ.' };
+    const item = (Array.isArray(raw.refundTrans) ? (raw.refundTrans as unknown[]) : [])
+      .filter((row): row is Record<string, unknown> => !!row && typeof row === 'object')
+      .find((row) => String(row.orderId) === input.refundId);
+    if (!item)
+      return {
+        state: 'UNCONFIRMED',
+        detail: `MoMo chưa ghi nhận lệnh hoàn này (mã ${top.resultCode ?? 'n/a'}). Đối chiếu trên trang quản trị MoMo rồi chốt tay.`,
+      };
+    const code = String(item.resultCode);
+    const amount = String(item.amount);
+    const transId = String(item.transId);
+    const amountOk = /^\d+$/u.test(amount) && new Decimal(amount).eq(input.amount);
+    if (top.resultCode === '0' && code === '0' && amountOk && /^[1-9]\d*$/u.test(transId))
+      return {
+        state: 'SUCCEEDED',
+        payload: {
+          partnerCode: partner,
+          orderId: input.refundId,
+          amount,
+          transId,
+          resultCode: code,
+        },
+      };
+    return {
+      state: 'UNCONFIRMED',
+      detail: `MoMo báo lệnh hoàn mã ${code}${amountOk ? '' : ', số tiền không khớp'}. Đối chiếu rồi chốt tay.`,
+    };
   }
   private event(raw: Record<string, string>): PaymentEvent {
     const code = raw.resultCode ?? '';

@@ -31,6 +31,8 @@ export interface PaymentLedger {
   refundedAmount: string;
   /** null: khong hoan tay duoc luc nay (CONFIRMED dung cancelRefund, chua thu, da hoan du, lenh dang cho). */
   refundableAmount: string | null;
+  /** GATEWAY: goi API cong; MANUAL: cong tat hoan tu dong, shop chuyen khoan roi nhap ma (ADR-111). */
+  refundMode: 'GATEWAY' | 'MANUAL' | null;
   refunds: { id: string; amount: string; at: string; reason: string | null }[];
   pendingRefund: {
     id: string;
@@ -38,6 +40,8 @@ export interface PaymentLedger {
     createdAt: string;
     lastError: string | null;
     resolvable: boolean;
+    /** Tra duoc lenh tren cong (MoMo refund/query, ADR-119); lenh cu khong co ma thi chot tay. */
+    checkable: boolean;
   } | null;
 }
 export interface AdminOrder extends OrderView {
@@ -153,4 +157,20 @@ export function adminOrderErrorText(error: unknown, target: RequestTarget): stri
         ? 'Không tải được danh sách đơn hàng. Kiểm tra kết nối rồi thử lại.'
         : 'Không tải được đơn hàng. Kiểm tra kết nối rồi thử lại.';
   }
+}
+
+/** Chuan hoa loi ky thuat tieng Anh trong pendingRefund.lastError (ke ca ban ghi cu) sang tieng Viet. */
+export function formatPendingRefundError(rawError: string | null | undefined): string | null {
+  const raw = rawError?.trim();
+  if (!raw) return null;
+  if (/aborted due to timeout|timed?\s*out|ETIMEDOUT/iu.test(raw)) {
+    return 'Hết thời gian chờ phản hồi từ cổng thanh toán.';
+  }
+  if (/operation was aborted|this operation was aborted/iu.test(raw)) {
+    return 'Kết nối tới cổng thanh toán bị ngắt trước khi nhận phản hồi.';
+  }
+  if (/^fetch failed$|ECONNREFUSED|ECONNRESET|ENOTFOUND/iu.test(raw)) {
+    return 'Không thể kết nối tới cổng thanh toán.';
+  }
+  return raw;
 }

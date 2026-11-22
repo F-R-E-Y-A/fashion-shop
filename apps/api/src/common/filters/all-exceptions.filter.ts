@@ -47,7 +47,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     let status =
       exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
 
-    let message: string | string[] = 'Loi khong xac dinh phia may chu';
+    let message: string | string[] = 'Lỗi không xác định phía máy chủ';
     let code = HttpStatus[status] ?? 'INTERNAL_SERVER_ERROR';
     let retryAfterSeconds: number | undefined;
 

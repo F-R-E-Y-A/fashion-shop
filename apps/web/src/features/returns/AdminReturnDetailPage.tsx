@@ -35,6 +35,7 @@ const GATEWAY_NAMES: Record<string, string> = {
 const REFUND_STATUS: Record<string, string> = {
   SUCCEEDED: 'Đã hoàn',
   PENDING: 'Đang chờ cổng xác nhận',
+  PROCESSING: 'Đang chờ cổng xác nhận',
   FAILED: 'Hoàn không thành công',
 };
 const DONE: Record<ActionKind, string> = {
@@ -228,6 +229,9 @@ function AdminReturnDetail() {
   };
 
   const bank = data?.refundMethod === 'BANK_TRANSFER';
+  // Con lenh hoan qua cong chua ro ket qua: may chu tu choi moi lan hoan (409 REFUND_PENDING), nen man
+  // hinh khong moi chuyen khoan hay bam hoan nua; chuyen tien luc nay la hoan hai lan (UC-14.2/AC12).
+  const awaitingGateway = data?.status === 'RECEIVED' && data.refundPending;
   const dialogConfig: Record<
     ActionKind,
     { title: string; impacts: string[]; confirm: string; pending: string; danger: boolean }
@@ -266,10 +270,15 @@ function AdminReturnDetail() {
       title: 'Hoàn tiền cho khách',
       impacts: data
         ? bank
-          ? [
-              `Chuyển khoản ${formatPrice(data.refundAmount)} vào tài khoản khách đã nhập, rồi điền mã giao dịch.`,
-              'Số tài khoản của khách bị xoá khi yêu cầu hoàn tất.',
-            ]
+          ? data.refundAccount
+            ? [
+                `Chuyển khoản ${formatPrice(data.refundAmount)} vào tài khoản khách đã nhập, rồi điền mã giao dịch.`,
+                'Số tài khoản của khách bị xoá khi yêu cầu hoàn tất.',
+              ]
+            : [
+                // Yeu cau tao luc cong con hoan tu dong nen khach chua nhap tai khoan (review PR #158).
+                `Khách chưa nhập tài khoản nhận hoàn: liên hệ khách lấy số tài khoản, chuyển khoản ${formatPrice(data.refundAmount)}, rồi điền mã giao dịch.`,
+              ]
           : [
               `Hoàn ${formatPrice(data.refundAmount)} về ${GATEWAY_NAMES[data.paymentGateway ?? ''] ?? 'cổng đã thanh toán'}; thời gian tiền về tuỳ ngân hàng hoặc ví.`,
               'Không hoàn tác được.',
@@ -326,6 +335,16 @@ function AdminReturnDetail() {
             >
               {message.text}
             </p>
+          )}
+          {awaitingGateway && (
+            <div className={styles.warning} role="note">
+              <p>
+                Còn một lệnh hoàn qua cổng chưa rõ kết quả. Chưa chuyển khoản cho khách: cổng vẫn có
+                thể trả tiền, chuyển thêm là hoàn hai lần. Đối soát lệnh ở trang đơn hàng trước;
+                lệnh chốt không thành công thì nút hoàn tiền mở lại ở đây.
+              </p>
+              <Link to={`/admin/orders/${data.orderId}`}>Mở đơn {data.orderCode} để đối soát</Link>
+            </div>
           )}
 
           <div className={styles.detailGrid}>
@@ -421,9 +440,11 @@ function AdminReturnDetail() {
                   <div>
                     <dt>Cách hoàn tiền</dt>
                     <dd>
-                      {bank
-                        ? 'Chuyển khoản thủ công (đơn COD)'
-                        : `Về ${GATEWAY_NAMES[data.paymentGateway ?? ''] ?? 'cổng đã thanh toán'}`}
+                      {awaitingGateway
+                        ? 'Chờ đối soát lệnh hoàn qua cổng'
+                        : bank
+                          ? `Chuyển khoản thủ công${data.paymentGateway === 'COD' ? ' (đơn COD)' : ''}`
+                          : `Về ${GATEWAY_NAMES[data.paymentGateway ?? ''] ?? 'cổng đã thanh toán'}`}
                     </dd>
                   </div>
                   <div>
@@ -472,7 +493,12 @@ function AdminReturnDetail() {
                   <dl className={styles.facts}>
                     <div>
                       <dt>Trạng thái</dt>
-                      <dd>{REFUND_STATUS[data.refund.status] ?? data.refund.status}</dd>
+                      <dd>
+                        {/* Dong refunds giu PROCESSING sau khi lenh qua cong bi chot that bai. */}
+                        {data.refund.status === 'PROCESSING' && !data.refundPending
+                          ? 'Lệnh trước chưa thành công'
+                          : (REFUND_STATUS[data.refund.status] ?? data.refund.status)}
+                      </dd>
                     </div>
                     <div>
                       <dt>Số tiền</dt>
@@ -523,7 +549,7 @@ function AdminReturnDetail() {
                         Đã nhận hàng
                       </button>
                     )}
-                    {data.status === 'RECEIVED' && (
+                    {data.status === 'RECEIVED' && !awaitingGateway && (
                       <button
                         type="button"
                         className={styles.primaryButton}
@@ -531,6 +557,11 @@ function AdminReturnDetail() {
                       >
                         Hoàn tiền
                       </button>
+                    )}
+                    {awaitingGateway && (
+                      <p className={styles.muted}>
+                        Hoàn tiền mở lại sau khi lệnh hoàn qua cổng được đối soát ở trang đơn hàng.
+                      </p>
                     )}
                   </div>
                 </section>
