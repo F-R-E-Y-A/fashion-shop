@@ -75,4 +75,57 @@ describe('CategoryPage (UC-03.1)', () => {
     renderCategory();
     expect(await screen.findByRole('link', { name: 'Về trang chủ' })).toHaveAttribute('href', '/');
   });
+
+  it('hien ErrorNote va an san pham cu khi chuyen bo loc ma API san pham loi', async () => {
+    let failProducts = false;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        if (url.pathname.endsWith('/categories/ao')) return response(category);
+        if (failProducts) {
+          return response(
+            {
+              statusCode: 500,
+              code: 'INTERNAL_SERVER_ERROR',
+              message: 'Loi may chu',
+              path: url.pathname,
+              timestamp: new Date().toISOString(),
+            },
+            500,
+          );
+        }
+        return response({
+          items: [
+            {
+              id: 'p-1',
+              name: 'Ao so mi trang',
+              slug: 'ao-so-mi-trang',
+              description: null,
+              price: '299000',
+              imageUrl: null,
+              categoryName: 'Áo',
+              categorySlug: 'ao',
+              hoverImageUrl: null,
+              colorSwatches: [],
+              colorCount: 0,
+            },
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 20,
+          totalPages: 1,
+        });
+      }),
+    );
+
+    renderCategory();
+    expect(await screen.findByText('Ao so mi trang')).toBeInTheDocument();
+
+    failProducts = true;
+    fireEvent.change(screen.getByLabelText('Sắp xếp'), { target: { value: 'price_asc' } });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Không tải được danh mục Áo.');
+    expect(screen.queryByText('Ao so mi trang')).not.toBeInTheDocument();
+  });
 });

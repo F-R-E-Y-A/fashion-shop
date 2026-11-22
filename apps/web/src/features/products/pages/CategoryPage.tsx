@@ -108,7 +108,7 @@ export function CategoryPage() {
       to: index === arr.length - 1 ? undefined : `/danh-muc/${item.slug}`,
     })),
   ];
-  const data = products.data;
+  const data = products.isError ? undefined : products.data;
   const filterCount = countActiveFilters({ ...params, categories: [] });
   const clearAll = () =>
     setParams(

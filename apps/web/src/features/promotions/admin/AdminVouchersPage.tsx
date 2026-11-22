@@ -80,6 +80,7 @@ export function AdminVouchersPage() {
     const next = new URLSearchParams(searchParams);
     next.set('page', String(newPage));
     setSearchParams(next);
+    window.scrollTo?.({ left: 0, top: 0, behavior: 'instant' });
   }
 
   const items: AdminVoucher[] = data?.items ?? [];

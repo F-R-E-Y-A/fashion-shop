@@ -346,8 +346,8 @@ export function CheckoutPage() {
             <section className={styles.section}>
               <h2 className={styles.sectionTitle}>Phương thức thanh toán</h2>
               <p className={styles.muted}>
-                Hỗ trợ thanh toán khi nhận hàng (COD) và thanh toán trực tuyến qua VNPAY. Lưu địa
-                chỉ giao hàng để xem lựa chọn khả dụng và tính phí vận chuyển.
+                Hỗ trợ thanh toán khi nhận hàng (COD) và thanh toán trực tuyến (VNPAY, MoMo). Lưu
+                địa chỉ giao hàng để xem lựa chọn khả dụng và tính phí vận chuyển.
               </p>
             </section>
           )}

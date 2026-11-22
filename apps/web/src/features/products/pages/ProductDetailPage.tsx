@@ -299,6 +299,10 @@ export function ProductDetailPage() {
           <details className={styles.policyDetails}>
             <summary>Hướng dẫn chọn cỡ &amp; chính sách đổi trả 15 ngày</summary>
             <p>
+              Bảng cỡ tham khảo: XS (42–48 kg) · S (48–55 kg) · M (55–63 kg) · L (63–72 kg) · XL
+              (72–82 kg); chọn tăng 1 cỡ nếu thích mặc rộng rãi.
+            </p>
+            <p>
               Miễn phí vận chuyển cho đơn từ 500.000 ₫. Hỗ trợ đổi/trả hàng trong vòng 15 ngày kể từ
               khi nhận nếu sản phẩm còn nguyên tem mác.
             </p>

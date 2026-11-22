@@ -72,9 +72,9 @@ export function SearchOverlay({ onClose }: { onClose: () => void }) {
       rememberSearch(action.value);
       void navigate(searchUrl(action.value), { state: { scrollToTop: true } });
     } else if (action.type === 'category') {
-      void navigate(`/danh-muc/${action.slug}`);
+      void navigate(`/danh-muc/${action.slug}`, { state: { scrollToTop: true } });
     } else {
-      void navigate(`/san-pham/${action.slug}`);
+      void navigate(`/san-pham/${action.slug}`, { state: { scrollToTop: true } });
     }
     onClose();
   };

@@ -35,6 +35,7 @@ export function AdminPromotionsPage() {
     const next = new URLSearchParams(searchParams);
     next.set('page', String(nextPage));
     setSearchParams(next);
+    window.scrollTo?.({ left: 0, top: 0, behavior: 'instant' });
   };
 
   // Chuẩn hóa URL nếu có tham số không hợp lệ mà không gọi setState trong render
