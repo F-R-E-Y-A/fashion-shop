@@ -74,6 +74,11 @@ export class OrderItemResponse {
   @ApiProperty() quantity!: number;
   @ApiProperty() price!: string;
   @ApiProperty({ type: ProductSnapshotResponse }) snapshot!: ProductSnapshotResponse;
+  @ApiPropertyOptional({
+    description:
+      'Chi co o duong dan cua khach. false: san pham da ngung ban, web hien ten khong gan link',
+  })
+  productAvailable?: boolean;
 }
 export class ShipmentResponse {
   @ApiProperty() id!: string;

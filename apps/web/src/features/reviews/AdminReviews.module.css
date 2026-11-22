@@ -109,6 +109,11 @@
   font-weight: 600;
   overflow-wrap: anywhere;
 }
+.productOff {
+  color: var(--muted);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
 .reported {
   padding: 2px 8px;
   background: var(--danger-soft);

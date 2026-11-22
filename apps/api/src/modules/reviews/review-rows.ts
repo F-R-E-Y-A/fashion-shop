@@ -70,15 +70,20 @@ function replyOf(row: {
   return { content: row.replyContent, repliedAt: row.repliedAt.toISOString() };
 }
 
-/** Ten va anh lay tu ban chup luc mua (dung thu khach nhan); slug lay hien tai de link khong gay. */
+/**
+ * Ten va anh lay tu ban chup luc mua (dung thu khach nhan); slug lay hien tai de link khong gay.
+ * `available`: san pham con mo tren cua hang; web bo link khi da ngung ban (ADR-121).
+ */
 function productOf(
-  row: { product: { name: string; slug: string } },
+  row: { productId: string; product: { name: string; slug: string } },
   item: PurchasedItem | undefined,
+  visible: ReadonlySet<string>,
 ): ReviewProductResponse {
   return {
     name: item?.snapshot.name ?? row.product.name,
     slug: row.product.slug,
     imageUrl: item?.snapshot.imageUrl ?? null,
+    available: visible.has(row.productId),
   };
 }
 
@@ -124,12 +129,13 @@ export function toMyReview(
   row: MyReviewRow,
   item: PurchasedItem | undefined,
   now: Date,
+  visible: ReadonlySet<string>,
 ): MyReviewResponse {
   return {
     id: row.id,
     orderItemId: row.orderItemId,
     orderId: item?.orderId ?? null,
-    product: productOf(row, item),
+    product: productOf(row, item, visible),
     variantLabel: row.variantLabel,
     rating: row.rating,
     content: row.content,
@@ -157,11 +163,12 @@ export function toMyReview(
 export function toAdminReview(
   row: AdminReviewRow,
   item: PurchasedItem | undefined,
+  visible: ReadonlySet<string>,
 ): AdminReviewResponse {
   return {
     id: row.id,
     reviewer: { id: row.reviewer.id, email: row.reviewer.email, displayName: displayName(row) },
-    product: productOf(row, item),
+    product: productOf(row, item, visible),
     orderCode: item?.orderCode ?? null,
     variantLabel: row.variantLabel,
     rating: row.rating,

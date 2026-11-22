@@ -45,6 +45,8 @@ export interface ReviewProduct {
   name: string;
   slug: string;
   imageUrl: string | null;
+  /** false: san pham da ngung ban, trang san pham 404 nen khong gan link. */
+  available: boolean;
 }
 export interface ReviewableItem {
   orderItemId: string;

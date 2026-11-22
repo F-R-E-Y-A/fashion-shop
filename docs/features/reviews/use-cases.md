@@ -68,7 +68,7 @@ Là một **khách hàng đã nhận hàng**, tôi muốn **chấm sao, nhận x
 - **AC11** (biên) Ảnh tải lên quá 24 giờ chưa gắn bị xoá khỏi kho theo lô tối đa 100 ảnh mỗi lệnh; ảnh mới 23 giờ 59 phút và ảnh đã gắn giữ nguyên; hai lượt dọn chồng nhau không xoá trùng; kho lỗi thì thử lại sau hạn thuê; ảnh đang bị dọn không gắn được (422)
 - **AC12** (thuận) Khách xoá đánh giá của mình, kể cả bài chờ duyệt hay đã bị ẩn: gỡ khỏi trang công khai, trang của mình và hàng chờ quản trị; điểm tính lại; ảnh vào hàng xoá; dòng đơn không viết lại được (409), không sửa được (404); xoá đúng lúc quản trị duyệt thì điểm cuối cùng không tính bài đã xoá; web: hỏi lại kèm hậu quả, lỗi mạng thì báo trong hộp và giữ bài, bài đã xoá ở nơi khác (404) thì coi như xong
 - **AC13** (âm) Xoá bài của người khác hoặc bài đã xoá: 404 `REVIEW_NOT_FOUND`, không lộ bài có tồn tại; chưa đăng nhập 401; mã sai 400
-- **AC14** (âm) Sản phẩm đã ngừng bán: dòng đơn không còn trong danh sách chờ, gửi đánh giá thì 422 `REVIEW_PRODUCT_UNAVAILABLE` và không tạo bài; mở bán lại trong hạn thì dòng hiện lại và viết được (đề xuất, [ADR-123](LOG.md#adr-123))
+- **AC14** (âm) Sản phẩm đã ngừng bán: dòng đơn không còn trong danh sách chờ, gửi đánh giá thì 422 `REVIEW_PRODUCT_UNAVAILABLE` và không tạo bài; mở bán lại trong hạn thì dòng hiện lại và viết được. Bài đã viết giữ nguyên; trang của khách và hàng chờ quản trị hiện tên kèm "Đã ngừng bán", không gắn link tới trang 404 (đề xuất, [ADR-123](LOG.md#adr-123))
 
 ---
 

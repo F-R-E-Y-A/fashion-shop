@@ -460,6 +460,18 @@ describe('UC-11.1 viet va sua danh gia san pham (PostgreSQL)', () => {
 
     await setDisabled(false);
     expect((await eligible(w.buyer)).map((item) => item.orderItemId)).toEqual([orderItemId]);
-    await post(w.buyer, { orderItemId, rating: 5 }).expect(201);
+    const created = await post(w.buyer, { orderItemId, rating: 5 }).expect(201);
+    expect(created.body.product.available).toBe(true);
+
+    // Bai da viet giu nguyen; trang cua khach va hang cho quan tri bo link toi trang da 404.
+    await setDisabled(true);
+    const mine = await t.http.get('/api/reviews/mine').set(w.buyer.auth).expect(200);
+    const queue = await t.http.get('/api/admin/reviews').set(w.admin.auth).expect(200);
+    for (const page of [mine, queue]) {
+      expect(
+        page.body.items.map((row: { product: { available: boolean } }) => row.product),
+      ).toEqual([expect.objectContaining({ slug: w.productSlug, available: false })]);
+    }
+    await setDisabled(false);
   });
 });

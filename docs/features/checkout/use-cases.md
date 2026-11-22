@@ -1,6 +1,6 @@
 ---
 title: UC-07 Đặt hàng và UC-12 Xử lý đơn — đặc tả use case
-updated: 2026-11-05
+updated: 2026-11-22
 status: đề xuất, chờ Bảo duyệt
 owner: Bảo
 ---
@@ -93,6 +93,7 @@ Là một **khách hàng**, tôi muốn **xem các đơn của mình và trạng
 |---|---|
 | BR1 | Chỉ đọc đơn của chính tài khoản; đơn người khác trả như không tồn tại |
 | BR2 | Trang đơn chỉ hiện thao tác hợp lệ với trạng thái; đối soát thanh toán do hệ thống tự làm, không có nút kiểm tra tay |
+| BR3 | Dòng đơn luôn hiện tên, ảnh, phân loại trong bản chụp lúc mua; chỉ gắn link tới trang sản phẩm khi `productAvailable` là `true` (đề xuất; hệ quả của [ADR-121](../products/LOG.md#adr-121), mục thay đổi 22/11 ngay sau) |
 
 ### Tiêu chí chấp nhận
 - **AC1** (thuận) Danh sách đơn: mỗi thẻ có mã, nhãn trạng thái ngắn, tổng tiền; danh sách rỗng mời mua sắm
@@ -101,6 +102,7 @@ Là một **khách hàng**, tôi muốn **xem các đơn của mình và trạng
 - **AC4** (biên) Đồng hồ đếm theo hạn link cổng, kết thúc sớm hơn hạn giữ hàng
 - **AC5** (âm) Tiền đến muộn (`PAYMENT_REVIEW`): trang hiện hướng xử lý, không cho thanh toán lại
 - **AC6** (thuận) Đơn COD sau khi shop ghi đã giao: khách tải lại thấy "Đã giao hàng"
+- **AC8** (âm) Sản phẩm đã ngừng bán: danh sách đơn, chi tiết đơn và kết quả hủy đều trả `productAvailable: false`; trang đơn hiện tên trong bản chụp kèm "Đã ngừng bán", không gắn link tới trang 404 (đề xuất 22/11; AC7 dành cho nhánh tiến trình đơn)
 
 ---
 

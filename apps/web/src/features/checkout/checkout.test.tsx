@@ -669,6 +669,28 @@ describe('PH-11 checkout UI', () => {
       'https://donhang.ghn.vn/?order_code=L4GHN555',
     );
   });
+
+  it('UC-07.3/AC8 sản phẩm đã ngừng bán: dòng đơn hiện tên trong bản chụp, không gắn link 404', async () => {
+    const line = (name: string, productSlug: string, productAvailable?: boolean) => ({
+      variantId: productSlug,
+      quantity: 1,
+      price: '200000.00',
+      snapshot: { name, variantLabel: 'Đen / M', imageUrl: null, productSlug },
+      productAvailable,
+    });
+    request.mockResolvedValue({
+      ...order('DELIVERED'),
+      items: [line('Áo còn bán', 'ao-con-ban', true), line('Áo ngừng bán', 'ao-ngung-ban', false)],
+    });
+    show('/don-hang/o1');
+    expect(await screen.findByRole('link', { name: 'Áo còn bán' })).toHaveAttribute(
+      'href',
+      '/san-pham/ao-con-ban',
+    );
+    expect(screen.getByText('Áo ngừng bán')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Áo ngừng bán/ })).not.toBeInTheDocument();
+    expect(screen.getByText(/Đã ngừng bán/)).toBeInTheDocument();
+  });
 });
 
 describe('UC-14.1 trả hàng trên trang đơn', () => {

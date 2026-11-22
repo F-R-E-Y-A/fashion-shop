@@ -311,9 +311,13 @@ function AdminReviewRow({
   return (
     <li className={styles.row}>
       <div className={styles.rowHead}>
-        <Link to={`/san-pham/${review.product.slug}`} className={styles.product}>
-          {review.product.name}
-        </Link>
+        {review.product.available ? (
+          <Link to={`/san-pham/${review.product.slug}`} className={styles.product}>
+            {review.product.name}
+          </Link>
+        ) : (
+          <span className={styles.productOff}>{review.product.name} · Đã ngừng bán</span>
+        )}
         <span className={styles.status} data-tone={STATUS_TONES[status]}>
           {STATUS_LABELS[status]}
         </span>

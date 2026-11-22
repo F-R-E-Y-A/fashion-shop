@@ -591,6 +591,16 @@ export class ProductsService {
     return new Set(rows.map((row) => row.id));
   }
 
+  /** Nhu `visibleProductIds` nhung theo `slug` (slug khong doi sau khi tao): dong don chi giu ban chup. */
+  async visibleProductSlugs(slugs: readonly string[]): Promise<Set<string>> {
+    if (slugs.length === 0) return new Set();
+    const rows = await this.prisma.product.findMany({
+      where: storefrontProductWhere({ slug: { in: [...new Set(slugs)] } }),
+      select: { slug: true },
+    });
+    return new Set(rows.map((row) => row.slug));
+  }
+
   /**
    * Ghi lai diem trung binh va so danh gia da duyet (ADR-054). Khoa dong san pham TRUOC khi goi
    * `compute`: o READ COMMITTED moi cau lenh lay snapshot moi, nen giao dich vao sau doi khoa roi

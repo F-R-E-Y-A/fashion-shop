@@ -1,6 +1,6 @@
 ---
 title: Khám phá sản phẩm — nhật ký quyết định và thay đổi
-updated: 2026-11-19
+updated: 2026-11-22
 status: đang dùng
 owner: Bảo
 ---
@@ -642,3 +642,11 @@ Thực tế: 22/11, nhánh `task/ph-03-product-no-hard-delete` từ develop `a1c
 
 ### Điều kiện xem lại
 Cần dọn sản phẩm nhập nhầm chưa từng vào đơn hay kho; hoặc thêm bảng mới tham chiếu sản phẩm (phải chọn `RESTRICT` hay `CASCADE`, AC63 sẽ báo).
+
+## 2026-11-22 · Đơn và đánh giá bỏ link tới sản phẩm đã ngừng bán
+
+**Loại:** thay đổi mã · **Phạm vi:** `products` (hàm đọc), `checkout` và `reviews` (API, web) · **Commit:** (điền khi gộp)
+
+Hệ quả của [ADR-121](#adr-121): sản phẩm không bị xoá mà ngừng bán, trang chi tiết trả 404, nên link `/san-pham/<slug>` ở trang đơn, trang "Đánh giá của tôi" và hàng chờ quản trị dẫn tới trang lỗi. API gắn `productAvailable` cho dòng đơn ở các đường dẫn của khách (không ở đường dẫn quản trị) và `product.available` cho đánh giá, cùng luật `storefrontProductWhere`; web chỉ gắn link khi cờ là `true`, còn lại hiện tên trong bản chụp kèm "Đã ngừng bán". Tách khỏi `CheckoutService.view()` vì hàm đó đồng bộ và chạy trong giao dịch; mỗi phản hồi thêm một truy vấn cho cả lô. Chưa sửa link ở giỏ hàng và trang thanh toán vì hai nơi đó đọc sản phẩm sống, đã có luật riêng.
+
+Bằng chứng: `npx vitest run --project http test/checkout-payment.http.spec.ts test/reviews.http.spec.ts test/admin-reviews.http.spec.ts` (apps/api) → 3 tệp, 57 bài qua, gồm `UC-07.3/AC8`, `UC-11.1/AC14`. Web: `npx vitest run src/features/checkout/checkout.test.tsx src/features/reviews` → 4 tệp, 63 bài qua. Tài liệu đã sửa theo: [checkout use-cases](../checkout/use-cases.md), [reviews use-cases](../reviews/use-cases.md), README module products và checkout.

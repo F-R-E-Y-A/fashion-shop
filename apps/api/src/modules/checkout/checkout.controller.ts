@@ -72,7 +72,7 @@ export class CheckoutController {
     @Ip() ip: string,
   ) {
     await this.rateLimit.enforce(user.id, 'order');
-    return this.checkout.create(user, input, ip);
+    return this.checkout.withProductLink(await this.checkout.create(user, input, ip));
   }
 }
 
@@ -90,31 +90,34 @@ export class OrdersController {
   @Get()
   @Header('Cache-Control', 'no-store')
   async list(@CurrentUser() user: CurrentUserType) {
-    return (await this.checkout.orders.list(user.id)).map((order) => this.checkout.view(order));
+    return this.checkout.withProductLinks(
+      (await this.checkout.orders.list(user.id)).map((order) => this.checkout.view(order)),
+    );
   }
   @ApiOkResponse({ type: OrderResponse })
   @Get('by-payment/:reference')
   @Header('Cache-Control', 'no-store')
   async byPayment(@CurrentUser() user: CurrentUserType, @Param('reference') reference: string) {
     const payment = await this.checkout.payments.byReference(reference);
-    return this.checkout.view(
-      await this.checkout.orders.get(
-        payment?.orderId ?? '00000000-0000-4000-8000-000000000000',
-        user.id,
-      ),
+    const order = await this.checkout.orders.get(
+      payment?.orderId ?? '00000000-0000-4000-8000-000000000000',
+      user.id,
     );
+    return this.checkout.withProductLink(this.checkout.view(order));
   }
   @ApiOkResponse({ type: OrderResponse })
   @Get(':id')
   @Header('Cache-Control', 'no-store')
   async get(@CurrentUser() user: CurrentUserType, @Param('id', ParseUUIDPipe) id: string) {
-    return this.checkout.view(await this.checkout.orders.get(id, user.id));
+    return this.checkout.withProductLink(
+      this.checkout.view(await this.checkout.orders.get(id, user.id)),
+    );
   }
   @ApiCreatedResponse({ type: OrderResponse })
   @Post(':id/cancel')
   @Header('Cache-Control', 'no-store')
-  cancel(@CurrentUser() user: CurrentUserType, @Param('id', ParseUUIDPipe) id: string) {
-    return this.checkout.cancel(id, user.id);
+  async cancel(@CurrentUser() user: CurrentUserType, @Param('id', ParseUUIDPipe) id: string) {
+    return this.checkout.withProductLink(await this.checkout.cancel(id, user.id));
   }
   @ApiCreatedResponse({ type: OrderResponse })
   @ApiTooManyRequestsResponse({ description: 'Quá 20 lần mỗi phút một tài khoản; có Retry-After' })
@@ -127,7 +130,9 @@ export class OrdersController {
     @Ip() ip: string,
   ) {
     await this.rateLimit.enforce(user.id, 'payment');
-    return this.checkout.retry(id, user.id, input.idempotencyKey, ip);
+    return this.checkout.withProductLink(
+      await this.checkout.retry(id, user.id, input.idempotencyKey, ip),
+    );
   }
   @ApiCreatedResponse({ type: OrderResponse })
   @Post(':id/reconcile')
@@ -145,7 +150,9 @@ export class OrdersController {
           : false;
         if (!concluded) await this.settlement.reconcile(payment.reference);
       }
-    return this.checkout.view(await this.checkout.orders.get(id, user.id));
+    return this.checkout.withProductLink(
+      this.checkout.view(await this.checkout.orders.get(id, user.id)),
+    );
   }
 }
 
