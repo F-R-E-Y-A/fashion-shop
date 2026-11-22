@@ -8,6 +8,8 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 
+import { isTransactionConflict } from '../../infra/prisma/db-errors.js';
+
 /**
  * Hinh dang loi thong nhat cho toan bo API.
  * Giao dien web chi phai xu ly dung mot hinh dang nay, khong phai doan moi noi mot kieu.
@@ -70,6 +72,13 @@ export class AllExceptionsFilter implements ExceptionFilter {
       code = 'SERVER_BUSY';
       message = 'Hệ thống đang đông, vui lòng thử lại sau ít giây.';
       retryAfterSeconds = BUSY_RETRY_AFTER_SECONDS;
+    } else if (isTransactionConflict(exception)) {
+      // Deadlock/serialization ma service khong tu retry: hai thao tac ghi cung luc, khong phai loi
+      // ma. Bao 409 de khach thu lai thay vi 500 (ADR-124).
+      status = HttpStatus.CONFLICT;
+      code = 'CONCURRENT_UPDATE';
+      message = 'Dữ liệu vừa được cập nhật cùng lúc, vui lòng thử lại.';
+      this.logger.warn(`Xung dot transaction: ${(exception as Error).message}`);
     } else if (exception instanceof Error) {
       // Khong tra chi tiet loi noi bo ra ngoai, chi ghi vao nhat ky may chu.
       this.logger.error(exception.message, exception.stack);

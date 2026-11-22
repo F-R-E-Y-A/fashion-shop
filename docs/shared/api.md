@@ -1,6 +1,6 @@
 ---
 title: Quy ước API chung
-updated: 2026-09-24
+updated: 2026-11-22
 status: đang dùng
 owner: Bảo
 ---
@@ -68,7 +68,7 @@ Mọi lỗi đi qua `AllExceptionsFilter` và ra đúng một hình dạng, nên
 | 401 | Chưa đăng nhập |
 | 403 | Đã đăng nhập nhưng không đủ quyền |
 | 404 | Không tìm thấy |
-| 409 | Xung đột trạng thái, ví dụ hết hàng, đơn đã huỷ |
+| 409 | Xung đột trạng thái, ví dụ hết hàng, đơn đã huỷ. Deadlock hay serialization mà service không tự retry ra `code: CONCURRENT_UPDATE`, khách thử lại được ([LOG#adr-124](../LOG.md#adr-124)) |
 | 422 | Đúng hình dạng nhưng phạm luật nghiệp vụ |
 
 Đừng trả 200 kèm một trường báo lỗi bên trong. Lỗi là mã lỗi.

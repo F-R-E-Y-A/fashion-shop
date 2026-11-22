@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { BadRequestException, ConflictException } from '@nestjs/common';
 
 import { Prisma } from '../../generated/prisma/client.js';
+import { isTransactionConflict, isUniqueViolation } from '../../infra/prisma/db-errors.js';
 import type { PrismaService } from '../../infra/prisma/prisma.service.js';
 
 export function cartOwnerKey(userId?: string, guestToken?: string): string {
@@ -40,12 +41,8 @@ export async function cartTransaction<T>(
         { isolationLevel: Prisma.TransactionIsolationLevel.ReadCommitted },
       );
     } catch (error) {
-      if (
-        !(error instanceof Prisma.PrismaClientKnownRequestError) ||
-        !['P2002', 'P2034'].includes(error.code)
-      ) {
-        throw error;
-      }
+      // P2010 + 40P01 la deadlock o lenh advisory lock (raw), khong mang ma P2034 (ADR-124).
+      if (!isUniqueViolation(error) && !isTransactionConflict(error)) throw error;
       // Retry NGOAI transaction: Postgres da abort giao dich bi unique/deadlock, khong doc lai o do.
       if (attempt >= 2) {
         throw new ConflictException('Giỏ hàng đang được cập nhật. Vui lòng thử lại.');
