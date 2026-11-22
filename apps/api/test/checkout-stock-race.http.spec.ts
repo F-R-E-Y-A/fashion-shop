@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import { seedShipping } from '../prisma/seed/shipping.seed.js';
+import { grantAdminRole } from '../src/modules/auth/grant-admin-role.js';
 import { createTestApp } from './helpers/create-test-app.js';
 import { resetDatabase } from './helpers/db.js';
 
@@ -264,5 +265,39 @@ describe('PH-11 checkout: hai khách tranh đơn vị cuối (ADR-120)', () => {
     await t.http.get('/api/cart').set(as(a)).expect(200);
     const reopened = await preview(a).expect(422);
     expect(reopened.body.code).toBe('SELECTION_REQUIRED');
+  });
+
+  it('UC-07.1/AC17 admin kiểm kê về 0 đúng lúc khách đặt món cuối: một bên thua rõ ràng, không bán vượt tồn (ADR-124)', async () => {
+    const admin = await t.prisma.user.create({
+      data: { email: 'admin@fixture.test', passwordHash: 'not-used', status: 'ACTIVE' },
+    });
+    await grantAdminRole(t.prisma, admin.email);
+    const adminToken = await t.app
+      .get(JwtService)
+      .signAsync({ sub: admin.id, ver: admin.authVersion });
+    const quote = await preview(a).expect(201);
+    const [order, adjust] = await Promise.all([
+      create(a, quote.body.fingerprint),
+      t.http
+        .post(`/api/admin/inventory/${variantId}/adjust`)
+        .set({ Authorization: `Bearer ${adminToken}` })
+        .send({ type: 'ADJUSTMENT', quantity: 0, reason: 'Kiểm kê lệch' }),
+    ]);
+    // Cung khoa tu van bien the (lockStock): ben den sau thay ket qua ben den truoc.
+    if (order.status === 201) {
+      expect(adjust.status).toBe(400);
+      expect(adjust.body.message).toContain('đang giữ cho đơn hàng (1)');
+      expect(await reserved()).toBe(1);
+    } else {
+      expect(adjust.status).toBe(200);
+      expect(order.status).toBe(409);
+      expect(order.body.code).toBe('OUT_OF_STOCK');
+      expect(await reserved()).toBe(0);
+      expect(await t.prisma.order.count()).toBe(0);
+    }
+    const onHand = await t.prisma.inventory.findUniqueOrThrow({
+      where: { productVariantId: variantId },
+    });
+    expect(onHand.quantityOnHand).toBeGreaterThanOrEqual(await reserved());
   });
 });
