@@ -1,4 +1,5 @@
 import { Prisma } from '../../generated/prisma/client.js';
+import { isTransactionConflict, isUniqueViolation } from '../../infra/prisma/db-errors.js';
 import type { PrismaService } from '../../infra/prisma/prisma.service.js';
 
 export const ADMIN_MANAGED_CATEGORY_FIELDS = ['name', 'parentId', 'sortOrder'] as const;
@@ -38,35 +39,12 @@ export function slugifyCategoryName(name: string): string {
     .replace(/-{2,}/g, '-');
 }
 
-function extractDbErrorCodes(error: unknown): string[] {
-  const codes: string[] = [];
-  const queue: unknown[] = [error];
-  const seen = new Set<unknown>();
-  while (queue.length > 0) {
-    const cur = queue.shift();
-    if (!cur || typeof cur !== 'object' || seen.has(cur)) continue;
-    seen.add(cur);
-    const rec = cur as Record<string, unknown>;
-    if (typeof rec.code === 'string') codes.push(rec.code);
-    if (typeof rec.sqlState === 'string') codes.push(rec.sqlState);
-    if (rec.meta && typeof rec.meta === 'object') queue.push(rec.meta);
-    if (rec.cause && typeof rec.cause === 'object') queue.push(rec.cause);
-    if (rec.driverAdapterError && typeof rec.driverAdapterError === 'object') {
-      queue.push(rec.driverAdapterError);
-    }
-  }
-  return codes;
-}
-
 export function isRetryableTxError(error: unknown): boolean {
-  if (error instanceof CategoryLockSetChangedError) return true;
-  const codes = extractDbErrorCodes(error);
-  return codes.some((c) => c === 'P2034' || c === '40P01' || c === '40001');
+  return error instanceof CategoryLockSetChangedError || isTransactionConflict(error);
 }
 
 export function isUniqueViolationError(error: unknown): boolean {
-  const codes = extractDbErrorCodes(error);
-  return codes.some((c) => c === 'P2002' || c === '23505');
+  return isUniqueViolation(error);
 }
 
 /**

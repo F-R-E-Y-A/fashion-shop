@@ -6,6 +6,19 @@ import { commitStock, lockStock, type StockItem } from './inventory-operations.j
 
 export type StockStatus = 'IN_STOCK' | 'OUT_OF_STOCK' | 'UNKNOWN';
 
+/**
+ * Giu hang that bai duoi khoa ton: nguoi giu truoc da lay phan con lai. Mang danh sach bien the
+ * thieu de Checkout dien ten mon vao thong bao; Inventory khong doc Catalog (ADR-120).
+ */
+export class StockShortageError extends ConflictException {
+  constructor(readonly shortages: { variantId: string; available: number }[]) {
+    super({
+      error: 'OUT_OF_STOCK',
+      message: 'Sản phẩm vừa hết hàng do khách khác đã đặt trước. Vui lòng kiểm tra lại giỏ.',
+    });
+  }
+}
+
 /** Cart chi doc; Checkout dung reserve/release/commit trong transaction cua cung luong. */
 @Injectable()
 export class InventoryService {
@@ -22,12 +35,13 @@ export class InventoryService {
       items.map((item) => item.variantId),
       tx,
     );
-    if (items.some((item) => (available.get(item.variantId) ?? -1) < item.quantity)) {
-      throw new ConflictException({
-        error: 'STOCK_CHANGED',
-        message: 'Hàng vừa thay đổi hoặc không còn đủ tồn. Vui lòng kiểm tra lại giỏ.',
-      });
-    }
+    const shortages = items
+      .filter((item) => (available.get(item.variantId) ?? -1) < item.quantity)
+      .map((item) => ({
+        variantId: item.variantId,
+        available: Math.max(0, available.get(item.variantId) ?? 0),
+      }));
+    if (shortages.length) throw new StockShortageError(shortages);
     await tx.inventoryReservation.createMany({
       data: items.map((item) => ({
         orderId,
