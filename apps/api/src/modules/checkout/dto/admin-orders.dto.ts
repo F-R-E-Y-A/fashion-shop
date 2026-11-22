@@ -3,7 +3,7 @@ import { Transform } from 'class-transformer';
 import { IsBoolean, IsIn, IsOptional, IsString, Length, MaxLength } from 'class-validator';
 
 import { PageQuery } from '../../../common/pagination/page.query.js';
-import { OrderResponse } from './checkout.response.js';
+import { OrderResponse, OrderStatusEventResponse } from './checkout.response.js';
 
 /** Khai lai enum OrderStatus: DTO khong doc Prisma (luat ranh gioi); spec doi chieu voi enum. */
 export const ADMIN_ORDER_STATUSES = [
@@ -129,9 +129,7 @@ export class PaymentLedgerResponse {
   @ApiProperty({ type: PendingRefundResponse, nullable: true })
   pendingRefund!: PendingRefundResponse | null;
 }
-export class OrderHistoryResponse {
-  @ApiProperty() status!: string;
-  @ApiProperty() at!: string;
+export class OrderHistoryResponse extends OrderStatusEventResponse {
   @ApiProperty({ type: String, nullable: true }) actorUserId!: string | null;
 }
 export class AdminOrderActionsResponse {
@@ -145,7 +143,7 @@ export class AdminOrderActionsResponse {
 export class AdminOrderResponse extends OrderResponse {
   @ApiProperty({ type: String, nullable: true }) userId!: string | null;
   @ApiProperty() customerEmail!: string;
-  @ApiProperty({ type: [OrderHistoryResponse] }) history!: OrderHistoryResponse[];
+  @ApiProperty({ type: [OrderHistoryResponse] }) override history: OrderHistoryResponse[] = [];
   @ApiProperty({ type: [PaymentLedgerResponse] }) ledgers!: PaymentLedgerResponse[];
   @ApiProperty({ type: AdminOrderActionsResponse }) actions!: AdminOrderActionsResponse;
 }

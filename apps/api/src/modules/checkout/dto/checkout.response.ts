@@ -88,8 +88,18 @@ export class ShipmentResponse {
   status!: string;
   @ApiPropertyOptional({ type: Boolean, description: 'Đánh dấu vận đơn mô phỏng (Sandbox)' })
   isMock?: boolean;
-  @ApiPropertyOptional({ type: String, nullable: true }) carrierStatus?: string | null;
-  @ApiPropertyOptional({ type: String, nullable: true }) statusNote?: string | null;
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'Ma trang thai hang van chuyen; chi API admin tra, API khach luon null (ADR-122)',
+  })
+  carrierStatus?: string | null;
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'Admin: ghi chu goc. Khach: ghi chu suy ra tu ma hang, khong lo ghi chu noi bo',
+  })
+  statusNote?: string | null;
   @ApiPropertyOptional({ type: String, nullable: true }) expectedDeliveryAt?: string | null;
   @ApiProperty() createdAt!: string;
   @ApiProperty() updatedAt!: string;
@@ -102,6 +112,10 @@ export class PaymentResponse {
   @ApiProperty() status!: string;
   @ApiProperty({ type: String, nullable: true }) expiresAt!: string | null;
   @ApiProperty({ type: String, nullable: true }) checkoutUrl!: string | null;
+}
+export class OrderStatusEventResponse {
+  @ApiProperty() status!: string;
+  @ApiProperty({ description: 'Thoi diem don vao trang thai nay (ISO 8601)' }) at!: string;
 }
 export class OrderResponse {
   @ApiProperty({ type: String, nullable: true }) checkoutFingerprint!: string | null;
@@ -122,6 +136,11 @@ export class OrderResponse {
   @ApiProperty({ description: 'Khach huy duoc don luc nay' }) canCancel!: boolean;
   @ApiProperty({ description: 'Huy luc nay se hoan tien tu dong (ADR-038)' })
   cancelRefunds!: boolean;
+  @ApiProperty({
+    type: [OrderStatusEventResponse],
+    description: 'Lich su trang thai don, cu truoc moi sau (UC-07.3/AC7)',
+  })
+  history!: OrderStatusEventResponse[];
   @ApiPropertyOptional({ type: ShipmentResponse, nullable: true })
   shipment?: ShipmentResponse | null;
 }

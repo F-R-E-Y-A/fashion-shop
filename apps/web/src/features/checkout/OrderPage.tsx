@@ -11,6 +11,7 @@ import { ConfirmDialog } from '@/ui';
 
 import styles from './Checkout.module.css';
 import { CheckoutSteps } from './CheckoutPage.js';
+import { OrderTimeline } from './OrderTimeline.js';
 import { forgetCheckout, orderBadges, orderKeys, orderStatuses, type OrderView } from './types.js';
 
 const paymentStatuses: Record<string, string> = {
@@ -18,6 +19,13 @@ const paymentStatuses: Record<string, string> = {
   FAILED: 'Giao dịch không thành công',
   EXPIRED: 'Hết hạn',
   CANCELLED: 'Đã hủy',
+};
+const shipmentStatuses: Record<string, string> = {
+  PENDING: 'Chờ lấy hàng',
+  IN_TRANSIT: 'Đang vận chuyển',
+  DELIVERED: 'Đã giao',
+  FAILED: 'Giao không thành công',
+  RETURNED: 'Đã hoàn về shop',
 };
 const gatewayName = (code?: string | null) =>
   code === 'MOMO' ? 'MoMo' : code === 'MOMO_ATM' ? 'MoMo (thẻ)' : code === 'COD' ? 'COD' : 'VNPAY';
@@ -257,6 +265,8 @@ export function OrderPage() {
                 )}
             </section>
 
+            <OrderTimeline order={order} />
+
             {order.shipment && (
               <section className={styles.section} aria-labelledby="shipping-tracking-title">
                 <h2 id="shipping-tracking-title" className={styles.sectionTitle}>
@@ -273,79 +283,28 @@ export function OrderPage() {
                       <strong>{order.shipment.trackingNumber || 'Đang cập nhật'}</strong>
                     </span>
                   </div>
-                  {(() => {
-                    const isCreatingOrUncertain =
-                      order.shipment.isMock === false &&
-                      !order.shipment.trackingNumber &&
-                      Boolean(
-                        order.shipment.carrierStatus?.startsWith('creating') ||
-                        order.shipment.carrierStatus?.startsWith('create_uncertain'),
-                      );
-                    const customerNote = isCreatingOrUncertain
-                      ? 'Cửa hàng đang khởi tạo vận đơn với đơn vị vận chuyển; mã vận đơn sẽ sớm được cập nhật.'
-                      : order.shipment.statusNote;
-                    return customerNote || order.shipment.expectedDeliveryAt ? (
-                      <p className={styles.muted}>
-                        {customerNote ? <span>{customerNote}</span> : null}
-                        {customerNote && order.shipment.expectedDeliveryAt ? ' · ' : null}
-                        {order.shipment.expectedDeliveryAt ? (
-                          <span>
-                            Dự kiến giao: {formatDateTime(order.shipment.expectedDeliveryAt)}
-                          </span>
-                        ) : null}
-                      </p>
-                    ) : null;
-                  })()}
-                  {(() => {
-                    const isReturned = order.shipment.status === 'RETURNED';
-                    const isFailed = order.shipment.status === 'FAILED' || isReturned;
-                    const isDelivered =
-                      order.shipment.status === 'DELIVERED' || order.status === 'DELIVERED';
-                    const isInTransit =
-                      order.shipment.status === 'IN_TRANSIT' || order.status === 'SHIPPED';
-                    const isPending = order.shipment.status === 'PENDING';
-
-                    const step1Status = 'done';
-                    const step2Status =
-                      isDelivered || isInTransit ? 'done' : isPending ? 'active' : 'pending';
-                    const step3Status = isDelivered ? 'done' : isInTransit ? 'active' : 'pending';
-                    const step4Status = isFailed ? 'failed' : isDelivered ? 'done' : 'pending';
-
-                    return (
-                      <div className={styles.timeline}>
-                        <div className={styles.timelineStep} data-status={step1Status}>
-                          <span className={styles.timelineDot}>✓</span>
-                          <span className={styles.timelineLabel}>Shop đã xác nhận</span>
-                        </div>
-                        <div className={styles.timelineStep} data-status={step2Status}>
-                          <span className={styles.timelineDot}>
-                            {step2Status === 'done' ? '✓' : step2Status === 'active' ? '●' : '○'}
-                          </span>
-                          <span className={styles.timelineLabel}>
-                            Đơn vị vận chuyển đã lấy hàng
-                          </span>
-                        </div>
-                        <div className={styles.timelineStep} data-status={step3Status}>
-                          <span className={styles.timelineDot}>
-                            {step3Status === 'done' ? '✓' : step3Status === 'active' ? '●' : '○'}
-                          </span>
-                          <span className={styles.timelineLabel}>Đang giao đến bạn</span>
-                        </div>
-                        <div className={styles.timelineStep} data-status={step4Status}>
-                          <span className={styles.timelineDot}>
-                            {isFailed ? '✕' : step4Status === 'done' ? '✓' : '○'}
-                          </span>
-                          <span className={styles.timelineLabel}>
-                            {isReturned
-                              ? 'Đơn đã hoàn về kho'
-                              : isFailed
-                                ? 'Giao hàng không thành công'
-                                : 'Giao thành công'}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })()}
+                  <p className={styles.shippingStatus}>
+                    Trạng thái vận chuyển:{' '}
+                    <strong>
+                      {order.shipment.trackingNumber
+                        ? shipmentStatuses[order.shipment.status]
+                        : 'Đang tạo vận đơn'}
+                    </strong>
+                  </p>
+                  {(order.shipment.statusNote || order.shipment.expectedDeliveryAt) && (
+                    <p className={styles.muted}>
+                      {/* Ghi chu da loc o may chu (ADR-122): hien nguyen van, khong doc carrierStatus. */}
+                      {order.shipment.statusNote ? <span>{order.shipment.statusNote}</span> : null}
+                      {order.shipment.statusNote && order.shipment.expectedDeliveryAt
+                        ? ' · '
+                        : null}
+                      {order.shipment.expectedDeliveryAt ? (
+                        <span>
+                          Dự kiến giao: {formatDateTime(order.shipment.expectedDeliveryAt)}
+                        </span>
+                      ) : null}
+                    </p>
+                  )}
                   <div className={styles.shippingFooter}>
                     <span className={styles.muted}>
                       Cập nhật lần cuối: {formatDateTime(order.shipment.updatedAt)}

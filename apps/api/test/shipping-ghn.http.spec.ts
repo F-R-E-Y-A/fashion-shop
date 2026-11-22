@@ -449,6 +449,15 @@ describe('PH-02 Shipping GHN Sandbox, du phong mo phong va webhook (PostgreSQL)'
         .expect(200);
       expect(customerMidView.body.canCancel).toBe(false);
       expect(customerMidView.body.cancelRefunds).toBe(false);
+      // UC-07.3/AC8 (ADR-122): khach khong thay ma giu cho creating#... hay ghi chu noi bo.
+      expect(customerMidView.body.shipment.carrierStatus).toBeNull();
+      expect(customerMidView.body.shipment.statusNote).toBe(
+        'Shop đang tạo vận đơn với đơn vị vận chuyển; mã vận đơn sẽ sớm được cập nhật.',
+      );
+      // Fixture dat CONFIRMED thang bang prisma (dong 386) nen lich su chi co moc tao don.
+      expect(customerMidView.body.history).toEqual([
+        { status: 'PENDING_CONFIRMATION', at: expect.any(String) },
+      ]);
       await t.http.post(`/api/orders/${orderId}/cancel`).set(customerAuth()).send({}).expect(409);
 
       // 2. Admin gọi cancel-refund hoặc start-processing -> đều bị chặn 409
