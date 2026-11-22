@@ -1,5 +1,20 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsObject, IsOptional, IsString, IsUUID, Length, Matches } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  ArrayMaxSize,
+  IsArray,
+  IsIn,
+  IsInt,
+  IsObject,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Length,
+  Matches,
+  Max,
+  Min,
+  ValidateNested,
+} from 'class-validator';
 
 import { type GatewayCode, gatewayCodes } from '../../payments/index.js';
 
@@ -15,6 +30,10 @@ export class PreviewDto {
   @IsUUID('4')
   promotionId?: string;
 }
+export class ConfirmedLineDto {
+  @ApiProperty() @IsUUID('4') variantId!: string;
+  @ApiProperty() @IsInt() @Min(1) @Max(2_147_483_647) quantity!: number;
+}
 export class CreateCheckoutDto extends PreviewDto {
   @ApiProperty({ enum: gatewayCodes, default: 'VNPAY', required: false })
   @IsOptional()
@@ -22,6 +41,18 @@ export class CreateCheckoutDto extends PreviewDto {
   gateway: GatewayCode = 'VNPAY';
   @ApiProperty() @IsString() @Matches(/^[a-f0-9]{64}$/u) fingerprint!: string;
   @ApiProperty() @IsUUID('4') idempotencyKey!: string;
+  @ApiProperty({
+    type: [ConfirmedLineDto],
+    required: false,
+    description:
+      'Các dòng khách đã thấy ở bước xác nhận, tối đa 100 (web bỏ trường khi nhiều hơn). Chỉ dùng để nêu tên món vừa hết khi báo giá đổi, không dùng tính giá (ADR-120).',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @ValidateNested({ each: true })
+  @Type(() => ConfirmedLineDto)
+  items?: ConfirmedLineDto[];
 }
 export class RetryPaymentDto {
   @ApiProperty() @IsUUID('4') idempotencyKey!: string;

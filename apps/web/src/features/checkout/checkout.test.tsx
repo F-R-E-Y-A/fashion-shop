@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { createElement } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -425,6 +425,58 @@ describe('PH-11 checkout UI', () => {
       request.mock.calls.find(([path]) => path === '/checkout/orders')?.[1].body,
     ).toMatchObject({ fingerprint: quote.fingerprint, idempotencyKey: expect.any(String) });
   });
+  // Sau lan dat that bai web tai lai preview; may chu that tra mot trong ba ket qua duoi tuy gio.
+  const other = {
+    variantId: 'v2',
+    name: 'Quần thử',
+    variantLabel: 'Xanh / L',
+    price: '150000',
+    quantity: 1,
+  };
+  const failed = (statusCode: number, code: string, path: string, message: string) =>
+    new ApiError({ statusCode, code, message, path, timestamp: '2026-11-22T00:00:00.000Z' });
+  it.each([
+    ['vẫn hết hàng', () => failed(409, 'OUT_OF_STOCK', '/api/checkout/preview', 'Áo thử hết')],
+    [
+      'giỏ đã bỏ chọn món duy nhất',
+      () => failed(422, 'SELECTION_REQUIRED', '/api/checkout/preview', 'Chọn sản phẩm'),
+    ],
+    ['giỏ còn món khác', () => ({ ...quote, fingerprint: 'b'.repeat(64), items: [other] })],
+  ])(
+    'UC-07.1/AC17 món vừa hết, preview tải lại %s: vẫn hiện tên món và link về giỏ; gửi kèm dòng đã xác nhận',
+    async (_case, after) => {
+      const message =
+        'Áo thun (Đen / M) vừa hết hàng do khách khác vừa đặt giữ trước. Bỏ chọn hoặc giảm số lượng trong giỏ rồi đặt lại.';
+      const confirmed = { ...quote, items: [...quote.items, other] };
+      let attempted = false;
+      request.mockImplementation(async (path: string) => {
+        if (path === '/checkout/orders') {
+          attempted = true;
+          throw failed(409, 'OUT_OF_STOCK', '/api/checkout/orders', message);
+        }
+        if (!attempted) return confirmed;
+        const next = after();
+        if (next instanceof ApiError) throw next;
+        return next;
+      });
+      show();
+      fireEvent.click(await screen.findByRole('button', { name: 'Xác nhận và sang VNPAY' }));
+      const alert = await screen.findByRole('alert');
+      expect(alert).toHaveTextContent('Áo thun (Đen / M) vừa hết hàng');
+      expect(alert).not.toHaveTextContent('Kiểm tra lại thông tin');
+      await waitFor(() =>
+        expect(request.mock.calls.filter(([path]) => path === '/checkout/preview').length).toBe(2),
+      );
+      // Doi preview lan hai settle va render xong roi moi kiem.
+      await act(async () => {});
+      const link = await screen.findByRole('link', { name: 'Về giỏ hàng' });
+      expect(link).toHaveAttribute('href', '/gio-hang');
+      expect(link.closest('[role="alert"]')).toHaveTextContent('Áo thun (Đen / M) vừa hết hàng');
+      expect(
+        request.mock.calls.find(([path]) => path === '/checkout/orders')?.[1].body.items,
+      ).toEqual(confirmed.items.map(({ variantId, quantity }) => ({ variantId, quantity })));
+    },
+  );
   it('UC-08.1/AC5 return URL báo00 vẫn hiện pending nếu database chưa xác nhận', async () => {
     request.mockResolvedValue(order());
     show('/thanh-toan/ket-qua?vnp_TxnRef=REF1&vnp_ResponseCode=00&vnp_TransactionStatus=00');

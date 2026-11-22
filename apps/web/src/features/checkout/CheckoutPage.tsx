@@ -11,6 +11,7 @@ import {
   listAddresses,
   useAuth,
 } from '@/features/account';
+import { cartKeys } from '@/features/cart';
 import { useAppliedPromotion } from '@/features/promotions';
 
 import styles from './Checkout.module.css';
@@ -116,6 +117,12 @@ export function CheckoutPage() {
           gateway,
           fingerprint: preview.data!.fingerprint,
           idempotencyKey: checkoutKey(user!.id, preview.data!.fingerprint, gateway),
+          // Chi de may chu neu ten mon vua het neu gio da doi; gia van tinh lai o may chu.
+          // Truong chi de chan doan: gio qua tran DTO thi bo, khong de don hop le bi tu choi.
+          items:
+            preview.data!.items.length <= 100
+              ? preview.data!.items.map(({ variantId, quantity }) => ({ variantId, quantity }))
+              : undefined,
         },
       }),
     onSuccess: (order) => {
@@ -124,8 +131,11 @@ export function CheckoutPage() {
       const url = order.payments.find((p) => p.checkoutUrl)?.checkoutUrl;
       if (url) window.location.assign(url);
     },
-    onError: () => {
+    onError: (error) => {
       void client.invalidateQueries({ queryKey: key });
+      // Khach khac vua giu het mon: tai lai gio de trang gio hien dung ton con lai (ADR-120).
+      if (error instanceof ApiError && error.body.code === 'OUT_OF_STOCK')
+        void client.invalidateQueries({ queryKey: cartKeys.all });
     },
   });
   const quote = preview.data;
@@ -133,6 +143,14 @@ export function CheckoutPage() {
   // Xét theo code, không theo 422: địa chỉ chưa có biểu phí cũng là 422 và phải hiện đúng lý do (Issue #66).
   const selectionMissing =
     preview.error instanceof ApiError && preview.error.body.code === 'SELECTION_REQUIRED';
+  // Mon vua het: loi da ghi ten mon, chi can dan ve gio de bo chon/giam so luong.
+  const soldOut = submit.error instanceof ApiError && submit.error.body.code === 'OUT_OF_STOCK';
+  const previewSoldOut =
+    preview.error instanceof ApiError && preview.error.body.code === 'OUT_OF_STOCK';
+  // Gio giu cache 30 giay: tai lai de trang gio hien dung ton con lai khi khach quay ve.
+  useEffect(() => {
+    if (previewSoldOut) void client.invalidateQueries({ queryKey: cartKeys.all });
+  }, [previewSoldOut, client]);
   // Ma het luot/het han hoac gio khong con du dieu kien: cho khach bo uu dai va tinh lai.
   const discountInvalid =
     (preview.error instanceof ApiError && preview.error.body.code === 'DISCOUNT_INVALID') ||
@@ -405,7 +423,12 @@ export function CheckoutPage() {
             )}
             {submit.error && !discountInvalid && (
               <p className={`${styles.notice} ${styles.noticeDanger}`} role="alert">
-                {submit.error.message} Kiểm tra lại thông tin rồi xác nhận lại.
+                {submit.error.message}{' '}
+                {soldOut ? (
+                  <Link to="/gio-hang">Về giỏ hàng</Link>
+                ) : (
+                  'Kiểm tra lại thông tin rồi xác nhận lại.'
+                )}
               </p>
             )}
             <button

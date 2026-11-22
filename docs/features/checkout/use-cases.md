@@ -1,6 +1,6 @@
 ---
 title: UC-07 Đặt hàng và UC-12 Xử lý đơn — đặc tả use case
-updated: 2026-11-05
+updated: 2026-11-22
 status: đề xuất, chờ Bảo duyệt
 owner: Bảo
 ---
@@ -51,6 +51,7 @@ Là một **khách hàng**, tôi muốn **xác nhận các món đã chọn tron
 | E6 | COD bị tắt theo BR4 | 409 `COD_UNAVAILABLE` kèm lý do |
 | E7 | Quá giới hạn tần suất | 429 kèm `Retry-After` |
 | E8 | Mã idempotency đã dùng cho nội dung khác | 409 "Mã yêu cầu đã sử dụng cho nội dung khác." |
+| E9 | Món đã chọn không còn đủ tồn, thường do khách khác giữ trước (BR7) | 409 `OUT_OF_STOCK` nêu tên món, "vừa hết hàng" hoặc "chỉ còn N"; chỉ nói "khách khác vừa đặt giữ trước" khi thua dưới khoá tồn; web dẫn về giỏ và tải lại giỏ |
 
 ### Quy tắc nghiệp vụ
 | Mã | Quy tắc |
@@ -61,6 +62,7 @@ Là một **khách hàng**, tôi muốn **xác nhận các món đã chọn tron
 | BR4 | COD tắt khi tổng vượt `COD_MAX_AMOUNT` (2.000.000đ), khách có từ `COD_MAX_FAILED_DELIVERIES` (2) lần giao thất bại, hoặc đã có `COD_MAX_PENDING_ORDERS` (3) đơn COD chờ xác nhận ([ADR-040](../../LOG.md#adr-040)) |
 | BR5 | Cùng mã idempotency trả cùng đơn; gửi lại đúng giỏ của đơn đang chờ với mã mới cũng trả đơn đó |
 | BR6 | Tối đa 10 lần tạo đơn mỗi phút mỗi tài khoản; kho đếm (Redis) lỗi thì cho qua |
+| BR7 | Ai tạo đơn trước giữ hàng trước; preview không giữ. Hàng giữ theo hạn của đơn (trả trước 15 phút, COD 3 ngày); hết hạn thì nhả cho người sau. Tiền về sau khi hold đã nhả thì đơn vào `PAYMENT_REVIEW`, không bán vượt ([ADR-120](LOG.md#adr-120)) |
 
 ### Đường dẫn API
 `POST /api/checkout/preview`, `POST /api/checkout/orders`. Hình dạng ở Swagger `/api/docs`.
@@ -82,6 +84,7 @@ Là một **khách hàng**, tôi muốn **xác nhận các món đã chọn tron
 - **AC14** (thuận) Chưa có địa chỉ thì mở sẵn form thêm tại chỗ, không gọi preview; lưu xong tự chọn địa chỉ mới
 - **AC15** (âm) Giỏ chưa chọn món thì trang thanh toán dẫn về giỏ thay vì báo lỗi
 - **AC16** (thuận) Qua trình duyệt: khách thêm hàng, chọn COD, xác nhận và tới trang đơn "Chờ xử lý"
+- **AC17** (biên) Khách đến sau trong cuộc tranh món cuối nhận 409 `OUT_OF_STOCK` nêu tên món (cùng lúc, sau khi người kia đã giữ, hoặc còn thiếu số lượng); giỏ đã tự bỏ chọn món hết (khách mở giỏ ở tab khác) vẫn nêu tên món nhờ web gửi kèm các dòng đã xác nhận; chỉ khi đơn chờ của chính khách giữ đúng món thiếu mới báo `PENDING_ORDER_EXISTS`; hold hết hạn thì người sau mua được
 
 ---
 
