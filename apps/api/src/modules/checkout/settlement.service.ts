@@ -151,8 +151,10 @@ export class SettlementService implements OnModuleInit, OnModuleDestroy {
     )
       return;
     const adapter = payments.gateways.get(payment.gateway as GatewayCode);
+    // Cong bi tat query (QUERY_GATEWAYS, ADR-112) thoat TRUOC claim: khong goi ra, khong ghi lastCheckedAt.
     if (
       !adapter.configured() ||
+      !payments.gateways.queryEnabled(payment.gateway as GatewayCode) ||
       (payment.gateway === 'VNPAY' && !payment.checkoutUrl) ||
       !(await payments.claim(payment.id, payment.gateway as GatewayCode))
     )

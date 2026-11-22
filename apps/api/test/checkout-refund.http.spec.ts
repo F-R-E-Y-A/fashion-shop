@@ -383,4 +383,111 @@ describe('PH-11 hoàn tiền: khoá đơn, sổ hoàn và đối soát tay (Post
       expect(sent).toHaveLength(0);
     });
   });
+
+  describe('ADR-111: hoàn tay đơn trả trước bằng mã chuyển khoản', () => {
+    const manual = (http: TestApp['http'], paymentId: string, body: Record<string, string>) =>
+      http.post(`/api/admin/payments/${paymentId}/refund`).set(as(adminToken)).send(body);
+    const delivered = (orderId: string) =>
+      t.prisma.order.update({ where: { id: orderId }, data: { status: 'DELIVERED' } });
+
+    it('cổng treo: lệnh chờ chặn hoàn tay; chốt FAILED rồi nhập mã thì REFUNDED, cổng chỉ nhận một lệnh', async () => {
+      const { orderId, paymentId } = await paidOrder();
+      await delivered(orderId);
+      mode = 'drop';
+      await refund(paymentId).expect(503);
+      const blocked = await manual(t.http, paymentId, { transferReference: 'FT26112001' });
+      expect(blocked.status).toBe(409);
+      expect(blocked.body.code).toBe('REFUND_PENDING');
+      await resolve(paymentId, 'FAILED').expect(201);
+      await manual(t.http, paymentId, { transferReference: 'FT26112001' }).expect(201);
+      expect(await orderStatus(orderId)).toBe('REFUNDED');
+      expect(sent).toHaveLength(1);
+      const [row] = await ledger();
+      expect(row!.externalTransactionId).toBe('REFUND:MANUAL:FT26112001');
+      expect((row!.payload as { refundedAmount: string }).refundedAmount).toBe('230000.00');
+    });
+
+    it('mã chuyển khoản sai dạng 400; đơn CONFIRMED (hàng chưa rời kho) 409', async () => {
+      const { orderId, paymentId } = await paidOrder();
+      await manual(t.http, paymentId, { transferReference: 'x y' }).expect(400);
+      await manual(t.http, paymentId, { transferReference: 'FT26112009' }).expect(409);
+      expect(await orderStatus(orderId)).toBe('CONFIRMED');
+      expect(await ledger()).toHaveLength(0);
+    });
+
+    it('payment COD không hoàn tay ở đây (đi luồng trả hàng): 409', async () => {
+      const { orderId, paymentId } = await paidOrder();
+      await delivered(orderId);
+      await t.prisma.payment.update({ where: { id: paymentId }, data: { gateway: 'COD' } });
+      expect(
+        (await manual(t.http, paymentId, { transferReference: 'FT26112010' }).expect(409)).body
+          .message,
+      ).toContain('trả hàng');
+      expect(await ledger()).toHaveLength(0);
+    });
+
+    describe('REFUND_GATEWAYS=none: môi trường tắt hoàn qua cổng', () => {
+      let off: TestApp;
+      beforeAll(async () => {
+        off = await createTestApp({
+          config: {
+            VNPAY_TMN_CODE: merchant,
+            VNPAY_HASH_SECRET: secret,
+            VNPAY_REFUND_URL: 'http://127.0.0.1:9/refund',
+            REFUND_GATEWAYS: 'none',
+          } as Partial<Env>,
+        });
+      });
+      afterAll(async () => {
+        await off?.close();
+      });
+
+      it('trang admin báo MANUAL; không mã thì 409; hai lần hoàn tay một phần, mã trùng 409, không gọi cổng', async () => {
+        const { orderId, paymentId } = await paidOrder();
+        await delivered(orderId);
+        const detail = (
+          await off.http.get(`/api/admin/orders/${orderId}`).set(as(adminToken)).expect(200)
+        ).body;
+        expect(detail.ledgers[0]).toMatchObject({
+          refundableAmount: '230000.00',
+          refundMode: 'MANUAL',
+        });
+        expect((await manual(off.http, paymentId, {}).expect(409)).body.message).toContain(
+          'nhập mã giao dịch',
+        );
+        await manual(off.http, paymentId, {
+          amount: '100000',
+          transferReference: 'FT26112101',
+        }).expect(201);
+        expect(await orderStatus(orderId)).toBe('PARTIALLY_REFUNDED');
+        await manual(off.http, paymentId, { transferReference: 'FT26112101' }).expect(409);
+        await manual(off.http, paymentId, { transferReference: 'FT26112102' }).expect(201);
+        expect(await orderStatus(orderId)).toBe('REFUNDED');
+        expect(
+          (await ledger())
+            .map((row) => (row.payload as { refundedAmount: string }).refundedAmount)
+            .sort(),
+        ).toEqual(['100000.00', '130000.00']);
+        expect(sent).toHaveLength(0);
+      });
+
+      it('khách và ADMIN không hủy-hoàn được đơn CONFIRMED khi cổng không hoàn tự động', async () => {
+        const { orderId } = await paidOrder();
+        const view = (await off.http.get(`/api/orders/${orderId}`).set(as(token)).expect(200)).body;
+        expect(view).toMatchObject({ canCancel: false, cancelRefunds: false });
+        const detail = (
+          await off.http.get(`/api/admin/orders/${orderId}`).set(as(adminToken)).expect(200)
+        ).body;
+        expect(detail.actions.cancelRefund).toBe(false);
+        await off.http.post(`/api/orders/${orderId}/cancel`).set(as(token)).expect(409);
+        await off.http
+          .post(`/api/admin/orders/${orderId}/cancel-refund`)
+          .set(as(adminToken))
+          .send({ reason: 'Thử hủy khi cổng tắt hoàn' })
+          .expect(409);
+        expect(await orderStatus(orderId)).toBe('CONFIRMED');
+        expect(sent).toHaveLength(0);
+      });
+    });
+  });
 });

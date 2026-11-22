@@ -61,6 +61,8 @@ export interface AdminReturn extends ReturnRequest {
   refundAccount: RefundAccount | null;
   refund: { status: string; amount: string; reference: string | null } | null;
   paymentGateway: string | null;
+  /** Con lenh hoan qua cong chua ro ket qua: may chu tu choi moi lan hoan toi khi doi soat xong. */
+  refundPending: boolean;
 }
 export interface UploadTicket {
   uploadUrl: string;

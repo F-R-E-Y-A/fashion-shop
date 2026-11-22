@@ -3,7 +3,7 @@ import { createServer, type Server } from 'node:http';
 
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { seedShipping } from '../prisma/seed/shipping.seed.js';
 import { SettlementService } from '../src/modules/checkout/settlement.service.js';
@@ -612,6 +612,84 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
       'CONFIRMED',
     );
     expect(await t.prisma.stockMovement.count()).toBe(1);
+  });
+
+  /**
+   * QUERY_GATEWAYS (ADR-112): moi truong khong goi ra duoc API cua cong (staging ngoai Viet Nam voi
+   * sandbox VNPAY) tat query theo cong. Ghi de ConfigService nhu ca thieu credentials o tren.
+   */
+  describe('QUERY_GATEWAYS tắt VNPAY: không gọi QueryDR, vẫn chốt bằng return và IPN', () => {
+    let restore = (): void => undefined;
+    const only = (list: string) => {
+      const config = t.app.get(ConfigService);
+      const original = config.get.bind(config) as (key: string, ...rest: unknown[]) => unknown;
+      const spy = vi
+        .spyOn(config, 'get')
+        .mockImplementation(((key: string, ...rest: unknown[]) =>
+          key === 'QUERY_GATEWAYS' ? list : original(key, ...rest)) as typeof config.get);
+      restore = () => spy.mockRestore();
+    };
+    const status = async (order: View) =>
+      (await t.prisma.order.findUniqueOrThrow({ where: { id: order.id } })).status;
+    afterEach(() => restore());
+
+    it.each(['MOMO,MOMO_ATM', 'none'])(
+      'UC-08.2/AC6 QUERY_GATEWAYS=%s: worker và nút đối soát không gọi QueryDR, không ghi lastCheckedAt; bỏ cờ thì worker chốt được',
+      async (list) => {
+        only(list);
+        const order = await place();
+        queryResult = {
+          ...signed(order),
+          vnp_ResponseId: 'response-query-off',
+          vnp_Command: 'querydr',
+          vnp_Message: 'Success',
+          vnp_TransactionType: '01',
+          vnp_BankCode: 'NCB',
+          vnp_PayDate: '20261019134918',
+        };
+        // Qua moc 305 giay: worker cua moi truong bat query se lay payment nay.
+        await t.prisma.payment.updateMany({ data: { createdAt: new Date(Date.now() - 306_000) } });
+        const listed = async () =>
+          (await t.app.get(PaymentsService).candidates()).some(
+            (p) => p.reference === order.payments[0]!.reference,
+          );
+
+        expect(await listed()).toBe(false);
+        await t.http.post(`/api/orders/${order.id}/reconcile`).set(auth()).expect(201);
+        await t.app.get(SettlementService).tick();
+        expect(queryRequests).toBe(0);
+        expect(
+          (await t.prisma.payment.findFirstOrThrow({ where: { orderId: order.id } })).lastCheckedAt,
+        ).toBeNull();
+        expect(await status(order)).toBe('PENDING_PAYMENT');
+
+        restore();
+        expect(await listed()).toBe(true);
+        await t.app.get(SettlementService).tick();
+        expect(queryRequests).toBe(1);
+        expect(await status(order)).toBe('CONFIRMED');
+      },
+    );
+
+    it('UC-08.1/AC6 return có chữ ký vẫn chốt đơn khi query tắt', async () => {
+      only('MOMO,MOMO_ATM');
+      const order = await place();
+      const view = await t.http
+        .post(`/api/orders/${order.id}/reconcile`)
+        .set(auth())
+        .send({ params: signed(order) })
+        .expect(201);
+      expect(view.body.status).toBe('CONFIRMED');
+      expect(queryRequests).toBe(0);
+    });
+
+    it('UC-08.2/AC1 IPN ký đúng vẫn chốt đơn khi query tắt', async () => {
+      only('MOMO,MOMO_ATM');
+      const order = await place();
+      expect((await ipn(signed(order))).body.RspCode).toBe('00');
+      expect(await status(order)).toBe('CONFIRMED');
+      expect(queryRequests).toBe(0);
+    });
   });
 
   /**

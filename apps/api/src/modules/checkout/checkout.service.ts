@@ -24,7 +24,12 @@ import {
   type PostCommitHook,
   runPostCommitHooks,
 } from '../orders/index.js';
-import { type GatewayCode, PaymentsService, SETTLEMENT_BUFFER_MINUTES } from '../payments/index.js';
+import {
+  type GatewayCode,
+  gatewayCodes,
+  PaymentsService,
+  SETTLEMENT_BUFFER_MINUTES,
+} from '../payments/index.js';
 import { PromotionsService } from '../promotions/index.js';
 import { ShippingService } from '../shipping/index.js';
 import { CheckoutAddressService } from '../users/index.js';
@@ -84,8 +89,30 @@ export type RefundSettledListener = (
   event: RefundSettled,
   tx: Prisma.TransactionClient,
 ) => Promise<void>;
+/**
+ * Chay duoi khoa don truoc khi trang don hoan tien (qua cong hoac hoan tay). Nem loi thi khong hoan;
+ * phan he tra hang dung de buoc hoan qua yeu cau tra con mo, tranh don het tien ma yeu cau van ket.
+ */
+export type OrderRefundGuard = (orderId: string, tx: Prisma.TransactionClient) => Promise<void>;
 /** Trang thai mot lenh hoan theo so cong; MISSING: lenh chua tung duoc ghi. */
 export type RefundIntentState = 'MISSING' | 'RECEIVED' | 'PROCESSED' | 'FAILED';
+/** Lenh hoan da ghi RECEIVED duoi khoa don (claimRefund), cho gui ra cong (sendRefund). */
+export interface RefundClaim {
+  orderId: string;
+  userId: string;
+  gateway: string;
+  intentId: string;
+  payload: {
+    amount: string;
+    actor: string;
+    reason: string | null;
+    full: boolean;
+    gatewayRefundId?: string;
+  };
+  reference: string;
+  checkoutUrl: string;
+  transactionNo?: string;
+}
 
 /** Khach chon toi da mot uu dai cho mot don (UC-07.2). */
 export interface DiscountInput {
@@ -115,6 +142,7 @@ const pendingRefund = () =>
 export class CheckoutService {
   private readonly logger = new Logger(CheckoutService.name);
   private readonly refundListeners: RefundSettledListener[] = [];
+  private readonly refundGuards: OrderRefundGuard[] = [];
   constructor(
     private readonly prisma: PrismaService,
     readonly cart: CartService,
@@ -441,12 +469,21 @@ export class CheckoutService {
     // tạm khóa tự hủy/hoàn tiền để tránh đua với yêu cầu tạo vận đơn GHN đang chạy.
     if (order.shipment) return null;
     const payment = order.payments.find((row) => row.status === 'SUCCEEDED');
-    if (!payment?.gateway || payment.gateway === 'COD') return null;
-    const adapter = this.payments.gateways.get(payment.gateway as GatewayCode);
+    if (!payment?.gateway || !this.autoRefund(payment.gateway)) return null;
     const ledger = refundSummary(payment.transactions);
-    return adapter.refund && adapter.configured() && ledger.refunded.isZero() && !ledger.pending
-      ? payment
-      : null;
+    return ledger.refunded.isZero() && !ledger.pending ? payment : null;
+  }
+
+  /**
+   * Hoan duoc qua API cong luc nay khong (ADR-111): COD va cong bi tat trong REFUND_GATEWAYS thi
+   * khong, phan he goi chuyen sang hoan tay bang ma chuyen khoan.
+   */
+  autoRefund(gateway: string | null): boolean {
+    return (
+      !!gateway &&
+      (gatewayCodes as readonly string[]).includes(gateway) &&
+      this.payments.gateways.autoRefund(gateway as GatewayCode)
+    );
   }
 
   view(order: OrderDetails) {
@@ -614,73 +651,126 @@ export class CheckoutService {
     actor: string,
     input: { amount?: string; reason?: string; intentId?: string },
   ) {
+    const { order, userId } = await this.refundTarget(paymentId);
+    const claim = await this.withOrder(order.id, userId, async (_current, tx) => {
+      for (const guard of this.refundGuards) await guard(order.id, tx);
+      return this.claimRefund(paymentId, actor, input, tx);
+    });
+    await this.sendRefund(claim);
+    return this.view(await this.orders.get(order.id, userId));
+  }
+
+  /**
+   * Buoc 1 cua refundPayment, goi TRONG withOrder cua caller: kiem cong, don, so con lai roi ghi lenh
+   * RECEIVED. Phan he goi (returns) ghi dong `refunds` cua minh CUNG transaction nay, nen khong co
+   * khoang ho giua "da nhan viec hoan" va "so cong da co lenh": thao tac hoan khac vao sau khoa don
+   * luon thay lenh dang cho va bi 409. Sau khi transaction commit moi goi sendRefund.
+   */
+  async claimRefund(
+    paymentId: string,
+    actor: string,
+    input: { amount?: string; reason?: string; intentId?: string },
+    tx: Prisma.TransactionClient,
+  ): Promise<RefundClaim> {
     if (input.intentId !== undefined && !input.intentId.startsWith(REFUND_INTENT))
       throw new Error(`intentId phai bat dau bang ${REFUND_INTENT}`);
-    const { order, userId, adapter } = await this.refundTarget(paymentId);
-    if (!adapter.refund)
-      throw new ConflictException(`Cổng ${adapter.code} chưa hỗ trợ hoàn tiền tự động.`);
-    const claim = await this.withOrder(order.id, userId, async (current, tx) => {
-      const payment = await tx.payment.findUniqueOrThrow({ where: { id: paymentId } });
-      if (payment.status !== 'SUCCEEDED')
-        throw new ConflictException('Chỉ hoàn tiền cho thanh toán đã thành công.');
-      if (!REFUNDABLE.includes(current.status))
-        throw new ConflictException('Đơn không ở trạng thái cho phép hoàn tiền.');
-      if (
-        isShipmentCreatingOrReconciling(current.shipment) ||
-        (current.status === 'CONFIRMED' && current.shipment)
-      )
-        throw new ConflictException(
-          'Đơn hàng đang trong quá trình khởi tạo hoặc đối soát vận đơn, không thể hoàn tiền lúc này.',
-        );
-      const ledger = await this.refundLedger(paymentId, tx);
-      if (ledger.pending) throw pendingRefund();
-      const remaining = payment.amount.minus(ledger.refunded);
-      if (remaining.lte(0)) throw new ConflictException('Thanh toán đã được hoàn đủ.');
-      const amount = new Decimal(input.amount ?? remaining.toFixed(2));
-      if (amount.lte(0) || amount.gt(remaining))
-        throw new ConflictException(
-          `Số hoàn tối đa là ${remaining.toFixed(2)}. Sử dụng số nhỏ hơn hoặc bằng.`,
-        );
-      const payload = {
-        amount: amount.toFixed(2),
-        actor,
-        reason: input.reason ?? null,
-        // Dac ta VNPAY: 02 hoan toan phan giao dich, nen chi dung khi hoan tron so da thu lan dau.
-        full: ledger.refunded.isZero() && amount.eq(payment.amount),
-      };
-      // Receipt thanh cong settle da ghi la so giao dich cua cong (vnp_TransactionNo).
-      const transactionNo = (
-        await tx.paymentTransaction.findMany({ where: { paymentId, status: 'PROCESSED' } })
-      ).find((row) => /^\d+$/u.test(row.externalTransactionId))?.externalTransactionId;
-      // Phan he goi (returns) tu dat ma lenh truoc de doi chieu lai khi cong khong tra loi.
-      const intentId = input.intentId ?? `${REFUND_INTENT}${randomUUID()}`;
-      await tx.paymentTransaction.create({
-        data: {
-          paymentId,
-          gateway: payment.gateway!,
-          externalTransactionId: intentId,
-          status: 'RECEIVED',
-          payload,
-        },
-      });
-      return { intentId, payload, payment, transactionNo };
+    const payment = await tx.payment.findUnique({ where: { id: paymentId } });
+    if (!payment) throw new ConflictException('Không tìm thấy thanh toán.');
+    const adapter = this.payments.gateways.get(payment.gateway as GatewayCode);
+    if (!adapter.refund || !this.autoRefund(adapter.code))
+      throw new ConflictException(
+        `Cổng ${adapter.code} không hoàn tự động trên môi trường này. Chuyển khoản cho khách rồi nhập mã giao dịch để ghi hoàn tay.`,
+      );
+    if (payment.status !== 'SUCCEEDED')
+      throw new ConflictException('Chỉ hoàn tiền cho thanh toán đã thành công.');
+    const order = await tx.order.findUniqueOrThrow({
+      where: { id: payment.orderId },
+      include: { shipment: true },
     });
-    const { intentId, payload, payment, transactionNo } = claim;
+    if (!order.userId) throw new ConflictException('Đơn không có chủ sở hữu.');
+    if (!REFUNDABLE.includes(order.status))
+      throw new ConflictException('Đơn không ở trạng thái cho phép hoàn tiền.');
+    if (
+      isShipmentCreatingOrReconciling(order.shipment) ||
+      (order.status === 'CONFIRMED' && order.shipment)
+    )
+      throw new ConflictException(
+        'Đơn hàng đang trong quá trình khởi tạo hoặc đối soát vận đơn, không thể hoàn tiền lúc này.',
+      );
+    const ledger = await this.refundLedger(paymentId, tx);
+    if (ledger.pending) throw pendingRefund();
+    const remaining = payment.amount.minus(ledger.refunded);
+    if (remaining.lte(0)) throw new ConflictException('Thanh toán đã được hoàn đủ.');
+    const amount = new Decimal(input.amount ?? remaining.toFixed(2));
+    if (amount.lte(0) || amount.gt(remaining))
+      throw new ConflictException(
+        `Số hoàn tối đa là ${remaining.toFixed(2)}. Sử dụng số nhỏ hơn hoặc bằng.`,
+      );
+    const base = {
+      amount: amount.toFixed(2),
+      actor,
+      reason: input.reason ?? null,
+      // Dac ta VNPAY: 02 hoan toan phan giao dich, nen chi dung khi hoan tron so da thu lan dau.
+      full: ledger.refunded.isZero() && amount.eq(payment.amount),
+    };
+    // Receipt thanh cong settle da ghi la so giao dich cua cong (vnp_TransactionNo).
+    const transactionNo = (
+      await tx.paymentTransaction.findMany({ where: { paymentId, status: 'PROCESSED' } })
+    ).find((row) => /^\d+$/u.test(row.externalTransactionId))?.externalTransactionId;
+    // Phan he goi (returns) tu dat ma lenh truoc de doi chieu lai khi cong khong tra loi.
+    const intentId = input.intentId ?? `${REFUND_INTENT}${randomUUID()}`;
+    // Cong tra duoc lenh hoan (MoMo): ma lenh ben cong ghi cung intent TRUOC khi goi (ADR-119).
+    const gatewayRefundId = adapter.refundStatus
+      ? intentId
+          .slice(REFUND_INTENT.length)
+          .replace(/[^0-9a-zA-Z-]/gu, '')
+          .slice(0, 50)
+      : undefined;
+    const payload = { ...base, ...(gatewayRefundId ? { gatewayRefundId } : {}) };
+    await tx.paymentTransaction.create({
+      data: {
+        paymentId,
+        gateway: payment.gateway!,
+        externalTransactionId: intentId,
+        status: 'RECEIVED',
+        payload,
+      },
+    });
+    return {
+      orderId: order.id,
+      userId: order.userId,
+      gateway: payment.gateway!,
+      intentId,
+      payload,
+      reference: payment.reference!,
+      checkoutUrl: payment.checkoutUrl!,
+      transactionNo,
+    };
+  }
+
+  /**
+   * Buoc 2 va 3 cua refundPayment: goi cong NGOAI transaction roi chot so. Chi goi SAU khi transaction
+   * cua claimRefund da commit, neu khong loi giua chung se xoa mat dau vet lenh da gui.
+   */
+  async sendRefund(claim: RefundClaim) {
+    const { gateway, intentId, payload } = claim;
+    const adapter = this.payments.gateways.get(gateway as GatewayCode);
     let result: Awaited<ReturnType<NonNullable<typeof adapter.refund>>>;
     try {
-      result = await adapter.refund({
-        reference: payment.reference!,
-        checkoutUrl: payment.checkoutUrl!,
+      result = await adapter.refund!({
+        reference: claim.reference,
+        checkoutUrl: claim.checkoutUrl,
         amount: payload.amount,
-        actor,
+        actor: payload.actor,
         full: payload.full,
-        transactionNo,
+        transactionNo: claim.transactionNo,
+        refundId: payload.gatewayRefundId,
       });
     } catch (error) {
       // Timeout, phan hoi sai chu ky hay ma loi deu khong chung minh cong chua hoan: giu intent.
       const message = error instanceof Error ? error.message : 'Cổng không phản hồi.';
       await this.prisma.paymentTransaction.update({
-        where: intentKey(payment.gateway!, intentId),
+        where: intentKey(gateway, intentId),
         data: { payload: { ...payload, lastError: message } },
       });
       throw new ServiceUnavailableException({
@@ -688,9 +778,46 @@ export class CheckoutService {
         message: `${message} Lệnh hoàn được giữ chờ đối soát; kiểm tra trên cổng rồi chốt kết quả trước khi hoàn tiếp.`,
       });
     }
-    await this.settleRefund(order.id, userId, payment.gateway!, intentId, actor, {
+    await this.settleRefund(claim.orderId, claim.userId, gateway, intentId, payload.actor, {
       receipt: `REFUND:${result.requestId}`,
       payload: result.payload,
+    });
+  }
+
+  /**
+   * Hoan tay don tra truoc (ADR-111): shop da chuyen khoan cho khach, ADMIN nhap ma giao dich. Ghi
+   * REFUND:MANUAL:{ma} duoi khoa don nhu COD; con lenh qua cong dang cho thi 409, phai chot truoc.
+   * Don CONFIRMED (hang chua roi kho) khong hoan tay o day, giong nut hoan qua cong.
+   */
+  async refundManually(
+    paymentId: string,
+    actor: string,
+    input: { amount?: string; reason?: string; transferReference: string },
+  ) {
+    const { order, userId, adapter } = await this.refundTarget(paymentId);
+    // COD hoan tay qua luong tra hang (co dong refunds va tai khoan khach), khong qua day.
+    if (adapter.code === 'COD')
+      throw new ConflictException('Đơn COD hoàn tiền qua yêu cầu trả hàng.');
+    await this.withOrder(order.id, userId, async (current, tx) => {
+      if (current.status === 'CONFIRMED')
+        throw new ConflictException(
+          'Đơn chưa rời kho: dùng Hủy và hoàn tiền thay vì hoàn tay từng phần.',
+        );
+      for (const guard of this.refundGuards) await guard(order.id, tx);
+      const payment = await tx.payment.findUniqueOrThrow({ where: { id: paymentId } });
+      const ledger = await this.refundLedger(paymentId, tx);
+      const remaining = payment.amount.minus(ledger.refunded);
+      if (remaining.lte(0)) throw new ConflictException('Thanh toán đã được hoàn đủ.');
+      await this.recordManualRefund(
+        paymentId,
+        actor,
+        {
+          amount: input.amount ?? remaining.toFixed(2),
+          reference: input.transferReference,
+          reason: input.reason ?? 'Hoàn tay bằng chuyển khoản',
+        },
+        tx,
+      );
     });
     return this.view(await this.orders.get(order.id, userId));
   }
@@ -741,6 +868,61 @@ export class CheckoutService {
         if (changed.count !== 1) throw new ConflictException('Lệnh hoàn đã được chốt.');
       });
     return this.view(await this.orders.get(order.id, userId));
+  }
+
+  /**
+   * Tra lenh hoan dang cho tren cong (ADR-119): chi cong co refundStatus va intent co gatewayRefundId
+   * (ghi tu truoc khi goi). Cong xac nhan thanh cong thi ghi so voi cung receipt nhu phan hoi 0 cua
+   * sendRefund; con lai giu RECEIVED va tra loi giai cho admin chot tay, khong tu dong FAILED.
+   */
+  async checkRefund(paymentId: string, actor: string) {
+    const { order, userId, adapter } = await this.refundTarget(paymentId);
+    const pending = (await this.refundLedger(paymentId, this.prisma)).pending;
+    if (!pending) throw new ConflictException('Không có lệnh hoàn nào chờ đối soát.');
+    const claim = pending.payload as {
+      amount: string;
+      lastError?: string;
+      gatewayRefundId?: string;
+    };
+    if (!adapter.refundStatus || !claim.gatewayRefundId)
+      throw new ConflictException(
+        'Lệnh hoàn này không tra được trên cổng. Đối chiếu trên trang quản trị của cổng rồi chốt tay.',
+      );
+    // Cung dieu kien resolveRefund: refund co the con trong 35 giay timeout, tra luc nay de sai.
+    if (!claim.lastError && pending.createdAt.getTime() >= Date.now() - REFUND_IN_FLIGHT_MS)
+      throw new ConflictException({
+        error: 'REFUND_IN_FLIGHT',
+        message: 'Lệnh hoàn đang chờ cổng trả lời. Thử lại sau ít phút.',
+      });
+    const status = await adapter.refundStatus({
+      refundId: claim.gatewayRefundId,
+      amount: claim.amount,
+    });
+    let detail: string | null = null;
+    if (status.state === 'SUCCEEDED')
+      try {
+        await this.settleRefund(
+          order.id,
+          userId,
+          pending.gateway,
+          pending.externalTransactionId,
+          actor,
+          {
+            receipt: `REFUND:${claim.gatewayRefundId}`,
+            payload: status.payload,
+          },
+        );
+      } catch (error) {
+        // Bam hai lan hay admin khac vua chot: tra lai trang thai hien tai thay vi 500.
+        if (!(error instanceof ConflictException)) throw error;
+        detail = error.message;
+      }
+    else detail = status.detail;
+    return {
+      settled: status.state === 'SUCCEEDED' && detail === null,
+      detail,
+      order: this.view(await this.orders.get(order.id, userId)),
+    };
   }
 
   private async refundTarget(paymentId: string) {
@@ -839,11 +1021,26 @@ export class CheckoutService {
     this.refundListeners.push(listener);
   }
 
-  /** Trang thai lenh hoan theo so cong, de phan he goi biet nen cho, hoan lai hay dong viec. */
-  async refundIntentState(paymentId: string, intentId: string): Promise<RefundIntentState> {
-    const payment = await this.prisma.payment.findUnique({ where: { id: paymentId } });
+  /**
+   * Phan he khac chan hoan tien tu trang don (refundPayment, refundManually). Khong ap cho
+   * claimRefund/recordManualRefund ma phan he goi truc tiep.
+   */
+  onOrderRefund(guard: OrderRefundGuard) {
+    this.refundGuards.push(guard);
+  }
+
+  /**
+   * Trang thai lenh hoan theo so cong, de phan he goi biet nen cho, hoan lai hay dong viec. Caller dang
+   * giu khoa don thi truyen `tx` de doc cung transaction voi viec no sap ghi.
+   */
+  async refundIntentState(
+    paymentId: string,
+    intentId: string,
+    db: Prisma.TransactionClient = this.prisma,
+  ): Promise<RefundIntentState> {
+    const payment = await db.payment.findUnique({ where: { id: paymentId } });
     if (!payment?.gateway) return 'MISSING';
-    const intent = await this.prisma.paymentTransaction.findUnique({
+    const intent = await db.paymentTransaction.findUnique({
       where: intentKey(payment.gateway, intentId),
     });
     if (!intent) return 'MISSING';
@@ -853,7 +1050,8 @@ export class CheckoutService {
   /**
    * Hoan tay (don COD: shop chuyen khoan cho khach roi nhap ma giao dich). Goi TRONG withOrder cua
    * caller: ghi REFUND:MANUAL:{ma} vao cung so voi hoan qua cong de so da hoan, bao cao va trang
-   * thai don khop nhau; ma giao dich trung la 409 nho unique (gateway, externalTransactionId).
+   * thai don khop nhau. Mot ma giao dich chi ghi duoc mot lan tren TOAN so, du khac don hay khac
+   * cong (UC-14.2/AC11): mot lan chuyen khoan khong chung minh duoc cho hai lan hoan.
    */
   async recordManualRefund(
     paymentId: string,
@@ -886,8 +1084,11 @@ export class CheckoutService {
         `Số hoàn tối đa là ${remaining.toFixed(2)}. Sử dụng số nhỏ hơn hoặc bằng.`,
       );
     const receipt = `REFUND:MANUAL:${input.reference}`;
-    const duplicate = await tx.paymentTransaction.findUnique({
-      where: intentKey(payment.gateway!, receipt),
+    // Khoa theo ma, lay SAU khoa gio va khoa don nen khong tao vong cho. Hai don khac chu khong chung
+    // khoa nao khac, va unique (gateway, externalTransactionId) khong bat duoc ma trung khac cong.
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`refund-transfer:${input.reference}`}, 0))`;
+    const duplicate = await tx.paymentTransaction.findFirst({
+      where: { externalTransactionId: receipt },
     });
     if (duplicate)
       throw new ConflictException('Mã giao dịch này đã được ghi cho một lần hoàn khác.');

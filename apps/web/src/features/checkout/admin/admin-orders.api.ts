@@ -31,6 +31,8 @@ export interface PaymentLedger {
   refundedAmount: string;
   /** null: khong hoan tay duoc luc nay (CONFIRMED dung cancelRefund, chua thu, da hoan du, lenh dang cho). */
   refundableAmount: string | null;
+  /** GATEWAY: goi API cong; MANUAL: cong tat hoan tu dong, shop chuyen khoan roi nhap ma (ADR-111). */
+  refundMode: 'GATEWAY' | 'MANUAL' | null;
   refunds: { id: string; amount: string; at: string; reason: string | null }[];
   pendingRefund: {
     id: string;
@@ -38,6 +40,8 @@ export interface PaymentLedger {
     createdAt: string;
     lastError: string | null;
     resolvable: boolean;
+    /** Tra duoc lenh tren cong (MoMo refund/query, ADR-119); lenh cu khong co ma thi chot tay. */
+    checkable: boolean;
   } | null;
 }
 export interface AdminOrder extends OrderView {
