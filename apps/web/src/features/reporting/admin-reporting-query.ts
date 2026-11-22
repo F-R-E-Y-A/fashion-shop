@@ -21,17 +21,63 @@ export function getDaysDifference(from: string, to: string): number {
   return Math.round((dTo - dFrom) / (24 * 60 * 60 * 1000));
 }
 
-export function getDefaultDateRange(referenceDate = new Date()): { from: string; to: string } {
-  const formatter = new Intl.DateTimeFormat('en-CA', {
+export type ReportPresetId = '7d' | '30d' | 'this_month' | 'last_month';
+
+export function formatVietnamCalendarDate(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Ho_Chi_Minh',
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
-  });
-  const toStr = formatter.format(referenceDate);
+  }).format(date);
+}
+
+export function getDefaultDateRange(referenceDate = new Date()): { from: string; to: string } {
+  const toStr = formatVietnamCalendarDate(referenceDate);
   const pastDate = new Date(referenceDate.getTime() - 29 * 24 * 60 * 60 * 1000);
-  const fromStr = formatter.format(pastDate);
+  const fromStr = formatVietnamCalendarDate(pastDate);
   return { from: fromStr, to: toStr };
+}
+
+/** Tính nhanh khoảng ngày theo múi giờ Việt Nam cho các nút preset trên trang báo cáo. */
+export function getPresetDateRange(
+  preset: ReportPresetId,
+  referenceDate = new Date(),
+): { from: string; to: string } {
+  const todayStr = formatVietnamCalendarDate(referenceDate);
+  const [year, month] = todayStr.split('-').map(Number) as [number, number];
+
+  if (preset === '7d') {
+    const start = new Date(referenceDate.getTime() - 6 * 24 * 60 * 60 * 1000);
+    return { from: formatVietnamCalendarDate(start), to: todayStr };
+  }
+  if (preset === '30d') {
+    return getDefaultDateRange(referenceDate);
+  }
+  if (preset === 'this_month') {
+    const mm = String(month).padStart(2, '0');
+    return { from: `${year}-${mm}-01`, to: todayStr };
+  }
+  const prevMonthYear = month === 1 ? year - 1 : year;
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const mm = String(prevMonth).padStart(2, '0');
+  const lastDay = new Date(Date.UTC(prevMonthYear, prevMonth, 0)).getUTCDate();
+  return {
+    from: `${prevMonthYear}-${mm}-01`,
+    to: `${prevMonthYear}-${mm}-${String(lastDay).padStart(2, '0')}`,
+  };
+}
+
+export function detectActivePreset(
+  from: string,
+  to: string,
+  referenceDate = new Date(),
+): ReportPresetId | null {
+  for (const preset of ['7d', '30d', 'this_month', 'last_month'] as const) {
+    const range = getPresetDateRange(preset, referenceDate);
+    if (range.from === from && range.to === to) return preset;
+  }
+  return null;
 }
 
 export function parseReportQueryParams(searchParams: URLSearchParams): ReportQueryParams {
