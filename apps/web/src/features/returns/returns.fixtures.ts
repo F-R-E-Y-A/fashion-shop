@@ -73,6 +73,7 @@ export const adminReturn = (overrides: Partial<AdminReturn> = {}): AdminReturn =
   refundAccount: null,
   refund: null,
   paymentGateway: 'VNPAY',
+  refundPending: false,
   ...overrides,
 });
 

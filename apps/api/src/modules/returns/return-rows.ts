@@ -1,4 +1,5 @@
 import type { Prisma } from '../../generated/prisma/client.js';
+import { REFUND_INTENT } from '../checkout/index.js';
 import type { RefundMethod, ReturnLineResponse, ReturnResponse } from './dto/return.response.js';
 import type { AdminReturnResponse } from './dto/return.response.js';
 import { isShopFault, refundBreakdown, type ReturnReasonCode } from './return-policy.js';
@@ -22,7 +23,19 @@ export const returnInclude = {
       },
       payments: {
         where: { status: 'SUCCEEDED' as const },
-        select: { id: true, gateway: true },
+        select: {
+          id: true,
+          gateway: true,
+          // Lenh hoan con cho cong: cung dieu kien voi `pending` cua so hoan (refundSummary).
+          transactions: {
+            where: {
+              status: 'RECEIVED' as const,
+              externalTransactionId: { startsWith: REFUND_INTENT },
+            },
+            select: { id: true },
+            take: 1,
+          },
+        },
         take: 1,
       },
     },
@@ -126,6 +139,7 @@ export function toAdminReturnResponse(row: ReturnRow, autoRefund: AutoRefund): A
         }
       : null,
     paymentGateway: row.order.payments[0]?.gateway ?? null,
+    refundPending: (row.order.payments[0]?.transactions.length ?? 0) > 0,
   };
 }
 

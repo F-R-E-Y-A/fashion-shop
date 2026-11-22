@@ -132,10 +132,13 @@ export class AdminReturnsService implements OnModuleInit {
 
   /**
    * Hoan tien (UC-14.2 buoc 5). COD: ADMIN da chuyen khoan tay, ghi so va dong yeu cau trong mot
-   * transaction. Online: giu mot dong `refunds` (idempotencyKey return:<id>) mang ma lenh hoan dat
-   * truoc, roi goi cong NGOAI transaction qua refundPayment; cong tra 00 thi listener dong yeu cau
-   * cung transaction voi so hoan. Cong khong ro ket qua: yeu cau giu RECEIVED, ADMIN chot lenh o trang
-   * don; bam lai luc lenh da FAILED thi hoan bang ma lenh moi, khong bao gio hai lenh song song.
+   * transaction. Online: giu mot dong `refunds` (idempotencyKey return:<id>) mang ma lenh hoan, va ghi
+   * lenh do vao so cong (claimRefund) CUNG transaction duoi khoa don; commit xong moi goi cong
+   * (sendRefund). Nho vay thao tac hoan thu hai tren cung yeu cau (bam lai, ADMIN khac, hay nhap ma
+   * chuyen khoan) vao sau khoa luon thay lenh dang cho va bi 409, tien khong ra hai lan (UC-14.2/AC9,
+   * AC10). Cong tra 00 thi listener dong yeu cau cung transaction voi so hoan. Cong khong ro ket qua:
+   * yeu cau giu RECEIVED, ADMIN chot lenh o trang don; bam lai luc lenh da FAILED thi hoan bang ma
+   * lenh moi.
    */
   async refund(id: string, actor: string, input: RefundReturnRequest) {
     const row = await this.load(id);
@@ -187,12 +190,40 @@ export class AdminReturnsService implements OnModuleInit {
       return this.detail(id);
     }
 
-    const intentId = await this.step(id, async (current, tx) => {
+    const claim = await this.step(id, async (current, tx) => {
       if (current.status !== 'RECEIVED')
         throw wrongReturnState('Chỉ hoàn tiền khi đã nhận hàng trả về.');
-      const nextIntent = `${REFUND_INTENT}${randomUUID()}`;
       const existing = await tx.refund.findUnique({ where: { idempotencyKey: refundKey(id) } });
-      if (!existing) {
+      if (existing) {
+        const state = await this.checkout.refundIntentState(
+          payment.id,
+          existing.externalRefundId!,
+          tx,
+        );
+        if (state === 'RECEIVED') throw refundAwaitingGateway();
+        if (state === 'PROCESSED') {
+          // Listener luon chay cung transaction voi so hoan, nen nhanh nay chi la luoi an toan.
+          this.logger.warn(`Return ${id}: refund intent processed but return still RECEIVED.`);
+          await tx.refund.update({ where: { id: existing.id }, data: { status: 'SUCCEEDED' } });
+          await this.complete(id, tx);
+          return null;
+        }
+        // FAILED (ADMIN da chot that bai) hoac MISSING (dong cu tu truoc khi lenh ghi cung transaction).
+      }
+      // Lenh vao so cong CUNG transaction voi dong refunds: claimRefund nem loi thi dong nay cung lui.
+      const intentId = `${REFUND_INTENT}${randomUUID()}`;
+      const claimed = await this.checkout.claimRefund(
+        payment.id,
+        actor,
+        { amount, reason, intentId },
+        tx,
+      );
+      if (existing)
+        await tx.refund.update({
+          where: { id: existing.id },
+          data: { externalRefundId: intentId, status: 'PROCESSING' },
+        });
+      else
         await tx.refund.create({
           data: {
             returnId: id,
@@ -200,31 +231,14 @@ export class AdminReturnsService implements OnModuleInit {
             amount,
             status: 'PROCESSING',
             idempotencyKey: refundKey(id),
-            externalRefundId: nextIntent,
+            externalRefundId: intentId,
             reason,
             items: { create: this.refundItems(current, breakdown.items) },
           },
         });
-        return nextIntent;
-      }
-      const state = await this.checkout.refundIntentState(payment.id, existing.externalRefundId!);
-      if (state === 'RECEIVED') throw refundAwaitingGateway();
-      if (state === 'PROCESSED') {
-        // Listener luon chay cung transaction voi so hoan, nen nhanh nay chi la luoi an toan.
-        this.logger.warn(`Return ${id}: refund intent processed but return still RECEIVED.`);
-        await tx.refund.update({ where: { id: existing.id }, data: { status: 'SUCCEEDED' } });
-        await this.complete(id, tx);
-        return null;
-      }
-      // MISSING (cong tu choi truoc khi ghi lenh) hoac FAILED (ADMIN da chot that bai): lenh moi.
-      await tx.refund.update({
-        where: { id: existing.id },
-        data: { externalRefundId: nextIntent, status: 'PROCESSING' },
-      });
-      return nextIntent;
+      return claimed;
     });
-    if (intentId)
-      await this.checkout.refundPayment(payment.id, actor, { amount, reason, intentId });
+    if (claim) await this.checkout.sendRefund(claim);
     return this.detail(id);
   }
 

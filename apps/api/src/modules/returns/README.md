@@ -1,6 +1,6 @@
 ---
 title: Hợp đồng module returns
-updated: 2026-11-14
+updated: 2026-11-21
 status: đề xuất, trên nhánh task/returns-api, chưa vào develop
 owner: Bảo
 ---
@@ -26,8 +26,8 @@ Module sở hữu `returns`, `return_items`, `return_media`, `refunds`, `refund_
 | Khách huỷ | `ReturnsService.cancel` | `updateMany` có điều kiện `REQUESTED`; xoá tài khoản nhận |
 | Duyệt, từ chối | `AdminReturnsService` | `updateMany` có điều kiện `REQUESTED`; từ chối xoá tài khoản nhận |
 | Nhận hàng | `AdminReturnsService.receive` | `APPROVED → RECEIVED` có điều kiện, rồi `inventory.restockReturned`; dòng `RETURN` unique theo (đơn, biến thể) nên hai lần bấm chỉ cộng kho một lần |
-| Hoàn COD | `AdminReturnsService.refund` | Một transaction: `checkout.recordManualRefund` ghi `REFUND:MANUAL:<mã chuyển khoản>`, tạo `refunds` `SUCCEEDED`, yêu cầu `COMPLETED`, xoá tài khoản nhận |
-| Hoàn online | như trên | Transaction 1 giữ dòng `refunds` `PROCESSING` mang mã lệnh đặt trước. Gọi `checkout.refundPayment` ngoài transaction. Cổng trả 00: listener `onRefundSettled` đóng yêu cầu cùng transaction ghi sổ. Cổng không trả lời: 503, yêu cầu giữ `RECEIVED`; ADMIN chốt lệnh ở trang đơn (SUCCEEDED thì listener đóng yêu cầu; FAILED thì bấm hoàn lại sinh mã lệnh mới) |
+| Hoàn COD | `AdminReturnsService.refund` | Một transaction: `checkout.recordManualRefund` ghi `REFUND:MANUAL:<mã chuyển khoản>`, tạo `refunds` `SUCCEEDED`, yêu cầu `COMPLETED`, xoá tài khoản nhận. Một mã chuyển khoản chỉ ghi một lần trên toàn sổ, checkout khoá theo mã ([ADR-114](../../../../../docs/features/returns/LOG.md#adr-114)) |
+| Hoàn online | như trên | Một transaction dưới khoá đơn giữ dòng `refunds` `PROCESSING` mang mã lệnh **và** ghi lệnh đó vào sổ cổng bằng `checkout.claimRefund`; commit xong mới gọi `checkout.sendRefund` ngoài transaction. Thao tác hoàn thứ hai trên cùng yêu cầu (bấm lại, ADMIN khác, nhập mã chuyển khoản) vào sau khoá thấy lệnh chờ và nhận 409 `REFUND_PENDING`. Cổng trả 00: listener `onRefundSettled` đóng yêu cầu cùng transaction ghi sổ. Cổng không trả lời: 503, yêu cầu giữ `RECEIVED`; ADMIN chốt lệnh ở trang đơn (SUCCEEDED thì listener đóng yêu cầu; FAILED thì bấm hoàn lại sinh mã lệnh mới) |
 
 Mọi `orders.transition` đi qua `checkout.withOrder`, nên khi PR #74 (thông báo sau commit) vào thì không phải sửa module này.
 
@@ -38,4 +38,4 @@ Mục đích `return` ở uploads, thư mục `freya/returns/<userId>`, tối đ
 ## Kiểm thử
 
 - `return-policy.spec.ts`: hạn 15 ngày, ảnh bắt buộc, tiền hoàn, enum khớp Prisma.
-- `test/returns.http.spec.ts`: 13 bài trên PostgreSQL và cổng VNPAY giả, tên theo `UC-14.1/ACk`, `UC-14.2/ACk`.
+- `test/returns.http.spec.ts`: 19 bài trên PostgreSQL và cổng VNPAY giả, tên theo `UC-14.1/ACk`, `UC-14.2/ACk`.
