@@ -6,6 +6,7 @@ import { JwtService } from '@nestjs/jwt';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { seedShipping } from '../prisma/seed/shipping.seed.js';
+import { CartService } from '../src/modules/cart/index.js';
 import { SettlementService } from '../src/modules/checkout/settlement.service.js';
 import { InventoryService } from '../src/modules/inventory/index.js';
 import { PaymentsService } from '../src/modules/payments/index.js';
@@ -111,6 +112,8 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
         VNPAY_TMN_CODE: merchant,
         VNPAY_HASH_SECRET: secret,
         VNPAY_QUERY_URL: `http://127.0.0.1:${port}/query`,
+        // Nhanh huy-va-hoan trong bai race goi refund: tro ve cong gia, khong ra sandbox that.
+        VNPAY_REFUND_URL: `http://127.0.0.1:${port}/refund`,
       },
     });
   });
@@ -753,5 +756,133 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
       expect(await state(order)).toEqual(before);
       expect(before).toMatchObject({ order: 'PENDING_PAYMENT', moves: 0 });
     });
+  });
+  describe('PH-11 Pha 3: hủy, tiền về và worker hết hạn tranh cùng một đơn', () => {
+    /**
+     * Giu khoa gio cua khach (khoa dau tien cua withOrder) trong mot transaction rieng; request
+     * goi sau xep hang tren khoa theo dung thu tu goi, nen ep duoc tung thu tu xen ke.
+     */
+    function holdCheckoutLock() {
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => (release = resolve));
+      let held!: () => void;
+      const acquired = new Promise<void>((resolve) => (held = resolve));
+      const done = t.prisma.$transaction(
+        async (tx) => {
+          await t.app.get(CartService).lockForCheckout(userId, tx);
+          held();
+          await gate;
+        },
+        { timeout: 15_000 },
+      );
+      return { acquired, release, done };
+    }
+    async function lockWaiters(n: number) {
+      for (let i = 0; i < 300; i++) {
+        const [row] = await t.prisma.$queryRaw<{ waiting: number }[]>`
+          SELECT count(*)::int AS waiting FROM pg_locks WHERE locktype = 'advisory' AND NOT granted`;
+        if (row!.waiting >= n) return;
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      throw new Error(`Khong thay ${n} request cho khoa gio`);
+    }
+    /** Chay cac buoc theo thu tu xep hang tren khoa, roi tha khoa va doi tat ca xong. */
+    async function inOrder<T extends unknown[]>(steps: { [K in keyof T]: () => Promise<T[K]> }) {
+      const lock = holdCheckoutLock();
+      await lock.acquired;
+      const running: Promise<unknown>[] = [];
+      for (const [index, step] of steps.entries()) {
+        running.push(step());
+        await lockWaiters(index + 1);
+      }
+      lock.release();
+      await lock.done;
+      return (await Promise.all(running)) as T;
+    }
+    const cancelReq = (order: View) =>
+      t.http
+        .post(`/api/orders/${order.id}/cancel`)
+        .set(auth())
+        .then((res) => res);
+    const ipnReq = (order: View) =>
+      t.http
+        .get('/api/payments/vnpay/ipn')
+        .query(signed(order))
+        .then((res) => res);
+    const tick = () => t.app.get(SettlementService).tick();
+    const orderOf = (order: View) => t.prisma.order.findUniqueOrThrow({ where: { id: order.id } });
+
+    it('UC-07.4/AC8 tiền về ngay trước khi lệnh hủy lấy được khóa: hủy đi nhánh hủy-và-hoàn, không báo "shop đã xử lý" (ADR-125)', async () => {
+      const order = await place();
+      const [paid, cancelled] = await inOrder([() => ipnReq(order), () => cancelReq(order)]);
+      expect(paid.body.RspCode).toBe('00');
+      expect(cancelled.status).toBe(201);
+      expect(cancelled.body.status).toBe('CANCELLED');
+      expect((await orderOf(order)).status).toBe('CANCELLED');
+      // Ban mot lan roi tra kho mot lan; lenh hoan cho quan tri vien vi cong gia khong xac nhan.
+      expect((await t.prisma.inventory.findFirstOrThrow()).quantityOnHand).toBe(10);
+      expect(
+        (await t.prisma.stockMovement.findMany({ orderBy: { createdAt: 'asc' } })).map(
+          (row) => row.quantityDelta,
+        ),
+      ).toEqual([-1, 1]);
+      expect(
+        await t.prisma.paymentTransaction.count({
+          where: { externalTransactionId: { startsWith: 'REFUND-INTENT:' } },
+        }),
+      ).toBe(1);
+    });
+
+    it('UC-07.4/AC8 hủy lấy khóa trước, tiền về ngay sau: đơn CANCELLED rồi PAYMENT_REVIEW, không bán, không 500 hay CONCURRENT_UPDATE', async () => {
+      const order = await place();
+      const [cancelled, paid] = await inOrder([() => cancelReq(order), () => ipnReq(order)]);
+      expect(paid.body.RspCode).toBe('00');
+      expect(cancelled.status).toBe(201);
+      expect(cancelled.body.code).toBeUndefined();
+      expect((await orderOf(order)).status).toBe('PAYMENT_REVIEW');
+      expect((await t.prisma.payment.findFirstOrThrow()).status).toBe('SUCCEEDED');
+      expect(await t.prisma.stockMovement.count()).toBe(0);
+      expect((await t.prisma.inventory.findFirstOrThrow()).quantityOnHand).toBe(10);
+      expect((await t.prisma.inventoryReservation.findFirstOrThrow()).releasedAt).not.toBeNull();
+    });
+
+    it.each(['tick-first', 'ipn-first'] as const)(
+      'UC-08.2/AC10 worker hết hạn và IPN cùng lúc trên đơn quá hạn (%s): PAYMENT_REVIEW, nhả hàng một lần, không bán',
+      async (first) => {
+        const order = await place();
+        await expire(order);
+        const [, paid] =
+          first === 'tick-first'
+            ? await inOrder([tick, () => ipnReq(order)])
+            : (await inOrder([() => ipnReq(order), tick])).reverse();
+        expect((paid as { body: { RspCode: string } }).body.RspCode).toBe('00');
+        expect((await orderOf(order)).status).toBe('PAYMENT_REVIEW');
+        expect((await t.prisma.payment.findFirstOrThrow()).status).toBe('SUCCEEDED');
+        expect(await t.prisma.stockMovement.count()).toBe(0);
+        expect((await t.prisma.inventory.findFirstOrThrow()).quantityOnHand).toBe(10);
+        expect((await t.prisma.inventoryReservation.findFirstOrThrow()).releasedAt).not.toBeNull();
+      },
+    );
+
+    it.each(['tick-first', 'cancel-first'] as const)(
+      'UC-07.4/AC8 khách hủy đúng lúc worker hết hạn quét (%s): một lần CANCELLED, nhả hàng một lần, khách nhận 201',
+      async (first) => {
+        const order = await place();
+        await expire(order);
+        const [cancelled] =
+          first === 'tick-first'
+            ? (await inOrder([tick, () => cancelReq(order)])).reverse()
+            : await inOrder([() => cancelReq(order), tick]);
+        expect((cancelled as { status: number }).status).toBe(201);
+        expect((await orderOf(order)).status).toBe('CANCELLED');
+        const history = await t.prisma.orderStatusHistory.findMany({
+          where: { orderId: order.id, status: 'CANCELLED' },
+        });
+        expect(history).toHaveLength(1);
+        expect(history[0]!.actorUserId).toBe(first === 'cancel-first' ? userId : null);
+        expect(await t.prisma.inventoryReservation.count({ where: { releasedAt: null } })).toBe(0);
+        expect(await t.prisma.cartItem.count({ where: { isSelected: true } })).toBe(1);
+      },
+    );
   });
 });

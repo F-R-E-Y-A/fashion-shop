@@ -742,11 +742,10 @@ export class CheckoutService {
 
   /** Huy don cua khach. Don cho tra/cho xac nhan COD: nha hang giu; don da tra: cancelAndRefund. */
   async cancel(id: string, userId: string, expired = false) {
-    if (!expired && (await this.orders.get(id, userId)).status === 'CONFIRMED') {
-      await this.cancelAndRefund(id, userId, userId, CUSTOMER_CANCEL_REASON);
-      return this.view(await this.orders.get(id, userId));
-    }
-    await this.withOrder(id, userId, async (order, tx) => {
+    // Doc trang thai DUOI khoa don: IPN co the chot CONFIRMED ngay truoc khi khach lay duoc khoa;
+    // khi do di nhanh huy-va-hoan nhu khach bam huy sau khi da tra (ADR-125).
+    const paid = await this.withOrder(id, userId, async (order, tx) => {
+      if (!expired && order.status === 'CONFIRMED') return true;
       const cancellable =
         order.status === 'PENDING_PAYMENT' || order.status === 'PENDING_CONFIRMATION';
       if (!cancellable) {
@@ -754,9 +753,9 @@ export class CheckoutService {
           throw new ConflictException(
             'Shop đã xử lý đơn, không thể hủy tại đây. Liên hệ shop kèm mã đơn.',
           );
-        return;
+        return false;
       }
-      if (expired && order.paymentDueAt && order.paymentDueAt > new Date()) return;
+      if (expired && order.paymentDueAt && order.paymentDueAt > new Date()) return false;
       const items = this.stockItems(order);
       await this.inventory.release(id, items, tx);
       await this.cart.reselectReleased(
@@ -769,7 +768,9 @@ export class CheckoutService {
       await this.orders.transition(id, 'CANCELLED', tx, expired ? undefined : userId, {
         cancelSource: expired ? 'EXPIRED' : 'CUSTOMER',
       });
+      return false;
     });
+    if (paid) await this.cancelAndRefund(id, userId, userId, CUSTOMER_CANCEL_REASON);
     return this.view(await this.orders.get(id, userId));
   }
 

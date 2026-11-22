@@ -125,6 +125,7 @@ Là một **khách hàng**, tôi muốn **hủy đơn khi shop chưa xử lý**,
 - **AC5** (âm) Cổng không xác nhận hoàn: đơn vẫn hủy, lệnh hoàn chờ quản trị viên, bấm lại không hoàn lần hai; web báo đang xử lý, không mời đặt lại
 - **AC6** (âm) Shop đã bắt đầu xử lý hoặc đã xác nhận COD: khách hủy bị 409, trang không còn nút hủy
 - **AC7** (thuận) Hủy phải qua hộp xác nhận; bấm "Hủy" trong hộp thì không gửi request
+- **AC8** (biên) Hủy trùng lúc tiền về hoặc worker hết hạn: một kết cục, kho đúng; tiền về trước thì hủy đi nhánh hủy-và-hoàn, không 409
 
 ---
 
