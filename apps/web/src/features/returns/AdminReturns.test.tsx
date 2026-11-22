@@ -293,6 +293,18 @@ describe('UC-14.2 quản trị viên duyệt và xử lý trả hàng', () => {
     expect(screen.queryByText('Đang chờ cổng xác nhận')).not.toBeInTheDocument();
   });
 
+  it('UC-14.2/AC6 đơn VNPAY chuyển sang hoàn tay mà khách chưa nhập tài khoản: hộp hoàn nhắc liên hệ khách, không nói "tài khoản khách đã nhập"', async () => {
+    request.mockResolvedValue(
+      adminReturn({ status: 'RECEIVED', refundMethod: 'BANK_TRANSFER', paymentGateway: 'VNPAY' }),
+    );
+    show('/admin/returns/r1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Hoàn tiền' }));
+    const { dialog } = await dialogConfirm('Hoàn tiền');
+    expect(dialog).toHaveTextContent('Khách chưa nhập tài khoản nhận hoàn: liên hệ khách');
+    expect(dialog).not.toHaveTextContent('tài khoản khách đã nhập');
+    expect(screen.queryByText(/đơn COD/)).not.toBeInTheDocument();
+  });
+
   it('UC-14.2/AC1 nút mở hộp biến mất sau khi duyệt: focus chuyển về thông báo kết quả', async () => {
     serve(adminReturn(), { status: 'APPROVED' });
     show('/admin/returns/r1');

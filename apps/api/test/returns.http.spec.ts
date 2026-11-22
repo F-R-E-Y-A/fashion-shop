@@ -785,4 +785,36 @@ describe('UC-14.1, UC-14.2 tra hang va hoan tien (PostgreSQL + cong VNPAY gia)',
       manualOnly.mockRestore();
     }
   });
+
+  it('UC-14.2/AC13 don con yeu cau tra chua dong: trang don khong hoan (qua cong hay chuyen khoan) 409 RETURN_OPEN; hoan o trang tra hang van dong yeu cau', async () => {
+    const { paymentId, returnId } = await receivedVnpayReturn();
+    const orderPageRefund = (body: Record<string, unknown> = {}) =>
+      t.http.post(`/api/admin/payments/${paymentId}/refund`).set(w.admin.auth).send(body);
+    const calls = refundCalls;
+    expect((await orderPageRefund().expect(409)).body.code).toBe('RETURN_OPEN');
+    expect(refundCalls).toBe(calls);
+
+    const config = t.app.get(ConfigService);
+    const original = config.get.bind(config) as (key: string, ...rest: unknown[]) => unknown;
+    const manualOnly = vi
+      .spyOn(config, 'get')
+      .mockImplementation(((key: string, ...rest: unknown[]) =>
+        key === 'REFUND_GATEWAYS' ? 'none' : original(key, ...rest)) as typeof config.get);
+    try {
+      // Review PR #158: hoan tay o trang don lam don REFUNDED ma yeu cau tra ket o RECEIVED.
+      expect(
+        (await orderPageRefund({ transferReference: 'FT26112205' }).expect(409)).body.code,
+      ).toBe('RETURN_OPEN');
+      expect(await refundedAmounts(paymentId)).toEqual([]);
+      const done = await admin(`${returnId}/refund`, {
+        transferReference: 'FT26112205',
+      }).expect(200);
+      expect(done.body).toMatchObject({
+        status: 'COMPLETED',
+        refund: { status: 'SUCCEEDED', reference: 'REFUND:MANUAL:FT26112205' },
+      });
+    } finally {
+      manualOnly.mockRestore();
+    }
+  });
 });

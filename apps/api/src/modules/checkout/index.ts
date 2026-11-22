@@ -1,6 +1,7 @@
 export { CheckoutModule } from './checkout.module.js';
 export {
   CheckoutService,
+  type OrderRefundGuard,
   type RefundClaim,
   type RefundIntentState,
   type RefundSettled,

@@ -213,6 +213,42 @@ describe('PH-11 quản trị đơn hàng (ADR-038)', () => {
     );
   });
 
+  it('UC-14.2/AC13 đơn còn yêu cầu trả hàng chưa đóng (409 RETURN_OPEN): giữ câu của máy chủ và dẫn sang trang Trả hàng', async () => {
+    request.mockImplementation(async (path: string) => {
+      if (!path.endsWith('/refund')) return base;
+      throw new ApiError({
+        statusCode: 409,
+        code: 'RETURN_OPEN',
+        message: 'Đơn có yêu cầu trả hàng chưa đóng.',
+        path: '/x',
+        timestamp: '',
+      });
+    });
+    show('/admin/orders/o1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Hoàn tiền VNPAY' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Hoàn tiền' }));
+    const alert = await within(dialog).findByRole('alert');
+    expect(alert).toHaveTextContent('Đơn có yêu cầu trả hàng chưa đóng.');
+    expect(within(alert).getByRole('link', { name: 'Mở trang Trả hàng' })).toHaveAttribute(
+      'href',
+      '/admin/returns',
+    );
+  });
+
+  it('UC-12.1/AC10 409 khác: không hiện link trang Trả hàng', async () => {
+    request.mockImplementation(async (path: string) => {
+      if (!path.endsWith('/refund')) return base;
+      throw apiError(409, 'Đang có lệnh hoàn chờ kết quả.');
+    });
+    show('/admin/orders/o1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Hoàn tiền VNPAY' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Hoàn tiền' }));
+    await within(dialog).findByRole('alert');
+    expect(within(dialog).queryByRole('link', { name: 'Mở trang Trả hàng' })).toBeNull();
+  });
+
   it('UC-12.1/AC10 409 từ máy chủ: giữ câu nghiệp vụ của máy chủ và báo đã tải lại', async () => {
     request.mockImplementation(async (path: string) => {
       if (!path.endsWith('/refund')) return base;

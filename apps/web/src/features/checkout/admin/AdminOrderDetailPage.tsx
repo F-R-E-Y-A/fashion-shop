@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 
-import { classifyRequestError, formatDateTime, formatPrice } from '@/core';
+import { ApiError, classifyRequestError, formatDateTime, formatPrice } from '@/core';
 import {
   adminAccessGeneration,
   AdminForbidden,
@@ -663,6 +663,12 @@ function AdminOrderDetail() {
               {action.error && (
                 <p className={styles.notice} data-tone="error" role="alert">
                   {adminOrderErrorText(action.error, 'mutation')}
+                  {action.error instanceof ApiError && action.error.body.code === 'RETURN_OPEN' && (
+                    <>
+                      {' '}
+                      <Link to="/admin/returns">Mở trang Trả hàng</Link>
+                    </>
+                  )}
                 </p>
               )}
             </ConfirmDialog>

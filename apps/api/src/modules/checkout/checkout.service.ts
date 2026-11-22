@@ -67,6 +67,11 @@ export type RefundSettledListener = (
   event: RefundSettled,
   tx: Prisma.TransactionClient,
 ) => Promise<void>;
+/**
+ * Chay duoi khoa don truoc khi trang don hoan tien (qua cong hoac hoan tay). Nem loi thi khong hoan;
+ * phan he tra hang dung de buoc hoan qua yeu cau tra con mo, tranh don het tien ma yeu cau van ket.
+ */
+export type OrderRefundGuard = (orderId: string, tx: Prisma.TransactionClient) => Promise<void>;
 /** Trang thai mot lenh hoan theo so cong; MISSING: lenh chua tung duoc ghi. */
 export type RefundIntentState = 'MISSING' | 'RECEIVED' | 'PROCESSED' | 'FAILED';
 /** Lenh hoan da ghi RECEIVED duoi khoa don (claimRefund), cho gui ra cong (sendRefund). */
@@ -109,6 +114,7 @@ const pendingRefund = () =>
 export class CheckoutService {
   private readonly logger = new Logger(CheckoutService.name);
   private readonly refundListeners: RefundSettledListener[] = [];
+  private readonly refundGuards: OrderRefundGuard[] = [];
   constructor(
     private readonly prisma: PrismaService,
     readonly cart: CartService,
@@ -603,9 +609,10 @@ export class CheckoutService {
     input: { amount?: string; reason?: string; intentId?: string },
   ) {
     const { order, userId } = await this.refundTarget(paymentId);
-    const claim = await this.withOrder(order.id, userId, (_current, tx) =>
-      this.claimRefund(paymentId, actor, input, tx),
-    );
+    const claim = await this.withOrder(order.id, userId, async (_current, tx) => {
+      for (const guard of this.refundGuards) await guard(order.id, tx);
+      return this.claimRefund(paymentId, actor, input, tx);
+    });
     await this.sendRefund(claim);
     return this.view(await this.orders.get(order.id, userId));
   }
@@ -734,6 +741,7 @@ export class CheckoutService {
         throw new ConflictException(
           'Đơn chưa rời kho: dùng Hủy và hoàn tiền thay vì hoàn tay từng phần.',
         );
+      for (const guard of this.refundGuards) await guard(order.id, tx);
       const payment = await tx.payment.findUniqueOrThrow({ where: { id: paymentId } });
       const ledger = await this.refundLedger(paymentId, tx);
       const remaining = payment.amount.minus(ledger.refunded);
@@ -890,6 +898,14 @@ export class CheckoutService {
    */
   onRefundSettled(listener: RefundSettledListener) {
     this.refundListeners.push(listener);
+  }
+
+  /**
+   * Phan he khac chan hoan tien tu trang don (refundPayment, refundManually). Khong ap cho
+   * claimRefund/recordManualRefund ma phan he goi truc tiep.
+   */
+  onOrderRefund(guard: OrderRefundGuard) {
+    this.refundGuards.push(guard);
   }
 
   /**
