@@ -34,7 +34,7 @@ import { SettlementService } from './settlement.service.js';
     UsersModule,
   ],
   providers: [CheckoutService, CheckoutRateLimitService, SettlementService, OrderAdminService],
-  // Phan he returns dung withOrder, refundPayment va recordManualRefund (xem README.md).
+  // Phan he returns dung withOrder, claimRefund, sendRefund va recordManualRefund (xem README.md).
   exports: [CheckoutService],
   controllers: [
     CheckoutController,

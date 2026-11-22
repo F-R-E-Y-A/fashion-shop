@@ -82,6 +82,11 @@ export class AdminReturnResponse extends ReturnResponse {
   refund!: ReturnRefundResponse | null;
   @ApiPropertyOptional({ nullable: true, type: String, description: 'Cong cua thanh toan da thu' })
   paymentGateway!: string | null;
+  @ApiProperty({
+    description:
+      'Thanh toan con lenh hoan qua cong chua ro ket qua. True thi moi lan hoan (qua cong hay nhap ma chuyen khoan) bi 409 REFUND_PENDING toi khi lenh duoc doi soat o trang don.',
+  })
+  refundPending!: boolean;
 }
 
 export class AdminReturnListResponse {

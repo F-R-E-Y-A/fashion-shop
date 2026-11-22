@@ -215,9 +215,14 @@ describe('UC-14.2 quản trị viên duyệt và xử lý trả hàng', () => {
   });
 
   it('UC-14.2/E3 cổng chưa trả lời (503 REFUND_PENDING): báo chờ đối soát, giữ nguyên trạng thái', async () => {
+    // Sau 503 lenh hoan da nam trong so cong: may chu bao refundPending o lan tai lai.
+    let sent = false;
     request.mockImplementation(async (_path: string, options?: { method?: string }) => {
-      if (options?.method === 'POST') throw apiError(503, 'REFUND_PENDING');
-      return adminReturn({ status: 'RECEIVED' });
+      if (options?.method === 'POST') {
+        sent = true;
+        throw apiError(503, 'REFUND_PENDING');
+      }
+      return adminReturn({ status: 'RECEIVED', refundPending: sent });
     });
     show('/admin/returns/r1');
     fireEvent.click(await screen.findByRole('button', { name: 'Hoàn tiền' }));
@@ -227,13 +232,15 @@ describe('UC-14.2 quản trị viên duyệt và xử lý trả hàng', () => {
       'Lệnh hoàn chờ đối soát ở trang đơn hàng',
     );
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(screen.getByRole('button', { name: 'Hoàn tiền' })).toBeInTheDocument();
+    expect(await screen.findByRole('note')).toHaveTextContent('Chưa chuyển khoản cho khách');
+    expect(screen.queryByRole('button', { name: 'Hoàn tiền' })).not.toBeInTheDocument();
     expect(screen.getByText('Shop đã nhận hàng')).toBeInTheDocument();
   });
 
   it('UC-14.2/E3 cổng nhận lệnh nhưng chưa xác nhận (200, vẫn RECEIVED): không báo hoàn tất', async () => {
     serve(adminReturn({ status: 'RECEIVED' }), {
-      refund: { status: 'PENDING', amount: '200000.00', reference: null },
+      refund: { status: 'PROCESSING', amount: '200000.00', reference: null },
+      refundPending: true,
     });
     show('/admin/returns/r1');
     fireEvent.click(await screen.findByRole('button', { name: 'Hoàn tiền' }));
@@ -243,8 +250,47 @@ describe('UC-14.2 quản trị viên duyệt và xử lý trả hàng', () => {
       'Lệnh hoàn chờ đối soát ở trang đơn hàng',
     );
     expect(screen.queryByText('Đã hoàn tiền; yêu cầu hoàn tất.')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Hoàn tiền' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Hoàn tiền' })).not.toBeInTheDocument();
     expect(screen.getByText('Đang chờ cổng xác nhận')).toBeInTheDocument();
+  });
+
+  it('UC-14.2/AC12 còn lệnh hoàn chờ cổng mà đơn đã chuyển sang hoàn tay: không hướng dẫn chuyển khoản, không có nút hoàn, dẫn sang đơn để đối soát', async () => {
+    request.mockResolvedValue(
+      adminReturn({
+        status: 'RECEIVED',
+        refundMethod: 'BANK_TRANSFER',
+        refundPending: true,
+        refund: { status: 'PROCESSING', amount: '200000.00', reference: null },
+      }),
+    );
+    show('/admin/returns/r1');
+    const note = await screen.findByRole('note');
+    expect(note).toHaveTextContent('Chưa chuyển khoản cho khách');
+    expect(within(note).getByRole('link', { name: 'Mở đơn FR-O1 để đối soát' })).toHaveAttribute(
+      'href',
+      '/admin/orders/o1',
+    );
+    expect(screen.queryByRole('button', { name: 'Hoàn tiền' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/Chuyển khoản thủ công/)).not.toBeInTheDocument();
+    expect(screen.getByText('Chờ đối soát lệnh hoàn qua cổng')).toBeInTheDocument();
+    expect(screen.getByText('Đang chờ cổng xác nhận')).toBeInTheDocument();
+  });
+
+  it('UC-14.2/AC12 lệnh chờ đã đối soát xong (refundPending false): nút hoàn tiền và cách hoàn hiện lại', async () => {
+    request.mockResolvedValue(
+      adminReturn({
+        status: 'RECEIVED',
+        refundMethod: 'BANK_TRANSFER',
+        refund: { status: 'PROCESSING', amount: '200000.00', reference: null },
+      }),
+    );
+    show('/admin/returns/r1');
+    expect(await screen.findByRole('button', { name: 'Hoàn tiền' })).toBeInTheDocument();
+    expect(screen.getByText(/Chuyển khoản thủ công/)).toBeInTheDocument();
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+    // Dong refunds con PROCESSING nhung so cong khong con lenh cho: lenh da chot that bai.
+    expect(screen.getByText('Lệnh trước chưa thành công')).toBeInTheDocument();
+    expect(screen.queryByText('Đang chờ cổng xác nhận')).not.toBeInTheDocument();
   });
 
   it('UC-14.2/AC1 nút mở hộp biến mất sau khi duyệt: focus chuyển về thông báo kết quả', async () => {

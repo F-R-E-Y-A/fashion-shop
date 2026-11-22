@@ -1,6 +1,6 @@
 ---
 title: UC-14.1 và UC-14.2 Trả hàng — đặc tả use case
-updated: 2026-11-14
+updated: 2026-11-21
 status: đề xuất, chờ Bảo duyệt
 owner: Bảo
 ---
@@ -103,6 +103,9 @@ Là một **quản trị viên**, tôi muốn **duyệt yêu cầu trả, ghi nh
 | E4 | Đơn COD hoàn mà thiếu mã chuyển khoản | 400 |
 | E5 | Hai `ADMIN` bấm "Đã nhận hàng" cùng lúc | Chỉ một lần cộng kho; lần sau 409 |
 | E6 | Không phải `ADMIN` | 403 |
+| E7 | Hai thao tác hoàn trên cùng yêu cầu chạy cùng lúc (bấm hai lần, hai `ADMIN`, hoặc một qua cổng một nhập mã chuyển khoản) | Tiền ra đúng một lần; thao tác vào sau 409 |
+| E8 | Mã chuyển khoản đã ghi cho một lần hoàn khác, kể cả khác đơn hay khác cổng | 409, không ghi sổ |
+| E9 | Còn lệnh hoàn qua cổng chưa rõ kết quả | Mọi cách hoàn trả 409 `REFUND_PENDING`; màn hình không mời chuyển khoản, dẫn sang đơn để đối soát |
 
 ### Quy tắc nghiệp vụ
 | Mã | Quy tắc |
@@ -111,6 +114,9 @@ Là một **quản trị viên**, tôi muốn **duyệt yêu cầu trả, ghi nh
 | BR2 | Hoàn online theo luật của UC-14.3; sổ cổng vẫn ở `payment_transactions` |
 | BR3 | Nhận hàng và cộng kho cùng một transaction, có khoá đơn |
 | BR4 | Tài khoản nhận của khách xoá trong cùng transaction chuyển `COMPLETED` |
+| BR5 | Lệnh hoàn qua cổng vào sổ cổng cùng transaction với dòng `refunds`, dưới khoá đơn; commit xong mới gọi cổng ([ADR-114](LOG.md#adr-114)) |
+| BR6 | Một mã chuyển khoản chỉ ghi được một lần trên toàn sổ hoàn |
+| BR7 | Còn lệnh hoàn qua cổng `RECEIVED` thì không hoàn thêm bằng cách nào; `ADMIN` đối soát theo [UC-14.3](../payments/use-cases.md) trước |
 
 ### Tiêu chí chấp nhận
 - **AC1** (thuận) Duyệt `REQUESTED` → `APPROVED`, ghi người duyệt và thời điểm
@@ -121,3 +127,7 @@ Là một **quản trị viên**, tôi muốn **duyệt yêu cầu trả, ghi nh
 - **AC6** (thuận) Hoàn đơn COD kèm mã chuyển khoản: `refunds.external_refund_id` là mã đó; tài khoản nhận bị xoá
 - **AC7** (âm) Thao tác sai thứ tự (hoàn khi chưa nhận, nhận khi chưa duyệt): 409, không đổi kho hay tiền
 - **AC8** (âm) Người không phải `ADMIN` gọi API quản trị trả hàng: 403
+- **AC9** (biên) Hoàn qua cổng và nhập mã chuyển khoản cùng lúc trên một yêu cầu: cổng nhận một lệnh, sổ hoàn một dòng; thao tác còn lại 409 `REFUND_PENDING`
+- **AC10** (biên) Hai lần bấm hoàn qua cổng cùng lúc: cổng nhận một lệnh, yêu cầu `COMPLETED`; bấm nữa 409, không hoàn thêm
+- **AC11** (âm) Nhập mã chuyển khoản đã ghi cho lần hoàn khác (khác đơn, khác cổng): 409, sổ không đổi; hai `ADMIN` nhập cùng lúc cho hai đơn thì chỉ một lần được ghi
+- **AC12** (âm) Còn lệnh hoàn chờ cổng: API quản trị trả `refundPending: true` ở chi tiết và danh sách, kể cả khi môi trường đã tắt hoàn qua cổng; màn chi tiết không có nút hoàn, không hướng dẫn chuyển khoản, có link sang đơn. Chốt lệnh `FAILED` thì hoàn tay được
