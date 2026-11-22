@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -156,6 +156,90 @@ describe('ProductDetailPage (UC-03.4)', () => {
     expect(screen.getByText('Mã hàng: TRANG-S')).toBeInTheDocument();
   });
 
+  it('đổi sang màu không có cỡ đang chọn thì bỏ chọn cỡ, không tự nhảy sang cỡ khác', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        return response(url.pathname.endsWith('/related') ? [] : detail);
+      }),
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/san-pham/mau-thu?color=den&size=M']}>
+          <LocationProbe />
+          <Routes>
+            <Route path="/san-pham/:slug" element={<ProductDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await screen.findByRole('heading', { name: 'Mẫu thử' });
+    expect(screen.getByRole('button', { name: 'M' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'Trắng' }));
+    await screen.findByText('?color=trang');
+    expect(screen.getByRole('button', { name: 'S' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'M' })).toBeDisabled();
+  });
+
+  it('chọn số lượng trong giới hạn tồn kho và gửi đúng biến thể, số lượng vào giỏ', async () => {
+    const stocked = {
+      ...detail,
+      variants: [
+        { ...detail.variants[0], availableQuantity: 3 },
+        { ...detail.variants[1], availableQuantity: 1 },
+        detail.variants[2],
+      ],
+    };
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = new URL(String(input));
+      if (init?.method === 'POST') return response({ cartId: 'c1', items: [] });
+      return response(url.pathname.endsWith('/related') ? [] : stocked);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    renderDetail('/san-pham/mau-thu?color=den&size=M');
+    await screen.findByRole('heading', { name: 'Mẫu thử' });
+    const quantity = screen.getByRole('group', { name: 'Số lượng' });
+    const increase = () => within(quantity).getByRole('button', { name: 'Tăng số lượng' });
+    // Cỡ M chỉ còn 1: không tăng được.
+    expect(increase()).toHaveAttribute('aria-disabled', 'true');
+    fireEvent.click(screen.getByRole('button', { name: 'S' }));
+    fireEvent.click(increase());
+    fireEvent.click(increase());
+    expect(quantity).toHaveTextContent('3');
+    // Tới mức tồn: nút báo tắt nhưng vẫn giữ focus được; bấm thêm không vượt tồn.
+    expect(increase()).toHaveAttribute('aria-disabled', 'true');
+    expect(increase()).not.toBeDisabled();
+    fireEvent.click(increase());
+    expect(quantity).toHaveTextContent('3');
+    // Quay về cỡ M: số lượng tự hạ theo tồn kho, không gửi quá tồn.
+    fireEvent.click(screen.getByRole('button', { name: 'M' }));
+    expect(quantity).toHaveTextContent('1');
+    fireEvent.click(screen.getByRole('button', { name: 'S' }));
+    fireEvent.click(within(quantity).getByRole('button', { name: 'Giảm số lượng' }));
+    expect(quantity).toHaveTextContent('2');
+    fireEvent.click(screen.getByRole('button', { name: 'Thêm vào giỏ' }));
+    expect(await screen.findByText('Đã thêm vào giỏ.')).toBeInTheDocument();
+    const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST');
+    expect(String(post?.[0])).toMatch(/\/cart\/items$/);
+    expect(JSON.parse(String(post?.[1]?.body))).toEqual({ variantId: 'v1', quantity: 2 });
+  });
+
+  it('mô tả, chất liệu nằm ở mục Chi tiết sản phẩm bên dưới vùng mua', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        return response(url.pathname.endsWith('/related') ? [] : detail);
+      }),
+    );
+    renderDetail();
+    await screen.findByRole('heading', { name: 'Mẫu thử' });
+    const about = screen.getByRole('region', { name: 'Chi tiết sản phẩm' });
+    expect(within(about).getByText('Chất liệu: Cotton')).toBeInTheDocument();
+  });
+
   it('có nút qua ảnh và cho chọn toàn bộ thumbnail', async () => {
     vi.stubGlobal(
       'fetch',
@@ -183,6 +267,52 @@ describe('ProductDetailPage (UC-03.4)', () => {
     expect(screen.getByRole('img', { name: 'Ảnh 2' })).toHaveAttribute('src', '/image-2.jpg');
     fireEvent.click(screen.getByRole('button', { name: 'Ảnh trước' }));
     expect(screen.getByRole('img', { name: 'Ảnh 1' })).toHaveAttribute('src', '/image-1.jpg');
+  });
+
+  it('Lightbox và thư viện dùng chung một ảnh đang xem; đổi màu thì về ảnh đầu của màu mới', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        return response(
+          url.pathname.endsWith('/related')
+            ? []
+            : {
+                ...detail,
+                images: [
+                  ...[1, 2, 3].map((n) => ({
+                    url: `/den-${n}.jpg`,
+                    alt: `Đen ${n}`,
+                    colorCode: 'den',
+                  })),
+                  ...[1, 2].map((n) => ({
+                    url: `/trang-${n}.jpg`,
+                    alt: `Trắng ${n}`,
+                    colorCode: 'trang',
+                  })),
+                ],
+              },
+        );
+      }),
+    );
+    renderDetail('/san-pham/mau-thu?color=den');
+    await screen.findByRole('heading', { name: 'Mẫu thử' });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Ảnh tiếp theo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Phóng to ảnh' }));
+    const dialog = screen.getByRole('dialog', { name: 'Thư viện ảnh sản phẩm' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Ảnh tiếp theo' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Đóng thư viện' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Đen 3' })).toHaveAttribute('src', '/den-3.jpg');
+    expect(screen.getByRole('button', { name: 'Xem ảnh 3' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Trắng' }));
+    expect(screen.getByRole('img', { name: 'Trắng 1' })).toHaveAttribute('src', '/trang-1.jpg');
+    expect(screen.getAllByRole('button', { name: /^Xem ảnh/ })).toHaveLength(2);
   });
 
   it('ẩn lựa chọn màu không có ảnh liên quan để tránh ghép nhầm ảnh màu khác', async () => {

@@ -4,13 +4,16 @@ import { useCartMutation } from '../api/useCartMutation.js';
 export function AddToCartButton({
   variantId,
   availableQuantity,
+  quantity = 1,
   className,
 }: {
   variantId?: string;
   availableQuantity?: number | null;
+  /** So luong them mot lan (bo chon so luong o trang chi tiet); mac dinh 1 nhu truoc. */
+  quantity?: number;
   className?: string;
 }) {
-  const mutation = useCartMutation((id: string) => addToCart(id));
+  const mutation = useCartMutation((id: string) => addToCart(id, quantity));
   return (
     <>
       <button

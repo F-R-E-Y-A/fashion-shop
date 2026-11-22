@@ -11,6 +11,7 @@ import { getProductDetail, getRelatedProducts, productKeys } from '../api/index.
 import { Breadcrumb } from '../components/Breadcrumb.js';
 import { ProductGrid } from '../components/ProductGrid.js';
 import { SectionHeader } from '../components/SectionHeader.js';
+import { ArcGallery } from '../detail/ArcGallery.js';
 import {
   availableSizes,
   colorsWithImages,
@@ -19,6 +20,25 @@ import {
   isDefaultOnly,
 } from '../lib/variants.js';
 import styles from './ProductDetailPage.module.css';
+
+/** Tran so luong khi bien the chua theo doi ton kho (availableQuantity null): chi la gioi han UI. */
+const QUANTITY_CAP = 99;
+
+/**
+ * Do chieu cao breadcrumb (ten san pham dai thi xuong dong) va dat --crumb-h len trang: khung anh
+ * desktop lay phan man hinh con lai duoi header (--header-h) va breadcrumb, khong doan hang so.
+ * Ham o cap module nen ref on dinh: React goi mot lan khi gan, goi ham don tra ve khi go.
+ */
+function measureCrumbs(node: HTMLDivElement | null) {
+  const page = node?.parentElement;
+  if (!node || !page) return;
+  const write = () => page.style.setProperty('--crumb-h', `${node.offsetHeight}px`);
+  write();
+  if (typeof ResizeObserver === 'undefined') return;
+  const observer = new ResizeObserver(write);
+  observer.observe(node);
+  return () => observer.disconnect();
+}
 
 export function ProductDetailPage() {
   const { slug = '' } = useParams();
@@ -39,6 +59,7 @@ export function ProductDetailPage() {
   const [activeImage, setActiveImage] = useState(0);
   const [failedImageUrls, setFailedImageUrls] = useState<Set<string>>(() => new Set());
   const [isLightboxOpen, setLightboxOpen] = useState(false);
+  const [chosenQuantity, setChosenQuantity] = useState(1);
 
   if (product.isPending)
     return (
@@ -98,6 +119,13 @@ export function ProductDetailPage() {
   const currentImage = gallery[activeImage] ?? gallery[0];
   const currentImageFailed = currentImage ? failedImageUrls.has(currentImage.url) : false;
   const displayedListPrice = variant ? variant.listPrice : data.listPrice;
+  const stock = variant?.availableQuantity;
+  const maxQuantity = typeof stock === 'number' ? Math.max(1, stock) : QUANTITY_CAP;
+  // Doi sang bien the ton it hon thi so luong da chon tu ha theo, khong gui so luong qua ton.
+  const quantity = Math.min(chosenQuantity, maxQuantity);
+  const atMin = quantity <= 1;
+  const atMax = quantity >= maxQuantity || stock === 0;
+  const hasDetails = Boolean(data.description || data.material || data.careInstructions);
   const breadcrumb = [
     { name: 'Trang chủ', to: '/' },
     ...data.breadcrumb.map((item) => ({ name: item.name, to: `/danh-muc/${item.slug}` })),
@@ -115,114 +143,51 @@ export function ProductDetailPage() {
   return (
     <div className={styles.container}>
       <title>{pageTitle(data.name)}</title>
-      <Breadcrumb items={breadcrumb} />
+      <div ref={measureCrumbs} className={styles.crumbs}>
+        <Breadcrumb items={breadcrumb} />
+      </div>
       <article className={styles.detail}>
         <div className={styles.gallery}>
-          <div
-            className={styles.mainImage}
-            tabIndex={gallery.length > 1 ? 0 : undefined}
-            aria-label={gallery.length > 1 ? 'Thư viện ảnh sản phẩm' : undefined}
-            onClick={() => {
-              if (currentImage && !currentImageFailed) setLightboxOpen(true);
-            }}
-            onKeyDown={(event) => {
-              if (gallery.length < 2) return;
-              if (event.key === 'ArrowLeft') {
-                event.preventDefault();
-                setActiveImage((index) => (index - 1 + gallery.length) % gallery.length);
-              } else if (event.key === 'ArrowRight') {
-                event.preventDefault();
-                setActiveImage((index) => (index + 1) % gallery.length);
-              } else if (event.key === 'Enter' && currentImage && !currentImageFailed) {
-                event.preventDefault();
-                setLightboxOpen(true);
-              }
-            }}
-          >
-            {currentImage && !currentImageFailed ? (
-              <img
-                src={currentImage.url}
-                alt={currentImage.alt ?? data.name}
-                onError={() => {
-                  setFailedImageUrls((failed) => new Set(failed).add(currentImage.url));
-                }}
-              />
-            ) : (
-              <p role="status" className={styles.imageFallback}>
-                {currentImage
-                  ? 'Ảnh này hiện không tải được.'
-                  : 'Sản phẩm chưa có ảnh phù hợp với màu này.'}
-              </p>
-            )}
-            {gallery.length > 1 && (
-              <>
-                <button
-                  type="button"
-                  className={`${styles.galleryArrow} ${styles.galleryPrevious}`}
-                  aria-label="Ảnh trước"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setActiveImage((index) => (index - 1 + gallery.length) % gallery.length);
-                  }}
-                >
-                  ‹
-                </button>
-                <button
-                  type="button"
-                  className={`${styles.galleryArrow} ${styles.galleryNext}`}
-                  aria-label="Ảnh tiếp theo"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setActiveImage((index) => (index + 1) % gallery.length);
-                  }}
-                >
-                  ›
-                </button>
-              </>
-            )}
-          </div>
-          <div className={styles.thumbnails}>
-            {gallery.map((image, index) => (
-              <button
-                type="button"
-                key={`${image.url}-${index}`}
-                aria-label={`Xem ảnh ${index + 1}`}
-                aria-pressed={index === activeImage}
-                onClick={() => setActiveImage(index)}
-              >
-                <img
-                  src={image.url}
-                  alt=""
-                  onError={() => {
-                    setFailedImageUrls((failed) => new Set(failed).add(image.url));
-                  }}
-                />
-              </button>
-            ))}
-          </div>
+          <ArcGallery
+            images={gallery.map((image) => ({ url: image.url, alt: image.alt ?? data.name }))}
+            active={activeImage}
+            onActiveChange={setActiveImage}
+            failedUrls={failedImageUrls}
+            onImageError={(url) => setFailedImageUrls((failed) => new Set(failed).add(url))}
+            onOpen={() => setLightboxOpen(true)}
+            resetKey={color ?? ''}
+            colorName={
+              hideColor ? null : (colorChoices.find((c) => c.code === color)?.name ?? null)
+            }
+            emptyLabel="Sản phẩm chưa có ảnh phù hợp với màu này."
+          />
         </div>
         <div className={styles.info}>
-          {data.brandName && <p className={styles.eyebrow}>{data.brandName}</p>}
-          <h1>{data.name}</h1>
-          {data.ratingCount ? (
-            <a
-              className={styles.rating}
-              href="#danh-gia"
-              onClick={(event) => {
-                // Cuon tai cho, khong day muc lich su: ScrollManager se keo trang ve dau khi URL doi.
-                event.preventDefault();
-                document.getElementById('danh-gia')?.scrollIntoView({ behavior: 'smooth' });
-              }}
-            >
-              <RatingBadge average={data.ratingAverage} count={data.ratingCount} />
-              <span>Xem đánh giá</span>
-            </a>
-          ) : null}
-          <p className={styles.price}>
-            {formatPrice(variant?.price ?? data.price)}
-            {displayedListPrice && <s>{formatPrice(displayedListPrice)}</s>}
-          </p>
-          {variant && <p className={styles.sku}>Mã hàng: {variant.sku}</p>}
+          <div className={styles.head}>
+            {data.brandName && <p className={styles.eyebrow}>{data.brandName}</p>}
+            <h1>{data.name}</h1>
+            {data.ratingCount ? (
+              <a
+                className={styles.rating}
+                href="#danh-gia"
+                onClick={(event) => {
+                  // Cuon tai cho, khong day muc lich su: ScrollManager keo trang ve dau khi URL doi.
+                  event.preventDefault();
+                  document.getElementById('danh-gia')?.scrollIntoView({ behavior: 'smooth' });
+                }}
+              >
+                <RatingBadge average={data.ratingAverage} count={data.ratingCount} />
+                <span>Xem đánh giá</span>
+              </a>
+            ) : null}
+          </div>
+          <div className={styles.priceRow}>
+            <p className={styles.price}>
+              {formatPrice(variant?.price ?? data.price)}
+              {displayedListPrice && <s>{formatPrice(displayedListPrice)}</s>}
+            </p>
+            {variant && <p className={styles.sku}>Mã hàng: {variant.sku}</p>}
+          </div>
           {!hideColor && (
             <fieldset className={styles.choices}>
               <legend>Màu</legend>
@@ -278,25 +243,54 @@ export function ProductDetailPage() {
               ))}
             </fieldset>
           )}
-          {variant &&
-            variant.availableQuantity !== null &&
-            variant.availableQuantity !== undefined && (
-              <p role="status">
-                {variant.availableQuantity === 0
-                  ? 'Hết hàng'
-                  : `Còn ${variant.availableQuantity} sản phẩm`}
-              </p>
-            )}
-          <AddToCartButton
-            className={styles.cart}
-            variantId={variant?.id}
-            availableQuantity={variant?.availableQuantity}
-          />
+          <div className={styles.buy}>
+            {/* aria-disabled thay disabled: bam toi gioi han bang ban phim thi focus o lai nut,
+                khong roi ve body. */}
+            <div className={styles.quantity} role="group" aria-label="Số lượng">
+              <button
+                type="button"
+                aria-label="Giảm số lượng"
+                aria-disabled={atMin}
+                onClick={() => {
+                  if (!atMin) setChosenQuantity(quantity - 1);
+                }}
+              >
+                −
+              </button>
+              <output aria-live="polite">{quantity}</output>
+              <button
+                type="button"
+                aria-label="Tăng số lượng"
+                aria-disabled={atMax}
+                onClick={() => {
+                  if (!atMax) setChosenQuantity(quantity + 1);
+                }}
+              >
+                +
+              </button>
+            </div>
+            <AddToCartButton
+              className={styles.cart}
+              variantId={variant?.id}
+              availableQuantity={stock}
+              quantity={quantity}
+            />
+          </div>
+          {variant && stock !== null && stock !== undefined && (
+            <p role="status" className={styles.stock}>
+              {stock === 0 ? 'Hết hàng' : `Còn ${stock} sản phẩm`}
+            </p>
+          )}
+        </div>
+      </article>
+      {hasDetails && (
+        <section className={styles.about} aria-labelledby="chi-tiet-san-pham">
+          <h2 id="chi-tiet-san-pham">Chi tiết sản phẩm</h2>
           {data.description && <p className={styles.description}>{data.description}</p>}
           {data.material && <p>Chất liệu: {data.material}</p>}
           {data.careInstructions && <p>Bảo quản: {data.careInstructions}</p>}
-        </div>
-      </article>
+        </section>
+      )}
       <ProductReviews slug={slug} />
       {related.data && related.data.length > 0 && (
         <section className={styles.related}>
