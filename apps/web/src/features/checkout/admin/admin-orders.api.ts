@@ -40,6 +40,8 @@ export interface PaymentLedger {
     createdAt: string;
     lastError: string | null;
     resolvable: boolean;
+    /** Tra duoc lenh tren cong (MoMo refund/query, ADR-119); lenh cu khong co ma thi chot tay. */
+    checkable: boolean;
   } | null;
 }
 export interface AdminOrder extends OrderView {

@@ -43,7 +43,12 @@ import {
   ResolveRefundDto,
   RetryPaymentDto,
 } from './dto/checkout.dto.js';
-import { IpnResponse, OrderResponse, QuoteResponse } from './dto/checkout.response.js';
+import {
+  IpnResponse,
+  OrderResponse,
+  QuoteResponse,
+  RefundCheckResponse,
+} from './dto/checkout.response.js';
 import { OrderAdminService } from './order-admin.service.js';
 import { SettlementService } from './settlement.service.js';
 
@@ -203,6 +208,13 @@ export class AdminPaymentsController {
     @Body() input: ResolveRefundDto,
   ) {
     return this.checkout.resolveRefund(id, user.id, input);
+  }
+  /** Tra lenh hoan dang cho tren cong (MoMo refund/query, ADR-119); xac nhan thi ghi so. */
+  @ApiCreatedResponse({ type: RefundCheckResponse })
+  @Post(':id/refund/check')
+  @Header('Cache-Control', 'no-store')
+  checkRefund(@CurrentUser() user: CurrentUserType, @Param('id', ParseUUIDPipe) id: string) {
+    return this.checkout.checkRefund(id, user.id);
   }
 }
 

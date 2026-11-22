@@ -213,6 +213,71 @@ describe('PH-11 quản trị đơn hàng (ADR-038)', () => {
     );
   });
 
+  it('ADR-119 lệnh hoàn MoMo đang chờ: nút Kiểm tra trên cổng gọi refund/check và báo lý do khi cổng chưa xác nhận; lệnh cũ không có mã thì ẩn nút', async () => {
+    const pending = (checkable: boolean) => ({
+      ...base,
+      status: 'CANCELLED',
+      ledgers: [
+        {
+          ...base.ledgers[0]!,
+          gateway: 'MOMO',
+          refundableAmount: null,
+          refundMode: null,
+          pendingRefund: {
+            id: 'i1',
+            amount: '230000.00',
+            createdAt: '2026-11-22T03:00:00.000Z',
+            lastError: 'MoMo chưa phản hồi kết quả.',
+            resolvable: true,
+            checkable,
+          },
+        },
+      ],
+    });
+    request.mockImplementation(async (path: string) =>
+      path.endsWith('/refund/check')
+        ? { settled: false, detail: 'MoMo chưa ghi nhận lệnh hoàn này (mã 1080).', order: base }
+        : pending(true),
+    );
+    show('/admin/orders/o1');
+    fireEvent.click(await screen.findByRole('button', { name: 'Kiểm tra trên cổng' }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Kiểm tra trên cổng' }));
+    expect(
+      await screen.findByText('Chưa ghi sổ hoàn: MoMo chưa ghi nhận lệnh hoàn này (mã 1080).'),
+    ).toBeInTheDocument();
+    expect(request).toHaveBeenCalledWith(
+      '/admin/payments/p1/refund/check',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('ADR-119 lệnh hoàn chờ không có mã lệnh bên cổng: chỉ còn Chốt lệnh hoàn', async () => {
+    request.mockResolvedValue({
+      ...base,
+      status: 'CANCELLED',
+      ledgers: [
+        {
+          ...base.ledgers[0]!,
+          gateway: 'MOMO',
+          refundableAmount: null,
+          refundMode: null,
+          pendingRefund: {
+            id: 'i1',
+            amount: '230000.00',
+            createdAt: '2026-11-22T03:00:00.000Z',
+            lastError: 'Cổng từ chối hoàn tiền (mã 1080).',
+            resolvable: true,
+            checkable: false,
+          },
+        },
+      ],
+    });
+    show('/admin/orders/o1');
+    expect(await screen.findByRole('button', { name: 'Chốt lệnh hoàn' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Kiểm tra trên cổng' })).not.toBeInTheDocument();
+  });
+
   it('UC-14.2/AC13 đơn còn yêu cầu trả hàng chưa đóng (409 RETURN_OPEN): giữ câu của máy chủ và dẫn sang trang Trả hàng', async () => {
     request.mockImplementation(async (path: string) => {
       if (!path.endsWith('/refund')) return base;
