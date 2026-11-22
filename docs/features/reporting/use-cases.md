@@ -1,6 +1,6 @@
 ---
 title: Đặc tả Use Case Báo cáo bán hàng — UC-108.1
-updated: 2026-11-13
+updated: 2026-11-22
 status: đã triển khai và kiểm thử Issue108, chờ review
 owner: Tài
 ---
@@ -48,3 +48,4 @@ owner: Tài
   - Bố cục responsive hoàn chỉnh: 1280px hiển thị bảng dữ liệu đầy đủ; 360px chuyển thành các hàng thẻ trực quan, đảm bảo không tràn cuộn ngang (`scrollWidth <= innerWidth`).
   - Vùng bấm tương tác (buttons, inputs, select) có chiều cao tối thiểu 44px.
   - Định dạng tiền tệ chuỗi Decimal chính xác, không dùng float gây sai lệch làm tròn; hiển thị định dạng chuẩn Việt Nam `vi-VN` với hậu tố `đ`.
+- **AC9 (Tên sản phẩm theo bản chụp đơn)** — đề xuất 22/11, chờ Tài duyệt: tên ở bảng top lấy từ `product_snapshot.name` của lần giao muộn nhất trong kỳ, không lấy tên hiện tại, nên admin đổi tên hay ngừng bán sau đó không làm đổi báo cáo ([ADR-108-05](LOG.md#adr-108-05)). Hai đơn cùng ngày mang hai tên khác nhau vẫn gộp một dòng; bản chụp thiếu tên mới dùng tên hiện tại, rồi `Sản phẩm` ([orders-reporting.reader.ts](../../../apps/api/src/modules/orders/orders-reporting.reader.ts), bài `UC-108.1/AC9` trong `apps/api/test/admin-reports.http.spec.ts`).
