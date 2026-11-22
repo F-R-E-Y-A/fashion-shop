@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiBearerAuth,
   ApiConflictResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
@@ -29,6 +30,7 @@ import { VoucherListResponse, VoucherResponse } from './dto/voucher.response.js'
 import { PromotionsService } from './promotions.service.js';
 
 @ApiTags('admin-vouchers')
+@ApiBearerAuth()
 @Controller('admin/vouchers')
 @RequireRoles(RoleCode.ADMIN)
 @ApiUnauthorizedResponse({ description: 'Chưa đăng nhập' })

@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiBearerAuth,
   ApiConflictResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
@@ -32,6 +33,7 @@ import {
 } from './dto/admin-inventory.dto.js';
 
 @ApiTags('admin-inventory')
+@ApiBearerAuth()
 @Controller('admin/inventory')
 @RequireRoles(RoleCode.ADMIN)
 @ApiUnauthorizedResponse({ description: 'Chưa đăng nhập' })

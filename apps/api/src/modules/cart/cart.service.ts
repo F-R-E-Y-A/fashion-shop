@@ -165,39 +165,44 @@ export class CartService {
     );
   }
 
+  private async ensureStockForTargetQuantity(
+    transaction: Prisma.TransactionClient,
+    variantId: string,
+    targetQuantity: number,
+  ): Promise<void> {
+    const variant = await this.products.getVariantForCart(variantId, transaction);
+    if (!variant) throw new NotFoundException('Không tìm thấy biến thể sản phẩm.');
+    if (!variant.isActive) throw new BadRequestException('Biến thể sản phẩm này đã ngừng bán.');
+    const available = (await this.inventory.getAvailableQuantities([variantId], transaction)).get(
+      variantId,
+    );
+    if (available === 0) throw new ConflictException('Sản phẩm hiện đã hết hàng.');
+    if (targetQuantity < 1 || !Number.isInteger(targetQuantity) || targetQuantity > 2_147_483_647) {
+      throw new BadRequestException('Số lượng vượt giới hạn hỗ trợ.');
+    }
+    if (available !== null && available !== undefined && targetQuantity > available) {
+      throw new ConflictException(`Chỉ còn ${available} sản phẩm. Vui lòng kiểm tra lại số lượng.`);
+    }
+  }
+
   async addItem(
     variantId: string,
     quantity: number,
     userId?: string,
     guestToken?: string,
   ): Promise<CartResponse> {
+    if (quantity < 1 || !Number.isInteger(quantity)) {
+      throw new BadRequestException('Số lượng vượt giới hạn hỗ trợ.');
+    }
     return this.withCart(userId, guestToken, async (transaction, cart) => {
-      const variant = await this.products.getVariantForCart(variantId, transaction);
-      if (!variant) throw new NotFoundException('Không tìm thấy biến thể sản phẩm.');
-      if (!variant.isActive) throw new BadRequestException('Biến thể sản phẩm này đã ngừng bán.');
-      const available = (await this.inventory.getAvailableQuantities([variantId], transaction)).get(
-        variantId,
-      );
-      if (available === 0) throw new ConflictException('Sản phẩm hiện đã hết hàng.');
       const existing = await transaction.cartItem.findUnique({
         where: { cartId_productVariantId: { cartId: cart.id, productVariantId: variantId } },
       });
-      if (
-        quantity < 1 ||
-        !Number.isInteger(quantity) ||
-        quantity + (existing?.quantity ?? 0) > 2_147_483_647
-      ) {
-        throw new BadRequestException('Số lượng vượt giới hạn hỗ trợ.');
-      }
-      if (
-        available !== null &&
-        available !== undefined &&
-        quantity + (existing?.quantity ?? 0) > available
-      ) {
-        throw new ConflictException(
-          `Chỉ còn ${available} sản phẩm. Vui lòng kiểm tra lại số lượng.`,
-        );
-      }
+      await this.ensureStockForTargetQuantity(
+        transaction,
+        variantId,
+        quantity + (existing?.quantity ?? 0),
+      );
       await transaction.cartItem.upsert({
         where: { cartId_productVariantId: { cartId: cart.id, productVariantId: variantId } },
         create: { cartId: cart.id, productVariantId: variantId, quantity },
@@ -218,8 +223,14 @@ export class CartService {
       throw new BadRequestException('Cần số lượng hoặc trạng thái chọn.');
     return this.withCart(userId, guestToken, async (transaction, cart) => {
       const key = { cartId: cart.id, productVariantId: variantId };
-      if (!(await transaction.cartItem.findUnique({ where: { cartId_productVariantId: key } }))) {
+      const existing = await transaction.cartItem.findUnique({
+        where: { cartId_productVariantId: key },
+      });
+      if (!existing) {
         throw new NotFoundException('Không tìm thấy dòng giỏ hàng.');
+      }
+      if (quantity !== undefined && quantity > existing.quantity) {
+        await this.ensureStockForTargetQuantity(transaction, variantId, quantity);
       }
       await transaction.cartItem.update({
         where: { cartId_productVariantId: key },

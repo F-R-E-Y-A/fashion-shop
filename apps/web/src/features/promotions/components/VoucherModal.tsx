@@ -185,6 +185,9 @@ export function VoucherModal({
                             · Mua thêm {formatPrice(String(minOrder - numSubtotal))} để dùng
                           </span>
                         )}
+                        {v.endsAt && (
+                          <span> · HSD {new Date(v.endsAt).toLocaleDateString('vi-VN')}</span>
+                        )}
                       </div>
                     </div>
 

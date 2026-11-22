@@ -1,55 +1,47 @@
 ---
-title: Phân hệ thông báo — bản đồ
-updated: 2026-11-14
-status: đang dùng
+title: Phân hệ thông báo — bản đồ và ma trận đa kênh
+updated: 2026-11-16
+status: đang dùng — đã rà đủ bước, nội dung và kênh theo góp ý (4)
 owner: Duy
 ---
 # Phân hệ thông báo
 
-**Chức năng:** Bản đồ phân hệ thông báo: email giao dịch theo đơn, thông báo in-app, chuông thông báo khách hàng và quản trị.
+**Chức năng:** Bản đồ phân hệ thông báo và ma trận đầy đủ bước chuyển, nội dung tiếng Việt, kênh phát hành cho khách hàng và quản trị.
 
 | | |
 |---|---|
-| **Người sở hữu** | Phan Ngọc Duy · module `apps/api/src/modules/notifications` · `apps/web/src/features/notifications` · bảng trong `prisma/schema/orders.prisma` |
-| **Dòng việc** | PH-15 (Issue #73, nhánh `feature/ph-15-notifications`), sprint S9 · 09/11 - 15/11 |
+| **Người sở hữu** | Phan Ngọc Duy · `apps/api/src/modules/notifications` · `apps/web/src/features/notifications` · `orders.prisma` |
+| **Dòng việc** | PH-15 (Issue #73, PR #74 đã gộp) và rà soát hoàn thiện đợt cuối (2026-11-16) |
 | **Use case** | UC-15.1 trong [use-case-index.md](../../shared/use-case-index.md) |
 
-## Giải quyết việc gì
+## Ma trận thông báo khi đơn đổi trạng thái (Góp ý 4)
 
-Khách hàng nhận email giao dịch tự động sau khi giao dịch tạo/đổi trạng thái đơn hàng đã commit thành công và theo dõi thông báo in-app qua chuông thông báo trên thanh điều hướng. Quản trị viên nhận thông báo trên thanh điều hướng quản trị khi có đơn mới hoặc yêu cầu cần xử lý.
+Toàn bộ được kích hoạt qua post-commit hook (`WeakMap`) sau khi transaction DB commit thành công ([notifications.service.ts](../../../apps/api/src/modules/notifications/notifications.service.ts)):
 
-## Phạm vi sprint này
+| Sự kiện / Trạng thái | Kênh cho Khách (In-App DB + SSE) | Kênh Email Khách (`MailService`) | Kênh cho Admin (In-App + SSE) | Nội dung chính |
+|---|---|---|---|---|
+| `PENDING_PAYMENT` | Có (`userId`) | Có (`customerEmail`) | Không | Mã đơn, tổng tiền VNĐ, nhắc hoàn tất thanh toán trước khi hết giữ hàng |
+| `PENDING_CONFIRMATION` (COD) | Có | Có | Có | Xác nhận đã tiếp nhận đơn COD, nhắc admin gọi xác nhận |
+| `PAYMENT_REVIEW` | Có | Có | Có (cảnh báo) | Báo giao dịch đang đối soát (không thanh toán lại), nhắc admin kiểm tra |
+| `CONFIRMED` | Có | Có | Có | Xác nhận đã nhận thanh toán thành công, chuẩn bị đóng gói |
+| `PROCESSING` | Có | Có | Không | Đang đóng gói, đính kèm tên hãng & mã vận đơn nếu đã tạo |
+| Gắn vận đơn lúc đang `PROCESSING` | Có (`notifyShipmentCreated`) | Có | Không | Thông báo mã vận đơn mới, đơn vị vận chuyển, ngày dự kiến giao |
+| `SHIPPED` | Có | Có | Không | Đang giao hàng, kèm mã vận đơn & đơn vị vận chuyển |
+| Vận đơn `FAILED` | Có (`notifyShipmentFailed`) | Có | Có | Báo giao chưa thành công, lý do cụ thể từ GHN/mô phỏng, nhắc giữ liên lạc |
+| `DELIVERED` | Có | Có | Có nếu từ webhook GHN | Xác nhận giao thành công, nhắc đánh giá (30 ngày) / đổi trả (15 ngày) |
+| `CANCELLED` (`CUSTOMER` / `EXPIRED` / `ADMIN` / `DELIVERY_FAILED`) | Có | Có | Có | Phân biệt rõ 4 nguồn hủy (`cancelSource`) kèm lý do cụ thể |
+| `PARTIALLY_REFUNDED` / `REFUNDED` | Có | Có | Có | Hiển thị chính xác số tiền hoàn (`refundedAmount`), thời gian tiền về |
 
-| Hạng mục | Use case / tiêu chí | Phải có hay có thể trượt |
-|---|---|---|
-| Email giao dịch theo trạng thái đơn hàng | Gửi email tiếng Việt chuẩn F.R.E.Y.A. qua MailService sau khi transaction đơn hàng commit | Phải có |
-| Thông báo in-app cho khách hàng | API danh sách, đánh dấu đã đọc (`ParseUUIDPipe`), đếm chưa đọc | Phải có |
-| Chuông thông báo trên Storefront & Admin | Component `NotificationBell` (`autoFetch`, polling 30 giây qua `apiGet` có Bearer token) kèm badge số lượng và popover danh sách | Phải có |
-| Thông báo cho quản trị viên | API `/admin/notifications` và sự kiện đơn mới, cần đối soát, hủy đơn | Phải có |
+Nguyên tắc an toàn nội dung email & liên kết:
+- Nhãn trạng thái trong email map qua `ORDER_STATUS_LABELS` (tiếng Việt hoàn chỉnh, không lộ raw enum như `SHIPPED`).
+- Toàn bộ trường do người dùng/hãng nhập (`reason`, `note`, `title`, `message`) được thoát ký tự HTML qua `escapeHtml()`.
+- Liên kết trong email dùng địa chỉ tuyệt đối `${WEB_PUBLIC_URL}/don-hang/${order.id}` (rút từ `webPublicOrigin()` trong [env.ts](../../../apps/api/src/infra/config/env.ts)), gửi bất đồng bộ không làm treo transaction đơn hàng khi SMTP lỗi/chậm.
 
-## Dữ liệu
+## Hợp đồng và giao diện
 
-Bảng `Notification` nằm trong `orders.prisma` (Duy quản lý) theo [ADR-050](LOG.md#adr-050). Khóa ngoại trỏ về `User` (bảng `users` trong `identity.prisma`) và `Order` (bảng `orders`).
+- **Backend:** `NotificationsService` nhận `OrderStatusNotificationContext` từ `OrdersService.transition`, `CheckoutService`, `OrderAdminService` và `ShippingService`.
+- **Frontend:** `NotificationBell` ([NotificationBell.tsx](../../../apps/web/src/features/notifications/components/NotificationBell.tsx)) hiển thị thời gian kèm `dd/mm HH:mm`, polling định kỳ 30 giây qua `apiGet` (kèm Bearer token), hỗ trợ modal focus trap, Escape đóng và xóa cache khi nhận 403.
 
-## Hợp đồng với phân hệ khác
+## Quyết định liên quan
 
-- **`OrdersService` & `ShippingService`:** Ghi nhận post-commit hook qua `WeakMap<Prisma.TransactionClient, PostCommitHook[]>` (`attachPostCommitHooks`, `registerPostCommitHook`, `runPostCommitHooks`) khi đơn hàng được tạo hoặc chuyển trạng thái (`transition`), kể cả khi chuyển trạng thái đơn từ luồng vận đơn/webhook của `ShippingService`, đảm bảo chỉ gửi thông báo và email sau khi `$transaction` đã commit và tách biệt hoàn toàn giữa các transaction Proxy của Prisma 7.10.
-- **`MailService`:** Sử dụng hạ tầng gửi email giao dịch sẵn có tại `apps/api/src/infra/mail/`.
-
-## Giao diện
-
-- Component `NotificationBell` tại `apps/web/src/features/notifications/components/NotificationBell.tsx` (quản lý focus vào dialog khi mở, giữ vòng `Tab`/`Shift+Tab`, `Escape` đóng và trả focus về chuông, khóa cache theo `sessionQueryKeys` và xóa cache admin khi nhận `403`).
-- Gắn vào thanh điều hướng cửa hàng tại `apps/web/src/app/StoreLayout.tsx` và thanh điều hướng quản trị tại `apps/web/src/app/AdminLayout.tsx` (`autoFetch` bật mặc định).
-
-## Kiểm thử và nghiệm thu
-
-| Tiêu chí | Bài kiểm thử | Kết quả |
-|---|---|---|
-| Đơn vị backend service | `apps/api/src/modules/notifications/notifications.service.spec.ts` | 7/7 pass |
-| Post-commit hooks (WeakMap & rollback) | `apps/api/src/modules/orders/orders.service.spec.ts` · `apps/api/src/modules/shipping/shipping.service.spec.ts` | 12/12 · 22/22 pass |
-| Đặt 2 đơn liên tiếp qua HTTP tạo đủ 2 thông báo | `apps/api/test/cod.http.spec.ts` | pass |
-| Chuông thông báo frontend (focus/keyboard, 403, session cache) | `apps/web/src/features/notifications/notifications.test.tsx` | 10/10 pass |
-
-## Trạng thái hôm nay (2026-11-14)
-
-Mã nguồn backend và frontend đã hoàn thiện và xử lý toàn bộ phản hồi review trên PR #74. Migration `20261113080000_ph15_notifications` khớp lịch sử `develop`.
+Xem chi tiết tại [ADR-050](LOG.md#adr-050) và [ADR-072](LOG.md#adr-072).

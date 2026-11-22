@@ -9,9 +9,9 @@ import {
   Query,
   Sse,
 } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
-import { RequireRoles } from '../auth/index.js';
+import { RequireRoles, RoleCode } from '../auth/index.js';
 import {
   ListNotificationsQuery,
   NotificationListResponse,
@@ -20,8 +20,9 @@ import {
 import { NotificationsService } from './notifications.service.js';
 
 @ApiTags('Admin Notifications')
+@ApiBearerAuth()
 @Controller('admin/notifications')
-@RequireRoles('ADMIN')
+@RequireRoles(RoleCode.ADMIN)
 export class AdminNotificationsController {
   constructor(private readonly notifications: NotificationsService) {}
 

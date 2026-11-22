@@ -241,4 +241,114 @@ describe('NotificationsService', () => {
     const invalidQuery = plainToInstance(ListNotificationsQuery, { unreadOnly: 'abc' });
     expect((await validate(invalidQuery)).length).toBeGreaterThan(0);
   });
+
+  it('handleOrderStatusChange dùng nhãn tiếng Việt, thoát HTML, phân biệt cancelSource và tạo full link WEB_PUBLIC_URL', async () => {
+    const mockSend = vi.fn().mockResolvedValue(undefined);
+    const mail = { send: mockSend } as unknown as MailService;
+    const mockConfig = {
+      get: vi.fn((key: string) => {
+        if (key === 'WEB_PUBLIC_URL') return 'https://freya.shop';
+        return undefined;
+      }),
+    } as unknown as import('@nestjs/config').ConfigService<
+      import('../../infra/config/env.js').Env,
+      true
+    >;
+    mockNotification.create.mockResolvedValue({
+      id: 'n10',
+      userId: 'u1',
+      forAdmin: false,
+      type: NotificationType.ORDER_STATUS_CHANGED,
+      title: 'T',
+      message: 'M',
+      link: '/don-hang/o1',
+      isRead: false,
+      orderId: 'o1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const service = new NotificationsService(mockPrisma, mail, mockConfig);
+    await service.handleOrderStatusChange(
+      {
+        id: 'o1',
+        orderCode: 'FR009',
+        customerEmail: 'khach@freya.test',
+        userId: 'u1',
+        status: 'SHIPPED',
+        totalAmount: '450000',
+        context: {
+          carrierName: 'GHN',
+          trackingNumber: 'L4GHN001',
+          isMockShipment: false,
+          note: '<script>alert(1)</script>',
+        },
+      },
+      'SHIPPED',
+    );
+
+    const shipMail = mockSend.mock.calls[0]![0];
+    expect(shipMail.text).toContain('https://freya.shop/don-hang/o1');
+    expect(shipMail.html).toContain('Đang giao hàng');
+    expect(shipMail.html).not.toContain('SHIPPED');
+    expect(shipMail.html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(shipMail.html).toContain('L4GHN001');
+
+    mockSend.mockClear();
+    await service.handleOrderStatusChange(
+      {
+        id: 'o2',
+        orderCode: 'FR010',
+        customerEmail: 'khach@freya.test',
+        userId: 'u1',
+        status: 'CANCELLED',
+        context: { cancelSource: 'EXPIRED' },
+      },
+      'CANCELLED',
+    );
+    expect(mockSend.mock.calls[0]![0].text).toContain('hết thời hạn thanh toán');
+    expect(mockSend.mock.calls[0]![0].subject).toContain('đã hủy do quá hạn');
+  });
+
+  it('notifyShipmentCreated và notifyShipmentFailed tạo thông báo in-app lẫn email cho khách và admin', async () => {
+    const mockSend = vi.fn().mockResolvedValue(undefined);
+    const mail = { send: mockSend } as unknown as MailService;
+    mockNotification.create.mockClear();
+    mockNotification.create.mockResolvedValue({
+      id: 'n20',
+      userId: 'u1',
+      forAdmin: false,
+      type: NotificationType.ORDER_STATUS_CHANGED,
+      title: 'T',
+      message: 'M',
+      link: '/don-hang/o1',
+      isRead: false,
+      orderId: 'o1',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    const service = new NotificationsService(mockPrisma, mail);
+    await service.notifyShipmentCreated(
+      { id: 'o1', orderCode: 'FR011', customerEmail: 'khach@freya.test', userId: 'u1' },
+      { carrierName: 'GHN', trackingNumber: 'L4SHIP1', isMock: false },
+    );
+    expect(mockNotification.create).toHaveBeenCalledTimes(1);
+    expect(mockSend).toHaveBeenCalledTimes(1);
+
+    mockNotification.create.mockClear();
+    mockSend.mockClear();
+    await service.notifyShipmentFailed({
+      id: 'o1',
+      orderCode: 'FR011',
+      customerEmail: 'khach@freya.test',
+      userId: 'u1',
+      carrierName: 'GHN',
+      trackingNumber: 'L4SHIP1',
+      note: 'Thuê bao không liên lạc được',
+    });
+    expect(mockNotification.create).toHaveBeenCalledTimes(2); // 1 customer + 1 admin
+    expect(mockSend).toHaveBeenCalledTimes(1);
+    expect(mockSend.mock.calls[0]![0].text).toContain('Thuê bao không liên lạc được');
+  });
 });

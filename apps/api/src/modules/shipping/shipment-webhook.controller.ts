@@ -1,3 +1,5 @@
+import { timingSafeEqual } from 'node:crypto';
+
 import {
   Body,
   Controller,
@@ -5,30 +7,38 @@ import {
   Headers,
   HttpCode,
   HttpStatus,
+  Optional,
   Post,
+  Query,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import {
   ApiHeader,
   ApiOkResponse,
   ApiOperation,
+  ApiServiceUnavailableResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
+import type { Env } from '../../infra/config/env.js';
 import { ShipmentWebhookDto } from './dto/shipment.dto.js';
 import { ShippingService } from './shipping.service.js';
 
 @ApiTags('shipping-webhook')
 @Controller('shipping')
 export class ShipmentWebhookController {
-  constructor(private readonly shippingService: ShippingService) {}
+  constructor(
+    private readonly shippingService: ShippingService,
+    @Optional() private readonly config?: ConfigService<Env, true>,
+  ) {}
 
   @Post('webhook')
   @HttpCode(HttpStatus.OK)
   @Header('Cache-Control', 'no-store')
   @ApiOperation({
-    summary: 'Webhook nhận cập nhật trạng thái vận chuyển từ hãng (GHN, GHTK, Viettel Post)',
+    summary: 'Webhook nhận cập nhật trạng thái vận chuyển từ hãng (chuẩn nội bộ / dự phòng)',
     description:
       'Yêu cầu xác thực chữ ký/token của hãng vận chuyển qua header x-carrier-token để đảm bảo an toàn.',
   })
@@ -38,19 +48,58 @@ export class ShipmentWebhookController {
     required: true,
   })
   @ApiOkResponse({ description: 'Đã nhận và xử lý sự kiện webhook hợp lệ' })
+  @ApiServiceUnavailableResponse({
+    description: 'Vận đơn đang trong quá trình khởi tạo hoặc đối soát, hãng sẽ gửi lại webhook',
+  })
   @ApiUnauthorizedResponse({ description: 'Token xác thực nguồn gửi không hợp lệ hoặc bị thiếu' })
   async handleWebhook(
     @Headers('x-carrier-token') carrierToken: string | undefined,
     @Body() payload: ShipmentWebhookDto,
   ) {
-    const expectedSecret = process.env.SHIPPING_WEBHOOK_SECRET;
+    this.verifyToken(carrierToken);
+    return this.shippingService.handleWebhook(payload);
+  }
 
-    if (!expectedSecret || !carrierToken || carrierToken !== expectedSecret) {
+  @Post('webhook/ghn')
+  @HttpCode(HttpStatus.OK)
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary: 'Webhook nhận Order Status Callback trực tiếp từ Giao Hàng Nhanh (GHN)',
+    description:
+      'Nhận payload chuẩn của GHN (OrderCode, ClientOrderCode, Status, Reason, Description) và xác thực token qua header x-carrier-token, token hoặc query ?token=.',
+  })
+  @ApiOkResponse({ description: 'Đã nhận và đối soát sự kiện từ GHN' })
+  @ApiServiceUnavailableResponse({
+    description: 'Vận đơn đang được khởi tạo trên GHN, trả 503 để GHN tự động gửi lại sau 5 giây',
+  })
+  @ApiUnauthorizedResponse({ description: 'Token xác thực nguồn gửi không hợp lệ hoặc bị thiếu' })
+  async handleGhnWebhook(
+    @Headers('x-carrier-token') carrierToken: string | undefined,
+    @Headers('token') altToken: string | undefined,
+    @Query('token') queryToken: string | undefined,
+    @Body() rawPayload: Record<string, unknown>,
+  ) {
+    this.verifyToken(carrierToken || altToken || queryToken);
+    return this.shippingService.handleGhnWebhook(rawPayload);
+  }
+
+  private verifyToken(incomingToken: string | undefined) {
+    const expectedSecret =
+      this.config?.get('SHIPPING_WEBHOOK_SECRET', { infer: true }) ||
+      process.env.SHIPPING_WEBHOOK_SECRET;
+
+    if (!expectedSecret || !incomingToken) {
       throw new UnauthorizedException(
-        'Xác thực webhook thất bại: Thiếu hoặc sai header x-carrier-token của hãng vận chuyển.',
+        'Xác thực webhook thất bại: Thiếu hoặc sai token xác thực của hãng vận chuyển.',
       );
     }
 
-    return this.shippingService.handleWebhook(payload);
+    const expectedBuf = Buffer.from(expectedSecret, 'utf8');
+    const incomingBuf = Buffer.from(incomingToken, 'utf8');
+    if (expectedBuf.length !== incomingBuf.length || !timingSafeEqual(expectedBuf, incomingBuf)) {
+      throw new UnauthorizedException(
+        'Xác thực webhook thất bại: Thiếu hoặc sai token xác thực của hãng vận chuyển.',
+      );
+    }
   }
 }
