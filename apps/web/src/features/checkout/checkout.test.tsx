@@ -670,7 +670,7 @@ describe('PH-11 checkout UI', () => {
     );
   });
 
-  it('UC-07.3/AC8 sản phẩm đã ngừng bán: dòng đơn hiện tên trong bản chụp, không gắn link 404', async () => {
+  it('UC-07.3/AC9 sản phẩm đã ngừng bán: dòng đơn hiện tên trong bản chụp, không gắn link 404', async () => {
     const line = (name: string, productSlug: string, productAvailable?: boolean) => ({
       variantId: productSlug,
       quantity: 1,

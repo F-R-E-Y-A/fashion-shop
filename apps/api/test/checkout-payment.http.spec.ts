@@ -382,7 +382,7 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
     await t.http.post(`/api/orders/${order.id}/cancel`).set(auth()).expect(409);
   });
 
-  it('UC-07.3/AC8 san pham da ngung ban: dong don giu ban chup, productAvailable false ca sau khi huy', async () => {
+  it('UC-07.3/AC9 san pham da ngung ban: dong don giu ban chup, productAvailable false ca sau khi huy', async () => {
     const order = await place();
     const { productId } = await t.prisma.productVariant.findUniqueOrThrow({
       where: { id: variantId },

@@ -381,7 +381,7 @@ describe('UC-14.1, UC-14.2 tra hang va hoan tien (PostgreSQL + cong VNPAY gia)',
     await admin(`${returnId}/refund`, { transferReference: 'FT26318ABD' }).expect(409);
   });
 
-  it('UC-14.2/AC9 sau khi giao admin doi gia, doi ten, ngung ban: tra hang van theo don gia va ban chup luc mua', async () => {
+  it('UC-14.2/AC14 sau khi giao admin doi gia, doi ten, ngung ban: tra hang van theo don gia va ban chup luc mua', async () => {
     const { orderId, orderItemId } = await w.deliveredItem(2);
     const line = await t.prisma.orderItem.findUniqueOrThrow({ where: { id: orderItemId } });
     const product = await t.prisma.product.findUniqueOrThrow({ where: { id: w.productId } });

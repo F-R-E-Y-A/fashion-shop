@@ -121,4 +121,4 @@ Là một **quản trị viên**, tôi muốn **duyệt yêu cầu trả, ghi nh
 - **AC6** (thuận) Hoàn đơn COD kèm mã chuyển khoản: `refunds.external_refund_id` là mã đó; tài khoản nhận bị xoá
 - **AC7** (âm) Thao tác sai thứ tự (hoàn khi chưa nhận, nhận khi chưa duyệt): 409, không đổi kho hay tiền
 - **AC8** (âm) Người không phải `ADMIN` gọi API quản trị trả hàng: 403
-- **AC9** (biên) Sau khi giao, quản trị đổi giá, đổi tên và ngừng bán sản phẩm: khách vẫn gửi trả được; tiền hoàn theo đơn giá lúc mua, tên theo bản chụp trong đơn; nhận hàng vẫn cộng kho biến thể đã ngừng bán; dòng đơn không đổi
+- **AC14** (biên) Sau khi giao, quản trị đổi giá, đổi tên và ngừng bán sản phẩm: khách vẫn gửi trả được; tiền hoàn theo đơn giá lúc mua, tên theo bản chụp trong đơn; nhận hàng vẫn cộng kho biến thể đã ngừng bán; dòng đơn không đổi

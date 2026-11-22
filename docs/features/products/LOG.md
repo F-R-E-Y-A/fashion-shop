@@ -634,7 +634,7 @@ test riêng của Issue77; chưa rollout DB phát triển. Kế hoạch, log và
 | AI sai | Claude (Opus 5.5) từng nói chỉ `wishlists` xoá theo, và gán quyết định "chỉ ẩn" cho [ADR-044](#adr-044); `pg_constraint` cho thấy `recently_viewed` cũng `CASCADE`, ADR-044 là API đọc catalog quản trị | Claude tự bắt khi viết test AC63 |
 
 **Kết luận:** gỡ sản phẩm là ngừng bán; CSDL chặn xoá thẳng khi đã có lịch sử.
-**Bằng chứng:** `UC-04.2/AC63` ở [admin-product-status.http.spec.ts](../../../apps/api/test/admin-product-status.http.spec.ts), `UC-14.2/AC9` ở [returns.http.spec.ts](../../../apps/api/test/returns.http.spec.ts); link theo mã commit điền khi đẩy.
+**Bằng chứng:** `UC-04.2/AC63` ở [admin-product-status.http.spec.ts](../../../apps/api/test/admin-product-status.http.spec.ts), `UC-14.2/AC14` ở [returns.http.spec.ts](../../../apps/api/test/returns.http.spec.ts); link theo mã commit điền khi đẩy.
 
 ### Kết quả mong đợi → thực tế
 Mong đợi: hai spec trên xanh ở mọi pull request chạm products hay returns; AC63 đỏ nếu có route `DELETE` sản phẩm hoặc bảng lịch sử đổi sang `CASCADE`.
@@ -649,4 +649,4 @@ Cần dọn sản phẩm nhập nhầm chưa từng vào đơn hay kho; hoặc t
 
 Hệ quả của [ADR-121](#adr-121): sản phẩm không bị xoá mà ngừng bán, trang chi tiết trả 404, nên link `/san-pham/<slug>` ở trang đơn, trang "Đánh giá của tôi" và hàng chờ quản trị dẫn tới trang lỗi. API gắn `productAvailable` cho dòng đơn ở các đường dẫn của khách (không ở đường dẫn quản trị) và `product.available` cho đánh giá, cùng luật `storefrontProductWhere`; web chỉ gắn link khi cờ là `true`, còn lại hiện tên trong bản chụp kèm "Đã ngừng bán". Tách khỏi `CheckoutService.view()` vì hàm đó đồng bộ và chạy trong giao dịch; mỗi phản hồi thêm một truy vấn cho cả lô. Chưa sửa link ở giỏ hàng và trang thanh toán vì hai nơi đó đọc sản phẩm sống, đã có luật riêng.
 
-Bằng chứng: `npx vitest run --project http test/checkout-payment.http.spec.ts test/reviews.http.spec.ts test/admin-reviews.http.spec.ts` (apps/api) → 3 tệp, 57 bài qua, gồm `UC-07.3/AC8`, `UC-11.1/AC14`. Web: `npx vitest run src/features/checkout/checkout.test.tsx src/features/reviews` → 4 tệp, 63 bài qua. Tài liệu đã sửa theo: [checkout use-cases](../checkout/use-cases.md), [reviews use-cases](../reviews/use-cases.md), README module products và checkout.
+Bằng chứng: `npx vitest run --project http test/checkout-payment.http.spec.ts test/reviews.http.spec.ts test/admin-reviews.http.spec.ts` (apps/api) → 3 tệp, 57 bài qua, gồm `UC-07.3/AC9`, `UC-11.1/AC14`. Web: `npx vitest run src/features/checkout/checkout.test.tsx src/features/reviews` → 4 tệp, 63 bài qua. Tài liệu đã sửa theo: [checkout use-cases](../checkout/use-cases.md), [reviews use-cases](../reviews/use-cases.md), README module products và checkout.

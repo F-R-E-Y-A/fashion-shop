@@ -102,7 +102,7 @@ Là một **khách hàng**, tôi muốn **xem các đơn của mình và trạng
 - **AC4** (biên) Đồng hồ đếm theo hạn link cổng, kết thúc sớm hơn hạn giữ hàng
 - **AC5** (âm) Tiền đến muộn (`PAYMENT_REVIEW`): trang hiện hướng xử lý, không cho thanh toán lại
 - **AC6** (thuận) Đơn COD sau khi shop ghi đã giao: khách tải lại thấy "Đã giao hàng"
-- **AC8** (âm) Sản phẩm đã ngừng bán: danh sách đơn, chi tiết đơn và kết quả hủy đều trả `productAvailable: false`; trang đơn hiện tên trong bản chụp kèm "Đã ngừng bán", không gắn link tới trang 404 (đề xuất 22/11; AC7 dành cho nhánh tiến trình đơn)
+- **AC9** (âm) Sản phẩm đã ngừng bán: danh sách đơn, chi tiết đơn và kết quả hủy đều trả `productAvailable: false`; trang đơn hiện tên trong bản chụp kèm "Đã ngừng bán", không gắn link tới trang 404 (đề xuất 22/11; AC7, AC8 dành cho nhánh tiến trình đơn)
 
 ---
 
