@@ -63,7 +63,7 @@ function item(orderItemId: string, orderId: string, name: string): ReviewableIte
     orderItemId,
     orderId,
     orderCode: `FR-${orderId.toUpperCase()}`,
-    product: { name, slug: `sp-${orderItemId}`, imageUrl: null },
+    product: { name, slug: `sp-${orderItemId}`, imageUrl: null, available: true },
     variantLabel: 'Đen / M',
     deliveredAt: '2026-11-01T03:00:00.000Z',
     reviewDeadline: '2026-12-01T03:00:00.000Z',
@@ -79,7 +79,7 @@ function mine(overrides: Partial<MyReview> = {}): MyReview {
     id: 'r1',
     orderItemId: 'i1',
     orderId: 'o1',
-    product: { name: 'Áo thun cổ tròn', slug: 'sp-i1', imageUrl: null },
+    product: { name: 'Áo thun cổ tròn', slug: 'sp-i1', imageUrl: null, available: true },
     variantLabel: 'Đen / M',
     rating: 5,
     content: 'Áo đẹp, vải dày.',
@@ -337,6 +337,22 @@ describe('UC-11.1 khách viết và sửa đánh giá', () => {
     expect(await screen.findByText('Lý do ẩn: Có số điện thoại.')).toBeInTheDocument();
     expect(screen.getByText('Đã ẩn')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Sửa/ })).not.toBeInTheDocument();
+  });
+
+  it('UC-11.1/AC14 bài của sản phẩm đã ngừng bán: hiện tên, không gắn link tới trang 404', async () => {
+    request.mockImplementation(async (path: string) => {
+      if (path === '/reviews/eligible') return [];
+      return minePage([
+        mine({
+          product: { name: 'Áo ngừng bán', slug: 'sp-i1', imageUrl: null, available: false },
+        }),
+      ]);
+    });
+    show('/tai-khoan/danh-gia?tab=da-danh-gia');
+
+    expect(await screen.findByText('Áo ngừng bán')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Áo ngừng bán/ })).not.toBeInTheDocument();
+    expect(screen.getByText(/Đã ngừng bán/)).toBeInTheDocument();
   });
 
   it('UC-11.1/AC12 xoá: hỏi lại kèm hậu quả, gửi DELETE, báo đã xoá và tải lại danh sách', async () => {

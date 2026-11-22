@@ -30,6 +30,7 @@ import {
   PaymentsService,
   SETTLEMENT_BUFFER_MINUTES,
 } from '../payments/index.js';
+import { ProductsService } from '../products/index.js';
 import { PromotionsService } from '../promotions/index.js';
 import { ShippingService } from '../shipping/index.js';
 import { CheckoutAddressService } from '../users/index.js';
@@ -154,6 +155,7 @@ export class CheckoutService {
     private readonly shipping: ShippingService,
     private readonly config: ConfigService<Env, true>,
     readonly promotions: PromotionsService,
+    private readonly products: ProductsService,
   ) {}
 
   /**
@@ -485,6 +487,30 @@ export class CheckoutService {
       (gatewayCodes as readonly string[]).includes(gateway) &&
       this.payments.gateways.autoRefund(gateway as GatewayCode)
     );
+  }
+
+  /**
+   * Gan `productAvailable` cho tung dong don: san pham con mo tren cua hang thi web moi gan link,
+   * da ngung ban thi chi hien ban chup (ADR-121). Tach khoi `view()` vi view dong bo va chay trong
+   * giao dich; mot truy van cho ca lo don. Chi dung o duong dan cua khach.
+   */
+  async withProductLinks<T extends OrderView>(views: T[]): Promise<Linked<T>[]> {
+    const slugs = views.flatMap((view) => view.items.map((item) => slugOf(item.snapshot)));
+    const open = await this.products.visibleProductSlugs(
+      slugs.filter((slug): slug is string => slug !== null),
+    );
+    return views.map((view) => ({
+      ...view,
+      items: view.items.map((item) => {
+        const slug = slugOf(item.snapshot);
+        return { ...item, productAvailable: slug !== null && open.has(slug) };
+      }),
+    }));
+  }
+
+  async withProductLink<T extends OrderView>(view: T): Promise<Linked<T>> {
+    const [linked] = await this.withProductLinks([view]);
+    return linked as Linked<T>;
   }
 
   view(order: OrderDetails) {
@@ -1141,4 +1167,16 @@ export class CheckoutService {
     await this.payments.launchLatest(id, ip);
     return this.view(await this.orders.get(id, userId));
   }
+}
+
+type OrderView = { items: readonly { snapshot: unknown }[] };
+type Linked<T extends OrderView> = Omit<T, 'items'> & {
+  items: (T['items'][number] & { productAvailable: boolean })[];
+};
+
+/** Ban chup la JSON: doc `productSlug` phong thu, don cu thieu truong thi coi nhu khong co link. */
+function slugOf(snapshot: unknown): string | null {
+  if (typeof snapshot !== 'object' || snapshot === null) return null;
+  const slug = (snapshot as { productSlug?: unknown }).productSlug;
+  return typeof slug === 'string' && slug !== '' ? slug : null;
 }

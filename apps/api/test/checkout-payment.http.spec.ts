@@ -29,6 +29,7 @@ interface View {
   paymentDueAt: string;
   totalAmount: string;
   payments: { reference: string; status: string; checkoutUrl: string; expiresAt: string }[];
+  items: { snapshot: { name: string }; productAvailable?: boolean }[];
 }
 
 describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
@@ -381,7 +382,32 @@ describe('PH-11 checkout/payment: PostgreSQL + signed fake VNPAY', () => {
     await t.http.post(`/api/orders/${order.id}/cancel`).set(auth()).expect(409);
   });
 
-  it('UC-07.4/AC2 hủy đơn giữ đơn vị cuối thì món được chọn lại trong giỏ, đặt lại được ngay', async () => {
+  it('UC-07.3/AC9 san pham da ngung ban: dong don giu ban chup, productAvailable false ca sau khi huy', async () => {
+    const order = await place();
+    const { productId } = await t.prisma.productVariant.findUniqueOrThrow({
+      where: { id: variantId },
+      select: { productId: true },
+    });
+    const items = (body: View) => body.items.map((item) => item.productAvailable);
+    expect(
+      items((await t.http.get(`/api/orders/${order.id}`).set(auth()).expect(200)).body),
+    ).toEqual([true]);
+
+    await t.prisma.product.update({ where: { id: productId }, data: { isActive: false } });
+    try {
+      const detail = (await t.http.get(`/api/orders/${order.id}`).set(auth()).expect(200)).body;
+      expect(items(detail)).toEqual([false]);
+      expect(detail.items[0].snapshot.name).toBe(order.items[0]!.snapshot.name);
+      const list = (await t.http.get('/api/orders').set(auth()).expect(200)).body as View[];
+      expect(list.flatMap(items)).toEqual([false]);
+      const cancelled = await t.http.post(`/api/orders/${order.id}/cancel`).set(auth()).expect(201);
+      expect(items(cancelled.body)).toEqual([false]);
+    } finally {
+      await t.prisma.product.update({ where: { id: productId }, data: { isActive: true } });
+    }
+  });
+
+  it('UC-07.4/AC2hủy đơn giữ đơn vị cuối thì món được chọn lại trong giỏ, đặt lại được ngay', async () => {
     await t.prisma.inventory.update({
       where: { productVariantId: variantId },
       data: { quantityOnHand: 1 },

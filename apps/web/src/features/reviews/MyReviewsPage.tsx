@@ -24,7 +24,14 @@ function ProductLine({ product, detail }: { product: ReviewProduct; detail: stri
       )}
       <div>
         <p className={styles.itemName}>
-          <Link to={`/san-pham/${product.slug}`}>{product.name}</Link>
+          {product.available ? (
+            <Link to={`/san-pham/${product.slug}`}>{product.name}</Link>
+          ) : (
+            <>
+              {product.name}
+              <span className={styles.muted}> · Đã ngừng bán</span>
+            </>
+          )}
         </p>
         <p className={styles.muted}>{detail}</p>
       </div>
