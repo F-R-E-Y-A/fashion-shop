@@ -138,7 +138,7 @@ export function ProductDetailPage() {
     else next.delete('color');
     if (!hideSize && nextSize) next.set('size', nextSize);
     else next.delete('size');
-    setSearchParams(next, { replace: true });
+    setSearchParams(next, { replace: true, state: { keepScroll: true } });
   };
   return (
     <div className={styles.container}>
@@ -186,7 +186,9 @@ export function ProductDetailPage() {
               {formatPrice(variant?.price ?? data.price)}
               {displayedListPrice && <s>{formatPrice(displayedListPrice)}</s>}
             </p>
-            {variant && <p className={styles.sku}>Mã hàng: {variant.sku}</p>}
+            <p className={styles.sku}>
+              {variant ? `Mã hàng: ${variant.sku}` : 'Chọn màu và cỡ để xem mã hàng'}
+            </p>
           </div>
           {!hideColor && (
             <fieldset className={styles.choices}>
@@ -276,11 +278,25 @@ export function ProductDetailPage() {
               quantity={quantity}
             />
           </div>
-          {variant && stock !== null && stock !== undefined && (
-            <p role="status" className={styles.stock}>
-              {stock === 0 ? 'Hết hàng' : `Còn ${stock} sản phẩm`}
+          {/* Giu cho san cho dong ton kho: chon bien the khong lam cot thong tin nhay. */}
+          <div className={styles.stockSlot}>
+            {variant && stock !== null && stock !== undefined && (
+              <p role="status" className={styles.stock}>
+                {stock === 0 ? 'Hết hàng' : `Còn ${stock} sản phẩm`}
+              </p>
+            )}
+          </div>
+          <details className={styles.policyDetails}>
+            <summary>Hướng dẫn chọn cỡ &amp; chính sách đổi trả 15 ngày</summary>
+            <p>
+              Bảng cỡ tham khảo: XS (42–48 kg) · S (48–55 kg) · M (55–63 kg) · L (63–72 kg) · XL
+              (72–82 kg); chọn tăng 1 cỡ nếu thích mặc rộng rãi.
             </p>
-          )}
+            <p>
+              Miễn phí vận chuyển cho đơn từ 500.000 ₫. Hỗ trợ đổi/trả hàng trong vòng 15 ngày kể từ
+              khi nhận nếu sản phẩm còn nguyên tem mác.
+            </p>
+          </details>
         </div>
       </article>
       {hasDetails && (

@@ -439,8 +439,12 @@
   border: 0;
   border-bottom: 2px solid transparent;
   background: transparent;
+  color: var(--muted);
   font: inherit;
   cursor: pointer;
+}
+.tab:hover {
+  color: var(--ink);
 }
 .tab[aria-selected='true'] {
   border-bottom-color: var(--accent);

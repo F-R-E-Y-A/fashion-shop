@@ -5,7 +5,7 @@ import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApiError } from '@/core';
 
-import { adminOrderKeys } from './admin-orders.api.js';
+import { adminOrderKeys, formatPendingRefundError } from './admin-orders.api.js';
 import { AdminOrderDetailPage } from './AdminOrderDetailPage.js';
 import { AdminOrdersPage } from './AdminOrdersPage.js';
 import { base } from './test-support/order-fixture.js';
@@ -706,5 +706,20 @@ describe('UC-02.1/AC6, AC8 — bảo vệ dữ liệu admin dùng chung (#57)', 
     const notice = await screen.findByText(/Hết thời gian chờ phản hồi từ cổng thanh toán/i);
     expect(notice).toBeInTheDocument();
     expect(notice.textContent).not.toContain('aborted due to timeout');
+  });
+
+  it('formatPendingRefundError dong bo cac ma loi Node fetch (UND_ERR_*, EAI_AGAIN, socket hang up)', () => {
+    expect(formatPendingRefundError('UND_ERR_CONNECT_TIMEOUT')).toBe(
+      'Hết thời gian chờ phản hồi từ cổng thanh toán.',
+    );
+    expect(formatPendingRefundError('UND_ERR_HEADERS_TIMEOUT')).toBe(
+      'Hết thời gian chờ phản hồi từ cổng thanh toán.',
+    );
+    expect(formatPendingRefundError('getaddrinfo EAI_AGAIN sandbox.vnpayment.vn')).toBe(
+      'Không thể kết nối tới cổng thanh toán.',
+    );
+    expect(formatPendingRefundError('socket hang up')).toBe(
+      'Không thể kết nối tới cổng thanh toán.',
+    );
   });
 });

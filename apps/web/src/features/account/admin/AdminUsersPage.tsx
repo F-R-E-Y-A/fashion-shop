@@ -186,7 +186,7 @@ function AdminUsers() {
                   Email
                 </th>
                 <th role="columnheader" scope="col">
-                  Vai
+                  Vai trò
                 </th>
                 <th role="columnheader" scope="col">
                   Trạng thái
@@ -217,7 +217,7 @@ function AdminUsers() {
                       </Link>
                       {item.id === actorId && <span className={styles.self}>Bạn</span>}
                     </td>
-                    <td role="cell" data-label="Vai">
+                    <td role="cell" data-label="Vai trò">
                       <RoleList roles={item.roles} />
                     </td>
                     <td role="cell" data-label="Trạng thái">

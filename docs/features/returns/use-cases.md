@@ -1,6 +1,6 @@
 ---
 title: UC-14.1 và UC-14.2 Trả hàng — đặc tả use case
-updated: 2026-11-21
+updated: 2026-11-22
 status: đề xuất, chờ Bảo duyệt
 owner: Bảo
 ---
@@ -131,3 +131,4 @@ Là một **quản trị viên**, tôi muốn **duyệt yêu cầu trả, ghi nh
 - **AC10** (biên) Hai lần bấm hoàn qua cổng cùng lúc: cổng nhận một lệnh, yêu cầu `COMPLETED`; bấm nữa 409, không hoàn thêm
 - **AC11** (âm) Nhập mã chuyển khoản đã ghi cho lần hoàn khác (khác đơn, khác cổng): 409, sổ không đổi; hai `ADMIN` nhập cùng lúc cho hai đơn thì chỉ một lần được ghi
 - **AC12** (âm) Còn lệnh hoàn chờ cổng: API quản trị trả `refundPending: true` ở chi tiết và danh sách, kể cả khi môi trường đã tắt hoàn qua cổng; màn chi tiết không có nút hoàn, không hướng dẫn chuyển khoản, có link sang đơn. Chốt lệnh `FAILED` thì hoàn tay được
+- **AC14** (biên) Sau khi giao, quản trị đổi giá, đổi tên và ngừng bán sản phẩm: khách vẫn gửi trả được; tiền hoàn theo đơn giá lúc mua, tên theo bản chụp trong đơn; nhận hàng vẫn cộng kho biến thể đã ngừng bán; dòng đơn không đổi

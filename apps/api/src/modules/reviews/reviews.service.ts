@@ -30,6 +30,7 @@ import {
   reviewNotAllowed,
   reviewNotEditable,
   reviewNotFound,
+  reviewProductUnavailable,
   reviewWindowClosed,
 } from './review-errors.js';
 import {
@@ -174,8 +175,10 @@ export class ReviewsService {
       since,
       reviewed.map((row) => row.orderItemId),
     );
+    // San pham dang an thi khong moi viet (ADR-123); mo ban lai trong han thi dong don hien lai.
+    const open = await this.products.visibleProductIds(items.map((item) => item.productId));
     return items.flatMap((item) => {
-      if (item.deliveredAt === null) return [];
+      if (item.deliveredAt === null || !open.has(item.productId)) return [];
       const deadline = reviewDeadline(item.deliveredAt);
       if (deadline.getTime() < now.getTime()) return [];
       return [
@@ -187,6 +190,7 @@ export class ReviewsService {
             name: item.snapshot.name,
             slug: item.snapshot.productSlug,
             imageUrl: item.snapshot.imageUrl,
+            available: true,
           },
           variantLabel: item.snapshot.variantLabel,
           deliveredAt: item.deliveredAt.toISOString(),
@@ -212,9 +216,12 @@ export class ReviewsService {
       }),
       this.prisma.review.count({ where }),
     ]);
-    const items = await this.orders.purchasedItems(rows.map((row) => row.orderItemId));
+    const [items, visible] = await Promise.all([
+      this.orders.purchasedItems(rows.map((row) => row.orderItemId)),
+      this.products.visibleProductIds(rows.map((row) => row.productId)),
+    ]);
     return toPage(
-      rows.map((row) => toMyReview(row, items.get(row.orderItemId), now)),
+      rows.map((row) => toMyReview(row, items.get(row.orderItemId), now, visible)),
       total,
       query,
     );
@@ -228,6 +235,8 @@ export class ReviewsService {
     const item = await this.orders.purchasedItem(input.orderItemId, userId);
     if (!item) throw orderItemNotFound();
     assertReviewable(item, now);
+    const open = await this.products.visibleProductIds([item.productId]);
+    if (!open.has(item.productId)) throw reviewProductUnavailable();
     const existing = await this.prisma.review.findUnique({
       where: { orderItemId: item.orderItemId },
       select: { id: true },
@@ -281,7 +290,7 @@ export class ReviewsService {
       });
       throw raced ? reviewAlreadyExists() : mediaInUse();
     }
-    return toMyReview(row, item, now);
+    return toMyReview(row, item, now, open);
   }
 
   /**
@@ -371,8 +380,11 @@ export class ReviewsService {
       if (isUniqueViolation(error)) throw mediaInUse();
       throw error;
     }
-    const item = await this.orders.purchasedItem(row.orderItemId, userId);
-    return toMyReview(row, item ?? undefined, now);
+    const [item, visible] = await Promise.all([
+      this.orders.purchasedItem(row.orderItemId, userId),
+      this.products.visibleProductIds([row.productId]),
+    ]);
+    return toMyReview(row, item ?? undefined, now, visible);
   }
 
   /**

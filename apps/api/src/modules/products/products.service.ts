@@ -579,6 +579,29 @@ export class ProductsService {
   }
 
   /**
+   * Id nao trong `ids` dang mo tren cua hang, cung luat trang chi tiet (`storefrontProductWhere`).
+   * Phan he khac dung de khong nhan danh gia san pham da an (ADR-123); mot truy van cho ca lo.
+   */
+  async visibleProductIds(ids: readonly string[]): Promise<Set<string>> {
+    if (ids.length === 0) return new Set();
+    const rows = await this.prisma.product.findMany({
+      where: storefrontProductWhere({ id: { in: [...new Set(ids)] } }),
+      select: { id: true },
+    });
+    return new Set(rows.map((row) => row.id));
+  }
+
+  /** Nhu `visibleProductIds` nhung theo `slug` (slug khong doi sau khi tao): dong don chi giu ban chup. */
+  async visibleProductSlugs(slugs: readonly string[]): Promise<Set<string>> {
+    if (slugs.length === 0) return new Set();
+    const rows = await this.prisma.product.findMany({
+      where: storefrontProductWhere({ slug: { in: [...new Set(slugs)] } }),
+      select: { slug: true },
+    });
+    return new Set(rows.map((row) => row.slug));
+  }
+
+  /**
    * Ghi lai diem trung binh va so danh gia da duyet (ADR-054). Khoa dong san pham TRUOC khi goi
    * `compute`: o READ COMMITTED moi cau lenh lay snapshot moi, nen giao dich vao sau doi khoa roi
    * tinh lai tren du lieu da gom thay doi cua giao dich truoc, khong ghi de bang so cu.

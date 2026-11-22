@@ -294,11 +294,13 @@
   color: var(--on-dark);
 }
 .checkout:disabled {
-  opacity: 0.5;
+  background: rgb(248 247 245 / 0.14);
+  color: var(--on-dark-muted);
+  opacity: 0.72;
   cursor: not-allowed;
 }
 .ordersLink {
-  align-self: flex-start;
+  justify-self: center;
   color: var(--on-dark-muted);
   font-size: var(--s-1);
   text-decoration: underline;
@@ -308,7 +310,7 @@
   color: var(--on-dark);
 }
 .clear {
-  align-self: flex-start;
+  justify-self: center;
   border: 0;
   padding: 0;
   background: transparent;

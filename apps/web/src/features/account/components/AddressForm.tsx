@@ -170,7 +170,13 @@ export function AddressForm({
                 !provinceId || communes.isPending || communes.isError || !communes.data?.length
               }
             >
-              <option value="">{communes.isPending ? 'Đang tải xã…' : 'Chọn xã / phường'}</option>
+              <option value="">
+                {communes.isFetching
+                  ? 'Đang tải xã…'
+                  : provinceId
+                    ? 'Chọn xã / phường'
+                    : 'Chọn tỉnh / thành phố trước'}
+              </option>
               {savedCommune &&
                 provinceId === savedProvince?.id &&
                 !communes.data?.some((area) => area.id === savedCommune.id) && (

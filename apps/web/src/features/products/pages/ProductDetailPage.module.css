@@ -79,8 +79,15 @@
   margin-left: 12px;
 }
 .sku {
+  min-height: 1.4em;
+  margin: 0 0 8px;
   font-size: 0.75rem;
   color: var(--muted);
+}
+.stockSlot {
+  min-height: 24px;
+  display: flex;
+  align-items: center;
 }
 /* Nhieu mau, nhieu co thi xuong dong; nhan "Mau", "Co" nam rieng mot dong ben tren. */
 .choices {
@@ -184,8 +191,8 @@
 .cart {
   min-height: 48px;
   width: 100%;
-  border-color: var(--ink);
   background: var(--ink);
+  border-color: var(--ink);
   color: var(--on-dark);
   font-size: 0.95rem;
   letter-spacing: 0.04em;
@@ -213,6 +220,30 @@
 }
 .description {
   white-space: pre-line;
+}
+.cart:disabled {
+  opacity: 1;
+  background: var(--stone);
+  border-color: var(--stone);
+  color: var(--ink-2);
+}
+.policyDetails {
+  margin: 18px 0 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  font-size: var(--s-1);
+}
+.policyDetails summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: var(--ink);
+}
+.policyDetails p {
+  margin: 8px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
 }
 .related {
   padding-block: 88px;

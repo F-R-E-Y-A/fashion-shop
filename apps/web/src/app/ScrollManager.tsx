@@ -5,6 +5,7 @@ export function ScrollManager() {
   const location = useLocation();
   const navigationType = useNavigationType();
   const positions = useRef(new Map<string, number>());
+  const previousPathname = useRef(location.pathname);
 
   useLayoutEffect(() => {
     const key = location.key;
@@ -17,12 +18,23 @@ export function ScrollManager() {
   }, [location.key]);
 
   useLayoutEffect(() => {
-    // Doi bo loc hay sap xep tren cung mot trang khong keo trang ve dau (useCatalogUrl dat keepScroll).
-    const keepScroll = (location.state as { keepScroll?: boolean } | null)?.keepScroll;
-    if (keepScroll && navigationType !== 'POP') return;
-    const top = navigationType === 'POP' ? (positions.current.get(location.key) ?? 0) : 0;
-    window.scrollTo({ left: 0, top, behavior: 'instant' });
-  }, [location.key, location.state, navigationType]);
+    const prevPath = previousPathname.current;
+    previousPathname.current = location.pathname;
+    const state = location.state as { keepScroll?: boolean; scrollToTop?: boolean } | null;
+    if (navigationType === 'POP') {
+      const top = positions.current.get(location.key) ?? 0;
+      window.scrollTo({ left: 0, top, behavior: 'instant' });
+      return;
+    }
+    if (state?.scrollToTop) {
+      window.scrollTo({ left: 0, top: 0, behavior: 'instant' });
+      return;
+    }
+    // Giu vi tri cuon khi chi doi query/hash tren cung pathname (chon bien the, tab, bo loc)
+    // hoac khi caller dat keepScroll. Chi keo ve dau khi chuyen sang duong dan khac.
+    if (state?.keepScroll || prevPath === location.pathname) return;
+    window.scrollTo({ left: 0, top: 0, behavior: 'instant' });
+  }, [location.key, location.pathname, location.state, navigationType]);
 
   useLayoutEffect(() => {
     const previous = window.history.scrollRestoration;

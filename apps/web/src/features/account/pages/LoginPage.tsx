@@ -5,6 +5,8 @@ import { ApiError } from '@/core';
 
 import { readAuthNavigation } from '../auth-form.js';
 import { useAuth } from '../AuthProvider.js';
+import { AuthField, AuthNotice, AuthSubmitButton, PasswordField } from '../components/AuthForm.js';
+import styles from '../components/AuthForm.module.css';
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -37,50 +39,49 @@ export function LoginPage() {
   }
 
   return (
-    <section className="auth-page">
+    <section className={styles.page}>
       <h1>Đăng nhập</h1>
-      <form className="auth-form" onSubmit={onSubmit}>
-        <label>
-          Email
-          <input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            autoComplete="email"
-            required
-          />
-        </label>
-        <label>
-          Mật khẩu
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            autoComplete="current-password"
-            required
-          />
-        </label>
-        {error && (
-          <p className="state state--error" role="alert">
-            {error}
-          </p>
-        )}
+      <p className={styles.intro}>Đăng nhập bằng email và mật khẩu để tiếp tục.</p>
+      <form className={styles.form} onSubmit={onSubmit} aria-busy={isSubmitting}>
+        <AuthField
+          id="login-email"
+          name="email"
+          label="Email"
+          type="email"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          autoComplete="email"
+          autoCapitalize="none"
+          spellCheck={false}
+          disabled={isSubmitting}
+          required
+        />
+        <PasswordField
+          id="login-password"
+          name="password"
+          label="Mật khẩu"
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          autoComplete="current-password"
+          disabled={isSubmitting}
+          required
+        />
+        <AuthNotice message={error} />
         {unverifiedEmail && (
-          <p className="state state--error" role="alert">
-            Email chưa được xác thực.{' '}
+          <AuthNotice message="Email chưa được xác thực.">
             <Link to="/xac-thuc-email" state={{ email: unverifiedEmail, from: context.from }}>
               Xác thực ngay
             </Link>
-          </p>
+          </AuthNotice>
         )}
-        <button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Đang đăng nhập…' : 'Đăng nhập'}
-        </button>
+        <AuthSubmitButton pending={isSubmitting} pendingLabel="Đang đăng nhập…">
+          Đăng nhập
+        </AuthSubmitButton>
       </form>
-      <p>
+      <p className={styles.navigation}>
         <Link to="/quen-mat-khau">Quên mật khẩu?</Link>
       </p>
-      <p>
+      <p className={styles.navigation}>
         Chưa có tài khoản?{' '}
         <Link to="/register" state={{ email, from: context.from }}>
           Đăng ký

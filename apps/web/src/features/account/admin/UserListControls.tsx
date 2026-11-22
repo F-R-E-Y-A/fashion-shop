@@ -145,7 +145,7 @@ export function UserListControls({
             </select>
           </label>
           <label className={styles.field}>
-            <span>Vai</span>
+            <span>Vai trò</span>
             <select
               value={query.role ?? ''}
               onChange={(event) =>

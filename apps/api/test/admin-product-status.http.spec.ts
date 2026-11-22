@@ -323,6 +323,60 @@ describe('UC-04.2 admin product status HTTP PostgreSQL', () => {
     await change(false, 1).expect(200);
     expect(await history()).toEqual(before);
   });
+  it('UC-04.2/AC63 khong co API xoa cung; CSDL chan xoa san pham va bien the da vao don', async () => {
+    for (const path of [
+      `/api/admin/products/${id}`,
+      `/api/admin/products/${id}/variants/${variantId}`,
+      `/api/products/${id}`,
+    ]) {
+      await t.http.delete(path).set(auth()).expect(404);
+    }
+    const addressId = await prepareCheckout();
+    const quote = await t.http
+      .post('/api/checkout/preview')
+      .set(auth())
+      .send({ addressId })
+      .expect(201);
+    await t.http
+      .post('/api/checkout/orders')
+      .set(auth())
+      .send({
+        addressId,
+        fingerprint: quote.body.fingerprint,
+        gateway: 'COD',
+        idempotencyKey: randomUUID(),
+      })
+      .expect(201);
+    const before = await history();
+    expect(before[1]).toHaveLength(1);
+
+    await expect(t.prisma.$executeRaw`DELETE FROM products WHERE id = ${id}::uuid`).rejects.toThrow(
+      /foreign key/i,
+    );
+    // Go het tham chieu khac (gio, giu cho, kho) trong transaction se rollback: chi dong don van chan.
+    const onlyOrderLeft = t.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`DELETE FROM cart_items WHERE product_variant_id = ${variantId}::uuid`;
+      await tx.$executeRaw`DELETE FROM inventory_reservations WHERE product_variant_id = ${variantId}::uuid`;
+      await tx.$executeRaw`DELETE FROM stock_movements WHERE product_variant_id = ${variantId}::uuid`;
+      await tx.$executeRaw`DELETE FROM inventory WHERE product_variant_id = ${variantId}::uuid`;
+      await tx.$executeRaw`DELETE FROM product_variants WHERE id = ${variantId}::uuid`;
+    });
+    await expect(onlyOrderLeft).rejects.toThrow(/order_items_product_variant_id_fkey/);
+    expect(await t.prisma.productVariant.count({ where: { id: variantId } })).toBe(1);
+    expect(await history()).toEqual(before);
+
+    // Lich su (don, tra hang, danh gia, kho) giu RESTRICT; chi danh sach ca nhan duoc CASCADE.
+    const keys = await t.prisma.$queryRaw<{ table: string; rule: string }[]>`
+      SELECT conrelid::regclass::text AS table, confdeltype::text AS rule FROM pg_constraint
+      WHERE contype = 'f' AND confrelid IN ('products'::regclass, 'product_variants'::regclass)`;
+    expect(keys.find((key) => key.table === 'order_items')?.rule).toBe('r');
+    expect(
+      keys
+        .filter((key) => key.rule !== 'r')
+        .map((key) => key.table)
+        .sort(),
+    ).toEqual(['recently_viewed', 'wishlists']);
+  });
   it.each(['preview', 'orders'])(
     'UC-04.2/AC14 %s doc catalog truoc ngung ban giu snapshot, lan doc sau bi chan',
     async (operation) => {

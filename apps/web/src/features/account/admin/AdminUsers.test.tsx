@@ -223,7 +223,7 @@ describe('UC-02.1 Quản trị tài khoản — danh sách và chi tiết', () =
     expect(document.body).not.toHaveTextContent('0900000000');
     expect(screen.getAllByRole('columnheader').map((th) => th.textContent)).toEqual([
       'Email',
-      'Vai',
+      'Vai trò',
       'Trạng thái',
       'Xác thực email',
       'Ngày tạo',

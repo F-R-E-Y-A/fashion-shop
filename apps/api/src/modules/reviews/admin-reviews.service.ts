@@ -4,6 +4,7 @@ import { type Page, skipOf, toPage } from '../../common/pagination/page.response
 import type { Prisma, ReviewStatus } from '../../generated/prisma/client.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { OrdersService } from '../orders/index.js';
+import { ProductsService } from '../products/index.js';
 import type { AdminReviewResponse } from './dto/review.response.js';
 import type { ListAdminReviewsQuery } from './dto/review-query.dto.js';
 import { AUDIT_ENTITY_REVIEW, ReviewAuditAction } from './review-audit.js';
@@ -30,6 +31,7 @@ export class AdminReviewsService {
     private readonly prisma: PrismaService,
     private readonly orders: OrdersService,
     private readonly ratings: ReviewRatingService,
+    private readonly products: ProductsService,
   ) {}
 
   async list(query: ListAdminReviewsQuery): Promise<Page<AdminReviewResponse>> {
@@ -66,9 +68,12 @@ export class AdminReviewsService {
       }),
       this.prisma.review.count({ where }),
     ]);
-    const items = await this.orders.purchasedItems(rows.map((row) => row.orderItemId));
+    const [items, visible] = await Promise.all([
+      this.orders.purchasedItems(rows.map((row) => row.orderItemId)),
+      this.products.visibleProductIds(rows.map((row) => row.productId)),
+    ]);
     return toPage(
-      rows.map((row) => toAdminReview(row, items.get(row.orderItemId))),
+      rows.map((row) => toAdminReview(row, items.get(row.orderItemId), visible)),
       total,
       query,
     );
@@ -187,8 +192,11 @@ export class AdminReviewsService {
       select: adminReviewSelect,
     });
     if (!row) throw reviewNotFound();
-    const items = await this.orders.purchasedItems([row.orderItemId]);
-    return toAdminReview(row, items.get(row.orderItemId));
+    const [items, visible] = await Promise.all([
+      this.orders.purchasedItems([row.orderItemId]),
+      this.products.visibleProductIds([row.productId]),
+    ]);
+    return toAdminReview(row, items.get(row.orderItemId), visible);
   }
 
   /** Khoa dong danh gia; co `expectedEditCount` thi doi chieu phien ban ngay trong khoa. */
