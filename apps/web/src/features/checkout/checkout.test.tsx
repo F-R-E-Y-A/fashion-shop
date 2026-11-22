@@ -425,18 +425,25 @@ describe('PH-11 checkout UI', () => {
       request.mock.calls.find(([path]) => path === '/checkout/orders')?.[1].body,
     ).toMatchObject({ fingerprint: quote.fingerprint, idempotencyKey: expect.any(String) });
   });
-  it('UC-07.1/AC17 khách khác giữ món trước: hiện tên món đã hết, dẫn về giỏ, không mời xác nhận lại', async () => {
+  it('UC-07.1/AC17 món vừa hết: hiện tên món, dẫn về giỏ, không mời xác nhận lại; gửi kèm dòng đã xác nhận', async () => {
     const message =
-      'Áo thun (Đen / M) vừa hết hàng do khách khác đã đặt trước. Bỏ chọn hoặc giảm số lượng trong giỏ rồi đặt lại.';
+      'Áo thun (Đen / M) vừa hết hàng do khách khác vừa đặt giữ trước. Bỏ chọn hoặc giảm số lượng trong giỏ rồi đặt lại.';
+    const soldOut = (path: string) =>
+      new ApiError({
+        statusCode: 409,
+        code: 'OUT_OF_STOCK',
+        message,
+        path,
+        timestamp: '2026-11-22T00:00:00.000Z',
+      });
+    let attempted = false;
     request.mockImplementation(async (path: string) => {
-      if (path === '/checkout/orders')
-        throw new ApiError({
-          statusCode: 409,
-          code: 'OUT_OF_STOCK',
-          message,
-          path: '/api/checkout/orders',
-          timestamp: '2026-11-22T00:00:00.000Z',
-        });
+      if (path === '/checkout/orders') {
+        attempted = true;
+        throw soldOut('/api/checkout/orders');
+      }
+      // Sau lan dat that bai, preview tai lai cung bao het hang nhu may chu that.
+      if (attempted) throw soldOut('/api/checkout/preview');
       return quote;
     });
     show();
@@ -448,6 +455,13 @@ describe('PH-11 checkout UI', () => {
       'href',
       '/gio-hang',
     );
+    await waitFor(() =>
+      expect(request.mock.calls.filter(([path]) => path === '/checkout/preview').length).toBe(2),
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent('Áo thun (Đen / M) vừa hết hàng');
+    expect(
+      request.mock.calls.find(([path]) => path === '/checkout/orders')?.[1].body.items,
+    ).toEqual(quote.items.map(({ variantId, quantity }) => ({ variantId, quantity })));
   });
   it('UC-08.1/AC5 return URL báo00 vẫn hiện pending nếu database chưa xác nhận', async () => {
     request.mockResolvedValue(order());

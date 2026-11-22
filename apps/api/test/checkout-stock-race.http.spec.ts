@@ -27,11 +27,36 @@ describe('PH-11 checkout: hai khách tranh đơn vị cuối (ADR-120)', () => {
   const as = (buyer: Buyer) => ({ Authorization: `Bearer ${buyer.token}` });
   const preview = (buyer: Buyer) =>
     t.http.post('/api/checkout/preview').set(as(buyer)).send({ addressId: buyer.addressId });
-  const create = (buyer: Buyer, fingerprint: string, gateway?: 'COD') =>
-    t.http
-      .post('/api/checkout/orders')
-      .set(as(buyer))
-      .send({ addressId: buyer.addressId, fingerprint, idempotencyKey: randomUUID(), gateway });
+  const create = (
+    buyer: Buyer,
+    fingerprint: string,
+    gateway?: 'COD',
+    items?: { variantId: string; quantity: number }[],
+  ) =>
+    t.http.post('/api/checkout/orders').set(as(buyer)).send({
+      addressId: buyer.addressId,
+      fingerprint,
+      idempotencyKey: randomUUID(),
+      gateway,
+      items,
+    });
+  const lines = (quote: { items: { variantId: string; quantity: number }[] }) =>
+    quote.items.map(({ variantId, quantity }) => ({ variantId, quantity }));
+  // Bien the thu hai thuoc san pham khac, con nhieu hang: kiem gio nhieu mon.
+  async function second() {
+    const first = await t.prisma.productVariant.findUniqueOrThrow({ where: { id: variantId } });
+    const other = await t.prisma.productVariant.findFirstOrThrow({
+      where: { productId: { not: first.productId } },
+      orderBy: { id: 'asc' },
+      include: { product: { select: { name: true } } },
+    });
+    await t.prisma.productVariant.update({
+      where: { id: other.id },
+      data: { listPrice: '150000', salePrice: null },
+    });
+    await t.prisma.inventory.create({ data: { productVariantId: other.id, quantityOnHand: 5 } });
+    return { id: other.id, name: other.product.name };
+  }
   const stock = (quantityOnHand: number) =>
     t.prisma.inventory.update({ where: { productVariantId: variantId }, data: { quantityOnHand } });
   const reserved = async () =>
@@ -157,5 +182,65 @@ describe('PH-11 checkout: hai khách tranh đơn vị cuối (ADR-120)', () => {
     const view = await preview(a).expect(409);
     expect(view.body.code).toBe('PENDING_ORDER_EXISTS');
     expect(view.body.message).not.toContain('khách khác');
+  });
+
+  it('UC-07.1/AC17 giỏ đã tự bỏ chọn món hết (khách mở giỏ ở tab khác): đặt bằng quote cũ vẫn nêu tên món', async () => {
+    const stale = (await preview(b).expect(201)).body;
+    await create(a, (await preview(a).expect(201)).body.fingerprint).expect(201);
+    await t.http.get('/api/cart').set(as(b)).expect(200);
+    const placed = await create(b, stale.fingerprint, undefined, lines(stale)).expect(409);
+    expect(placed.body.code).toBe('OUT_OF_STOCK');
+    expect(placed.body.message).toContain(productName);
+    // Client cu khong gui dong xac nhan: giu ma cu, khong doan.
+    await create(b, stale.fingerprint).expect(422);
+  });
+
+  it('UC-07.1/AC17 giỏ nhiều món, món cuối bị giữ và giỏ đã bỏ chọn: nêu đúng món hết, không QUOTE_CHANGED', async () => {
+    const extra = await second();
+    await t.http
+      .post('/api/cart/items')
+      .set(as(b))
+      .send({ variantId: extra.id, quantity: 1 })
+      .expect(201);
+    const stale = (await preview(b).expect(201)).body;
+    expect(stale.items).toHaveLength(2);
+    await create(a, (await preview(a).expect(201)).body.fingerprint).expect(201);
+    await t.http.get('/api/cart').set(as(b)).expect(200);
+    const placed = await create(b, stale.fingerprint, undefined, lines(stale)).expect(409);
+    expect(placed.body.code).toBe('OUT_OF_STOCK');
+    expect(placed.body.message).toContain(productName);
+    expect(placed.body.message).not.toContain(extra.name);
+  });
+
+  it('UC-07.1/AC17 đơn COD chờ của khách giữ món khác: thua món cuối vẫn báo OUT_OF_STOCK, không đổ cho đơn COD', async () => {
+    const extra = await second();
+    await t.http
+      .patch(`/api/cart/items/${variantId}`)
+      .set(as(a))
+      .send({ isSelected: false })
+      .expect(200);
+    await t.http
+      .post('/api/cart/items')
+      .set(as(a))
+      .send({ variantId: extra.id, quantity: 1 })
+      .expect(201);
+    await create(a, (await preview(a).expect(201)).body.fingerprint, 'COD').expect(201);
+    await t.http
+      .patch(`/api/cart/items/${extra.id}`)
+      .set(as(a))
+      .send({ isSelected: false })
+      .expect(200);
+    await t.http
+      .patch(`/api/cart/items/${variantId}`)
+      .set(as(a))
+      .send({ isSelected: true })
+      .expect(200);
+    const stale = (await preview(a).expect(201)).body;
+    await create(b, (await preview(b).expect(201)).body.fingerprint).expect(201);
+    const view = await preview(a).expect(409);
+    expect(view.body.code).toBe('OUT_OF_STOCK');
+    expect(view.body.message).toContain(productName);
+    const placed = await create(a, stale.fingerprint, undefined, lines(stale)).expect(409);
+    expect(placed.body.code).toBe('OUT_OF_STOCK');
   });
 });

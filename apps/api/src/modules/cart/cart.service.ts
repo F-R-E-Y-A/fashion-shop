@@ -37,6 +37,12 @@ export class CartService {
     return lockCartOwners(tx, [cartOwnerKey(userId)]);
   }
 
+  /** Moi mon trong gio, ke ca mon da bo chon, de Checkout giai thich vi sao bao gia doi (ADR-120). */
+  async checkoutItems(userId: string, tx: Prisma.TransactionClient) {
+    await this.lockForCheckout(userId, tx);
+    return (await this.readCart(tx, await this.findOrCreateCart(tx, userId))).items;
+  }
+
   /**
    * Mon khach da tick "Chon mua". readCart tu bo chon mon vua het hang; o day doc danh dau truoc do
    * de mon vua bi nguoi khac giu het van tra ve voi availability OUT_OF_STOCK, Checkout bao ro mon

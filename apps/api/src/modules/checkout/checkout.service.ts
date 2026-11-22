@@ -3,7 +3,6 @@ import { createHash, randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
-  HttpException,
   Injectable,
   Logger,
   NotFoundException,
@@ -103,25 +102,39 @@ export interface AppliedDiscount {
 const discountInvalid = (message: string) =>
   new UnprocessableEntityException({ error: 'DISCOUNT_INVALID', message });
 
+interface ShortLine {
+  variantId: string;
+  name: string;
+  variantLabel: string;
+  available: number;
+}
 /**
- * Ai tao don truoc giu hang truoc (ADR-120): khach den sau nhan 409 OUT_OF_STOCK neu ro mon,
- * du thua o buoc giu hang duoi khoa ton hay o buoc tinh gia sau khi don kia da giu.
+ * Ai tao don truoc giu hang truoc (ADR-120): khach den sau nhan 409 OUT_OF_STOCK neu ro mon.
+ * Chi khi thua duoi khoa ton moi biet chac la khach khac vua giu; con lai co the do quan tri
+ * dieu chinh ton nen khong neu nguyen nhan. Mang variantIds de xet don cho cua chinh khach.
  */
-const outOfStock = (lines: { name: string; variantLabel: string; available: number }[]) =>
-  new ConflictException({
-    error: 'OUT_OF_STOCK',
-    message: `${lines
-      .map(
-        (line) =>
-          `${line.name}${line.variantLabel ? ` (${line.variantLabel})` : ''} ${
-            line.available > 0 ? `chỉ còn ${line.available}` : 'vừa hết hàng'
-          }`,
-      )
-      .join('; ')} do khách khác đã đặt trước. Bỏ chọn hoặc giảm số lượng trong giỏ rồi đặt lại.`,
-  });
-const isOutOfStock = (error: unknown) =>
-  error instanceof ConflictException &&
-  (error.getResponse() as { error?: string }).error === 'OUT_OF_STOCK';
+class OutOfStockConflict extends ConflictException {
+  readonly variantIds: string[];
+  constructor(lines: ShortLine[], raced = false) {
+    super({
+      error: 'OUT_OF_STOCK',
+      message: `${lines
+        .map(
+          (line) =>
+            `${line.name}${line.variantLabel ? ` (${line.variantLabel})` : ''} ${
+              line.available > 0 ? `chỉ còn ${line.available}` : 'vừa hết hàng'
+            }`,
+        )
+        .join(
+          '; ',
+        )}${raced ? ' do khách khác vừa đặt giữ trước' : ''}. Bỏ chọn hoặc giảm số lượng trong giỏ rồi đặt lại.`,
+    });
+    this.variantIds = lines.map((line) => line.variantId);
+  }
+}
+const isSelectionRequired = (error: unknown) =>
+  error instanceof UnprocessableEntityException &&
+  (error.getResponse() as { error?: string }).error === 'SELECTION_REQUIRED';
 
 const intentKey = (gateway: string, externalTransactionId: string) => ({
   gateway_externalTransactionId: { gateway, externalTransactionId },
@@ -238,8 +251,9 @@ export class CheckoutService {
       (item) => item.availability === 'OUT_OF_STOCK' || item.availability === 'INSUFFICIENT_STOCK',
     );
     if (short.length)
-      throw outOfStock(
+      throw new OutOfStockConflict(
         short.map((item) => ({
+          variantId: item.variantId,
           name: item.name,
           variantLabel: item.variantLabel,
           available: item.availableQuantity ?? 0,
@@ -314,11 +328,11 @@ export class CheckoutService {
           pendingOrder: pending ? { id: pending.id, orderCode: pending.orderCode } : null,
         };
       } catch (error) {
-        // Don cho dang giu don vi cuoi nen gio thay het hang: chi ra don do, khong bao khach chon lai gio
-        // va khong bao "khach khac da dat truoc" khi nguoi giu chinh la khach nay.
-        if (!(error instanceof UnprocessableEntityException) && !isOutOfStock(error)) throw error;
-        // TS: hai nhanh tren deu la HttpException co getResponse.
-        if (!(error instanceof HttpException)) throw error;
+        // Mon het vi chinh don cho cua khach nay giu: chi ra don do, khong noi "khach khac".
+        if (error instanceof OutOfStockConflict)
+          throw await this.ownHold(userId, pending, error, tx);
+        // Don cho dang giu don vi cuoi nen gio thay het hang: chi ra don do, khong bao khach chon lai gio.
+        if (!(error instanceof UnprocessableEntityException)) throw error;
         // Loi uu dai khong lien quan don cho: tra nguyen ly do, khong doi thanh PENDING_ORDER_EXISTS.
         if ((error.getResponse() as { error?: string }).error === 'DISCOUNT_INVALID') throw error;
         if (pending)
@@ -337,6 +351,56 @@ export class CheckoutService {
     });
   }
 
+  /** Don cho cua chinh khach dang giu mon thieu thi chi ra don do; khong thi giu OUT_OF_STOCK. */
+  private async ownHold(
+    userId: string,
+    pending: { orderCode: string; items: { productVariantId: string }[] } | null,
+    error: OutOfStockConflict,
+    tx: Prisma.TransactionClient,
+  ) {
+    const holds = (order: { items: { productVariantId: string }[] }) =>
+      order.items.some((item) => error.variantIds.includes(item.productVariantId));
+    if (pending && holds(pending))
+      return new ConflictException({
+        error: 'PENDING_ORDER_EXISTS',
+        message: `Bạn còn đơn ${pending.orderCode} đang chờ thanh toán và đang giữ hàng trong giỏ. Tiếp tục hoặc hủy đơn đó trước khi đặt đơn mới.`,
+      });
+    const cod = (await this.orders.pendingCod(userId, tx)).find(holds);
+    if (cod)
+      return new ConflictException({
+        error: 'PENDING_ORDER_EXISTS',
+        message: `Đơn COD ${cod.orderCode} đang chờ shop xác nhận và giữ hàng trong giỏ. Bỏ chọn món đó trong giỏ để đặt đơn mới, hoặc hủy đơn COD.`,
+      });
+    return error;
+  }
+
+  /**
+   * Bao gia doi ma web gui kem dong khach da xac nhan: dong nao nay khong con du ton thi bao
+   * OUT_OF_STOCK neu ten mon. Dong chi dung de giai thich, khong dung tinh gia (ADR-120).
+   */
+  private async lostLines(
+    userId: string,
+    lines: { variantId: string; quantity: number }[] | undefined,
+    tx: Prisma.TransactionClient,
+  ) {
+    if (!lines?.length) return null;
+    const items = await this.cart.checkoutItems(userId, tx);
+    const short = lines.flatMap((line) => {
+      const item = items.find((candidate) => candidate.variantId === line.variantId);
+      if (!item || item.availability === 'INACTIVE' || item.availableQuantity === null) return [];
+      if (item.availableQuantity >= line.quantity) return [];
+      return [
+        {
+          variantId: item.variantId,
+          name: item.name,
+          variantLabel: item.variantLabel,
+          available: item.availableQuantity,
+        },
+      ];
+    });
+    return short.length ? this.ownHold(userId, null, new OutOfStockConflict(short), tx) : null;
+  }
+
   async create(
     user: { id: string; email: string },
     input: {
@@ -344,6 +408,7 @@ export class CheckoutService {
       fingerprint: string;
       idempotencyKey: string;
       gateway?: GatewayCode;
+      items?: { variantId: string; quantity: number }[];
     } & DiscountInput,
     ip: string,
   ) {
@@ -386,20 +451,21 @@ export class CheckoutService {
               'Bạn còn một đơn đang chờ thanh toán. Tiếp tục hoặc hủy đơn đó trước khi đặt đơn mới.',
           });
         const quote = await this.quote(user.id, input.addressId, tx, input).catch(async (error) => {
-          // Mon het vi chinh don COD cho xac nhan cua khach nay giu: chi ra don do nhu preview.
-          const [own] = isOutOfStock(error) ? await this.orders.pendingCod(user.id, tx) : [];
-          if (own)
-            throw new ConflictException({
-              error: 'PENDING_ORDER_EXISTS',
-              message: `Đơn COD ${own.orderCode} đang chờ shop xác nhận và giữ hàng trong giỏ. Bỏ chọn món đó trong giỏ để đặt đơn mới, hoặc hủy đơn COD.`,
-            });
+          // Gio da tu bo chon mon het (khach mo gio o tab khac): dua vao dong khach da xac nhan.
+          if (isSelectionRequired(error))
+            throw (await this.lostLines(user.id, input.items, tx)) ?? error;
+          if (error instanceof OutOfStockConflict)
+            throw await this.ownHold(user.id, null, error, tx);
           throw error;
         });
         if (quote.fingerprint !== input.fingerprint)
-          throw new ConflictException({
-            error: 'QUOTE_CHANGED',
-            message: 'Giá, giỏ hàng hoặc địa chỉ đã đổi. Kiểm tra và xác nhận lại.',
-          });
+          throw (
+            (await this.lostLines(user.id, input.items, tx)) ??
+            new ConflictException({
+              error: 'QUOTE_CHANGED',
+              message: 'Giá, giỏ hàng hoặc địa chỉ đã đổi. Kiểm tra và xác nhận lại.',
+            })
+          );
         const cod = code === 'COD';
         const codGateway = quote.gateways.find((gateway) => gateway.code === 'COD');
         if (cod && codGateway && 'unavailableReason' in codGateway)
@@ -468,15 +534,17 @@ export class CheckoutService {
         // Hai khach cung qua quote roi tranh don vi cuoi: khoa ton xep hang, nguoi sau nhan ten mon.
         await this.inventory.reserve(order.id, quote.items, due, tx).catch((error) => {
           if (!(error instanceof StockShortageError)) throw error;
-          throw outOfStock(
+          throw new OutOfStockConflict(
             error.shortages.map((short) => {
               const item = quote.items.find((line) => line.variantId === short.variantId);
               return {
+                variantId: short.variantId,
                 name: item?.name ?? 'Sản phẩm',
                 variantLabel: item?.variantLabel ?? '',
                 available: short.available,
               };
             }),
+            true,
           );
         });
         return this.view(await this.orders.get(order.id, user.id, tx));
