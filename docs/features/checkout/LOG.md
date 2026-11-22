@@ -175,3 +175,34 @@ Trade-off chấp nhận: mã `STOCK_CHANGED` không còn; web chưa từng xét 
 
 **Kết luận:** chờ Bảo và Duy chốt.
 **Bằng chứng:** [checkout-stock-race.http.spec.ts](../../../apps/api/test/checkout-stock-race.http.spec.ts) (9 bài) và `UC-07.1/AC17` (3 case) trong [checkout.test.tsx](../../../apps/web/src/features/checkout/checkout.test.tsx). Chạy 22/11 trên CSDL kiểm thử riêng: `npx vitest run --project http test/checkout-stock-race.http.spec.ts` → 9 passed. Kiểm ngược, mỗi lần một chỗ: bỏ `lockStock` → bài "cùng bấm" đỏ; bỏ thay đổi `checkoutSelection` → hai bài đỏ; tắt so `items` → hai bài "giỏ đã bỏ chọn" đỏ; `ownHold` nhận mọi đơn COD → bài "COD giữ món khác" đỏ; preview `SELECTION_REQUIRED` đổ cho mọi đơn COD → cùng bài đỏ; web ẩn lỗi tạo đơn khi preview lỗi → hai case web đỏ. 12 tệp HTTP checkout/cart/COD/admin sản phẩm (gồm tệp này) → 167/168; bài đỏ là `UC-07.1/AC12` (429 sau 10 lần, `cod.http.spec.ts:360`), không đi qua mã sửa, lần chạy trước đó xanh và chạy riêng `cod.http.spec.ts` hai lần → 12 passed; coi là bài chập chờn. Suy luận: mọi lượt test HTTP dùng chung `redis://localhost:6379` và prefix `fs:rl:test:` (`test/setup-env.ts:32`, `redis-rate-limiter.ts:13`); `resetRateLimits` của lượt chạy ở worktree khác xoá bộ đếm giữa vòng lặp. Từ Pha 2 chạy test với `REDIS_URL=redis://localhost:6379/5`.
+
+<a id="adr-125"></a>
+## 2026-11-22 · ADR-125 — Khách huỷ đọc trạng thái đơn dưới khoá; tiền về ngay trước thì đi nhánh huỷ-và-hoàn
+
+**Loại:** quyết định · **Phạm vi:** checkout, payments (IPN, worker hết hạn) · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- `cancel` đọc đơn **ngoài** khoá để chọn nhánh: đơn `CONFIRMED` thì gọi huỷ-và-hoàn, còn lại vào `withOrder` (đọc mã trước sửa, `feature/ph-11-concurrency` sau merge develop 22/11). Nếu IPN chốt `CONFIRMED` sau lúc đọc và trước lúc lấy khoá, `withOrder` thấy đơn không còn chờ thanh toán. Khách khi đó nhận 409 "Shop đã xử lý đơn" dù shop chưa làm gì, và tiền nằm lại đơn `CONFIRMED`, khách phải liên hệ shop.
+- IPN, khách huỷ và worker hết hạn đều xếp hàng trên cùng khoá giỏ rồi khoá đơn (`withOrder`, [checkout.service.ts:685](../../../apps/api/src/modules/checkout/checkout.service.ts#L685)). Đã có bài tuần tự "tiền về sau khi huỷ" và "tiền về sau khi hết hạn", nhưng chưa bài nào cho hai bên cùng chen vào một đơn.
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| **A. Quyết nhánh bên trong `withOrder` (chọn)** | Một lần đọc dưới khoá; tiền về trước thì huỷ-và-hoàn như khách bấm huỷ sau khi trả | Huỷ-và-hoàn mở transaction thứ hai, đọc lại đơn dưới khoá và tự từ chối nếu không còn hoàn được | Có |
+| B. Bắt 409 rồi thử lại một lần | Không đổi cấu trúc | Vẫn đọc cũ, chỉ thu hẹp cửa sổ | Có |
+| Không làm gì | | Khách đã trả, bấm huỷ đúng lúc thì bị từ chối sai | |
+
+**Chọn A.** [checkout.service.ts:744](../../../apps/api/src/modules/checkout/checkout.service.ts#L744): trong `withOrder`, khách huỷ (không phải worker) gặp `CONFIRMED` thì trả cờ. Ra ngoài transaction mới gọi `cancelAndRefund` ([:773](../../../apps/api/src/modules/checkout/checkout.service.ts#L773)). Hàm này tự khoá lại và kiểm `selfRefundablePayment` ([:603](../../../apps/api/src/modules/checkout/checkout.service.ts#L603)). Nếu shop đã tạo vận đơn hay cổng không hoàn tự động thì vẫn trả 409 như cũ. Worker hết hạn giữ nguyên nhánh của nó.
+
+### Phản biện
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| AI gợi ý | Claude Opus 5.5 tìm ra lỗi đọc cũ khi lập danh sách khe race cho Pha 3 | giữ |
+| Advisor (Claude) | Bài race phải ép thứ tự bằng khoá, kiểm `body.code` và không có `CONCURRENT_UPDATE`, kiểm ngược mỗi bài | làm theo |
+| Người phản biện | [TBD — hỏi Duy] | |
+
+**Kết luận:** chờ Bảo chốt.
+**Bằng chứng:** khối `PH-11 Pha 3` trong [checkout-payment.http.spec.ts](../../../apps/api/test/checkout-payment.http.spec.ts) có 6 case: huỷ ‖ IPN theo hai thứ tự, worker ‖ IPN theo hai thứ tự, huỷ ‖ worker theo hai thứ tự. Thứ tự ép bằng cách giữ khoá giỏ trong một transaction riêng và đợi `pg_locks` thấy từng request xếp hàng. Bài gắn mã `UC-07.4/AC8` và `UC-08.2/AC10`. Cổng hoàn trỏ về server giả, không gọi sandbox thật. Lệnh chạy 22/11 trên CSDL kiểm thử riêng, Redis db 5: `npx vitest run --project http test/checkout-payment.http.spec.ts` chạy ba lần liên tiếp, lần nào cũng 39 passed. Kiểm ngược:
+- Trả `cancel` về đọc ngoài khoá: 1/6 đỏ, đúng bài "tiền về ngay trước khi lệnh huỷ lấy được khoá" (huỷ nhận 409 thay vì 201).
+- Bỏ hai khoá trong `withOrder`: 5/6 đỏ.
+Thứ tự khoá toàn hệ thống ở [shared/lock-order.md](../../shared/lock-order.md).

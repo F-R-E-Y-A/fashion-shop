@@ -1,6 +1,6 @@
 ---
 title: UC-08 Thanh toán và UC-14.3 Hoàn tiền — đặc tả use case
-updated: 2026-11-14
+updated: 2026-11-22
 status: đề xuất, chờ Bảo duyệt
 owner: Bảo
 ---
@@ -108,6 +108,7 @@ Là **cổng thanh toán**, tôi gửi **IPN báo kết quả giao dịch**, đ�
 - **AC7** (biên) Hai lượt cùng thu tiền: ghi đủ giao dịch, kho trừ một lần; tiền về sau khi hết hạn vào `PAYMENT_REVIEW`, không bán vượt
 - **AC8** (thuận) Bảng mã VNPAY: chỉ `TransactionStatus=00` sau khi kiểm chữ ký mới là thu tiền
 - **AC9** (biên) Worker vét nhiều lô trong ngân sách thời gian; mục lỗi không chặn mục sau, hết ngân sách để tick sau
+- **AC10** (biên) Worker hết hạn và IPN cùng lúc trên đơn quá hạn: thứ tự nào cũng `PAYMENT_REVIEW`, nhả hàng một lần, không bán
 
 ---
 
