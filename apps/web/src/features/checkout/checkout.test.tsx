@@ -425,6 +425,30 @@ describe('PH-11 checkout UI', () => {
       request.mock.calls.find(([path]) => path === '/checkout/orders')?.[1].body,
     ).toMatchObject({ fingerprint: quote.fingerprint, idempotencyKey: expect.any(String) });
   });
+  it('UC-07.1/AC17 khách khác giữ món trước: hiện tên món đã hết, dẫn về giỏ, không mời xác nhận lại', async () => {
+    const message =
+      'Áo thun (Đen / M) vừa hết hàng do khách khác đã đặt trước. Bỏ chọn hoặc giảm số lượng trong giỏ rồi đặt lại.';
+    request.mockImplementation(async (path: string) => {
+      if (path === '/checkout/orders')
+        throw new ApiError({
+          statusCode: 409,
+          code: 'OUT_OF_STOCK',
+          message,
+          path: '/api/checkout/orders',
+          timestamp: '2026-11-22T00:00:00.000Z',
+        });
+      return quote;
+    });
+    show();
+    fireEvent.click(await screen.findByRole('button', { name: 'Xác nhận và sang VNPAY' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Áo thun (Đen / M) vừa hết hàng');
+    expect(alert).not.toHaveTextContent('Kiểm tra lại thông tin');
+    expect(within(alert).getByRole('link', { name: 'Về giỏ hàng' })).toHaveAttribute(
+      'href',
+      '/gio-hang',
+    );
+  });
   it('UC-08.1/AC5 return URL báo00 vẫn hiện pending nếu database chưa xác nhận', async () => {
     request.mockResolvedValue(order());
     show('/thanh-toan/ket-qua?vnp_TxnRef=REF1&vnp_ResponseCode=00&vnp_TransactionStatus=00');

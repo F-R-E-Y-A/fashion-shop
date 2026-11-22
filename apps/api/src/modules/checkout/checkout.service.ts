@@ -3,6 +3,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   ConflictException,
+  HttpException,
   Injectable,
   Logger,
   NotFoundException,
@@ -16,7 +17,7 @@ import type { OrderStatus, Prisma } from '../../generated/prisma/client.js';
 import type { Env } from '../../infra/config/env.js';
 import { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { CartService } from '../cart/index.js';
-import { InventoryService } from '../inventory/index.js';
+import { InventoryService, StockShortageError } from '../inventory/index.js';
 import {
   attachPostCommitHooks,
   type OrderDetails,
@@ -101,6 +102,26 @@ export interface AppliedDiscount {
 }
 const discountInvalid = (message: string) =>
   new UnprocessableEntityException({ error: 'DISCOUNT_INVALID', message });
+
+/**
+ * Ai tao don truoc giu hang truoc (ADR-120): khach den sau nhan 409 OUT_OF_STOCK neu ro mon,
+ * du thua o buoc giu hang duoi khoa ton hay o buoc tinh gia sau khi don kia da giu.
+ */
+const outOfStock = (lines: { name: string; variantLabel: string; available: number }[]) =>
+  new ConflictException({
+    error: 'OUT_OF_STOCK',
+    message: `${lines
+      .map(
+        (line) =>
+          `${line.name}${line.variantLabel ? ` (${line.variantLabel})` : ''} ${
+            line.available > 0 ? `chỉ còn ${line.available}` : 'vừa hết hàng'
+          }`,
+      )
+      .join('; ')} do khách khác đã đặt trước. Bỏ chọn hoặc giảm số lượng trong giỏ rồi đặt lại.`,
+  });
+const isOutOfStock = (error: unknown) =>
+  error instanceof ConflictException &&
+  (error.getResponse() as { error?: string }).error === 'OUT_OF_STOCK';
 
 const intentKey = (gateway: string, externalTransactionId: string) => ({
   gateway_externalTransactionId: { gateway, externalTransactionId },
@@ -213,6 +234,17 @@ export class CheckoutService {
     const items = (await this.cart.checkoutSelection(userId, tx)).sort((a, b) =>
       a.variantId.localeCompare(b.variantId),
     );
+    const short = items.filter(
+      (item) => item.availability === 'OUT_OF_STOCK' || item.availability === 'INSUFFICIENT_STOCK',
+    );
+    if (short.length)
+      throw outOfStock(
+        short.map((item) => ({
+          name: item.name,
+          variantLabel: item.variantLabel,
+          available: item.availableQuantity ?? 0,
+        })),
+      );
     if (!items.length || items.some((item) => !item.canCheckout))
       // Ma rieng de web phan biet voi 422 khac cua preview (vd. dia chi chua co bieu phi), Issue #66.
       throw new UnprocessableEntityException({
@@ -282,8 +314,11 @@ export class CheckoutService {
           pendingOrder: pending ? { id: pending.id, orderCode: pending.orderCode } : null,
         };
       } catch (error) {
-        // Don cho dang giu don vi cuoi nen gio thay het hang: chi ra don do, khong bao khach chon lai gio.
-        if (!(error instanceof UnprocessableEntityException)) throw error;
+        // Don cho dang giu don vi cuoi nen gio thay het hang: chi ra don do, khong bao khach chon lai gio
+        // va khong bao "khach khac da dat truoc" khi nguoi giu chinh la khach nay.
+        if (!(error instanceof UnprocessableEntityException) && !isOutOfStock(error)) throw error;
+        // TS: hai nhanh tren deu la HttpException co getResponse.
+        if (!(error instanceof HttpException)) throw error;
         // Loi uu dai khong lien quan don cho: tra nguyen ly do, khong doi thanh PENDING_ORDER_EXISTS.
         if ((error.getResponse() as { error?: string }).error === 'DISCOUNT_INVALID') throw error;
         if (pending)
@@ -350,7 +385,16 @@ export class CheckoutService {
             message:
               'Bạn còn một đơn đang chờ thanh toán. Tiếp tục hoặc hủy đơn đó trước khi đặt đơn mới.',
           });
-        const quote = await this.quote(user.id, input.addressId, tx, input);
+        const quote = await this.quote(user.id, input.addressId, tx, input).catch(async (error) => {
+          // Mon het vi chinh don COD cho xac nhan cua khach nay giu: chi ra don do nhu preview.
+          const [own] = isOutOfStock(error) ? await this.orders.pendingCod(user.id, tx) : [];
+          if (own)
+            throw new ConflictException({
+              error: 'PENDING_ORDER_EXISTS',
+              message: `Đơn COD ${own.orderCode} đang chờ shop xác nhận và giữ hàng trong giỏ. Bỏ chọn món đó trong giỏ để đặt đơn mới, hoặc hủy đơn COD.`,
+            });
+          throw error;
+        });
         if (quote.fingerprint !== input.fingerprint)
           throw new ConflictException({
             error: 'QUOTE_CHANGED',
@@ -421,7 +465,20 @@ export class CheckoutService {
           tx,
           code,
         );
-        await this.inventory.reserve(order.id, quote.items, due, tx);
+        // Hai khach cung qua quote roi tranh don vi cuoi: khoa ton xep hang, nguoi sau nhan ten mon.
+        await this.inventory.reserve(order.id, quote.items, due, tx).catch((error) => {
+          if (!(error instanceof StockShortageError)) throw error;
+          throw outOfStock(
+            error.shortages.map((short) => {
+              const item = quote.items.find((line) => line.variantId === short.variantId);
+              return {
+                name: item?.name ?? 'Sản phẩm',
+                variantLabel: item?.variantLabel ?? '',
+                available: short.available,
+              };
+            }),
+          );
+        });
         return this.view(await this.orders.get(order.id, user.id, tx));
       },
       { timeout: 15_000 },

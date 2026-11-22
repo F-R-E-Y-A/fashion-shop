@@ -37,10 +37,26 @@ export class CartService {
     return lockCartOwners(tx, [cartOwnerKey(userId)]);
   }
 
+  /**
+   * Mon khach da tick "Chon mua". readCart tu bo chon mon vua het hang; o day doc danh dau truoc do
+   * de mon vua bi nguoi khac giu het van tra ve voi availability OUT_OF_STOCK, Checkout bao ro mon
+   * nao het thay vi am tham bo mon (ADR-120). Mon ngung ban van bi bo nhu cu.
+   */
   async checkoutSelection(userId: string, tx: Prisma.TransactionClient) {
     await this.lockForCheckout(userId, tx);
     const cart = await this.findOrCreateCart(tx, userId);
-    return (await this.readCart(tx, cart)).items.filter((item) => item.isSelected);
+    const chosen = new Set(
+      (
+        await tx.cartItem.findMany({
+          where: { cartId: cart.id, isSelected: true },
+          select: { productVariantId: true },
+        })
+      ).map((row) => row.productVariantId),
+    );
+    return (await this.readCart(tx, cart)).items.filter(
+      (item) =>
+        item.isSelected || (chosen.has(item.variantId) && item.availability === 'OUT_OF_STOCK'),
+    );
   }
 
   async consumePurchased(

@@ -1,5 +1,5 @@
 export { InventoryModule } from './inventory.module.js';
-export { InventoryService, type StockStatus } from './inventory.service.js';
+export { InventoryService, StockShortageError, type StockStatus } from './inventory.service.js';
 export {
   applyStockCounts,
   parseStockCsv,

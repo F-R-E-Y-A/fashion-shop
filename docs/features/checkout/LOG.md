@@ -134,3 +134,42 @@ Trade-off chấp nhận: khuyến mãi tự động không giữ lượt, vì mo
 
 **Kết luận:** chờ Bảo và Duy chốt.
 **Bằng chứng:** `apps/api/test/checkout-voucher.http.spec.ts` (5 bài: preview, đặt và huỷ, RETURNED, mã sai, mã bị tắt giữa báo giá và đặt). Chạy 15/11: `npx vitest run --project http test/checkout-voucher.http.spec.ts` → 5 passed; cả bộ HTTP 652 passed trước khi sửa bài cuối.
+
+<a id="adr-120"></a>
+## 2026-11-22 · ADR-120 — Ai tạo đơn trước giữ hàng trước; người sau nhận 409 `OUT_OF_STOCK` nêu tên món
+
+**Loại:** quyết định · **Phạm vi:** checkout, inventory, cart (đọc), web trang thanh toán · **Trạng thái:** đề xuất · **Người quyết:** Bảo, Duy (góp ý 2) · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- Khoá tồn đã có: giữ hàng khoá advisory theo biến thể, xếp thứ tự ([inventory-operations.ts:7](../../../apps/api/src/modules/inventory/inventory-operations.ts#L7)), nên không bán vượt; bài `UC-07.1/AC5` trong [checkout-payment.http.spec.ts](../../../apps/api/test/checkout-payment.http.spec.ts) và bộ tải [checkout-hot-sku.load.ts](../../../apps/api/test/load/checkout-hot-sku.load.ts) kiểm số giữ. Cả hai **không** kiểm người thua nhận gì.
+- Người thua gặp ba câu khác nhau tuỳ thời điểm: cùng lúc thì 409 `STOCK_CHANGED` chung chung; đến sau khi người kia đã giữ thì giỏ tự bỏ chọn món hết hàng, nên nhận 422 `SELECTION_REQUIRED` (món duy nhất) hoặc 409 `QUOTE_CHANGED` (còn món khác). Không câu nào nói món nào hết và vì sao (đọc mã trước sửa, `develop` `a1ce291`).
+- Luật "ai giữ trước" chưa viết ra: tài liệu chỉ có AC5 "không bán vượt".
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Giữ hàng từ lúc preview hoặc vào trang thanh toán | Khách đã thấy giá thì chắc mua được | Khách xem rồi bỏ đi vẫn chiếm hàng; cần hạn giữ riêng và job nhả | Có, tốn công |
+| **B. Giữ lúc tạo đơn, người sau nhận 409 `OUT_OF_STOCK` có tên món (chọn)** | Không đổi mô hình giữ hàng; mọi đường thua cho cùng một mã và câu rõ | Khách có thể điền xong rồi mới biết hết | Có |
+| Không làm gì | | Ba câu khác nhau, khách không biết món nào hết | |
+
+**Chọn B.** Luật đi kèm (BR7 và AC17 của UC-07.1 ở [use-cases.md](use-cases.md)):
+
+1. Preview không giữ. Đơn giữ theo hạn của nó: trả trước 15 phút, COD tới khi shop xử lý. Hết hạn thì nhả cho người sau.
+2. Người sau nhận 409 `OUT_OF_STOCK`, câu nêu từng món "vừa hết hàng" hoặc "chỉ còn N". Hai đường cho cùng mã: thua dưới khoá tồn thì `StockShortageError` mang danh sách biến thể thiếu ([inventory.service.ts:13](../../../apps/api/src/modules/inventory/inventory.service.ts#L13)), Checkout đổi sang tên món ([checkout.service.ts:470](../../../apps/api/src/modules/checkout/checkout.service.ts#L470)); đến sau khi đã có người giữ thì báo giá thấy món hết ([checkout.service.ts:237](../../../apps/api/src/modules/checkout/checkout.service.ts#L237)).
+3. Để báo giá thấy món vừa hết, `checkoutSelection` trả cả món khách đã tick mà giỏ vừa tự bỏ chọn vì hết hàng ([cart.service.ts:45](../../../apps/api/src/modules/cart/cart.service.ts#L45)). Lỗi rollback việc bỏ chọn; khách mở giỏ thì giỏ tự bỏ chọn như cũ. Món ngừng bán vẫn bị bỏ như cũ.
+4. Món do đơn chờ của chính khách giữ thì vẫn báo `PENDING_ORDER_EXISTS`, không nói "khách khác" ([checkout.service.ts:319](../../../apps/api/src/modules/checkout/checkout.service.ts#L319), [:390](../../../apps/api/src/modules/checkout/checkout.service.ts#L390)).
+5. Tiền về sau khi hold đã nhả: đơn vào `PAYMENT_REVIEW`, không trừ kho ([settlement.service.ts:104](../../../apps/api/src/modules/checkout/settlement.service.ts#L104)); đã có bài `UC-08.2/AC7`, không thêm.
+6. Web: lỗi tạo đơn `OUT_OF_STOCK` hiện nguyên câu máy chủ kèm link về giỏ, bỏ câu "Kiểm tra lại thông tin rồi xác nhận lại", và tải lại giỏ ([CheckoutPage.tsx:131](../../../apps/web/src/features/checkout/CheckoutPage.tsx#L131)).
+
+Trade-off chấp nhận: mã `STOCK_CHANGED` không còn; web chưa từng xét mã này (`grep -rn STOCK_CHANGED apps` trước sửa chỉ thấy `inventory.service.ts`).
+
+### Phản biện
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| Câu hỏi phản biện | Duy (góp ý 2 tuần này): khách đến sau thấy gì, luật giữ hàng là gì | B trả lời bằng BR7 |
+| AI gợi ý | Claude Opus 5.5 soạn kế hoạch và diff 22/11 | giữ |
+| AI sai | Bảng rà soát 22/11 ghi "chưa có test hai khách tranh món cuối"; thật ra có AC5 và bộ tải, chỉ thiếu kiểm câu của người thua | Claude tự bắt khi đọc lại mã trước khi lập kế hoạch |
+| Người phản biện | [TBD — hỏi Duy] câu thông báo và luật 3 | |
+
+**Kết luận:** chờ Bảo và Duy chốt.
+**Bằng chứng:** [checkout-stock-race.http.spec.ts](../../../apps/api/test/checkout-stock-race.http.spec.ts) (5 bài). Chạy 22/11 trên CSDL kiểm thử riêng: `npx vitest run --project http test/checkout-stock-race.http.spec.ts` → 5 passed. Kiểm ngược: bỏ `lockStock` thì bài "cùng bấm" đỏ; bỏ luật 3 thì hai bài đỏ. 11 tệp HTTP checkout/cart/COD/admin sản phẩm → 159 passed.
