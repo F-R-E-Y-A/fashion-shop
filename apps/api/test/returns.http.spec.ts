@@ -381,6 +381,76 @@ describe('UC-14.1, UC-14.2 tra hang va hoan tien (PostgreSQL + cong VNPAY gia)',
     await admin(`${returnId}/refund`, { transferReference: 'FT26318ABD' }).expect(409);
   });
 
+  it('UC-14.2/AC9 sau khi giao admin doi gia, doi ten, ngung ban: tra hang van theo don gia va ban chup luc mua', async () => {
+    const { orderId, orderItemId } = await w.deliveredItem(2);
+    const line = await t.prisma.orderItem.findUniqueOrThrow({ where: { id: orderItemId } });
+    const product = await t.prisma.product.findUniqueOrThrow({ where: { id: w.productId } });
+    const variant = await t.prisma.productVariant.findUniqueOrThrow({
+      where: { id: line.productVariantId },
+    });
+    const adminPatch = (path: string, body: Record<string, unknown>) =>
+      t.http
+        .patch(`/api/admin/products/${w.productId}/${path}`)
+        .set(w.admin.auth)
+        .send(body)
+        .expect(200);
+    await adminPatch(`variants/${variant.id}`, {
+      listPrice: '999000',
+      salePrice: null,
+      expectedUpdatedAt: variant.updatedAt.toISOString(),
+    });
+    await adminPatch('content', {
+      name: 'Tên mới sau khi giao',
+      description: product.description,
+      material: product.material,
+      careInstructions: product.careInstructions,
+      expectedVersion: product.contentVersion,
+    });
+    await adminPatch('status', { adminDisabled: true, expectedVersion: product.statusVersion });
+    await t.http.get(`/api/products/${w.productSlug}`).expect(404);
+    const live = await t.prisma.productVariant.findUniqueOrThrow({
+      where: { id: variant.id },
+      select: { listPrice: true, product: { select: { name: true, isActive: true } } },
+    });
+    expect([live.listPrice.toFixed(2), live.product.name, live.product.isActive]).toEqual([
+      '999000.00',
+      'Tên mới sau khi giao',
+      false,
+    ]);
+    const stock = await onHand(orderItemId);
+
+    const created = await submit(w.buyer, orderId, {
+      items: [{ orderItemId, quantity: 2 }],
+      reasonCode: 'SIZE_MISMATCH',
+      refundAccount: account,
+    }).expect(201);
+    const snapshot = line.productSnapshot as { name: string };
+    expect(snapshot.name).not.toBe('Tên mới sau khi giao');
+    expect(created.body).toMatchObject({
+      refundAmount: '400000.00',
+      items: [
+        {
+          orderItemId,
+          name: snapshot.name,
+          unitPrice: '200000.00',
+          quantity: 2,
+          refundAmount: '400000.00',
+        },
+      ],
+    });
+    await admin(`${created.body.id}/approve`, { note: 'Nhận lại hàng.' }).expect(200);
+    await admin(`${created.body.id}/receive`).expect(200);
+    // Bien the da ngung ban van duoc cong kho tra.
+    expect(await onHand(orderItemId)).toBe(stock + 2);
+    const done = await admin(`${created.body.id}/refund`, {
+      transferReference: 'FT26326XYZ',
+    }).expect(200);
+    expect(done.body.refund).toMatchObject({ status: 'SUCCEEDED', amount: '400000.00' });
+    expect(await t.prisma.orderItem.findUniqueOrThrow({ where: { id: orderItemId } })).toEqual(
+      line,
+    );
+  });
+
   it('UC-14.2/AC7 sai thu tu: nhan hang khi chua duyet, hoan khi chua nhan: 409, kho va tien khong doi', async () => {
     const { orderId, orderItemId } = await w.deliveredItem();
     const created = await submit(w.buyer, orderId, {

@@ -1,12 +1,12 @@
 ---
 title: UC-04.2 — trạng thái sản phẩm quản trị
-updated: 2026-11-10
+updated: 2026-11-22
 status: triển khai PR71, quyết định còn đề xuất
 owner: Tài
 ---
 # UC-04.2 · Quản lý thông tin sản phẩm — trạng thái bán
 
-**Chức năng:** Giữ AC11–18 của ngừng bán thủ công, tiếp nối lát đọc và tách khỏi sửa nội dung.
+**Chức năng:** Giữ AC11–18 của ngừng bán thủ công và AC63 cấm xoá cứng, tiếp nối lát đọc, tách khỏi sửa nội dung.
 
 Tiếp nối [AC1–10](use-cases.md); [AC19–28](use-cases-admin-content.md) mở rộng sửa nội dung.
 Tách tài liệu để giữ giới hạn300dòng; không đổi số hoặc ý nghĩa tiêu chí đã có.
@@ -32,3 +32,9 @@ Giữ AC1–10 của lát đọc. Tài chốt giữ ngừng bán thủ công qua
 - [ ] **AC18** (âm) 400/401/403/404/409/422 có thông báo đúng, không retry4xx/mutation. 409 tải lại rồi xem và
   xác nhận lại; 5xx/network/timeout chỉ GET đối chiếu, không cho gửi thao tác mới khi chưa xác minh được.
   Check/build/HTTP riêng/docs lint và minh chứng phải định danh bản; CI/review người trước merge.
+
+### Không xoá cứng — đề xuất ([ADR-121](LOG.md#adr-121))
+Gỡ sản phẩm khỏi cửa hàng là ngừng bán theo AC12; không có thao tác xoá vĩnh viễn sản phẩm hay biến thể.
+- [ ] **AC63** (âm) Không có API xoá cứng: `DELETE` sản phẩm, biến thể (quản trị) và sản phẩm (công khai) đều 404,
+  dữ liệu giữ nguyên. Xoá thẳng trong CSDL bị khoá ngoại `RESTRICT` chặn khi sản phẩm hay biến thể đã có đơn,
+  kho, giỏ, đánh giá hoặc trả hàng; đơn và lịch sử không đổi. Chỉ yêu thích và đã xem gần đây xoá theo (`CASCADE`).
