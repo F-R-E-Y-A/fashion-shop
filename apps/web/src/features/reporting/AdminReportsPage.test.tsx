@@ -7,6 +7,7 @@ import { AppRoutes } from '@/app';
 import { type AuthenticatedUser, AuthProvider } from '@/features/account';
 
 import { type AdminReportSummaryResponse } from './admin-reporting.api';
+import { DailyRevenueChart } from './AdminReportCharts';
 
 const adminActor: AuthenticatedUser = {
   id: 'a0000000-0000-4000-8000-000000000001',
@@ -247,5 +248,55 @@ describe('AdminReportsPage (Issue #108 Web UI)', () => {
     const preset7d = screen.getByRole('button', { name: '7 ngày qua' });
     fireEvent.click(preset7d);
     expect(preset7d).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('gan mau va nhan dung cho cac OrderStatus tu backend (SHIPPED, PAYMENT_REVIEW, PARTIALLY_REFUNDED, REFUNDED)', async () => {
+    setup('/admin/reports', adminActor, () =>
+      reply({
+        ...mockSummaryReady,
+        ordersByStatus: [
+          { status: 'SHIPPED', count: 4, percentage: 40 },
+          { status: 'PAYMENT_REVIEW', count: 2, percentage: 20 },
+          { status: 'PARTIALLY_REFUNDED', count: 2, percentage: 20 },
+          { status: 'REFUNDED', count: 2, percentage: 20 },
+        ],
+      }),
+    );
+
+    const statusChart = await screen.findByTestId('orders-status-chart');
+    expect(statusChart.querySelector('[title="Đang giao hàng: 40%"]')).not.toHaveStyle({
+      background: 'var(--muted)',
+    });
+    expect(statusChart.querySelector('[title="Chờ đối soát thanh toán: 20%"]')).not.toHaveStyle({
+      background: 'var(--muted)',
+    });
+    expect(statusChart.querySelector('[title="Hoàn tiền một phần: 20%"]')).not.toHaveStyle({
+      background: 'var(--muted)',
+    });
+    expect(statusChart.querySelector('[title="Đã hoàn tiền: 20%"]')).not.toHaveStyle({
+      background: 'var(--muted)',
+    });
+
+    expect(screen.getByText('Đang giao hàng')).toBeInTheDocument();
+    expect(screen.getByText('Chờ đối soát thanh toán')).toBeInTheDocument();
+    expect(screen.getByText('Hoàn tiền một phần')).toBeInTheDocument();
+    expect(screen.getByText('Đã hoàn tiền')).toBeInTheDocument();
+  });
+
+  it('DailyRevenueChart quay ve nhan Ngay cao diem khi so ngay thu hep duoi chi so da chon', () => {
+    const items30d = Array.from({ length: 10 }, (_, idx) => ({
+      date: `2026-11-${String(idx + 1).padStart(2, '0')}`,
+      collectedAmount: idx === 0 ? '900000.00' : '100000.00',
+      refundedAmount: '0.00',
+      netAmount: idx === 0 ? '900000.00' : '100000.00',
+    }));
+
+    const { rerender } = render(<DailyRevenueChart items={items30d} />);
+    const lastDayBtn = screen.getByRole('button', { name: /2026-11-10/ });
+    fireEvent.click(lastDayBtn);
+    expect(screen.getByText('2026-11-10:')).toBeInTheDocument();
+
+    rerender(<DailyRevenueChart items={items30d.slice(0, 7)} />);
+    expect(screen.getByText('Ngày cao điểm (01/11):')).toBeInTheDocument();
   });
 });

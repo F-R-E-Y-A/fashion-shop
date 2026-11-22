@@ -28,12 +28,16 @@ const ORDER_STATUS_LABELS: Record<
   { label: string; tone?: 'accent' | 'danger' | 'pending' | 'muted' }
 > = {
   PENDING_PAYMENT: { label: 'Chờ thanh toán', tone: 'pending' },
+  PAYMENT_REVIEW: { label: 'Chờ đối soát thanh toán', tone: 'pending' },
   PENDING_CONFIRMATION: { label: 'Chờ xác nhận', tone: 'pending' },
   CONFIRMED: { label: 'Đã xác nhận', tone: 'accent' },
   PROCESSING: { label: 'Đang chuẩn bị hàng', tone: 'accent' },
+  SHIPPED: { label: 'Đang giao hàng', tone: 'accent' },
   SHIPPING: { label: 'Đang giao hàng', tone: 'accent' },
   DELIVERED: { label: 'Đã giao hàng', tone: 'accent' },
   CANCELLED: { label: 'Đã hủy', tone: 'danger' },
+  PARTIALLY_REFUNDED: { label: 'Hoàn tiền một phần', tone: 'danger' },
+  REFUNDED: { label: 'Đã hoàn tiền', tone: 'muted' },
   RETURNED: { label: 'Đã trả hàng', tone: 'muted' },
 };
 
