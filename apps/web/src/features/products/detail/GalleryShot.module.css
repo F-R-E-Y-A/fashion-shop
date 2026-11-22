@@ -1,0 +1,147 @@
+.media {
+  position: absolute;
+  inset: 0;
+  transition: transform 0.7s var(--ease);
+}
+/* contain nhu gallery cu: khong cat anh san pham. Nen cua the img phu phan vien thua, nen anh cu
+   ty le khac nam ben duoi khong lo ra hai ben anh moi. */
+.image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  background: var(--surface);
+  object-fit: contain;
+  -webkit-user-drag: none;
+}
+.reveal {
+  animation: reveal-next 0.62s var(--ease) both;
+}
+.reveal[data-move='prev'] {
+  animation-name: reveal-prev;
+}
+.reveal[data-move='swap'] {
+  animation-name: reveal-swap;
+  animation-duration: 0.75s;
+}
+/* Duong quet ho phach chay theo mep cat cua anh moi, mo dan o cuoi. */
+.scan {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  animation: scan-next 0.62s var(--ease) both;
+}
+.scan[data-move='next'],
+.scan[data-move='prev'] {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--amber-glow) 28%, transparent),
+    transparent 22%
+  );
+  border-left: 2px solid var(--paper);
+  box-shadow: -10px 0 28px -6px color-mix(in srgb, var(--amber-glow) 85%, transparent);
+}
+.scan[data-move='prev'] {
+  animation-name: scan-prev;
+  background: linear-gradient(
+    270deg,
+    color-mix(in srgb, var(--amber-glow) 28%, transparent),
+    transparent 22%
+  );
+  border-right: 2px solid var(--paper);
+  border-left: 0;
+  box-shadow: 10px 0 28px -6px color-mix(in srgb, var(--amber-glow) 85%, transparent);
+}
+.scan[data-move='swap'] {
+  animation-name: scan-swap;
+  animation-duration: 0.75s;
+  background: linear-gradient(
+    180deg,
+    transparent 72%,
+    color-mix(in srgb, var(--amber-glow) 26%, transparent)
+  );
+  border-bottom: 2px solid var(--paper);
+  box-shadow: 0 10px 28px -6px color-mix(in srgb, var(--amber-glow) 85%, transparent);
+}
+@keyframes reveal-next {
+  from {
+    clip-path: inset(0 0 0 100%);
+  }
+  to {
+    clip-path: inset(0);
+  }
+}
+@keyframes reveal-prev {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0);
+  }
+}
+@keyframes reveal-swap {
+  from {
+    clip-path: inset(0 0 100% 0);
+  }
+  to {
+    clip-path: inset(0);
+  }
+}
+@keyframes scan-next {
+  from {
+    opacity: 1;
+    transform: translateX(100%);
+  }
+  85% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(0);
+  }
+}
+@keyframes scan-prev {
+  from {
+    opacity: 1;
+    transform: translateX(-100%);
+  }
+  85% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translateX(0);
+  }
+}
+@keyframes scan-swap {
+  from {
+    opacity: 1;
+    transform: translateY(-100%);
+  }
+  85% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Phai kem [data-move]: luat doi ten hieu ung o tren nang hon .reveal, chi .reveal thi doi mau
+     van quet 0.75s. */
+  .reveal,
+  .reveal[data-move] {
+    animation: none;
+  }
+  /* Khong co animationend de don anh cu, nen an luon tu dau. */
+  .under {
+    display: none;
+  }
+  .scan {
+    display: none;
+  }
+  .media {
+    transition: none;
+  }
+}
