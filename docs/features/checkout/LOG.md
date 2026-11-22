@@ -1,6 +1,6 @@
 ---
 title: Checkout — nhật ký
-updated: 2026-11-15
+updated: 2026-11-22
 status: đang dùng
 owner: Bảo
 ---
@@ -134,3 +134,46 @@ Trade-off chấp nhận: khuyến mãi tự động không giữ lượt, vì mo
 
 **Kết luận:** chờ Bảo và Duy chốt.
 **Bằng chứng:** `apps/api/test/checkout-voucher.http.spec.ts` (5 bài: preview, đặt và huỷ, RETURNED, mã sai, mã bị tắt giữa báo giá và đặt). Chạy 15/11: `npx vitest run --project http test/checkout-voucher.http.spec.ts` → 5 passed; cả bộ HTTP 652 passed trước khi sửa bài cuối.
+
+<a id="adr-122"></a>
+## 2026-11-22 · ADR-122 — Trang đơn của khách hiện tiến trình trạng thái đơn từ lịch sử; vận chuyển chỉ là một dòng trạng thái, ghi chú vận đơn lọc ở máy chủ
+
+**Loại:** quyết định · **Phạm vi:** checkout (API khách, trang `/don-hang/:id`), shipping (khối vận chuyển) · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- `GET /api/orders/:id` không trả lịch sử trạng thái. Lịch sử chỉ có ở API admin, dù bảng `order_status_history` đã ghi mọi bước chuyển trạng thái trong `OrdersService.transition` (đọc trên develop `a1ce291`).
+- Trang đơn có thanh 4 bước dựng từ `Shipment.status` (`OrderPage.tsx:318` trên `a1ce291`). Trước khi có vận đơn thì không có tiến trình; với đơn hủy hay hoàn tiền thì thanh này không có nghĩa.
+- API khách trả nguyên văn `carrierStatus` và `statusNote` (`checkout.service.ts:501-502` trên `a1ce291`). Web tự che hai trường hợp (`OrderPage.tsx:281-286`), còn ghi chú admin gõ tay và mã giữ chỗ `create_uncertain:` thì vẫn tới được trình duyệt.
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Gộp trạng thái đơn và trạng thái vận chuyển thành một cây chung | Một thanh duy nhất | Hai nguồn sự thật lẫn nhau; thanh toán, hủy, hoàn tiền khó đặt vào | Khó |
+| **B. Hai trục riêng: tiến trình theo lịch sử đơn, vận chuyển là một dòng trạng thái; lọc ghi chú ở máy chủ (chọn)** | Không đổi dữ liệu; mốc nào cũng có giờ thật; API đơn của khách không bao giờ trả ghi chú nội bộ | Ghi chú cho khách chỉ còn câu mặc định theo mã GHN | Có |
+| Không làm gì | | Có nguy cơ lộ ghi chú nội bộ; không có tiến trình trước khi có vận đơn | |
+
+**Chọn B.** Luật đi kèm:
+1. `OrderResponse.history = [{status, at}]` theo thứ tự cũ trước, mới sau, không có `actorUserId`. API admin vẫn trả `actorUserId`.
+2. Mốc hiện tại luôn theo `order.status`. Nếu lịch sử thiếu mốc đó, web thêm mốc không có giờ để không lệch với thẻ trạng thái.
+3. Với khách: `carrierStatus` luôn `null`. `statusNote` lấy theo thứ tự: đang tạo hoặc chờ đối soát thì trả câu "đang tạo"; nếu mã GHN khớp `status` thì trả câu mặc định của mã; `cancel`, `exception`, `scrap` thì trả câu trung tính; còn lại `null`.
+
+Trade-off chấp nhận: ghi chú admin muốn gửi khách phải đi qua thông báo, không qua vận đơn. Phạm vi chỉ là API đơn (`GET /api/orders`, `/:id`, `/by-payment/:reference`). Thông báo giao thất bại vẫn gửi khách ghi chú admin gõ ở `PATCH /admin/orders/:id/shipment/status` (`admin-shipment.controller.ts:74` → `shipping.service.ts:1150` → `notifications.service.ts:396`); đó là kênh có chủ ý, ADR này không đổi.
+
+### Phản biện
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| Câu hỏi phản biện | Bảo hỏi có phải gộp hai trạng thái thành một cây chung không | bỏ A, giữ dữ liệu riêng |
+| AI gợi ý | Claude Opus 5.5 soạn diff 22/11 | giữ |
+| AI sai | Bài HTTP đầu tiên đòi mốc cuối của lịch sử là `CONFIRMED`; fixture đặt trạng thái thẳng bằng Prisma (`shipping-ghn.http.spec.ts:386`) | Claude bắt khi chạy bài; sửa assertion |
+| Người phản biện | Agent rà lại phiên: còn đường nào khác đưa `statusNote` tới khách | thu hẹp phạm vi về API đơn, ghi rõ đường thông báo |
+| Người phản biện | [TBD — hỏi Duy] câu ghi chú cho mã GHN và việc bỏ thanh 4 bước | |
+
+**Kết luận:** chờ Bảo chốt; Duy xem phần shipping.
+**Bằng chứng:** chưa đẩy commit nên chưa có link. `apps/api/src/modules/checkout/order-view.spec.ts` (4 bài), 3 bài `UC-07.3/AC7`–`AC8` trong `apps/web/src/features/checkout/checkout.test.tsx`, assertion `UC-07.3/AC8` trong `apps/api/test/shipping-ghn.http.spec.ts`. Chạy 22/11: `npm run test:http` → 46 tệp, 719 passed; `npm run check` → API 802, web 834 passed.
+
+### Kết quả mong đợi → thực tế
+Mong đợi: staging `/don-hang/:id` hiện tiến trình có giờ cho cả đơn COD lẫn đơn trả trước; response khách không có `carrierStatus` khác `null`.
+Thực tế: [điền sau]
+
+### Điều kiện xem lại
+Thêm hãng vận chuyển thứ hai, hoặc shop cần gửi ghi chú riêng cho khách trên vận đơn.

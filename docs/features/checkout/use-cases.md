@@ -1,6 +1,6 @@
 ---
 title: UC-07 Đặt hàng và UC-12 Xử lý đơn — đặc tả use case
-updated: 2026-11-05
+updated: 2026-11-22
 status: đề xuất, chờ Bảo duyệt
 owner: Bảo
 ---
@@ -44,7 +44,7 @@ Là một **khách hàng**, tôi muốn **xác nhận các món đã chọn tron
 | Mã | Tình huống | Hệ thống xử lý |
 |---|---|---|
 | E1 | Chưa đăng nhập | 401; web chuyển trang đăng nhập |
-| E2 | Không có món nào được chọn đủ tồn | 422 `SELECTION_REQUIRED` "Chọn sản phẩm đủ tồn kho trong giỏ trước khi thanh toán." ([checkout.service.ts:94](../../../apps/api/src/modules/checkout/checkout.service.ts#L94)); web dẫn về giỏ. Mã riêng có từ bản sửa Issue #66; trước đó là `UNPROCESSABLE_ENTITY` |
+| E2 | Không có món nào được chọn đủ tồn | 422 `SELECTION_REQUIRED` "Chọn sản phẩm đủ tồn kho trong giỏ trước khi thanh toán." ([checkout.service.ts:287](../../../apps/api/src/modules/checkout/checkout.service.ts#L287)); web dẫn về giỏ. Mã riêng có từ bản sửa Issue #66; trước đó là `UNPROCESSABLE_ENTITY` |
 | E3 | Địa chỉ thuộc xã chưa có biểu phí | 422 `UNPROCESSABLE_ENTITY` "Địa chỉ này chưa có biểu phí giao hàng." ([shipping.service.ts:24](../../../apps/api/src/modules/shipping/shipping.service.ts#L24)) |
 | E4 | Giá, giỏ hoặc địa chỉ đổi sau preview | 409 `QUOTE_CHANGED` |
 | E5 | Còn một đơn trả trước đang chờ với giỏ khác | 409 `PENDING_ORDER_EXISTS` kèm mã đơn |
@@ -57,7 +57,7 @@ Là một **khách hàng**, tôi muốn **xác nhận các món đã chọn tron
 |---|---|
 | BR1 | Giá và phí ship tính ở máy chủ; giá gửi từ client bị bỏ qua |
 | BR2 | Phí ship 30.000đ, miễn khi tiền hàng sau giảm giá từ 500.000đ. Giảm giá bằng 0 tới khi có PH-10 |
-| BR3 | Mỗi khách tối đa một đơn trả trước đang chờ thanh toán ([checkout.service.ts:198](../../../apps/api/src/modules/checkout/checkout.service.ts#L198)) |
+| BR3 | Mỗi khách tối đa một đơn trả trước đang chờ thanh toán ([checkout.service.ts:402](../../../apps/api/src/modules/checkout/checkout.service.ts#L402)) |
 | BR4 | COD tắt khi tổng vượt `COD_MAX_AMOUNT` (2.000.000đ), khách có từ `COD_MAX_FAILED_DELIVERIES` (2) lần giao thất bại, hoặc đã có `COD_MAX_PENDING_ORDERS` (3) đơn COD chờ xác nhận ([ADR-040](../../LOG.md#adr-040)) |
 | BR5 | Cùng mã idempotency trả cùng đơn; gửi lại đúng giỏ của đơn đang chờ với mã mới cũng trả đơn đó |
 | BR6 | Tối đa 10 lần tạo đơn mỗi phút mỗi tài khoản; kho đếm (Redis) lỗi thì cho qua |
@@ -101,6 +101,8 @@ Là một **khách hàng**, tôi muốn **xem các đơn của mình và trạng
 - **AC4** (biên) Đồng hồ đếm theo hạn link cổng, kết thúc sớm hơn hạn giữ hàng
 - **AC5** (âm) Tiền đến muộn (`PAYMENT_REVIEW`): trang hiện hướng xử lý, không cho thanh toán lại
 - **AC6** (thuận) Đơn COD sau khi shop ghi đã giao: khách tải lại thấy "Đã giao hàng"
+- **AC7** (thuận) Trang đơn luôn hiện tiến trình trạng thái kèm thời điểm, lấy từ lịch sử trạng thái; mốc chưa tới hiện mờ, không giờ; hủy, hoàn tiền, đối soát là mốc kết thúc, không dự báo bước giao ([ADR-122](LOG.md#adr-122))
+- **AC8** (âm) API đơn của khách không trả mã trạng thái của hãng vận chuyển hay ghi chú nội bộ của vận đơn; khối vận chuyển chỉ hiện trạng thái vận chuyển và ghi chú máy chủ suy ra từ mã hãng ([ADR-122](LOG.md#adr-122))
 
 ---
 

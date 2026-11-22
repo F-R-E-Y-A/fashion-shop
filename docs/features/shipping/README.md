@@ -1,6 +1,6 @@
 ---
 title: Shipping — chính sách phí, GHN Sandbox và dự phòng mô phỏng
-updated: 2026-11-20
+updated: 2026-11-22
 status: đã tích hợp GHN Sandbox và dự phòng mô phỏng
 owner: Duy
 ---
@@ -33,7 +33,7 @@ Kiến trúc cổng vận chuyển tách interface `ShippingCarrierGateway` ([sh
    - Cho phép cập nhật sub-status nội bộ (`ready_to_pick` → `picking` trong `PENDING`, `picked` → `delivering` trong `IN_TRANSIT`) và giao lại `FAILED` → `IN_TRANSIT`/`DELIVERED` khi sự kiện mới hơn và đơn chưa `CANCELLED`.
    - `IN_TRANSIT` → `Order.SHIPPED` · `DELIVERED` → `Order.DELIVERED` + chốt thu COD (`COD:<orderCode>:<uuid>`) · `FAILED` → giữ nguyên đơn, gửi `notifyShipmentFailed` (In-App + Email), không tự cộng kho · `RETURNED` → hoàn tồn kho (`InventoryService.restock`) + ghi `COD-FAILED` + trả lượt voucher + `Order.CANCELLED` (`cancelSource: 'DELIVERY_FAILED'`) cho đơn COD, hoặc giữ đơn và nhắc hoàn tiền cho đơn trả trước.
 5. **Giao diện khách hàng & quản trị**:
-   - Khách (`/don-hang/:id`, [OrderPage.tsx](../../../apps/web/src/features/checkout/OrderPage.tsx)): hiển thị rõ `(Thử nghiệm GHN)` kèm link tra cứu `https://donhang.ghn.vn/?order_code=...`, ghi chú trạng thái mới nhất và thời gian dự kiến giao khi `isMock === false`; giữ nhãn `(Mô phỏng Sandbox)` khi `isMock === true`.
+   - Khách (`/don-hang/:id`, [OrderPage.tsx](../../../apps/web/src/features/checkout/OrderPage.tsx)): khối vận chuyển hiện hãng, mã vận đơn, dòng "Trạng thái vận chuyển" theo `Shipment.status` (chưa có mã thì "Đang tạo vận đơn"), ghi chú và ngày dự kiến giao; `(Thử nghiệm GHN)` kèm link tra cứu `https://donhang.ghn.vn/?order_code=...` khi `isMock === false`, nhãn `(Mô phỏng Sandbox)` khi `isMock === true`. Không còn thanh 4 bước; tiến trình đơn là mục riêng theo lịch sử trạng thái đơn. API khách luôn trả `carrierStatus: null` và `statusNote` suy ra từ mã GHN, không trả ghi chú nội bộ ([checkout.service.ts:93](../../../apps/api/src/modules/checkout/checkout.service.ts#L93), [ADR-122](../checkout/LOG.md#adr-122)).
    - Admin (`/admin/orders/:id`, [AdminOrderDetailPage.tsx](../../../apps/web/src/features/checkout/admin/AdminOrderDetailPage.tsx)): hiển thị nút tạo GHN Sandbox, nút tạo dự phòng mô phỏng; vận đơn thật (`isMock === false`) chỉ hiện nút `Đồng bộ từ GHN` (ẩn toàn bộ nút mô phỏng và nút chốt giao/giao thất bại thủ công cũ), còn vận đơn mô phỏng (`isMock !== false`) hiện các nút mô phỏng fallback.
 
 [Nhật ký](LOG.md) · [ADR-032](../../LOG.md#adr-032) · [ADR-070](LOG.md#adr-070).
