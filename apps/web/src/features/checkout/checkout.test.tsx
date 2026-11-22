@@ -4,7 +4,7 @@ import { createElement } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { ApiError } from '@/core';
+import { ApiError, formatDateTime } from '@/core';
 
 import { CheckoutPage } from './CheckoutPage.js';
 import { OrderPage, OrdersPage } from './OrderPage.js';
@@ -668,6 +668,86 @@ describe('PH-11 checkout UI', () => {
       'href',
       'https://donhang.ghn.vn/?order_code=L4GHN555',
     );
+  });
+
+  it('UC-07.3/AC7 trang đơn hiện tiến trình trạng thái kèm giờ từ lịch sử; mốc chưa tới mờ, không giờ', async () => {
+    request.mockResolvedValue({
+      ...order('PROCESSING'),
+      payments: [
+        { id: 'c1', gateway: 'COD', reference: 'C1', status: 'PENDING', checkoutUrl: null },
+      ],
+      canCancel: false,
+      history: [
+        { status: 'PENDING_CONFIRMATION', at: '2026-11-21T01:00:00.000Z' },
+        { status: 'PROCESSING', at: '2026-11-21T02:30:00.000Z' },
+      ],
+    });
+    show('/don-hang/o1');
+    const list = await screen.findByRole('list', { name: 'Tiến trình đơn hàng' });
+    const steps = within(list).getAllByRole('listitem');
+    expect(steps).toHaveLength(4);
+    expect(within(steps[0]!).getByText('Đặt hàng · thanh toán khi nhận')).toBeInTheDocument();
+    expect(
+      within(steps[0]!).getByText(formatDateTime('2026-11-21T01:00:00.000Z')),
+    ).toBeInTheDocument();
+    expect(steps[1]).toHaveAttribute('aria-current', 'step');
+    expect(within(steps[1]!).getByText('Shop chuẩn bị hàng')).toBeInTheDocument();
+    expect(
+      within(steps[1]!).getByText(formatDateTime('2026-11-21T02:30:00.000Z')),
+    ).toBeInTheDocument();
+    expect(steps[2]).toHaveAttribute('data-status', 'pending');
+    expect(steps[2]!.querySelector('time')).toBeNull();
+    expect(within(steps[3]!).getByText('Giao hàng thành công')).toBeInTheDocument();
+  });
+
+  it('UC-07.3/AC7 đơn hết hạn bị hủy: mốc hủy là nhánh kết thúc, không dự báo bước giao', async () => {
+    request.mockResolvedValue({
+      ...order('CANCELLED'),
+      canCancel: false,
+      history: [
+        { status: 'PENDING_PAYMENT', at: '2026-11-21T01:00:00.000Z' },
+        { status: 'CANCELLED', at: '2026-11-21T01:15:00.000Z' },
+      ],
+    });
+    show('/don-hang/o1');
+    const list = await screen.findByRole('list', { name: 'Tiến trình đơn hàng' });
+    const steps = within(list).getAllByRole('listitem');
+    expect(steps).toHaveLength(2);
+    expect(steps[1]).toHaveAttribute('data-status', 'failed');
+    expect(within(steps[1]!).getByText('Đơn đã hủy')).toBeInTheDocument();
+    expect(within(list).queryByText('Giao hàng thành công')).not.toBeInTheDocument();
+  });
+
+  it('UC-07.3/AC8 khối vận chuyển bỏ thanh 4 bước, hiện trạng thái vận chuyển và ghi chú máy chủ gửi', async () => {
+    request.mockResolvedValue({
+      ...order('CONFIRMED'),
+      canCancel: false,
+      // Lich su chua kip co moc CONFIRMED: moc hien tai van theo order.status.
+      history: [{ status: 'PENDING_PAYMENT', at: '2026-11-21T01:00:00.000Z' }],
+      shipment: {
+        id: 'ship-1',
+        carrierName: 'GHN',
+        trackingNumber: null,
+        status: 'PENDING',
+        isMock: false,
+        carrierStatus: null,
+        statusNote: 'Shop đang tạo vận đơn với đơn vị vận chuyển; mã vận đơn sẽ sớm được cập nhật.',
+        expectedDeliveryAt: null,
+        createdAt: '2026-11-21T02:00:00.000Z',
+        updatedAt: '2026-11-21T02:00:00.000Z',
+      },
+    });
+    show('/don-hang/o1');
+    const shipping = await screen.findByRole('region', { name: 'Theo dõi vận chuyển' });
+    expect(within(shipping).getByText('Đang tạo vận đơn')).toBeInTheDocument();
+    expect(within(shipping).getByText(/Shop đang tạo vận đơn với đơn vị/)).toBeInTheDocument();
+    expect(within(shipping).queryByRole('list')).not.toBeInTheDocument();
+    expect(screen.queryByText('Shop đã xác nhận')).not.toBeInTheDocument();
+    const steps = within(screen.getByRole('list', { name: 'Tiến trình đơn hàng' })).getAllByRole(
+      'listitem',
+    );
+    expect(steps[1]).toHaveAttribute('aria-current', 'step');
+    expect(within(steps[1]!).getByText('Thanh toán thành công')).toBeInTheDocument();
   });
 });
 

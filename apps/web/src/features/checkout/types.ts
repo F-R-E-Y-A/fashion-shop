@@ -65,13 +65,20 @@ export interface ShipmentView {
   trackingNumber: string | null;
   status: 'PENDING' | 'IN_TRANSIT' | 'DELIVERED' | 'FAILED' | 'RETURNED';
   isMock?: boolean;
+  /** Chi API admin tra ma hang; API khach luon null (ADR-122). */
   carrierStatus?: string | null;
+  /** Khach: ghi chu da loc o may chu, hien nguyen van. */
   statusNote?: string | null;
   expectedDeliveryAt?: string | null;
   fallbackUsed?: boolean;
   fallbackReason?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface OrderStatusEvent {
+  status: string;
+  at: string;
 }
 
 export interface OrderView {
@@ -106,6 +113,8 @@ export interface OrderView {
   /** Khach huy duoc luc nay; cancelRefunds: huy se hoan tien tu dong (ADR-038). */
   canCancel?: boolean;
   cancelRefunds?: boolean;
+  /** Moc trang thai don, cu truoc moi sau (UC-07.3/AC7); test cu co the bo qua. */
+  history?: OrderStatusEvent[];
   shipment?: ShipmentView | null;
 }
 

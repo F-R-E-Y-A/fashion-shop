@@ -31,7 +31,7 @@ import {
   SETTLEMENT_BUFFER_MINUTES,
 } from '../payments/index.js';
 import { PromotionsService } from '../promotions/index.js';
-import { ShippingService } from '../shipping/index.js';
+import { mapGhnStatus, ShippingService } from '../shipping/index.js';
 import { CheckoutAddressService } from '../users/index.js';
 import {
   REFUND_IN_FLIGHT_MS,
@@ -75,6 +75,46 @@ export function isShipmentCreatingOrReconciling(
   return (
     cs.startsWith('creating') || cs.startsWith('create_uncertain') || cs.startsWith('uncertain_ghn')
   );
+}
+
+type ShipmentRow = NonNullable<OrderDetails['shipment']>;
+/** Ma GHN co ghi chu mac dinh la viec cua shop ("can shop doi soat"), khong phai tin cho khach. */
+const SHOP_ONLY_GHN_CODES = new Set(['cancel', 'exception', 'scrap']);
+const CUSTOMER_CREATING_NOTE =
+  'Shop đang tạo vận đơn với đơn vị vận chuyển; mã vận đơn sẽ sớm được cập nhật.';
+const CUSTOMER_CARRIER_ISSUE_NOTE = 'Vận đơn gặp sự cố; shop sẽ liên hệ với bạn.';
+
+/**
+ * Ghi chu van don cho khach (ADR-122). Khong bao gio tra `statusNote` da luu: cot nay chua ca huong
+ * dan noi bo (doi soat, bam nut tao lai) va ghi chu admin go tay. Chi suy ra tu ma GHN da biet va
+ * khop `status` hien tai; mock, ma la hoac ma cu sau khi admin cap nhat tay thi tra null, web hien
+ * dong trang thai van chuyen theo `status`.
+ */
+export function customerShipmentNote(shipment: ShipmentRow): string | null {
+  if (isShipmentCreatingOrReconciling(shipment)) return CUSTOMER_CREATING_NOTE;
+  const mapped = mapGhnStatus(shipment.carrierStatus);
+  if (!mapped || mapped.status !== shipment.status) return null;
+  return SHOP_ONLY_GHN_CODES.has(mapped.carrierStatus)
+    ? CUSTOMER_CARRIER_ISSUE_NOTE
+    : mapped.defaultNote;
+}
+
+/** Van don trong OrderResponse: khach chi thay ghi chu suy ra, admin thay ma va ghi chu goc. */
+export function shipmentView(shipment: OrderDetails['shipment'], audience: 'customer' | 'admin') {
+  if (!shipment) return null;
+  const internal = audience === 'admin';
+  return {
+    id: shipment.id,
+    carrierName: shipment.carrierName,
+    trackingNumber: shipment.trackingNumber,
+    status: shipment.status,
+    isMock: shipment.isMock,
+    carrierStatus: internal ? (shipment.carrierStatus ?? null) : null,
+    statusNote: internal ? (shipment.statusNote ?? null) : customerShipmentNote(shipment),
+    expectedDeliveryAt: shipment.expectedDeliveryAt?.toISOString() ?? null,
+    createdAt: shipment.createdAt.toISOString(),
+    updatedAt: shipment.updatedAt.toISOString(),
+  };
 }
 const CUSTOMER_CANCEL_REASON = 'Khách hủy đơn trước khi shop xử lý.';
 
@@ -528,20 +568,12 @@ export class CheckoutService {
       canCancel:
         order.status === 'PENDING_PAYMENT' || order.status === 'PENDING_CONFIRMATION' || selfRefund,
       cancelRefunds: selfRefund,
-      shipment: order.shipment
-        ? {
-            id: order.shipment.id,
-            carrierName: order.shipment.carrierName,
-            trackingNumber: order.shipment.trackingNumber,
-            status: order.shipment.status,
-            isMock: order.shipment.isMock,
-            carrierStatus: order.shipment.carrierStatus ?? null,
-            statusNote: order.shipment.statusNote ?? null,
-            expectedDeliveryAt: order.shipment.expectedDeliveryAt?.toISOString() ?? null,
-            createdAt: order.shipment.createdAt.toISOString(),
-            updatedAt: order.shipment.updatedAt.toISOString(),
-          }
-        : null,
+      // Moc trang thai cho trang don cua khach (UC-07.3/AC7); khong lo ai bam (actorUserId).
+      history: order.statusHistory.map((row) => ({
+        status: row.status,
+        at: row.createdAt.toISOString(),
+      })),
+      shipment: shipmentView(order.shipment, 'customer'),
     };
   }
 

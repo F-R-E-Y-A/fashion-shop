@@ -725,12 +725,18 @@
   font-size: var(--s0);
   color: var(--foreground);
 }
+.shippingStatus {
+  margin: 0;
+  font-size: var(--s0);
+  color: var(--foreground);
+}
 .timeline {
   display: flex;
   flex-direction: column;
   gap: 14px;
   margin: 8px 0;
   padding-left: 6px;
+  list-style: none;
 }
 .timelineStep {
   display: flex;
@@ -782,9 +788,18 @@
   border-color: #c0392b;
   color: #fff;
 }
+.timelineBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
 .timelineLabel {
   font-size: var(--s0);
   line-height: 1.4;
+}
+.timelineTime {
+  font-size: var(--s-1);
+  color: var(--muted);
 }
 .timelineStep[data-status='done'] .timelineLabel {
   color: var(--foreground);

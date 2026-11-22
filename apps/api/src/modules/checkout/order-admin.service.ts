@@ -10,6 +10,7 @@ import {
   CheckoutService,
   isShipmentCreatingOrReconciling,
   REFUNDABLE,
+  shipmentView,
 } from './checkout.service.js';
 import { refundSummary } from './refund-ledger.js';
 
@@ -175,6 +176,8 @@ export class OrderAdminService {
     const cancelledBeforePickup = isCancelledRealCarrierBeforePickup(order);
     return {
       ...this.checkout.view(order),
+      // Admin can ma GHN va ghi chu goc de doi soat; ban cho khach da loc o view() (ADR-122).
+      shipment: shipmentView(order.shipment, 'admin'),
       userId: order.userId,
       customerEmail: order.customerEmail,
       history: order.statusHistory.map((row) => ({
