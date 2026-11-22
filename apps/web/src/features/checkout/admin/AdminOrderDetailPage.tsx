@@ -44,7 +44,7 @@ type Dialog =
         | 'shipmentFailed'
         | 'shipmentReturned';
     }
-  | { kind: 'refund' | 'resolve'; ledger: PaymentLedger };
+  | { kind: 'refund' | 'resolve' | 'check'; ledger: PaymentLedger };
 
 /** /admin/orders/:id — chi tiet don va cac thao tac shop (ADR-036, ADR-038). */
 export function AdminOrderDetailPage() {
@@ -100,8 +100,13 @@ function AdminOrderDetail() {
       if (!stillCurrent(variables)) throw new SessionChangedError();
       const { current } = variables;
       const controller = new AbortController();
+      // check: may chu cho MoMo toi 35 giay (momo.adapter), nen client phai cho lau hon.
       const timeoutMs =
-        current.kind === 'createShipment' || current.kind === 'syncShipment' ? 35_000 : 15_000;
+        current.kind === 'check'
+          ? 40_000
+          : current.kind === 'createShipment' || current.kind === 'syncShipment'
+            ? 35_000
+            : 15_000;
       const timer = setTimeout(
         () => controller.abort(new DOMException('Hết giờ chờ phản hồi', 'TimeoutError')),
         timeoutMs,
@@ -175,6 +180,8 @@ function AdminOrderDetail() {
               outcome,
               note: text.trim(),
             });
+          case 'check':
+            return await post(`/admin/payments/${current.ledger.paymentId}/refund/check`);
         }
       } finally {
         clearTimeout(timer);
@@ -192,6 +199,8 @@ function AdminOrderDetail() {
             isMock?: boolean;
             trackingNumber?: string | null;
             carrierStatus?: string | null;
+            settled?: boolean;
+            detail?: string | null;
           }
         | undefined;
       if (variables.current.kind === 'createShipment' && shipRes?.fallbackUsed) {
@@ -202,6 +211,8 @@ function AdminOrderDetail() {
         setNotice(`Đã tạo vận đơn thật trên GHN Sandbox: ${shipRes.trackingNumber ?? ''}.`);
       } else if (variables.current.kind === 'syncShipment' && shipRes?.carrierStatus) {
         setNotice(`Đã đồng bộ trạng thái từ GHN Sandbox (${shipRes.carrierStatus}).`);
+      } else if (variables.current.kind === 'check' && !shipRes?.settled) {
+        setNotice(`Chưa ghi sổ hoàn: ${shipRes?.detail ?? 'cổng chưa xác nhận.'}`);
       } else if (
         variables.current.kind === 'refund' &&
         variables.current.ledger.refundMode === 'MANUAL'
@@ -688,6 +699,16 @@ function AdminOrderDetail() {
                           Hoàn tiền {gatewayLabel(ledger.gateway)}
                         </button>
                       )}
+                      {ledger.pendingRefund?.resolvable && ledger.pendingRefund.checkable && (
+                        <button
+                          type="button"
+                          className={styles.secondary}
+                          disabled={action.isPending || needsRecheck}
+                          onClick={() => open({ kind: 'check', ledger })}
+                        >
+                          Kiểm tra trên cổng
+                        </button>
+                      )}
                       {ledger.pendingRefund?.resolvable && (
                         <button
                           type="button"
@@ -884,6 +905,7 @@ const TITLE: Record<Dialog['kind'], string> = {
   deliveryFailed: 'Ghi giao thất bại',
   refund: 'Hoàn tiền',
   resolve: 'Chốt lệnh hoàn',
+  check: 'Kiểm tra trên cổng',
 };
 const TONE: Record<Dialog['kind'], 'danger' | 'primary'> = {
   confirmCod: 'primary',
@@ -900,6 +922,7 @@ const TONE: Record<Dialog['kind'], 'danger' | 'primary'> = {
   deliveryFailed: 'danger',
   refund: 'danger',
   resolve: 'primary',
+  check: 'primary',
 };
 const DONE: Record<Dialog['kind'], string> = {
   confirmCod: 'Đã xác nhận đơn COD và chốt kho.',
@@ -917,6 +940,7 @@ const DONE: Record<Dialog['kind'], string> = {
   deliveryFailed: 'Đã ghi giao thất bại, hàng trả về kho.',
   refund: 'Cổng đã xác nhận hoàn tiền.',
   resolve: 'Đã chốt lệnh hoàn.',
+  check: 'Cổng xác nhận đã hoàn; đã ghi sổ hoàn.',
 };
 
 /** Nut tren trang va nut trong hop cung mot nhan: COD chua thu thi "da giao" cung la "da thu tien". */
@@ -998,6 +1022,11 @@ function impacts(dialog: Dialog, order: AdminOrder): string[] {
       return [
         'Chỉ chốt sau khi đã đối chiếu trên trang quản trị của cổng.',
         'Chốt sai có thể làm hoàn trùng hoặc ghi thiếu sổ hoàn.',
+      ];
+    case 'check':
+      return [
+        `Hỏi ${gatewayLabel(dialog.ledger.gateway)} kết quả lệnh hoàn; không gửi lệnh hoàn mới.`,
+        'Cổng xác nhận đã hoàn thì ghi sổ hoàn ngay; chưa xác nhận thì lệnh vẫn chờ chốt tay.',
       ];
   }
 }

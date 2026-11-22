@@ -103,6 +103,8 @@ export class PendingRefundResponse {
   @ApiProperty({ type: String, nullable: true }) lastError!: string | null;
   @ApiProperty({ description: 'true: da duoc chot tay (co loi hoac qua 60 giay)' })
   resolvable!: boolean;
+  @ApiProperty({ description: 'true: tra duoc lenh tren cong (POST refund/check, ADR-119)' })
+  checkable!: boolean;
 }
 export class PaymentLedgerResponse {
   @ApiProperty() paymentId!: string;

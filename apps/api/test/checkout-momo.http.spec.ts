@@ -6,6 +6,7 @@ import { JwtService } from '@nestjs/jwt';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { seedShipping } from '../prisma/seed/shipping.seed.js';
+import { grantAdminRole } from '../src/modules/auth/grant-admin-role.js';
 import { SettlementService } from '../src/modules/checkout/settlement.service.js';
 import { createTestApp } from './helpers/create-test-app.js';
 import { resetDatabase } from './helpers/db.js';
@@ -59,6 +60,9 @@ describe('PH-11 MoMo: HTTP gateway outside PostgreSQL transaction', () => {
   const creates: Record<string, unknown>[] = [];
   const refunds: Record<string, unknown>[] = [];
   let refundState = 0;
+  const refundQueries: Record<string, unknown>[] = [];
+  let refundTrans: (sent: Record<string, unknown>) => Record<string, unknown>[] = () => [];
+  let adminToken: string;
   const auth = () => ({ Authorization: `Bearer ${token}` });
   const preview = () => t.http.post('/api/checkout/preview').set(auth()).send({ addressId });
   const post = (fingerprint: string, idempotencyKey = randomUUID(), gateway = 'MOMO') =>
@@ -106,6 +110,18 @@ describe('PH-11 MoMo: HTTP gateway outside PostgreSQL transaction', () => {
             amount: data.amount,
             resultCode: 0,
             payUrl: `http://127.0.0.1:${port}/pay?ref=${data.orderId}`,
+          }),
+        );
+      } else if (req.url === '/refund/query') {
+        refundQueries.push(data);
+        res.end(
+          JSON.stringify({
+            partnerCode: partner,
+            orderId: data.orderId,
+            requestId: data.requestId,
+            resultCode: 0,
+            message: 'refund query',
+            refundTrans: refunds.flatMap(refundTrans),
           }),
         );
       } else if (req.url === '/refund') {
@@ -158,6 +174,8 @@ describe('PH-11 MoMo: HTTP gateway outside PostgreSQL transaction', () => {
     creates.length = 0;
     refunds.length = 0;
     refundState = 0;
+    refundQueries.length = 0;
+    refundTrans = () => [];
     failCreate = false;
     queryState = 1000;
     committedAtGateway = false;
@@ -165,6 +183,11 @@ describe('PH-11 MoMo: HTTP gateway outside PostgreSQL transaction', () => {
       data: { email: 'momo@fixture.test', passwordHash: 'unused', status: 'ACTIVE' },
     });
     token = await t.app.get(JwtService).signAsync({ sub: user.id, ver: 0 });
+    const admin = await t.prisma.user.create({
+      data: { email: 'momo-admin@fixture.test', passwordHash: 'unused', status: 'ACTIVE' },
+    });
+    expect((await grantAdminRole(t.prisma, 'momo-admin@fixture.test')).outcome).toBe('GRANTED');
+    adminToken = await t.app.get(JwtService).signAsync({ sub: admin.id, ver: 0 });
     const province = await t.prisma.administrativeArea.create({
       data: { code: 'M01', name: 'Tỉnh kiểm thử', level: 'PROVINCE' },
     });
@@ -357,6 +380,14 @@ describe('PH-11 MoMo: HTTP gateway outside PostgreSQL transaction', () => {
     expect(refunds).toHaveLength(1);
     expect(refunds[0]).toMatchObject({ partnerCode: partner, amount: 230000, transId: 12345678 });
     expect(refunds[0]!.orderId).not.toBe(order.payments[0]!.reference);
+    // ADR-119: ma lenh MoMo la uuid cua intent, ghi vao payload truoc khi goi cong.
+    const intent = await t.prisma.paymentTransaction.findFirstOrThrow({
+      where: { externalTransactionId: { startsWith: 'REFUND-INTENT:' } },
+    });
+    expect(intent.externalTransactionId).toBe(`REFUND-INTENT:${String(refunds[0]!.orderId)}`);
+    expect((intent.payload as { gatewayRefundId?: string }).gatewayRefundId).toBe(
+      refunds[0]!.orderId,
+    );
     expect(
       (await t.prisma.inventory.findUniqueOrThrow({ where: { productVariantId: variantId } }))
         .quantityOnHand,
@@ -372,5 +403,93 @@ describe('PH-11 MoMo: HTTP gateway outside PostgreSQL transaction', () => {
     expect(after.refundPending).toBe(true);
     await t.http.post(`/api/orders/${order.id}/cancel`).set(auth()).expect(201);
     expect(refunds).toHaveLength(1);
+  });
+  const check = (paymentId: string) =>
+    t.http
+      .post(`/api/admin/payments/${paymentId}/refund/check`)
+      .set({ Authorization: `Bearer ${adminToken}` });
+  it('ADR-119 MoMo trả mã đang xử lý: lệnh giữ chờ; Kiểm tra trên cổng tra refund/query theo đúng mã lệnh, cổng xác nhận thì ghi sổ một lần, đơn REFUNDED', async () => {
+    refundState = 1000;
+    const order = await place();
+    await ipn(signed(order)).expect(204);
+    const after = (await t.http.post(`/api/orders/${order.id}/cancel`).set(auth()).expect(201))
+      .body as View & { refundPending: boolean };
+    expect(after.refundPending).toBe(true);
+    const paymentId = order.payments[0]!.id;
+    const detail = (
+      await t.http
+        .get(`/api/admin/orders/${order.id}`)
+        .set({ Authorization: `Bearer ${adminToken}` })
+        .expect(200)
+    ).body as { ledgers: { pendingRefund: Record<string, unknown> | null }[] };
+    expect(detail.ledgers[0]!.pendingRefund).toMatchObject({
+      checkable: true,
+      lastError: expect.stringMatching(/chưa xác nhận hoàn tiền \(mã 1000/u),
+    });
+    // MoMo da hoan xong sau do: refund/query tra dong cua dung lenh.
+    refundTrans = (sent) => [
+      { orderId: sent.orderId, amount: sent.amount, resultCode: 0, transId: 99887766 },
+    ];
+    const result = (await check(paymentId).expect(201)).body as {
+      settled: boolean;
+      detail: string | null;
+      order: View & { refundPending: boolean };
+    };
+    expect(result).toMatchObject({ settled: true, detail: null });
+    expect(result.order.status).toBe('REFUNDED');
+    expect(result.order.refundPending).toBe(false);
+    expect(refundQueries).toHaveLength(1);
+    expect(refundQueries[0]!.orderId).toBe(refunds[0]!.orderId);
+    expect(refunds).toHaveLength(1);
+    expect(
+      await t.prisma.paymentTransaction.count({
+        where: {
+          externalTransactionId: `REFUND:${String(refunds[0]!.orderId)}`,
+          status: 'PROCESSED',
+        },
+      }),
+    ).toBe(1);
+    await check(paymentId).expect(409);
+  });
+  it('ADR-119 cổng chưa ghi nhận lệnh hay lệch số tiền: không ghi sổ, không tự đóng lệnh, trả lý do cho admin', async () => {
+    refundState = 1000;
+    const order = await place();
+    await ipn(signed(order)).expect(204);
+    await t.http.post(`/api/orders/${order.id}/cancel`).set(auth()).expect(201);
+    const paymentId = order.payments[0]!.id;
+    const empty = (await check(paymentId).expect(201)).body as { settled: boolean; detail: string };
+    expect(empty).toMatchObject({
+      settled: false,
+      detail: expect.stringMatching(/chưa ghi nhận/u),
+    });
+    refundTrans = (sent) => [
+      { orderId: sent.orderId, amount: 1000, resultCode: 0, transId: 99887766 },
+    ];
+    const mismatch = (await check(paymentId).expect(201)).body as { settled: boolean };
+    expect(mismatch.settled).toBe(false);
+    expect(
+      await t.prisma.paymentTransaction.count({
+        where: { externalTransactionId: { startsWith: 'REFUND-INTENT:' }, status: 'RECEIVED' },
+      }),
+    ).toBe(1);
+    expect((await t.prisma.order.findUniqueOrThrow({ where: { id: order.id } })).status).toBe(
+      'CANCELLED',
+    );
+  });
+  it('ADR-119 lệnh hoàn cũ không có mã lệnh bên cổng: không tra được (409), không gọi refund/query', async () => {
+    refundState = 1000;
+    const order = await place();
+    await ipn(signed(order)).expect(204);
+    await t.http.post(`/api/orders/${order.id}/cancel`).set(auth()).expect(201);
+    const intent = await t.prisma.paymentTransaction.findFirstOrThrow({
+      where: { externalTransactionId: { startsWith: 'REFUND-INTENT:' } },
+    });
+    const { gatewayRefundId: _drop, ...legacy } = intent.payload as Record<string, unknown>;
+    await t.prisma.paymentTransaction.update({
+      where: { id: intent.id },
+      data: { payload: legacy as object },
+    });
+    await check(order.payments[0]!.id).expect(409);
+    expect(refundQueries).toHaveLength(0);
   });
 });

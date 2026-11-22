@@ -32,7 +32,8 @@ export function refundSummary(transactions: readonly LedgerRow[], now = Date.now
   const intent = transactions.find(
     (row) => row.externalTransactionId.startsWith(REFUND_INTENT) && row.status === 'RECEIVED',
   );
-  const claim = intent?.payload as { amount?: string; lastError?: string } | null | undefined;
+  const claim = intent?.payload as
+    { amount?: string; lastError?: string; gatewayRefundId?: string } | null | undefined;
   return {
     refunded: done.reduce((sum, row) => sum.plus(refundedAmountOf(row)), new Decimal(0)),
     refunds: done.map((row) => ({
@@ -48,6 +49,8 @@ export function refundSummary(transactions: readonly LedgerRow[], now = Date.now
           createdAt: intent.createdAt.toISOString(),
           lastError: claim?.lastError ?? null,
           resolvable: !!claim?.lastError || intent.createdAt.getTime() < now - REFUND_IN_FLIGHT_MS,
+          // Chi intent co ma lenh ben cong (ghi truoc khi goi, ADR-119) moi tra duoc tren cong.
+          checkable: !!claim?.gatewayRefundId,
         }
       : null,
   };

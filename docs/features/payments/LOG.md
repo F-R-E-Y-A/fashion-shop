@@ -1,6 +1,6 @@
 ---
 title: Payments — nhật ký
-updated: 2026-11-20
+updated: 2026-11-22
 status: đang dùng
 owner: Bảo
 ---
@@ -171,3 +171,40 @@ Thực tế: <điền sau>.
 
 ### Điều kiện xem lại
 Staging có đường ra bằng IP Việt Nam hoặc VNPAY sandbox mở cho IP nước ngoài (bỏ biến); xác nhận được IPN không về staging và có đơn bị hủy oan vì khách không quay lại trang kết quả.
+
+<a id="adr-119"></a>
+## 2026-11-22 · ADR-119 — Lệnh hoàn MoMo mang mã ổn định ghi trước khi gọi, và ADMIN tra lại được trên cổng bằng refund/query
+
+**Loại:** quyết định · **Phạm vi:** Payments (`MomoAdapter`), Checkout (sổ hoàn, trang đơn admin) · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+- Tại `7d29dd4`, `MomoAdapter.refund` tự sinh `orderId` = `requestId` = `randomUUID()` ngay trong lúc gọi và không lưu trước ([momo.adapter.ts:226](https://github.com/F-R-E-Y-A/fashion-shop/blob/7d29dd4/apps/api/src/modules/payments/momo.adapter.ts#L226)). Lệnh timeout hay trả mã chưa rõ thì hệ thống không còn mã nào để hỏi lại MoMo; ADMIN chỉ chốt tay được, và chốt `FAILED` khi MoMo thật ra đã hoàn thì lần hoàn sau là hoàn trùng.
+- Mọi mã khác 0 đều báo "Cổng từ chối hoàn tiền" ([momo.adapter.ts:263](https://github.com/F-R-E-Y-A/fashion-shop/blob/7d29dd4/apps/api/src/modules/payments/momo.adapter.ts#L263)), kể cả mã có thể là đang xử lý (`1000`, `9000` theo mã nguồn công khai, chưa đối chiếu tài liệu gốc).
+- Tham khảo ngày 22/11 (chỉ đọc): repo đồ án rạp phim của Ancuyou coi `1000` là thành công và để endpoint hoàn công khai; mã HTTMDT hỏi `/v2/gateway/api/refund/query` theo `orderId` của lệnh hoàn, chỉ coi là thành công khi dòng `refundTrans` đúng lệnh có `resultCode` 0, đúng số tiền, `transId` > 0, và không bao giờ tự đánh dấu thất bại. `developers.momo.vn` vẫn trả 403 cho công cụ đọc lẫn Chrome.
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| A. Giữ như cũ, ADMIN đối chiếu trên trang quản trị MoMo | Không đổi mã | Không có mã lệnh để tìm; dễ chốt sai, hoàn trùng | — |
+| **B. Mã lệnh MoMo lấy từ uuid của intent, ghi `gatewayRefundId` vào intent trước khi gọi; thêm `refundStatus` và nút "Kiểm tra trên cổng" (chọn)** | Timeout hay mã chưa rõ vẫn tra lại được; cổng xác nhận thì ghi sổ với cùng receipt `REFUND:{mã}` như phản hồi 0, nên không ghi hai lần | Thêm một endpoint ADMIN; hợp đồng refund/query chưa kiểm trên sandbox | Có |
+| C. Worker tự quét lệnh chờ và gọi refund/query | Không cần ADMIN bấm | Gọi cổng định kỳ khi hợp đồng còn chưa kiểm; thêm lịch chạy | Có |
+
+**Chọn B.** `claimRefund` ghi `gatewayRefundId` (uuid của `REFUND-INTENT:`) cùng transaction tạo intent ([checkout.service.ts:723](../../../apps/api/src/modules/checkout/checkout.service.ts#L723)); `sendRefund` truyền nó làm `orderId`/`requestId` MoMo ([momo.adapter.ts:238](../../../apps/api/src/modules/payments/momo.adapter.ts#L238)). `MomoAdapter.refundStatus` ([momo.adapter.ts:289](../../../apps/api/src/modules/payments/momo.adapter.ts#L289)) ký `accessKey, orderId, partnerCode, requestId`, khớp `partnerCode` và `requestId` của phản hồi, rồi chỉ trả `SUCCEEDED` khi mã tổng 0 và dòng `refundTrans` đúng lệnh có mã 0, đúng số tiền, `transId` > 0; mọi trường hợp khác là `UNCONFIRMED` kèm lý do. `CheckoutService.checkRefund` ([checkout.service.ts:878](../../../apps/api/src/modules/checkout/checkout.service.ts#L878)) dùng cùng điều kiện 60 giây với `resolveRefund`, gọi cổng ngoài transaction, ghi sổ dưới khoá đơn qua `settleRefund`; không bao giờ tự đóng lệnh `FAILED`. Route `POST /api/admin/payments/:id/refund/check`; sổ hoàn trả thêm `pendingRefund.checkable` ([refund-ledger.ts:53](../../../apps/api/src/modules/checkout/refund-ledger.ts#L53)) để trang đơn chỉ hiện nút khi tra được. Mã khác 0 lúc gửi lệnh nay báo "MoMo chưa xác nhận hoàn tiền (mã X)" và gợi ý bấm kiểm tra, không nói "từ chối" ([momo.adapter.ts:279](../../../apps/api/src/modules/payments/momo.adapter.ts#L279)).
+
+Trade-off chấp nhận: lệnh tạo trước thay đổi này không có `gatewayRefundId` nên không tra được, ADMIN vẫn chốt tay; "MoMo chưa ghi nhận lệnh" không được hiểu là chưa hoàn. Không làm worker quét (phương án C) cho tới khi refund/query được kiểm trên sandbox.
+
+### Phản biện
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| AI gợi ý | Claude Opus 5.5: lưu mã lệnh vào intent, tra bằng refund/query, nút kiểm tra trên trang đơn | giữ |
+| AI gợi ý | Reviewer của Claude Code: lệnh cũ mang mã ngẫu nhiên sẽ luôn "không thấy" nên phải chặn bằng `gatewayRefundId`; không tin danh sách mã `1000`/`9000` mà đảo lại (mọi mã khác 0 là chưa xác nhận); `momoParams` bỏ mảng `refundTrans` nên refund/query phải đọc JSON thô | giữ |
+
+**Kết luận:** lệnh hoàn MoMo có mã ổn định ghi trước khi gọi; ADMIN tra lại trên cổng và chỉ ghi sổ khi cổng xác nhận đúng lệnh, đúng số tiền.
+**Bằng chứng:** ngày 22/11, mã chưa commit trên `7d29dd4`, DB test local, cổng MoMo giả lập (chưa gọi sandbox thật). `npx vitest run --project unit src/modules/payments/momo.adapter.spec.ts` (thư mục `apps/api`) → 10 test đạt. `npx vitest run --root apps/api --project http test/checkout-momo.http.spec.ts` → 13 test đạt, gồm ba ca mới: mã `1000` giữ lệnh chờ rồi kiểm tra ghi sổ một lần (`REFUND:{mã}`), đơn `REFUNDED`, bấm lại 409; cổng chưa ghi nhận hay lệch số tiền thì không ghi sổ, lệnh vẫn `RECEIVED`; lệnh không có `gatewayRefundId` bị 409 và không gọi refund/query. `test/checkout-refund.http.spec.ts` + `test/returns.http.spec.ts` → 35 test đạt. Web `admin-orders.test.tsx` → 20 test đạt. `npm run check` (gốc kho) → exit 0, API 80 tệp/800 test, web 64 tệp/839 test. Kiểm đỏ: bỏ so số tiền trong `refundStatus`, trả `orderId` về `randomUUID()`, bỏ chặn `gatewayRefundId` trong `checkRefund`, bỏ điều kiện `checkable` trên nút web, mỗi lần test tương ứng rớt (chạy trước khi chuẩn hoá LF và Prettier; sau đó chạy lại `checkout-momo` vẫn 13 đạt).
+
+### Kết quả mong đợi → thực tế
+Mong đợi: trên staging, một lệnh hoàn MoMo sandbox thật (cần Bảo cho phép) trả `0` ngay, hoặc trả mã chưa rõ rồi "Kiểm tra trên cổng" ghi sổ được; refund/query sandbox trả `refundTrans` đúng dạng đã giả định.
+Thực tế: <điền sau>.
+
+### Điều kiện xem lại
+Đọc được tài liệu gốc MoMo về refund/query và bảng mã phía hoàn; refund/query sandbox trả khác dạng giả định; cần tự động tra lệnh chờ (worker).

@@ -102,7 +102,13 @@ export interface RefundClaim {
   userId: string;
   gateway: string;
   intentId: string;
-  payload: { amount: string; actor: string; reason: string | null; full: boolean };
+  payload: {
+    amount: string;
+    actor: string;
+    reason: string | null;
+    full: boolean;
+    gatewayRefundId?: string;
+  };
   reference: string;
   checkoutUrl: string;
   transactionNo?: string;
@@ -700,7 +706,7 @@ export class CheckoutService {
       throw new ConflictException(
         `Số hoàn tối đa là ${remaining.toFixed(2)}. Sử dụng số nhỏ hơn hoặc bằng.`,
       );
-    const payload = {
+    const base = {
       amount: amount.toFixed(2),
       actor,
       reason: input.reason ?? null,
@@ -713,6 +719,14 @@ export class CheckoutService {
     ).find((row) => /^\d+$/u.test(row.externalTransactionId))?.externalTransactionId;
     // Phan he goi (returns) tu dat ma lenh truoc de doi chieu lai khi cong khong tra loi.
     const intentId = input.intentId ?? `${REFUND_INTENT}${randomUUID()}`;
+    // Cong tra duoc lenh hoan (MoMo): ma lenh ben cong ghi cung intent TRUOC khi goi (ADR-119).
+    const gatewayRefundId = adapter.refundStatus
+      ? intentId
+          .slice(REFUND_INTENT.length)
+          .replace(/[^0-9a-zA-Z-]/gu, '')
+          .slice(0, 50)
+      : undefined;
+    const payload = { ...base, ...(gatewayRefundId ? { gatewayRefundId } : {}) };
     await tx.paymentTransaction.create({
       data: {
         paymentId,
@@ -750,6 +764,7 @@ export class CheckoutService {
         actor: payload.actor,
         full: payload.full,
         transactionNo: claim.transactionNo,
+        refundId: payload.gatewayRefundId,
       });
     } catch (error) {
       // Timeout, phan hoi sai chu ky hay ma loi deu khong chung minh cong chua hoan: giu intent.
@@ -853,6 +868,61 @@ export class CheckoutService {
         if (changed.count !== 1) throw new ConflictException('Lệnh hoàn đã được chốt.');
       });
     return this.view(await this.orders.get(order.id, userId));
+  }
+
+  /**
+   * Tra lenh hoan dang cho tren cong (ADR-119): chi cong co refundStatus va intent co gatewayRefundId
+   * (ghi tu truoc khi goi). Cong xac nhan thanh cong thi ghi so voi cung receipt nhu phan hoi 0 cua
+   * sendRefund; con lai giu RECEIVED va tra loi giai cho admin chot tay, khong tu dong FAILED.
+   */
+  async checkRefund(paymentId: string, actor: string) {
+    const { order, userId, adapter } = await this.refundTarget(paymentId);
+    const pending = (await this.refundLedger(paymentId, this.prisma)).pending;
+    if (!pending) throw new ConflictException('Không có lệnh hoàn nào chờ đối soát.');
+    const claim = pending.payload as {
+      amount: string;
+      lastError?: string;
+      gatewayRefundId?: string;
+    };
+    if (!adapter.refundStatus || !claim.gatewayRefundId)
+      throw new ConflictException(
+        'Lệnh hoàn này không tra được trên cổng. Đối chiếu trên trang quản trị của cổng rồi chốt tay.',
+      );
+    // Cung dieu kien resolveRefund: refund co the con trong 35 giay timeout, tra luc nay de sai.
+    if (!claim.lastError && pending.createdAt.getTime() >= Date.now() - REFUND_IN_FLIGHT_MS)
+      throw new ConflictException({
+        error: 'REFUND_IN_FLIGHT',
+        message: 'Lệnh hoàn đang chờ cổng trả lời. Thử lại sau ít phút.',
+      });
+    const status = await adapter.refundStatus({
+      refundId: claim.gatewayRefundId,
+      amount: claim.amount,
+    });
+    let detail: string | null = null;
+    if (status.state === 'SUCCEEDED')
+      try {
+        await this.settleRefund(
+          order.id,
+          userId,
+          pending.gateway,
+          pending.externalTransactionId,
+          actor,
+          {
+            receipt: `REFUND:${claim.gatewayRefundId}`,
+            payload: status.payload,
+          },
+        );
+      } catch (error) {
+        // Bam hai lan hay admin khac vua chot: tra lai trang thai hien tai thay vi 500.
+        if (!(error instanceof ConflictException)) throw error;
+        detail = error.message;
+      }
+    else detail = status.detail;
+    return {
+      settled: status.state === 'SUCCEEDED' && detail === null,
+      detail,
+      order: this.view(await this.orders.get(order.id, userId)),
+    };
   }
 
   private async refundTarget(paymentId: string) {
