@@ -137,3 +137,32 @@ Thực tế: (điền khi gộp).
 
 ### Điều kiện xem lại
 Có migration chạm `payment_transactions` (đổi sang C1); sổ hoàn chuyển sang bảng `refunds`; cần so mã chuyển khoản không phân biệt hoa thường (hiện so đúng từng ký tự).
+
+<a id="adr-118"></a>
+## 2026-11-22 · ADR-118 — Trang đơn không hoàn tiền khi đơn còn yêu cầu trả hàng chưa đóng
+
+**Loại:** quyết định · **Phạm vi:** cửa `CheckoutService` của checkout, module `returns`, trang `/admin/orders/:id` · **Trạng thái:** đề xuất · **Người quyết:** Bảo · **Commit:** (điền khi thi hành)
+
+### Hiện trạng
+Review PR #158 ngày 21/11 (Duy): `refundManually` ở trang đơn chỉ kiểm cổng, trạng thái đơn và số còn hoàn ([checkout.service.ts:723](https://github.com/F-R-E-Y-A/fashion-shop/blob/dd1d34b/apps/api/src/modules/checkout/checkout.service.ts#L723)), không biết đơn có yêu cầu trả hàng. Lệnh hoàn của yêu cầu treo, `ADMIN` chốt FAILED ở trang đơn rồi nhập mã chuyển khoản luôn ở đó: đơn sang `REFUNDED`, yêu cầu vẫn `RECEIVED`, dòng `refunds` vẫn `PROCESSING`. Quay lại trang trả hàng thì 409 mãi vì đơn hết số còn hoàn. `refundPayment` (hoàn qua cổng ở trang đơn) hở cùng cách vì listener `completeFromGateway` bỏ qua lệnh không thuộc yêu cầu.
+
+### Phương án
+| Phương án | Được gì | Mất gì | Đảo ngược được không |
+|---|---|---|---|
+| **A. Checkout cho phân hệ khác đăng ký chốt chặn chạy dưới khoá đơn ở `refundPayment` và `refundManually`; returns chặn khi đơn có yêu cầu `REQUESTED`, `APPROVED` hoặc `RECEIVED`, 409 `RETURN_OPEN`; trang đơn hiện link sang trang Trả hàng (chọn)** | Một đường hoàn duy nhất cho tiền món trả; checkout không đọc bảng của returns | `ADMIN` không hoàn lẻ ở trang đơn cho lý do khác khi còn yêu cầu mở; phải đóng hoặc từ chối yêu cầu trước | Được, bỏ đăng ký |
+| B. Hoàn tay ở trang đơn tự đóng yêu cầu trả hàng | Trang đơn làm được hết | Số tiền nhập ở trang đơn có thể khác số của yêu cầu; returns phải đoán khoản nào thuộc mình | Được |
+| Không làm gì | Không tốn công | Yêu cầu trả hàng kẹt vĩnh viễn, phải sửa tay trong cơ sở dữ liệu | — |
+
+**Chọn A.** Chốt lệnh treo (`resolveRefund`) ở trang đơn vẫn mở, vì yêu cầu cần chốt FAILED trước khi hoàn lại.
+
+### Phản biện
+| Bên | Nội dung | Kết cục |
+|---|---|---|
+| Người phản biện | Review PR #158 (21/11): chặn hoàn tay lẻ ở trang đơn và dẫn sang trang trả hàng, hoặc đóng yêu cầu khi hoàn tay | chọn cách chặn |
+
+### Kết quả mong đợi → thực tế
+Mong đợi: test `UC-14.2/AC13` (`apps/api/test/returns.http.spec.ts`) đỏ khi tắt chốt chặn, xanh khi bật.
+Thực tế: 22/11, tắt chốt chặn → `expected 409 "Conflict", got 201 "Created"`; bật → `returns` và `checkout-refund` 35/35.
+
+### Điều kiện xem lại
+Cần hoàn ở trang đơn cho khoản không thuộc món trả (phí ship, bù giá) trong lúc yêu cầu còn mở.
