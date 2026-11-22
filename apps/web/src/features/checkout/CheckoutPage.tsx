@@ -118,7 +118,11 @@ export function CheckoutPage() {
           fingerprint: preview.data!.fingerprint,
           idempotencyKey: checkoutKey(user!.id, preview.data!.fingerprint, gateway),
           // Chi de may chu neu ten mon vua het neu gio da doi; gia van tinh lai o may chu.
-          items: preview.data!.items.map(({ variantId, quantity }) => ({ variantId, quantity })),
+          // Truong chi de chan doan: gio qua tran DTO thi bo, khong de don hop le bi tu choi.
+          items:
+            preview.data!.items.length <= 100
+              ? preview.data!.items.map(({ variantId, quantity }) => ({ variantId, quantity }))
+              : undefined,
         },
       }),
     onSuccess: (order) => {

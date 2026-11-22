@@ -340,13 +340,24 @@ export class CheckoutService {
             error: 'PENDING_ORDER_EXISTS',
             message: `Bạn còn đơn ${pending.orderCode} đang chờ thanh toán và đang giữ hàng trong giỏ. Tiếp tục hoặc hủy đơn đó trước khi đặt đơn mới.`,
           });
-        const [cod] = await this.orders.pendingCod(userId, tx);
-        if (cod)
-          throw new ConflictException({
-            error: 'PENDING_ORDER_EXISTS',
-            message: `Đơn COD ${cod.orderCode} đang chờ shop xác nhận và giữ hàng trong giỏ. Bỏ chọn món đó trong giỏ để đặt đơn mới, hoặc hủy đơn COD.`,
-          });
-        throw error;
+        // Don COD chi bi chi ra khi no giu dung mon gio tu bo chon (het hang, ngung ban) (ADR-120).
+        if (!isSelectionRequired(error)) throw error;
+        const soldOut = (await this.cart.checkoutItems(userId, tx))
+          .filter(
+            (item) =>
+              !item.isSelected &&
+              (item.availability === 'OUT_OF_STOCK' || item.availability === 'INACTIVE'),
+          )
+          .map((item) => ({
+            variantId: item.variantId,
+            name: item.name,
+            variantLabel: item.variantLabel,
+            available: 0,
+          }));
+        const own = soldOut.length
+          ? await this.ownHold(userId, null, new OutOfStockConflict(soldOut), tx)
+          : null;
+        throw own && !(own instanceof OutOfStockConflict) ? own : error;
       }
     });
   }
@@ -375,7 +386,7 @@ export class CheckoutService {
   }
 
   /**
-   * Bao gia doi ma web gui kem dong khach da xac nhan: dong nao nay khong con du ton thi bao
+   * Bao gia doi ma web gui kem dong khach da xac nhan: dong nao gio vua bo chon vi het hang thi bao
    * OUT_OF_STOCK neu ten mon. Dong chi dung de giai thich, khong dung tinh gia (ADR-120).
    */
   private async lostLines(
@@ -385,16 +396,17 @@ export class CheckoutService {
   ) {
     if (!lines?.length) return null;
     const items = await this.cart.checkoutItems(userId, tx);
+    // Mon con chon thi quote da tu bao thieu; chi xet mon gio vua tu bo chon vi het hang, de khach
+    // tu giam so luong o tab khac van nhan QUOTE_CHANGED thay vi "chi con N".
     const short = lines.flatMap((line) => {
       const item = items.find((candidate) => candidate.variantId === line.variantId);
-      if (!item || item.availability === 'INACTIVE' || item.availableQuantity === null) return [];
-      if (item.availableQuantity >= line.quantity) return [];
+      if (!item || item.isSelected || item.availability !== 'OUT_OF_STOCK') return [];
       return [
         {
           variantId: item.variantId,
           name: item.name,
           variantLabel: item.variantLabel,
-          available: item.availableQuantity,
+          available: 0,
         },
       ];
     });
