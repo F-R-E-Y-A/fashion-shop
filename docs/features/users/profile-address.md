@@ -8,8 +8,8 @@ owner: Tài
 
 **Chức năng:** Hợp đồng hồ sơ, khu vực hành chính và sổ địa chỉ: quyền, luật dữ liệu, địa chỉ mặc định, đồng thời, ranh giới với đặt hàng.
 
-Đặc tả gốc: PH-01.5 và PH-01.6 trong [uc-ph01-tai-khoan-xac-thuc.md](../../shared/uc-ph01-tai-khoan-xac-thuc.md)
-(nay là UC-01.5, UC-01.6). Chỗ nào khác đặc tả đó, lý do ở [ADR-023](LOG.md#adr-023). Hình dạng đầy đủ của từng
+Đặc tả gốc: PH-01.5 và PH-01.6 trong [uc-ph01-ho-so-dia-chi.md](../../shared/uc-ph01-ho-so-dia-chi.md)
+(theo bộ số PR #26 là UC-01.7, UC-01.8; một số tài liệu cũ ghi UC-01.5, UC-01.6). Chỗ nào khác đặc tả đó, lý do ở [ADR-023](LOG.md#adr-023). Hình dạng đầy đủ của từng
 đường dẫn ở Swagger `/api/docs` (thẻ `users`, `administrative-areas`).
 
 ## Quyền và quyền riêng tư

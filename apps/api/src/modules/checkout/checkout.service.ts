@@ -239,7 +239,13 @@ export class CheckoutService {
   async discount(
     userId: string,
     subtotal: string,
-    items: { variantId: string; price: string; quantity: number }[],
+    items: {
+      variantId: string;
+      categorySlug?: string;
+      parentCategorySlug?: string | null;
+      price: string;
+      quantity: number;
+    }[],
     input: DiscountInput,
   ): Promise<AppliedDiscount | null> {
     if (input.voucherCode && input.promotionId)
@@ -259,11 +265,15 @@ export class CheckoutService {
         const result = await this.promotions.evaluateCart(
           {
             subtotal,
-            items: items.map(({ variantId, price, quantity }) => ({
-              variantId,
-              price: new Decimal(price).toFixed(2),
-              quantity,
-            })),
+            items: items.map(
+              ({ variantId, categorySlug, parentCategorySlug, price, quantity }) => ({
+                variantId,
+                ...(categorySlug ? { categorySlug } : {}),
+                ...(parentCategorySlug ? { parentCategorySlug } : {}),
+                price: new Decimal(price).toFixed(2),
+                quantity,
+              }),
+            ),
           },
           userId,
         );
@@ -1308,6 +1318,10 @@ export class CheckoutService {
       ledger.refunded.plus(amount).gte(payment.amount) ? 'REFUNDED' : 'PARTIALLY_REFUNDED',
       tx,
       actor,
+      {
+        refundedAmount: amount.toFixed(2),
+        ...(input.reason ? { reason: input.reason } : {}),
+      },
     );
     return receipt;
   }

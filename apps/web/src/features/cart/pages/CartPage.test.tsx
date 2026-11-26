@@ -328,4 +328,72 @@ describe('PH-11 Cart storefront', () => {
     await waitFor(() => expect(applyCount).toBe(2));
     await waitFor(() => expect(sessionStorage.getItem('freya_applied_promotion')).toBeNull());
   });
+
+  it('gửi categorySlug/parentCategorySlug và loại bỏ dòng không đủ tồn khỏi evaluateCart', async () => {
+    const cart = fixture();
+    cart.items = [
+      {
+        ...cart.items[0]!,
+        variantId: 'v-ok',
+        categorySlug: 'ao-so-mi',
+        parentCategorySlug: 'ao',
+        canCheckout: true,
+        isSelected: true,
+      },
+      {
+        ...cart.items[0]!,
+        variantId: 'v-short',
+        name: 'Áo thiếu tồn',
+        categorySlug: 'quan-au',
+        parentCategorySlug: 'quan',
+        availability: 'INSUFFICIENT_STOCK',
+        availableQuantity: 1,
+        quantity: 2,
+        canCheckout: false,
+        isSelected: true,
+      },
+    ];
+    cart.total = '898000.00';
+    cart.selectedItemCount = 2;
+
+    let capturedBody: { items?: unknown[] } | null = null;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input).includes('/promotions/evaluate')) {
+          capturedBody = JSON.parse(String(init?.body ?? '{}')) as { items?: unknown[] };
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ subtotal: cart.total, applicablePromotions: [] }),
+          } as Response;
+        }
+        return { ok: true, status: 200, json: async () => cart } as Response;
+      }),
+    );
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter>
+          <CartPage />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await screen.findByText('Áo thử');
+    await waitFor(() => expect(capturedBody).not.toBeNull());
+    expect(capturedBody).toMatchObject({
+      subtotal: '898000.00',
+      items: [
+        {
+          variantId: 'v-ok',
+          categorySlug: 'ao-so-mi',
+          parentCategorySlug: 'ao',
+          price: '449000',
+          quantity: 2,
+        },
+      ],
+    });
+  });
 });

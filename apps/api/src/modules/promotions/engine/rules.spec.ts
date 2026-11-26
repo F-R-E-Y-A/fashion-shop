@@ -167,6 +167,21 @@ describe('Promotion Rules & Specification Pattern', () => {
         ],
       };
       expect(rule.isSatisfiedBy(matchingContext).passed).toBe(true);
+
+      const parentMatchingRule = new CategoryRule(['AO']);
+      const childItemContext: PromotionContext = {
+        ...baseContext,
+        items: [
+          {
+            variantId: 'var-3',
+            categorySlug: 'ao-so-mi',
+            parentCategorySlug: 'ao',
+            price: new Decimal(300000),
+            quantity: 1,
+          },
+        ],
+      };
+      expect(parentMatchingRule.isSatisfiedBy(childItemContext).passed).toBe(true);
     });
 
     it('TimeWindowRule: kiểm tra khung giờ và ngày trong tuần', () => {

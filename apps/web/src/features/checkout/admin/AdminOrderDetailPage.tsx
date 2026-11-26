@@ -353,6 +353,12 @@ function AdminOrderDetail() {
                     <dt>Tiền hàng</dt>
                     <dd>{formatPrice(order.subtotalAmount)}</dd>
                   </div>
+                  {Number(order.discountAmount) > 0 && (
+                    <div>
+                      <dt>Giảm giá</dt>
+                      <dd>−{formatPrice(order.discountAmount)}</dd>
+                    </div>
+                  )}
                   <div>
                     <dt>Vận chuyển</dt>
                     <dd>{formatPrice(order.shippingFeeAmount)}</dd>

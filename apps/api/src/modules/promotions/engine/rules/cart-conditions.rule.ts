@@ -56,7 +56,10 @@ export class CategoryRule implements PromotionRule {
     }
 
     const hasMatchingCategory = context.items.some(
-      (item) => item.categorySlug && this.allowedCategorySlugs.has(item.categorySlug.toLowerCase()),
+      (item) =>
+        (item.categorySlug && this.allowedCategorySlugs.has(item.categorySlug.toLowerCase())) ||
+        (item.parentCategorySlug &&
+          this.allowedCategorySlugs.has(item.parentCategorySlug.toLowerCase())),
     );
 
     if (!hasMatchingCategory) {

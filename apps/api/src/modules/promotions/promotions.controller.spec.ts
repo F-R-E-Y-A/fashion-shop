@@ -43,10 +43,17 @@ describe('PromotionsController (Storefront - UC-07.2)', () => {
     expect(res.discountAmount).toBe('50000');
   });
 
-  it('gọi service.getAvailableVouchers khi lấy danh sách mã cho khách', async () => {
+  it('gọi service.getAvailableVouchers với user?.id khi lấy danh sách mã cho khách', async () => {
     service.getAvailableVouchers.mockResolvedValue([]);
     await controller.getAvailableVouchers();
-    expect(service.getAvailableVouchers).toHaveBeenCalled();
+    expect(service.getAvailableVouchers).toHaveBeenCalledWith(undefined);
+
+    await controller.getAvailableVouchers({
+      id: 'user-1',
+      email: 'test@example.com',
+      roles: ['CUSTOMER'],
+    });
+    expect(service.getAvailableVouchers).toHaveBeenCalledWith('user-1');
   });
 
   it('gọi service.getActivePromotions khi lấy banner khuyến mãi', async () => {

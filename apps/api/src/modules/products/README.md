@@ -38,11 +38,13 @@ Phân hệ khác lấy dữ liệu sản phẩm bằng cách tiêm `ProductsServ
 | `visibleProductSlugs(slugs)` | Bảo, trang đơn (`checkout`) | Đề xuất trên cùng nhánh. Như trên nhưng theo `slug` (không đổi sau khi tạo), vì dòng đơn chỉ giữ bản chụp |
 
 ```ts
-/** Du lieu mot bien the de hien trong gio. Hinh dang hen trong Issue #6 va #7, cong them productSlug. */
+/** Du lieu mot bien the de hien trong gio. Hinh dang hen trong Issue #6 va #7, cong them productSlug va categorySlug. */
 export interface VariantForCart {
   variantId: string;
   productId: string;
   productSlug: string; // de gio hang dan nguoc ve trang chi tiet
+  categorySlug?: string; // de gio hang & checkout danh gia khuyen mai theo danh muc
+  parentCategorySlug?: string | null; // ho tro khop khuyen mai gan o danh muc cha (cay 2 cap)
   name: string; // ten san pham
   variantLabel: string; // "M / Đen"; bo phan mac dinh: mu co FREE ra "Đen", bien the mac dinh ra ""
   price: string; // gia dang ban, chuoi Decimal; salePrice neu co, khong thi listPrice

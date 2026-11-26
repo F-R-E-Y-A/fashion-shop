@@ -8,7 +8,13 @@ import styles from './Promotion.module.css';
 interface BestPromotionBannerProps {
   subtotal: string;
   itemCount: number;
-  items?: { variantId: string; categorySlug?: string; price: string; quantity: number }[];
+  items?: {
+    variantId: string;
+    categorySlug?: string;
+    parentCategorySlug?: string | null;
+    price: string;
+    quantity: number;
+  }[];
   appliedPromotionId?: string;
   onApplyBest: (promo: EvaluatedPromotionItem) => void;
 }
@@ -22,7 +28,10 @@ export function BestPromotionBanner({
 }: BestPromotionBannerProps) {
   const numSubtotal = parseFloat(subtotal) || 0;
   const itemsSignature = (items ?? [])
-    .map((item) => `${item.variantId}:${item.quantity}:${item.price}`)
+    .map(
+      (item) =>
+        `${item.variantId}:${item.quantity}:${item.price}:${item.categorySlug ?? ''}:${item.parentCategorySlug ?? ''}`,
+    )
     .sort()
     .join('|');
 

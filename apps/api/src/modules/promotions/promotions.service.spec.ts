@@ -2,7 +2,12 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import { Decimal } from 'decimal.js';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { DiscountType, PromotionStatus, VoucherStatus } from '../../generated/prisma/enums.js';
+import {
+  DiscountType,
+  OrderStatus,
+  PromotionStatus,
+  VoucherStatus,
+} from '../../generated/prisma/enums.js';
 import type { PrismaService } from '../../infra/prisma/prisma.service.js';
 import { PromotionsService } from './promotions.service.js';
 
@@ -36,8 +41,13 @@ function makePrisma() {
     },
     voucherUsage: {
       count: vi.fn(),
+      findMany: vi.fn().mockResolvedValue([]),
       create: vi.fn(),
       deleteMany: vi.fn(),
+    },
+    order: {
+      count: vi.fn().mockResolvedValue(0),
+      aggregate: vi.fn().mockResolvedValue({ _sum: { totalAmount: null } }),
     },
   };
 
@@ -459,6 +469,23 @@ describe('PromotionsService (UC-07.2 Áp dụng mã giảm giá & UC-10.2 Quản
       expect(res.ok).toBe(true);
       expect(prisma.voucher.delete).toHaveBeenCalledWith({
         where: { id: 'v-unused' },
+      });
+    });
+
+    it('chuyển sang INACTIVE thay vì lỗi 500 nếu phát sinh VoucherUsage đồng thời khi deleteVoucher (P2003)', async () => {
+      prisma.voucher.findUnique.mockResolvedValue({
+        id: 'v-race',
+        _count: { usages: 0 },
+      });
+      prisma.voucher.delete.mockRejectedValue(
+        Object.assign(new Error('Foreign key constraint failed'), { code: 'P2003' }),
+      );
+
+      const res = await service.deleteVoucher('v-race');
+      expect(res.ok).toBe(true);
+      expect(prisma.voucher.update).toHaveBeenCalledWith({
+        where: { id: 'v-race' },
+        data: { status: VoucherStatus.INACTIVE },
       });
     });
   });
@@ -914,6 +941,74 @@ describe('PromotionsService (UC-07.2 Áp dụng mã giảm giá & UC-10.2 Quản
 
       const available = await service.getAvailableVouchers();
       expect(available.map((v) => v.code)).toEqual(['FRESH20']);
+    });
+
+    it('getAvailableVouchers lọc bỏ mã khách đã dùng đủ perUserLimit khi có userId', async () => {
+      prisma.voucher.findMany.mockResolvedValue([
+        {
+          id: 'v-used-up',
+          code: 'USED1',
+          status: VoucherStatus.ACTIVE,
+          discountType: DiscountType.FIXED_AMOUNT,
+          discountValue: new Decimal(20000),
+          maxDiscountAmount: null,
+          minOrderAmount: null,
+          usageLimit: 100,
+          perUserLimit: 1,
+          startsAt: null,
+          endsAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          _count: { usages: 3 },
+        },
+        {
+          id: 'v-still-ok',
+          code: 'STILL2',
+          status: VoucherStatus.ACTIVE,
+          discountType: DiscountType.PERCENTAGE,
+          discountValue: new Decimal(10),
+          maxDiscountAmount: null,
+          minOrderAmount: null,
+          usageLimit: 100,
+          perUserLimit: 2,
+          startsAt: null,
+          endsAt: null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          _count: { usages: 3 },
+        },
+      ]);
+      prisma.voucherUsage.findMany.mockResolvedValue([
+        { voucherId: 'v-used-up' },
+        { voucherId: 'v-still-ok' },
+      ]);
+
+      const available = await service.getAvailableVouchers('user-1');
+      expect(available.map((v) => v.code)).toEqual(['STILL2']);
+      expect(prisma.voucherUsage.findMany).toHaveBeenCalledWith({
+        where: { userId: 'user-1', voucherId: { in: ['v-used-up', 'v-still-ok'] } },
+        select: { voucherId: true },
+      });
+    });
+
+    it('getCustomerMetrics tính cả đơn PARTIALLY_REFUNDED vào lịch sử mua hàng của khách', async () => {
+      prisma.order.count.mockResolvedValue(1);
+      prisma.order.aggregate.mockResolvedValue({ _sum: { totalAmount: new Decimal('2500000') } });
+
+      const metrics = await service.getCustomerMetrics('user-1');
+      expect(metrics.orderCount).toBe(1);
+      expect(metrics.isNewCustomer).toBe(false);
+      expect(metrics.isVipCustomer).toBe(true);
+      expect(prisma.order.count).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            userId: 'user-1',
+            status: {
+              in: expect.arrayContaining([OrderStatus.DELIVERED, OrderStatus.PARTIALLY_REFUNDED]),
+            },
+          }),
+        }),
+      );
     });
   });
 });

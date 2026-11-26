@@ -67,4 +67,42 @@ describe('return-policy (ADR-067)', () => {
     // 100000 - 50000 * 100000 / 500000 = 90000
     expect(result.total.toFixed(2)).toBe('90000.00');
   });
+
+  it('tra ca don co giam gia khong vuot hoac thieu 0.01 do lam tron tung dong doc lap', () => {
+    const threeEqualLines: typeof order = {
+      subtotalAmount: '300000.00',
+      discountAmount: '100000.00',
+      shippingFeeAmount: '30000.00',
+      items: [
+        { id: 'i1', quantity: 1, unitPrice: '100000.00' },
+        { id: 'i2', quantity: 1, unitPrice: '100000.00' },
+        { id: 'i3', quantity: 1, unitPrice: '100000.00' },
+      ],
+    };
+    const allLines = [
+      { orderItemId: 'i1', quantity: 1 },
+      { orderItemId: 'i2', quantity: 1 },
+      { orderItemId: 'i3', quantity: 1 },
+    ];
+
+    const overRounded = refundBreakdown(threeEqualLines, allLines, 'CHANGED_MIND');
+    expect(overRounded.total.toFixed(2)).toBe('200000.00');
+    expect(overRounded.items.map((row) => row.amount.toFixed(2))).toEqual([
+      '66666.67',
+      '66666.67',
+      '66666.66',
+    ]);
+
+    const underRounded = refundBreakdown(
+      { ...threeEqualLines, discountAmount: '200000.00' },
+      allLines,
+      'DEFECTIVE',
+    );
+    expect(underRounded.total.toFixed(2)).toBe('130000.00');
+    expect(underRounded.items.map((row) => row.amount.toFixed(2))).toEqual([
+      '33333.33',
+      '33333.33',
+      '33333.34',
+    ]);
+  });
 });

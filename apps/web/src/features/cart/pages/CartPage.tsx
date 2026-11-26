@@ -235,8 +235,11 @@ export function CartPage() {
       return;
     }
     const selectedSignature = cart.items
-      .filter((item) => item.isSelected)
-      .map((item) => `${item.variantId}:${item.quantity}:${item.price}`)
+      .filter((item) => item.isSelected && item.canCheckout)
+      .map(
+        (item) =>
+          `${item.variantId}:${item.quantity}:${item.price}:${item.categorySlug ?? ''}:${item.parentCategorySlug ?? ''}`,
+      )
       .sort()
       .join('|');
     const validationKey = `${applied.kind}:${applied.id}:${applied.code ?? ''}:${cart.total}:${cart.selectedItemCount}:${selectedSignature}`;
@@ -260,9 +263,11 @@ export function CartPage() {
           }
         } else if (applied.kind === 'PROMOTION') {
           const selectedItems = cart.items
-            .filter((item) => item.isSelected)
+            .filter((item) => item.isSelected && item.canCheckout)
             .map((item) => ({
               variantId: item.variantId,
+              ...(item.categorySlug ? { categorySlug: item.categorySlug } : {}),
+              ...(item.parentCategorySlug ? { parentCategorySlug: item.parentCategorySlug } : {}),
               price: item.price,
               quantity: item.quantity,
             }));
@@ -355,9 +360,11 @@ export function CartPage() {
             subtotal={cart.total}
             itemCount={cart.selectedItemCount}
             items={cart.items
-              .filter((item) => item.isSelected)
+              .filter((item) => item.isSelected && item.canCheckout)
               .map((item) => ({
                 variantId: item.variantId,
+                ...(item.categorySlug ? { categorySlug: item.categorySlug } : {}),
+                ...(item.parentCategorySlug ? { parentCategorySlug: item.parentCategorySlug } : {}),
                 price: item.price,
                 quantity: item.quantity,
               }))}

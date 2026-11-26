@@ -193,8 +193,9 @@ export class PromotionsService {
 
   /**
    * Lay danh sach cac voucher dang ACTIVE va con hieu luc (cho khach hang xem/chon nhanh).
+   * Khi da dang nhap (`userId`), loai bo cac ma khach da dung het gioi han `perUserLimit`.
    */
-  async getAvailableVouchers(): Promise<VoucherResponse[]> {
+  async getAvailableVouchers(userId?: string): Promise<VoucherResponse[]> {
     const now = new Date();
     const vouchers = await this.prisma.voucher.findMany({
       where: {
@@ -211,8 +212,35 @@ export class PromotionsService {
       take: 50,
     });
 
-    return vouchers
-      .filter((v) => v.usageLimit === null || v._count.usages < v.usageLimit)
+    const globallyAvailable = vouchers.filter(
+      (v) => v.usageLimit === null || v._count.usages < v.usageLimit,
+    );
+
+    let perUserCounts = new Map<string, number>();
+    if (userId) {
+      const perUserLimitedIds = globallyAvailable
+        .filter((v) => v.perUserLimit !== null)
+        .map((v) => v.id);
+      if (perUserLimitedIds.length > 0) {
+        const userUsages = await this.prisma.voucherUsage.findMany({
+          where: {
+            userId,
+            voucherId: { in: perUserLimitedIds },
+          },
+          select: { voucherId: true },
+        });
+        perUserCounts = userUsages.reduce((counts, row) => {
+          counts.set(row.voucherId, (counts.get(row.voucherId) ?? 0) + 1);
+          return counts;
+        }, new Map<string, number>());
+      }
+    }
+
+    return globallyAvailable
+      .filter(
+        (v) =>
+          !userId || v.perUserLimit === null || (perUserCounts.get(v.id) ?? 0) < v.perUserLimit,
+      )
       .slice(0, 20)
       .map((v) => this.mapVoucherToResponse(v, v._count.usages));
   }
@@ -655,6 +683,19 @@ export class PromotionsService {
     });
   }
 
+  private async deactivateUsedVoucher(id: string): Promise<{ ok: boolean; message: string }> {
+    // Bảo vệ lịch sử: Voucher đã có đơn hàng dùng thì chuyển sang INACTIVE thay vì xóa cứng
+    await this.prisma.voucher.update({
+      where: { id },
+      data: { status: VoucherStatus.INACTIVE },
+    });
+    return {
+      ok: true,
+      message:
+        'Mã giảm giá đã có lượt sử dụng trong đơn hàng, hệ thống đã chuyển trạng thái sang ngưng hoạt động (INACTIVE) để bảo vệ toàn vẹn dữ liệu.',
+    };
+  }
+
   async deleteVoucher(id: string): Promise<{ ok: boolean; message: string }> {
     const voucher = await this.prisma.voucher.findUnique({
       where: { id },
@@ -668,20 +709,27 @@ export class PromotionsService {
     }
 
     if (voucher._count.usages > 0) {
-      // Bảo vệ lịch sử: Voucher đã có đơn hàng dùng thì chuyển sang INACTIVE thay vì xóa cứng
-      await this.prisma.voucher.update({
-        where: { id },
-        data: { status: VoucherStatus.INACTIVE },
-      });
-      return {
-        ok: true,
-        message:
-          'Mã giảm giá đã có lượt sử dụng trong đơn hàng, hệ thống đã chuyển trạng thái sang ngưng hoạt động (INACTIVE) để bảo vệ toàn vẹn dữ liệu.',
-      };
+      return this.deactivateUsedVoucher(id);
     }
 
-    await this.prisma.voucher.delete({ where: { id } });
-    return { ok: true, message: 'Đã xóa mã giảm giá thành công' };
+    try {
+      await this.prisma.voucher.delete({ where: { id } });
+      return { ok: true, message: 'Đã xóa mã giảm giá thành công' };
+    } catch (err: unknown) {
+      const errorObj =
+        typeof err === 'object' && err !== null ? (err as Record<string, unknown>) : null;
+      if (
+        errorObj?.code === 'P2003' ||
+        (typeof errorObj?.message === 'string' &&
+          errorObj.message.includes('Foreign key constraint'))
+      ) {
+        return this.deactivateUsedVoucher(id);
+      }
+      if (errorObj?.code === 'P2025') {
+        throw new NotFoundException('Không tìm thấy mã giảm giá');
+      }
+      throw err;
+    }
   }
 
   // ================= ADMIN: QUẢN LÝ CHƯƠNG TRÌNH KM (UC-10.1) =================
@@ -1064,31 +1112,24 @@ export class PromotionsService {
    * Tính toán các chỉ số khách hàng phục vụ phân khúc (NEW, VIP, LOYAL).
    */
   async getCustomerMetrics(userId: string): Promise<CustomerMetrics> {
+    const qualifiedStatuses = [
+      OrderStatus.CONFIRMED,
+      OrderStatus.PROCESSING,
+      OrderStatus.SHIPPED,
+      OrderStatus.DELIVERED,
+      OrderStatus.PARTIALLY_REFUNDED,
+    ];
     const [orderCount, sumAggregate] = await Promise.all([
       this.prisma.order.count({
         where: {
           userId,
-          status: {
-            in: [
-              OrderStatus.CONFIRMED,
-              OrderStatus.PROCESSING,
-              OrderStatus.SHIPPED,
-              OrderStatus.DELIVERED,
-            ],
-          },
+          status: { in: qualifiedStatuses },
         },
       }),
       this.prisma.order.aggregate({
         where: {
           userId,
-          status: {
-            in: [
-              OrderStatus.CONFIRMED,
-              OrderStatus.PROCESSING,
-              OrderStatus.SHIPPED,
-              OrderStatus.DELIVERED,
-            ],
-          },
+          status: { in: qualifiedStatuses },
         },
         _sum: {
           totalAmount: true,
@@ -1132,6 +1173,7 @@ export class PromotionsService {
       items: dto.items?.map((item) => ({
         variantId: item.variantId,
         categorySlug: item.categorySlug,
+        parentCategorySlug: item.parentCategorySlug ?? undefined,
         price: new Decimal(item.price),
         quantity: item.quantity,
       })),
