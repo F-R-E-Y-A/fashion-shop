@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { formatPrice } from '@/core';
+import { useOptionalAuth } from '@/features/account';
 
 import { evaluateCart, type EvaluatedPromotionItem, promotionKeys } from '../api/promotions.api.js';
 import styles from './Promotion.module.css';
@@ -26,6 +27,7 @@ export function BestPromotionBanner({
   appliedPromotionId,
   onApplyBest,
 }: BestPromotionBannerProps) {
+  const auth = useOptionalAuth();
   const numSubtotal = parseFloat(subtotal) || 0;
   const itemsSignature = (items ?? [])
     .map(
@@ -36,7 +38,7 @@ export function BestPromotionBanner({
     .join('|');
 
   const { data } = useQuery({
-    queryKey: promotionKeys.evaluate(subtotal, itemCount, itemsSignature),
+    queryKey: promotionKeys.evaluate(subtotal, itemCount, itemsSignature, auth?.user?.id),
     queryFn: () => evaluateCart(subtotal, items),
     enabled: numSubtotal > 0 && itemCount > 0,
     staleTime: 30_000,

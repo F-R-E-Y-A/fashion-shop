@@ -127,6 +127,7 @@ export function CheckoutPage() {
       }),
     onSuccess: (order) => {
       removePromotion(); // uu dai da dung cho don nay, khong mang sang don sau
+      void client.invalidateQueries({ queryKey: cartKeys.all });
       navigate(`/don-hang/${order.id}`, { replace: true });
       const url = order.payments.find((p) => p.checkoutUrl)?.checkoutUrl;
       if (url) window.location.assign(url);

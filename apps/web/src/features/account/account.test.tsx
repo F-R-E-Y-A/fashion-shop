@@ -692,5 +692,75 @@ describe('Account authentication (PH3)', () => {
       expect(window.location.href).not.toContain('Password123');
       setItem.mockRestore();
     });
+
+    it('clears cached cart queries and applied promotion on logout without dropping guest promotion on login', async () => {
+      sessionStorage.setItem(
+        'freya_applied_promotion',
+        JSON.stringify({
+          kind: 'VOUCHER',
+          id: 'v1',
+          code: 'CHAOBANMOI',
+          name: 'Mã CHAOBANMOI',
+          discountAmount: '30000',
+          discountType: 'FIXED_AMOUNT',
+        }),
+      );
+      mockFetch(
+        mockResponse({}, 401), // initial guest refresh fails
+        mockResponse(authenticated), // login
+        mockResponse(undefined, 204), // logout
+      );
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      client.setQueryData(['cart', 'current'], {
+        cartId: 'c1',
+        items: [{ variantId: 'v1' }],
+        itemCount: 1,
+      });
+
+      function SessionActions() {
+        const { login, logout, user } = useAuth();
+        return (
+          <div>
+            <span>{user?.email ?? 'guest'}</span>
+            <button
+              type="button"
+              onClick={() => void login({ email: 'customer@example.com', password: 'Password123' })}
+            >
+              Do Login
+            </button>
+            <button type="button" onClick={() => void logout()}>
+              Do Logout
+            </button>
+          </div>
+        );
+      }
+
+      const user = userEvent.setup();
+      render(
+        <QueryClientProvider client={client}>
+          <AuthProvider>
+            <SessionActions />
+          </AuthProvider>
+        </QueryClientProvider>,
+      );
+
+      await screen.findByText('guest');
+      await user.click(screen.getByRole('button', { name: 'Do Login' }));
+      await screen.findByText('customer@example.com');
+      // Khách vãng lai áp mã rồi đăng nhập: vẫn giữ mã ưu đãi và đánh dấu giỏ cũ hết hạn.
+      expect(sessionStorage.getItem('freya_applied_promotion')).not.toBeNull();
+      expect(client.getQueryState(['cart', 'current'])?.isInvalidated).toBe(true);
+
+      client.setQueryData(['cart', 'current'], {
+        cartId: 'c-user',
+        items: [{ variantId: 'v2' }],
+        itemCount: 2,
+      });
+      await user.click(screen.getByRole('button', { name: 'Do Logout' }));
+      await screen.findByText('guest');
+      // Đăng xuất: xóa cache giỏ của người dùng cũ và gỡ mã ưu đãi đã lưu trong sessionStorage.
+      expect(client.getQueryData(['cart', 'current'])).toBeUndefined();
+      expect(sessionStorage.getItem('freya_applied_promotion')).toBeNull();
+    });
   });
 });

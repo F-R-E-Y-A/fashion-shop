@@ -47,8 +47,8 @@ export const promotionKeys = {
   all: ['promotions'] as const,
   availableVouchers: (userId?: string) =>
     [...promotionKeys.all, 'vouchers', 'available', userId ?? 'guest'] as const,
-  evaluate: (subtotal: string, count: number, itemsSignature = '') =>
-    [...promotionKeys.all, 'evaluate', subtotal, count, itemsSignature] as const,
+  evaluate: (subtotal: string, count: number, itemsSignature = '', userId?: string) =>
+    [...promotionKeys.all, 'evaluate', subtotal, count, itemsSignature, userId ?? 'guest'] as const,
   activePromotions: () => [...promotionKeys.all, 'active'] as const,
 };
 
