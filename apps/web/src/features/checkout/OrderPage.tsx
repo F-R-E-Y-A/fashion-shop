@@ -205,8 +205,9 @@ export function OrderPage() {
               )}
               {(order.status === 'REFUNDED' || order.status === 'PARTIALLY_REFUNDED') && (
                 <p className={styles.statusText}>
-                  Shop đã hoàn {formatPrice(String(refunded))} về {gatewayLabel}. Thời gian tiền về
-                  tài khoản tùy ngân hàng hoặc ví.
+                  Shop đã hoàn {formatPrice(String(refunded))} về{' '}
+                  {isCod ? 'tài khoản ngân hàng của bạn' : gatewayLabel}. Thời gian tiền về tài
+                  khoản tùy ngân hàng hoặc ví.
                 </p>
               )}
               {(order.status === 'DELIVERED' || order.status === 'PARTIALLY_REFUNDED') && (

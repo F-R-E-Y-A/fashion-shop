@@ -241,4 +241,108 @@ describe('CheckoutService & OrderAdminService — khóa hai chiều giữa hoàn
     );
     expect(checkoutMock.orders.transition).not.toHaveBeenCalled();
   });
+
+  it('CheckoutService.discount truyền cả categorySlug và parentCategorySlug sang promotions.evaluateCart', async () => {
+    const evaluateCart = vi.fn().mockResolvedValue({
+      subtotal: '200000.00',
+      applicablePromotions: [
+        {
+          promotionId: 'promo-cat',
+          name: 'Giảm danh mục Áo',
+          discountType: 'FIXED_AMOUNT',
+          discountAmount: '30000',
+          finalAmount: '170000',
+        },
+      ],
+      bestPromotion: null,
+    });
+    const checkout = new CheckoutService(
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      { get: vi.fn() } as never,
+      { evaluateCart } as never,
+      {} as never,
+    );
+
+    const applied = await checkout.discount(
+      'user-1',
+      '200000.00',
+      [
+        {
+          variantId: 'var-1',
+          categorySlug: 'ao-so-mi',
+          parentCategorySlug: 'ao',
+          price: '200000',
+          quantity: 1,
+        },
+      ],
+      { promotionId: 'promo-cat' },
+    );
+
+    expect(evaluateCart).toHaveBeenCalledWith(
+      {
+        subtotal: '200000.00',
+        items: [
+          {
+            variantId: 'var-1',
+            categorySlug: 'ao-so-mi',
+            parentCategorySlug: 'ao',
+            price: '200000.00',
+            quantity: 1,
+          },
+        ],
+      },
+      'user-1',
+    );
+    expect(applied).toMatchObject({ kind: 'PROMOTION', id: 'promo-cat', amount: '30000.00' });
+  });
+
+  it('recordManualRefund truyền refundedAmount và reason sang orders.transition để thông báo đầy đủ', async () => {
+    const currentOrder = makeOrder({ status: 'DELIVERED', shipment: null });
+    const txMock = {
+      payment: { findUniqueOrThrow: vi.fn().mockResolvedValue(currentOrder.payments[0]) },
+      order: { findUniqueOrThrow: vi.fn().mockResolvedValue(currentOrder) },
+      paymentTransaction: {
+        findMany: vi.fn().mockResolvedValue([]),
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue({}),
+      },
+      $executeRaw: vi.fn().mockResolvedValue(1),
+    };
+    const ordersMock = { transition: vi.fn().mockResolvedValue(undefined) };
+
+    const checkout = new CheckoutService(
+      {} as never,
+      {} as never,
+      {} as never,
+      ordersMock as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    const receipt = await checkout.recordManualRefund(
+      'pay-1',
+      'admin-1',
+      { amount: '100000.00', reference: 'FT26112601', reason: 'Hoàn COD một phần' },
+      txMock as never,
+    );
+
+    expect(receipt).toBe('REFUND:MANUAL:FT26112601');
+    expect(ordersMock.transition).toHaveBeenCalledWith(
+      'ord-1',
+      'PARTIALLY_REFUNDED',
+      txMock,
+      'admin-1',
+      { refundedAmount: '100000.00', reason: 'Hoàn COD một phần' },
+    );
+  });
 });

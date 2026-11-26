@@ -42,6 +42,10 @@ function measureCrumbs(node: HTMLDivElement | null) {
 
 export function ProductDetailPage() {
   const { slug = '' } = useParams();
+  return <ProductDetailContent key={slug} slug={slug} />;
+}
+
+function ProductDetailContent({ slug }: { slug: string }) {
   /** Bien the nam tren URL (?color=&size=): mo tu ket qua loc se chon san mau do, refresh khong mat. */
   const [searchParams, setSearchParams] = useSearchParams();
   const product = useQuery({

@@ -516,8 +516,8 @@ test riêng của Issue77; chưa rollout DB phát triển. Kế hoạch, log và
 
 **Đánh đổi:** Không thêm cột mới hay migration, giảm rủi ro thay đổi schema DB; yêu cầu client gửi đúng định dạng timestamp mili-giây và xử lý 409 bằng cách tải lại trạng thái mới nhất rồi xác nhận lại.
 
-<a id="adr-060"></a>
-## ADR-060 · Tạo, sửa, đổi cha danh mục hai cấp với khóa dùng chung và idempotency client UUID
+<a id="adr-128"></a>
+## ADR-128 · Tạo, sửa, đổi cha danh mục hai cấp với khóa dùng chung và idempotency client UUID
 
 **Trạng thái:** đề xuất · **Ngày:** 2026-11-14 · **Người đề xuất:** Tài (AI hỗ trợ).
 

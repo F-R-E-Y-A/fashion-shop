@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { LocationProbe } from '../test-support/LocationProbe.js';
@@ -384,5 +384,74 @@ describe('ProductDetailPage (UC-03.4)', () => {
     );
     renderDetail();
     expect(await screen.findByRole('link', { name: 'Về trang chủ' })).toHaveAttribute('href', '/');
+  });
+
+  it('đặt lại lựa chọn biến thể, ảnh và số lượng khi chuyển sang sản phẩm khác trên cùng route', async () => {
+    const secondProduct = {
+      ...detail,
+      id: 'p2',
+      slug: 'san-pham-2',
+      name: 'Sản phẩm thứ hai',
+      colors: [{ code: 'be', name: 'Be', hex: '#d8c3a5' }],
+      images: [{ url: '/be.jpg', alt: 'Be 1', colorCode: 'be' }],
+      variants: [
+        {
+          id: 'v20',
+          sku: 'BE-L',
+          colorCode: 'be',
+          sizeCode: 'L',
+          price: '399000',
+          listPrice: null,
+        },
+      ],
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(String(input));
+        if (url.pathname.endsWith('/related')) return response([]);
+        if (url.pathname.includes('san-pham-2')) return response(secondProduct);
+        return response({
+          ...detail,
+          images: [
+            { url: '/den-1.jpg', alt: 'Đen 1', colorCode: 'den' },
+            { url: '/den-2.jpg', alt: 'Đen 2', colorCode: 'den' },
+          ],
+        });
+      }),
+    );
+
+    function SwitchProductButton() {
+      const navigate = useNavigate();
+      return (
+        <button type="button" onClick={() => navigate('/san-pham/san-pham-2')}>
+          Sang sản phẩm 2
+        </button>
+      );
+    }
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={['/san-pham/mau-thu']}>
+          <SwitchProductButton />
+          <Routes>
+            <Route path="/san-pham/:slug" element={<ProductDetailPage />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    await screen.findByRole('heading', { name: 'Mẫu thử' });
+    fireEvent.click(screen.getByRole('button', { name: 'Tăng số lượng' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Ảnh tiếp theo' }));
+    expect(screen.getByRole('group', { name: 'Số lượng' })).toHaveTextContent('2');
+    expect(screen.getByRole('img', { name: 'Đen 2' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sang sản phẩm 2' }));
+    await screen.findByRole('heading', { name: 'Sản phẩm thứ hai' });
+    expect(screen.getByRole('group', { name: 'Số lượng' })).toHaveTextContent('1');
+    expect(screen.getByRole('img', { name: 'Be 1' })).toHaveAttribute('src', '/be.jpg');
+    expect(screen.getByRole('button', { name: 'Be' })).toHaveAttribute('aria-pressed', 'true');
   });
 });

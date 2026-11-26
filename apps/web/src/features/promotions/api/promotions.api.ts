@@ -45,9 +45,10 @@ export interface EvaluatePromotionsResponse {
 
 export const promotionKeys = {
   all: ['promotions'] as const,
-  availableVouchers: () => [...promotionKeys.all, 'vouchers', 'available'] as const,
-  evaluate: (subtotal: string, count: number, itemsSignature = '') =>
-    [...promotionKeys.all, 'evaluate', subtotal, count, itemsSignature] as const,
+  availableVouchers: (userId?: string) =>
+    [...promotionKeys.all, 'vouchers', 'available', userId ?? 'guest'] as const,
+  evaluate: (subtotal: string, count: number, itemsSignature = '', userId?: string) =>
+    [...promotionKeys.all, 'evaluate', subtotal, count, itemsSignature, userId ?? 'guest'] as const,
   activePromotions: () => [...promotionKeys.all, 'active'] as const,
 };
 
@@ -68,7 +69,13 @@ export const applyVoucher = (
 
 export const evaluateCart = (
   subtotal: string,
-  items?: { variantId: string; categorySlug?: string; price: string; quantity: number }[],
+  items?: {
+    variantId: string;
+    categorySlug?: string;
+    parentCategorySlug?: string | null;
+    price: string;
+    quantity: number;
+  }[],
   signal?: AbortSignal,
 ): Promise<EvaluatePromotionsResponse> =>
   apiRequest<EvaluatePromotionsResponse>('/promotions/evaluate', {

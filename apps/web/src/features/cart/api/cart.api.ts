@@ -4,6 +4,8 @@ export interface CartItem {
   variantId: string;
   productId: string;
   productSlug: string;
+  categorySlug?: string;
+  parentCategorySlug?: string | null;
   name: string;
   variantLabel: string;
   price: string;

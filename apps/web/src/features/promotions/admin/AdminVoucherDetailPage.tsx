@@ -131,6 +131,8 @@ export function AdminVoucherDetailPage() {
     setBaseSnapshot(voucher);
     setExpectedToken(voucher.updatedAt);
     setDirtyFields(new Set());
+    setValidationErrors({});
+    setFormNoticeState(null);
     setCode(voucher.code);
     setStatus(voucher.status);
     setDiscountType(voucher.discountType);

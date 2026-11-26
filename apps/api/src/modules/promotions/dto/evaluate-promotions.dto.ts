@@ -9,6 +9,7 @@ import {
   IsUUID,
   Matches,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -28,6 +29,16 @@ export class CartItemDto {
   @IsString({ message: 'Slug danh mục phải là chuỗi' })
   @IsOptional()
   categorySlug?: string;
+
+  @ApiPropertyOptional({
+    description: 'Slug danh mục cha của sản phẩm (hỗ trợ khớp khuyến mãi gán ở danh mục cha)',
+    example: 'ao',
+    nullable: true,
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsString({ message: 'Slug danh mục cha phải là chuỗi' })
+  parentCategorySlug?: string | null;
 
   @ApiProperty({
     description: 'Đơn giá của sản phẩm tại thời điểm mua (VNĐ)',

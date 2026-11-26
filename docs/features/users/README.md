@@ -12,7 +12,7 @@ owner: Tài
 |---|---|
 | **Người sở hữu** | Tài · module `apps/api/src/modules/users` · bảng `users`, `roles`, `user_roles`, `refresh_tokens`, `audit_logs`, `addresses`, `administrative_areas` trong `prisma/schema/identity.prisma` |
 | **Dòng việc** | PH3 đợt 2 (S3): phân quyền và quản trị người dùng, đã gộp qua [PR #24](https://github.com/F-R-E-Y-A/fashion-shop/pull/24) (`aee345e`). PH4: hồ sơ và sổ địa chỉ phía máy chủ đã gộp qua [PR #25](https://github.com/F-R-E-Y-A/fashion-shop/pull/25) (`8e390c9`); giao diện đã gộp qua [PR #29](https://github.com/F-R-E-Y-A/fashion-shop/pull/29) và [PR #32](https://github.com/F-R-E-Y-A/fashion-shop/pull/32) |
-| **Use case** | UC-02.1 "Quản trị tài khoản và khóa người dùng": đặc tả đề xuất ở [use-cases.md](use-cases.md), mã theo PR #26 chưa gộp. Hồ sơ và địa chỉ: PH-01.5, PH-01.6 trong [uc-ph01](../../shared/uc-ph01-tai-khoan-xac-thuc.md), nay là UC-01.5, UC-01.6. [use-case-index.md](../../shared/use-case-index.md) còn trống |
+| **Use case** | UC-02.1 "Quản trị tài khoản và khóa người dùng": đặc tả đề xuất ở [use-cases.md](use-cases.md). Hồ sơ và địa chỉ: PH-01.5, PH-01.6 trong [uc-ph01-ho-so-dia-chi.md](../../shared/uc-ph01-ho-so-dia-chi.md) (theo bộ số PR #26 là UC-01.7, UC-01.8; tài liệu cũ từng ghi UC-01.5, UC-01.6). Danh mục tổng hợp xem [use-case-index.md](../../shared/use-case-index.md) |
 
 ## Giải quyết việc gì
 

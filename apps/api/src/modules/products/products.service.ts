@@ -47,6 +47,8 @@ export interface VariantForCart {
   variantId: string;
   productId: string;
   productSlug: string;
+  categorySlug?: string;
+  parentCategorySlug?: string | null;
   name: string;
   variantLabel: string;
   price: string;
@@ -560,6 +562,8 @@ export class ProductsService {
       variantId: variant.id,
       productId: variant.productId,
       productSlug: variant.product.slug,
+      categorySlug: category.slug,
+      parentCategorySlug: category.parent?.slug ?? null,
       name: variant.product.name,
       variantLabel: labelParts.join(' / '),
       price: (variant.salePrice ?? variant.listPrice).toString(),

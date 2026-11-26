@@ -895,4 +895,26 @@ describe('UC-14.1 trả hàng trên trang đơn', () => {
     expect(eligibilityCalls()).toHaveLength(0);
     expect(screen.queryByRole('button', { name: 'Yêu cầu trả hàng' })).not.toBeInTheDocument();
   });
+
+  it('đơn COD đã hoàn tiền hiển thị thông báo hoàn về tài khoản ngân hàng thay vì về COD', async () => {
+    request.mockImplementation(async (path: string) => {
+      if (path.includes('return-eligibility')) return eligibility;
+      return {
+        ...order('REFUNDED'),
+        payments: [
+          {
+            id: 'p-cod',
+            gateway: 'COD',
+            reference: 'COD1',
+            status: 'SUCCEEDED',
+            checkoutUrl: null,
+          },
+        ],
+        refundedAmount: '230000.00',
+      };
+    });
+    show('/don-hang/o1');
+    expect(await screen.findByText(/về tài khoản ngân hàng của bạn/i)).toBeInTheDocument();
+    expect(screen.queryByText(/về COD/)).not.toBeInTheDocument();
+  });
 });

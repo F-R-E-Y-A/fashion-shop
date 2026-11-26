@@ -91,7 +91,7 @@ export function AdminVouchersPage() {
     if (v.discountType === 'PERCENTAGE') {
       return (
         <span>
-          {v.discountValue}%
+          {Number(v.discountValue)}%
           {v.maxDiscountAmount ? ` (Tối đa ${formatPrice(v.maxDiscountAmount)})` : ''}
         </span>
       );

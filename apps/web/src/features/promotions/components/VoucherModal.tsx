@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 
 import { formatPrice } from '@/core';
+import { useOptionalAuth } from '@/features/account';
 
 import {
   applyVoucher,
@@ -29,13 +30,14 @@ export function VoucherModal({
   onSelectVoucher,
   onRemoveVoucher,
 }: VoucherModalProps) {
+  const auth = useOptionalAuth();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [inputCode, setInputCode] = useState('');
   const [applying, setApplying] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const { data: vouchers = [], isLoading } = useQuery({
-    queryKey: promotionKeys.availableVouchers(),
+    queryKey: promotionKeys.availableVouchers(auth?.user?.id),
     queryFn: () => getAvailableVouchers(),
     enabled: open,
   });
@@ -162,16 +164,16 @@ export function VoucherModal({
                         <span className={styles.voucherCode}>{v.code}</span>
                         <span className={styles.voucherTypeBadge}>
                           {v.discountType === 'PERCENTAGE'
-                            ? `Giảm ${v.discountValue}%`
+                            ? `Giảm ${Number(v.discountValue)}%`
                             : `Giảm ${formatPrice(v.discountValue)}`}
                         </span>
                       </div>
 
                       <div className={styles.voucherDiscount}>
                         {v.discountType === 'PERCENTAGE' && v.maxDiscountAmount
-                          ? `Giảm ${v.discountValue}% (tối đa ${formatPrice(v.maxDiscountAmount)})`
+                          ? `Giảm ${Number(v.discountValue)}% (tối đa ${formatPrice(v.maxDiscountAmount)})`
                           : v.discountType === 'PERCENTAGE'
-                            ? `Giảm ${v.discountValue}% giá trị đơn`
+                            ? `Giảm ${Number(v.discountValue)}% giá trị đơn`
                             : `Giảm trực tiếp ${formatPrice(v.discountValue)}`}
                       </div>
 

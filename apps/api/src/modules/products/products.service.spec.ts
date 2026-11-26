@@ -27,7 +27,11 @@ const row = (
 });
 
 const cartRow = (overrides?: {
-  category?: { isActive: boolean; parent?: { isActive: boolean } | null };
+  category?: {
+    slug?: string;
+    isActive: boolean;
+    parent?: { slug?: string; isActive: boolean } | null;
+  };
 }) => ({
   id: 'v-1',
   productId: 'p-1',
@@ -44,7 +48,7 @@ const cartRow = (overrides?: {
     category: {
       id: 'cat-1',
       name: 'Áo',
-      slug: 'ao',
+      slug: overrides?.category?.slug ?? 'ao',
       isActive: overrides?.category?.isActive ?? true,
       parent: overrides?.category?.parent !== undefined ? overrides.category.parent : null,
     },
@@ -179,10 +183,31 @@ describe('ProductsService (UC-03.1 catalog)', () => {
       variantId: 'v-1',
       productId: 'p-1',
       productSlug: 'ao-thun-co-tron-basic',
+      categorySlug: 'ao',
+      parentCategorySlug: null,
       name: 'Ao thun co tron basic',
       variantLabel: 'M / Đen',
       price: '149000',
       imageUrl: 'https://example.test/black.jpg',
+      isActive: true,
+    });
+  });
+
+  it('trả về cả categorySlug và parentCategorySlug cho danh mục 2 cấp trong hợp đồng giỏ hàng', async () => {
+    prisma.productVariant.findMany.mockResolvedValue([
+      cartRow({
+        category: {
+          slug: 'ao-so-mi',
+          isActive: true,
+          parent: { slug: 'ao', isActive: true },
+        },
+      }),
+    ]);
+
+    await expect(service.getVariantForCart('v-1')).resolves.toMatchObject({
+      variantId: 'v-1',
+      categorySlug: 'ao-so-mi',
+      parentCategorySlug: 'ao',
       isActive: true,
     });
   });

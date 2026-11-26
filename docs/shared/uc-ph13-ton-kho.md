@@ -1,15 +1,15 @@
-﻿# PH-13 · Tồn kho & Nhập hàng
+---
+title: Tồn kho và nhập hàng — đặc tả nguồn S2
+updated: 2026-11-25
+status: lịch sử, xem thêm docs/features/inventory
+owner: Duy
+---
+# PH-13 · Tồn kho & Nhập hàng
 
-> Chép từ `uc-template.md`. Người viết đặc tả & người viết mã: **Phan Ngọc Duy** (sprint 2).
+**Chức năng:** Đặc tả ban đầu cho tồn kho SKU, nhập điều chỉnh kho, lịch sử biến động và báo khi có hàng trở lại (UC-13.1 đến UC-13.4).
 
-| | |
-|---|---|
-| **Thuộc dòng việc** | PH-13, sprint S2 |
-| **Người viết** | Phan Ngọc Duy (HT-04) |
-| **Tác nhân chính** | Nhân viên, Khách hàng (PH-13.4) |
-| **Tác nhân phụ** | — |
-| **Bảng CSDL** | `INVENTORIES`, `INVENTORY_MOVEMENTS`, `INVENTORY_RESERVATIONS`, `SKUS`, `PRODUCTS`, `PRODUCT_VARIANTS`, `BACK_IN_STOCK_SUBSCRIPTIONS` (nếu có), `USERS` |
-| **Trạng thái** | Đã duyệt |
+> Nguồn Sprint 2 (`PH-13`), tác giả Phan Ngọc Duy; bản triển khai hiện hành xem [docs/features/inventory/use-cases.md](../features/inventory/use-cases.md).
+> **Tác nhân chính:** Nhân viên, Khách hàng (PH-13.4) · **Bảng CSDL:** `INVENTORIES`, `INVENTORY_MOVEMENTS`, `INVENTORY_RESERVATIONS`, `PRODUCT_VARIANTS` · **Trạng thái:** Đã duyệt.
 
 ---
 

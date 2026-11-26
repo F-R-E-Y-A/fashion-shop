@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { promotionKeys } from './api/promotions.api.js';
 import { BestPromotionBanner } from './components/BestPromotionBanner.js';
 import { PromotionField } from './components/PromotionField.js';
 import { VoucherModal } from './components/VoucherModal.js';
@@ -290,5 +291,40 @@ describe('PH-10 Khuyến mãi & Voucher UI (UC-07.2, UC-10.1)', () => {
     );
 
     expect(await screen.findByText(/HSD/)).toBeInTheDocument();
+  });
+
+  it('VoucherModal hiển thị gọn phần trăm giảm khi discountValue từ API là "10.00"', async () => {
+    const decimalVouchers = [
+      {
+        ...sampleVouchers[0]!,
+        discountValue: '10.00',
+      },
+    ];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        if (url.includes('/promotions/vouchers/available')) {
+          return { ok: true, status: 200, json: async () => decimalVouchers } as Response;
+        }
+        return { ok: true, status: 200, json: async () => ({}) } as Response;
+      }),
+    );
+
+    render(
+      <VoucherModal open={true} onClose={vi.fn()} subtotal="500000" onSelectVoucher={vi.fn()} />,
+      { wrapper: wrapper() },
+    );
+
+    expect(await screen.findByText('Giảm 10%')).toBeInTheDocument();
+    expect(screen.queryByText(/10\.00%/)).not.toBeInTheDocument();
+  });
+
+  it('promotionKeys.evaluate phân tách cache theo userId giữa khách vãng lai và từng tài khoản', () => {
+    expect(promotionKeys.evaluate('500000', 2, 'v1:2:250000')).not.toEqual(
+      promotionKeys.evaluate('500000', 2, 'v1:2:250000', 'user-1'),
+    );
+    expect(promotionKeys.evaluate('500000', 2, 'v1:2:250000', 'user-1')).not.toEqual(
+      promotionKeys.evaluate('500000', 2, 'v1:2:250000', 'user-2'),
+    );
   });
 });

@@ -3,6 +3,7 @@ import { Decimal } from 'decimal.js';
 export interface CartItemContext {
   variantId: string;
   categorySlug?: string;
+  parentCategorySlug?: string;
   price: Decimal;
   quantity: number;
 }

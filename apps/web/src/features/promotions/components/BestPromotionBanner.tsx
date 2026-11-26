@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 
 import { formatPrice } from '@/core';
+import { useOptionalAuth } from '@/features/account';
 
 import { evaluateCart, type EvaluatedPromotionItem, promotionKeys } from '../api/promotions.api.js';
 import styles from './Promotion.module.css';
@@ -8,7 +9,13 @@ import styles from './Promotion.module.css';
 interface BestPromotionBannerProps {
   subtotal: string;
   itemCount: number;
-  items?: { variantId: string; categorySlug?: string; price: string; quantity: number }[];
+  items?: {
+    variantId: string;
+    categorySlug?: string;
+    parentCategorySlug?: string | null;
+    price: string;
+    quantity: number;
+  }[];
   appliedPromotionId?: string;
   onApplyBest: (promo: EvaluatedPromotionItem) => void;
 }
@@ -20,14 +27,18 @@ export function BestPromotionBanner({
   appliedPromotionId,
   onApplyBest,
 }: BestPromotionBannerProps) {
+  const auth = useOptionalAuth();
   const numSubtotal = parseFloat(subtotal) || 0;
   const itemsSignature = (items ?? [])
-    .map((item) => `${item.variantId}:${item.quantity}:${item.price}`)
+    .map(
+      (item) =>
+        `${item.variantId}:${item.quantity}:${item.price}:${item.categorySlug ?? ''}:${item.parentCategorySlug ?? ''}`,
+    )
     .sort()
     .join('|');
 
   const { data } = useQuery({
-    queryKey: promotionKeys.evaluate(subtotal, itemCount, itemsSignature),
+    queryKey: promotionKeys.evaluate(subtotal, itemCount, itemsSignature, auth?.user?.id),
     queryFn: () => evaluateCart(subtotal, items),
     enabled: numSubtotal > 0 && itemCount > 0,
     staleTime: 30_000,

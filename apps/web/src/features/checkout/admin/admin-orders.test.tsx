@@ -722,4 +722,18 @@ describe('UC-02.1/AC6, AC8 — bảo vệ dữ liệu admin dùng chung (#57)', 
       'Không thể kết nối tới cổng thanh toán.',
     );
   });
+
+  it('hiển thị dòng Giảm giá trong bảng tổng kết tiền hàng khi đơn có discountAmount > 0', async () => {
+    const discounted = {
+      ...base,
+      subtotalAmount: '250000.00',
+      discountAmount: '50000.00',
+      shippingFeeAmount: '30000.00',
+      totalAmount: '230000.00',
+    };
+    request.mockResolvedValue(discounted);
+    show('/admin/orders/o1');
+    expect(await screen.findByText('Giảm giá')).toBeInTheDocument();
+    expect(screen.getByText(/−50\.000/)).toBeInTheDocument();
+  });
 });

@@ -103,6 +103,9 @@ export function AdminPromotionDetailPage() {
     setInitialSyncedId(data.id);
     setLastKnownData(data);
     setBaseSnapshot(data);
+    setDirtyFields(new Set());
+    setFieldErrors({});
+    setNoticeState(null);
     setName(data.name);
     setDiscountType(data.discountType);
     setDiscountValue(data.discountValue);

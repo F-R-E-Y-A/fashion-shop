@@ -58,7 +58,8 @@ export interface ReturnedLine {
 
 /**
  * Tien hoan (UC-14.2/BR1): don gia luc mua x so luong tra, tru phan giam gia chia theo ti le tien
- * hang; phi giao goc chi hoan khi tra CA don vi loi cua shop. Moi dong lam tron 2 so le.
+ * hang; phi giao goc chi hoan khi tra CA don vi loi cua shop. Moi dong lam tron 2 so le; khi tra
+ * ca don thi bu tru phan du lam tron vao dong cuoi du gia tri de khop dung so thuc thu.
  */
 export function refundBreakdown(
   order: OrderAmounts,
@@ -81,6 +82,23 @@ export function refundBreakdown(
   const wholeOrder = order.items.every(
     (item) => lines.find((line) => line.orderItemId === item.id)?.quantity === item.quantity,
   );
+  if (wholeOrder && items.length > 0) {
+    const expectedMerchandise = Decimal.max(0, subtotal.minus(discount)).toDecimalPlaces(
+      2,
+      Decimal.ROUND_HALF_UP,
+    );
+    const itemsSum = items.reduce((sum, item) => sum.plus(item.amount), new Decimal(0));
+    const residual = expectedMerchandise.minus(itemsSum);
+    if (!residual.isZero()) {
+      for (let i = items.length - 1; i >= 0; i -= 1) {
+        const candidate = items[i]!.amount.plus(residual);
+        if (candidate.gte(0)) {
+          items[i] = { ...items[i]!, amount: candidate };
+          break;
+        }
+      }
+    }
+  }
   const shipping =
     wholeOrder && isShopFault(reason) ? new Decimal(order.shippingFeeAmount) : new Decimal(0);
   const total = items.reduce((sum, item) => sum.plus(item.amount), shipping);

@@ -89,6 +89,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const knownMarkerRef = useRef<SessionMarker>(undefined);
   const refreshInFlight = useRef<RefreshFlight | null>(null);
   const channelRef = useRef<SessionChannel | null>(null);
+  const mergedForUserId = useRef<string | null>(null);
 
   const purgeAccountData = useCallback(() => {
     void queryClient?.cancelQueries({ queryKey: sessionQueryKeys.all });
@@ -100,6 +101,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   /** Mo mot epoch moi: huy moi request cua phien truoc va xoa cache tai khoan cua no. */
   const startEpoch = useCallback(
     (next: AuthResponse | null) => {
+      const previousUserId = userRef.current?.id ?? null;
+      const nextUserId = next?.user.id ?? null;
       epochRef.current += 1;
       sessionAbortRef.current.abort();
       sessionAbortRef.current = new AbortController();
@@ -108,8 +111,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAccessToken(next?.accessToken ?? null);
       setUser(next?.user ?? null);
       purgeAccountData();
+      if (previousUserId && previousUserId !== nextUserId) {
+        // Dang xuat hoac chuyen sang tai khoan khac: xoa han cache gio hang cua nguoi cu trong bo nho
+        // va go uu dai da luu de khong ro ri sang phien moi.
+        mergedForUserId.current = null;
+        void queryClient?.cancelQueries({ queryKey: cartKeys.all });
+        queryClient?.removeQueries({ queryKey: cartKeys.all });
+        void queryClient?.invalidateQueries({ queryKey: cartKeys.all, refetchType: 'active' });
+        try {
+          sessionStorage.removeItem('freya_applied_promotion');
+          window.dispatchEvent(new Event('freya:promotion-changed'));
+        } catch {
+          // sessionStorage khong kha dung
+        }
+      } else if (previousUserId !== nextUserId) {
+        // Khach vang lai / khoi phuc phien sang tai khoan: danh dau gio cu het han de tai lai gio
+        // tai khoan, giu nguyen uu dai khach vua chon trong gio.
+        mergedForUserId.current = null;
+        void queryClient?.invalidateQueries({ queryKey: cartKeys.all });
+      }
     },
-    [purgeAccountData],
+    [purgeAccountData, queryClient],
   );
 
   /** Chi xoa trang thai trong tab nay; khong goi may chu, khong dang xuat phien cua tab khac. */
@@ -206,7 +228,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // xac thuc email, hoac khoi phuc phien). Chay dung mot lan moi phien dang nhap: sau khi gop,
   // guestToken o localStorage bi xoa nen lan sau khong con gi de gop. Gop that bai thi giu
   // nguyen guestToken — mon do van con o gio rieng, khong mat du lieu.
-  const mergedForUserId = useRef<string | null>(null);
   useEffect(() => {
     const userId = user?.id;
     if (!userId || mergedForUserId.current === userId) return;

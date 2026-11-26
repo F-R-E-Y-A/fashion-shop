@@ -1,6 +1,8 @@
 export interface VariantForCart {
   variantId: string;
   productId: string;
+  categorySlug?: string;
+  parentCategorySlug?: string | null;
   name: string;
   variantLabel: string;
   price: string;
@@ -12,6 +14,8 @@ export interface CartItemResponse {
   variantId: string;
   productId: string;
   productSlug: string;
+  categorySlug?: string;
+  parentCategorySlug?: string | null;
   name: string;
   variantLabel: string;
   price: string;

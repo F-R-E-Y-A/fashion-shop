@@ -318,6 +318,7 @@ export function ProductReviews({ slug }: { slug: string }) {
         </>
       )}
       <ReportDialog
+        key={reporting?.id ?? 'closed'}
         review={reporting}
         onClose={() => setReporting(null)}
         onDone={() => {

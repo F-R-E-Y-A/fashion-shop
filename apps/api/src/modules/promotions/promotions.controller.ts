@@ -64,8 +64,8 @@ export class PromotionsController {
     description: 'Trả về các mã voucher hợp lệ để người dùng có thể tham khảo và áp dụng nhanh.',
   })
   @ApiOkResponse({ type: [VoucherResponse] })
-  async getAvailableVouchers(): Promise<VoucherResponse[]> {
-    return this.promotionsService.getAvailableVouchers();
+  async getAvailableVouchers(@CurrentUser() user?: CurrentUserType): Promise<VoucherResponse[]> {
+    return this.promotionsService.getAvailableVouchers(user?.id);
   }
 
   @Get('active')

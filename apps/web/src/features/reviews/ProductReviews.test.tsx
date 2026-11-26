@@ -310,4 +310,37 @@ describe('UC-11.3 khu đánh giá trên trang sản phẩm', () => {
     expect(screen.queryByRole('button', { name: /Hữu ích/ })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Báo cáo' })).not.toBeInTheDocument();
   });
+
+  it('đóng mở hộp thoại báo cáo giữa hai đánh giá khác nhau đặt lại lý do và ghi chú cũ', async () => {
+    stubServer((call) => {
+      if (call.path === '/auth/refresh') return json({ accessToken: 'tok1', user });
+      if (call.path === '/products/ao-thun/reviews/summary') return json(summary);
+      if (call.path.startsWith('/products/ao-thun/reviews?')) {
+        return json(
+          page([
+            review({ id: 'r1', reviewerName: 'Khách A' }),
+            review({ id: 'r2', reviewerName: 'Khách B' }),
+          ]),
+        );
+      }
+    });
+    show({ signedIn: true });
+    fireEvent.click(screen.getByRole('button', { name: 'Xem đánh giá' }));
+
+    const reportButtons = await screen.findAllByRole('button', { name: 'Báo cáo' });
+    fireEvent.click(reportButtons[0]!);
+    const firstDialog = screen.getByRole('dialog');
+    fireEvent.click(within(firstDialog).getByRole('radio', { name: 'Lộ thông tin cá nhân' }));
+    fireEvent.change(within(firstDialog).getByRole('textbox', { name: /Ghi chú thêm/ }), {
+      target: { value: 'Ghi chú cho đánh giá 1' },
+    });
+    fireEvent.click(within(firstDialog).getByRole('button', { name: 'Hủy' }));
+
+    fireEvent.click(reportButtons[1]!);
+    const secondDialog = screen.getByRole('dialog');
+    expect(within(secondDialog).getByRole('textbox', { name: /Ghi chú thêm/ })).toHaveValue('');
+    expect(
+      within(secondDialog).getByRole('radio', { name: 'Lộ thông tin cá nhân' }),
+    ).not.toBeChecked();
+  });
 });
